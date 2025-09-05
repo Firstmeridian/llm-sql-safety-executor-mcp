@@ -1,5 +1,55 @@
 
 import sqlparse
+import os
+from dotenv import load_dotenv
+from sqlalchemy import create_engine, text
+from sqlalchemy.exc import SQLAlchemyError
+
+# Load environment variables from .env file
+load_dotenv()
+
+# Create a database engine. The engine is created once when the module is loaded.
+# The connection string can be adapted for other databases like PostgreSQL.
+DB_USER = os.getenv("DB_USER")
+DB_PASSWORD = os.getenv("DB_PASSWORD")
+DB_HOST = os.getenv("DB_HOST")
+DB_NAME = os.getenv("DB_NAME")
+DATABASE_URL = f"mysql+mysqlconnector://{DB_USER}:{DB_PASSWORD}@{DB_HOST}/{DB_NAME}"
+
+try:
+    engine = create_engine(DATABASE_URL, pool_pre_ping=True)
+except ImportError:
+    print("Error: mysql-connector-python is not installed. Please install it using: pip install mysql-connector-python")
+    engine = None
+
+def execute_sql(sql_query: str) -> list | str:
+    """
+    Executes a SQL query after checking if it is safe, using SQLAlchemy for connection pooling.
+
+    Args:
+        sql_query: The SQL query to execute.
+
+    Returns:
+        A list of tuples representing the rows of the result, or an error message string.
+    """
+    if not engine:
+        return "Error: Database engine could not be initialized. Please check your installation."
+
+    if not is_sql_safe(sql_query):
+        return "Error: Only SELECT queries are allowed."
+
+    try:
+        with engine.connect() as connection:
+            result = connection.execute(text(sql_query))
+            rows = result.fetchall()
+            # The result object is a cursor-like object, so we can get column names from its keys.
+            # column_names = result.keys()
+            # result_dicts = [dict(zip(column_names, row)) for row in rows]
+            return rows
+    except SQLAlchemyError as e:
+        return f"Database Error: {e}"
+    except Exception as e:
+        return f"An unexpected error occurred: {e}"
 
 def is_sql_safe(sql_query: str) -> bool:
     """
@@ -27,10 +77,45 @@ def is_sql_safe(sql_query: str) -> bool:
 
 # Example usage:
 if __name__ == '__main__':
-    safe_query = "SELECT * FROM users WHERE id = 1"
+    # Note: To run this example, you need to have a MySQL database running
+    # and have the .env file configured with your database credentials.
+    # You also need to install the required libraries:
+    # pip install sqlalchemy mysql-connector-python python-dotenv
+
+    if not engine:
+        exit()
+
+    safe_query = "SELECT * FROM users LIMIT 1"
     unsafe_query = "DELETE FROM users WHERE id = 1"
-    malformed_query = "SELECT * FROM"
 
     print(f"Is '{safe_query}' safe? {is_sql_safe(safe_query)}")
     print(f"Is '{unsafe_query}' safe? {is_sql_safe(unsafe_query)}")
-    print(f"Is '{malformed_query}' safe? {is_sql_safe(malformed_query)}")
+
+    print("\n--- Testing SQL Execution ---")
+    # Create a dummy 'users' table for testing if it doesn't exist
+    try:
+        with engine.connect() as connection:
+            connection.execute(text("""
+                CREATE TABLE IF NOT EXISTS users (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    name VARCHAR(255)
+                )
+            """))
+            # Check if table is empty before inserting
+            result = connection.execute(text("SELECT COUNT(*) FROM users"))
+            if result.scalar_one() == 0:
+                # Use a transaction to insert data
+                with connection.begin():
+                    connection.execute(text("INSERT INTO users (name) VALUES ('Alice'), ('Bob')"))
+    except SQLAlchemyError as e:
+        print(f"Database setup for example failed: {e}")
+        print("Please ensure your database is running and .env is configured correctly.")
+        exit()
+
+    print(f"\nExecuting safe query: '{safe_query}'")
+    result = execute_sql(safe_query)
+    print(f"Result: {result}")
+
+    print(f"\nExecuting unsafe query: '{unsafe_query}'")
+    result = execute_sql(unsafe_query)
+    print(f"Result: {result}")
