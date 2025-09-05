@@ -92,3 +92,6 @@ env/
 
 # mypy
 .mypy_cache/
+
+# Gemini CLI conversation logs
+gemini_conversation.md
