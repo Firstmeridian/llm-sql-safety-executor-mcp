@@ -85,28 +85,27 @@ if __name__ == '__main__':
     if not engine:
         exit()
 
-    safe_query = "SELECT * FROM users LIMIT 1"
-    unsafe_query = "DELETE FROM users WHERE id = 1"
+    safe_query = "SELECT * FROM test_users LIMIT 1"
+    unsafe_query = "DELETE FROM test_users WHERE id = 1"
 
     print(f"Is '{safe_query}' safe? {is_sql_safe(safe_query)}")
     print(f"Is '{unsafe_query}' safe? {is_sql_safe(unsafe_query)}")
 
     print("\n--- Testing SQL Execution ---")
-    # Create a dummy 'users' table for testing if it doesn't exist
+    # Create a dummy 'test_users' table for testing if it doesn't exist
     try:
         with engine.connect() as connection:
-            connection.execute(text("""
-                CREATE TABLE IF NOT EXISTS users (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
-                    name VARCHAR(255)
-                )
-            """))
-            # Check if table is empty before inserting
-            result = connection.execute(text("SELECT COUNT(*) FROM users"))
-            if result.scalar_one() == 0:
-                # Use a transaction to insert data
-                with connection.begin():
-                    connection.execute(text("INSERT INTO users (name) VALUES ('Alice'), ('Bob')"))
+            with connection.begin(): # Start a single transaction for setup
+                connection.execute(text("""
+                    CREATE TABLE IF NOT EXISTS test_users (
+                        id INT AUTO_INCREMENT PRIMARY KEY,
+                        name VARCHAR(255)
+                    )
+                """))
+                # Check if table is empty before inserting
+                result = connection.execute(text("SELECT COUNT(*) FROM test_users"))
+                if result.scalar_one() == 0:
+                    connection.execute(text("INSERT INTO test_users (name) VALUES ('Alice'), ('Bob')"))
     except SQLAlchemyError as e:
         print(f"Database setup for example failed: {e}")
         print("Please ensure your database is running and .env is configured correctly.")
@@ -119,3 +118,4 @@ if __name__ == '__main__':
     print(f"\nExecuting unsafe query: '{unsafe_query}'")
     result = execute_sql(unsafe_query)
     print(f"Result: {result}")
+
