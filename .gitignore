@@ -95,3 +95,10 @@ env/
 
 # Gemini CLI conversation logs
 gemini_conversation.md
+
+# MCP server logs
+mcp_server.log
+
+# Temporary test files
+/tmp/
+test_*.tmp

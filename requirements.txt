@@ -2,3 +2,4 @@ sqlparse
 python-dotenv
 SQLAlchemy
 mysql-connector-python
+mcp
