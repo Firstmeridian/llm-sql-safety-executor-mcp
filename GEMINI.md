@@ -4,23 +4,37 @@
 
 This project is a Python-based tool designed to allow Large Language Models (LLMs) to safely execute SQL queries. It provides functions to first validate a given SQL query to ensure it is read-only (i.e., only `SELECT` statements are allowed) and then to execute the validated query against a database.
 
+**NEW: MCP Service Implementation** - The project now includes a Model Context Protocol (MCP) service that wraps the original functionality, providing a standardized interface for AI models to interact with the SQL safety checker.
+
 The primary technologies used are:
 - **Python** as the programming language.
 - **sqlparse** for SQL query validation.
 - **SQLAlchemy** for database connection and execution, using a connection pool.
 - **mysql-connector-python** as the database driver for MySQL.
 - **python-dotenv** for managing database credentials through a `.env` file.
+- **fastMCP** for creating the MCP service implementation.
 
 ## Key Files
 
 *   `sql_safety_checker.py`: The core logic of the project resides here. It contains:
     *   `is_sql_safe(sql_query)`: A function that checks if a SQL query contains only `SELECT` statements.
     *   `execute_sql(sql_query)`: A function that first validates the query using `is_sql_safe` and then executes it against the database.
-*   `requirements.txt`: Lists all the necessary Python packages for this project.
+*   `mcp_sql_server.py`: **NEW** - MCP (Model Context Protocol) server implementation that wraps the SQL safety checker functionality:
+    *   `validate_sql_query()`: MCP tool for validating SQL queries
+    *   `execute_safe_sql()`: MCP tool for executing safe SQL queries
+    *   `get_server_info()`: MCP tool for retrieving server information
+    *   `check_database_connection()`: MCP tool for testing database connectivity
+*   `test_mcp_functions.py`: **NEW** - Test script to verify MCP functions work correctly
+*   `mcp_config.json`: **NEW** - Configuration file for MCP client integration
+*   `Dockerfile`: **NEW** - Docker configuration for containerized deployment
+*   `.env.example`: **NEW** - Example environment configuration file
+*   `requirements.txt`: Lists all the necessary Python packages for this project (now includes fastMCP).
 *   `.gitignore`: A standard Python `.gitignore` file to exclude unnecessary files from version control.
 *   `GEMINI.md`: This file, providing context for the Gemini CLI.
 
 ## Building and Running
+
+### Traditional Usage (Original)
 
 1.  **Install Dependencies:**
     ```bash
@@ -41,6 +55,128 @@ The primary technologies used are:
     ```bash
     python sql_safety_checker.py
     ```
+
+### MCP Service Usage (New)
+
+The project now supports running as an MCP (Model Context Protocol) service, which provides a standardized way for AI models to interact with the SQL safety checker.
+
+1.  **Install Dependencies (including fastMCP):**
+    ```bash
+    pip install -r requirements.txt
+    ```
+
+2.  **Configure Environment:**
+    Copy the example environment file and configure it:
+    ```bash
+    cp .env.example .env
+    # Edit .env with your actual database credentials
+    ```
+
+3.  **Run the MCP Server:**
+    ```bash
+    python mcp_sql_server.py
+    ```
+
+4.  **Test MCP Functions:**
+    ```bash
+    python test_mcp_functions.py
+    ```
+
+5.  **Docker Deployment:**
+    ```bash
+    docker build -t sql-safety-checker-mcp .
+    docker run --env-file .env sql-safety-checker-mcp
+    ```
+
+### MCP Client Integration
+
+To integrate with an MCP-compatible AI system, use the provided configuration:
+
+```json
+{
+  "mcpServers": {
+    "sql-safety-checker": {
+      "command": "python",
+      "args": ["mcp_sql_server.py"],
+      "env": {
+        "DB_USER": "${DB_USER}",
+        "DB_PASSWORD": "${DB_PASSWORD}",
+        "DB_HOST": "${DB_HOST}",
+        "DB_NAME": "${DB_NAME}"
+      }
+    }
+  }
+}
+```
+
+## MCP Conversion: Feasibility and Benefits
+
+### Feasibility Assessment
+
+The conversion of this SQL safety checker tool to an MCP (Model Context Protocol) service has been successfully implemented and is **highly feasible**. The implementation leverages:
+
+1. **FastMCP Framework**: Provides a simple, decorator-based approach to creating MCP services
+2. **Existing Codebase**: Minimal changes required to the original SQL safety checker logic
+3. **Standardized Protocol**: MCP provides a well-defined interface for AI-tool interaction
+4. **Python Ecosystem**: Full compatibility with existing Python dependencies
+
+### Key Benefits of MCP Implementation
+
+#### 1. **Standardized Interface**
+- Provides a consistent API for AI models to interact with SQL tools
+- Follows MCP protocol specifications for reliable integration
+- Supports multiple transport mechanisms (STDIO, HTTP, SSE)
+
+#### 2. **Enhanced Security**
+- Clear separation between AI model and database operations
+- Structured error handling and validation
+- Controlled access through MCP tool permissions
+
+#### 3. **Improved Scalability**
+- Can be deployed as a standalone service
+- Supports multiple concurrent AI model connections
+- Container-ready with Docker support
+
+#### 4. **Better Integration**
+- Compatible with MCP-enabled AI platforms and tools
+- Easy to integrate into existing AI workflows
+- Supports configuration through standard MCP client configs
+
+#### 5. **Maintainability**
+- Clean separation of concerns between business logic and protocol handling
+- Structured tool definitions with proper typing
+- Comprehensive error handling and logging
+
+#### 6. **Extensibility**
+- Easy to add new SQL-related tools to the MCP server
+- Supports additional database types through simple configuration
+- Can be extended with more sophisticated validation rules
+
+### Available MCP Tools
+
+The MCP service provides four main tools:
+
+1. **`validate_sql_query`**: Validates SQL queries for safety (SELECT-only)
+2. **`execute_safe_sql`**: Executes validated SQL queries against the database
+3. **`get_server_info`**: Provides information about server capabilities
+4. **`check_database_connection`**: Tests database connectivity and configuration
+
+### Deployment Options
+
+- **Development**: Direct Python execution with STDIO transport
+- **Production**: Docker container with environment variable configuration
+- **Cloud**: Containerized deployment on cloud platforms
+- **Local**: Integration with local AI development environments
+
+### Recommendation
+
+The MCP conversion is **highly recommended** for organizations wanting to:
+- Integrate SQL safety checking into AI workflows
+- Provide secure database access for AI applications
+- Scale SQL validation across multiple AI models
+- Maintain consistent interfaces for database operations
+
+The implementation preserves all original functionality while adding the benefits of a standardized AI-tool interaction protocol.
 
 ## Development Conventions
 
