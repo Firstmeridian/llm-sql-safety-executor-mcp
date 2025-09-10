@@ -128,96 +128,23 @@ The service exposes four standardized MCP tools:
 
 ## Benefits Achieved
 
-### Operational Benefits
-- **Improved Scalability**: Single server supports multiple LLM clients (vs. N separate connections)
-- **Enhanced Security**: Service isolation and centralized access control
-- **Resource Efficiency**: Shared connection pooling reduces database load by ~60%
-- **Simplified Maintenance**: Centralized updates and monitoring
-
-### Development Benefits
-- **Standardized Integration**: Consistent API across AI platforms
-- **Faster Development**: 25% reduction in integration time for new applications
-- **Better Testing**: Independent testing of database and AI components
-- **Code Reusability**: Shared logic across multiple projects
-
-### Technical Benefits
-- **Performance**: <10ms additional latency (negligible for database operations)
-- **Reliability**: Centralized error handling and fault isolation
-- **Monitoring**: Single point for database operation observability
-- **Flexibility**: Support for multiple AI model types and platforms
+- 🛡️ Enhanced security: Isolated server environment with query validation
+- 📊 Standardized interface: Fully MCP-compliant for broad LLM compatibility
+- ⚡ Better performance: SQLAlchemy connection pooling and optional async operations
+- 🔌 Universal integration: Works with Claude Desktop, ChatGPT (with MCP), and custom apps
+- 📈 Scalability: Supports multiple concurrent LLM clients
+- 🔄 Backward compatibility: Original functions remain importable and unchanged
+- 📚 Full documentation: Comprehensive guides for deployment and integration
 
 ## Testing Results
 
-### Functional Testing
-- ✅ **SQL Validation**: 100% accuracy in detecting unsafe queries
-- ✅ **Query Execution**: All SELECT operations execute correctly
-- ✅ **Error Handling**: Proper error responses for invalid queries and connection issues
-- ✅ **Connection Management**: Stable performance under concurrent load
+All functionality has been thoroughly verified:
 
-### Performance Testing
-- ✅ **Latency**: Average 5-8ms MCP overhead (acceptable for database operations)
-- ✅ **Throughput**: Supports 100+ concurrent connections
-- ✅ **Memory Usage**: 50% reduction vs. multiple direct-call instances
-- ✅ **Connection Pooling**: Efficient resource utilization verified
-
-### Integration Testing
-- ✅ **MCP Protocol Compliance**: Full compatibility with MCP specifications
-- ✅ **Environment Configuration**: Proper handling of missing/invalid credentials
-- ✅ **Service Lifecycle**: Clean startup/shutdown with proper resource cleanup
-
-## Migration Path
-
-### Phase 1: Setup and Validation (Week 1)
-1. **Environment Setup**
-   ```bash
-   pip install -r requirements.txt
-   cp .env.example .env
-   # Configure database credentials in .env
-   ```
-
-2. **Validation Testing**
-   ```bash
-   python test_mcp_functions.py
-   ```
-
-### Phase 2: Parallel Deployment (Week 2)
-1. **Start MCP Server**
-   ```bash
-   python start_server.py
-   ```
-
-2. **Configure MCP Client**
-   ```json
-   {
-     "mcpServers": {
-       "sql-safety-checker": {
-         "command": "python",
-         "args": ["start_server.py"],
-         "env": {
-           "DB_USER": "${DB_USER}",
-           "DB_PASSWORD": "${DB_PASSWORD}",
-           "DB_HOST": "${DB_HOST}",
-           "DB_NAME": "${DB_NAME}"
-         }
-       }
-     }
-   }
-   ```
-
-### Phase 3: Gradual Migration (Week 3-4)
-1. **Feature Flag Implementation**: Enable MCP tools for specific AI applications
-2. **Performance Monitoring**: Track latency and error rates
-3. **User Feedback**: Gather input from development teams
-
-### Phase 4: Full Migration (Week 5-6)
-1. **Complete Transition**: Migrate all applications to MCP interface
-2. **Legacy Cleanup**: Remove direct function call implementations
-3. **Documentation Update**: Finalize migration guides and best practices
-
-### Rollback Strategy
-- **Feature Flags**: Immediate rollback to direct calls if needed
-- **Preserved Codebase**: Original functions remain unchanged for emergency use
-- **Monitoring**: Real-time alerts for service health and performance
+- ✅ Safe SELECT queries: correctly validated and executed
+- ❌ Unsafe queries (DELETE, INSERT, UPDATE, DROP): blocked by the safety layer
+- 🛡️ Safety enforcement: operates as designed
+- 📋 Tool registration: all tools registered successfully and callable
+- 🔄 JSON responses: well-structured and consistent
 
 ## Quick Start
 
@@ -250,6 +177,37 @@ python start_server.py
 python test_mcp_functions.py
 ```
 
+### Configure MCP Client
+Add the server to your MCP-compatible client configuration. For example, in Claude Desktop or other MCP clients:
+
+```json
+{
+  "mcpServers": {
+    "sql-safety-checker": {
+      "command": "python",
+      "args": ["start_server.py"],
+      "env": {
+        "DB_USER": "${DB_USER}",
+        "DB_PASSWORD": "${DB_PASSWORD}",
+        "DB_HOST": "${DB_HOST}",
+        "DB_NAME": "${DB_NAME}"
+      }
+    }
+  }
+}
+```
+
+- For ChatGPT (MCP-enabled) and other clients, provide the same command/args and environment in the client’s MCP server settings.
+- If you are using a `.env` file with `python-dotenv`, the `env` block may be optional.
+
+## Migration Path
+
+Existing users can continue using the original functions without any changes:
+
+```python
+from sql_safety_checker import is_sql_safe, execute_sql  # Still works exactly as before
+```
+
 ## Configuration
 
 ### Required Environment Variables
@@ -261,7 +219,7 @@ DB_NAME=your_database_name
 ```
 
 ### MCP Client Integration
-See `mcp_config.json` for complete client configuration example.
+See `mcp_config.json` for a complete client configuration example.
 
 ## Safety Features
 
@@ -300,4 +258,4 @@ For technical issues, feature requests, or questions:
 
 ---
 
-*This project demonstrates the successful conversion from direct LLM function calls to a standardized MCP service, providing improved scalability, security, and maintainability for AI-driven database operations.*
+*This project demonstrates the successful conversion from direct LLM function calls to a standardized MCP service, providing improved scalability, security, and maintainability for AI-driven data workflows.*
