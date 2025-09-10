@@ -189,20 +189,5 @@ def check_database_connection() -> Dict[str, Any]:
             "error": str(e)
         }
 
-def main():
-    """Main function to run the MCP server."""
-    logger.info("Starting SQL Safety Checker MCP Server...")
-    
-    # Check if required environment variables are set
-    required_env_vars = ["DB_USER", "DB_PASSWORD", "DB_HOST", "DB_NAME"]
-    missing_vars = [var for var in required_env_vars if not os.getenv(var)]
-    
-    if missing_vars:
-        logger.warning(f"Missing environment variables: {missing_vars}")
-        logger.warning("Please ensure your .env file is configured correctly")
-    
-    # Run the MCP server
-    mcp.run()
-
-if __name__ == "__main__":
-    main()
+# Note: Server startup is handled by start_server.py
+# This module focuses on MCP tool definitions and functionality

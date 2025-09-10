@@ -2,7 +2,7 @@
   "mcpServers": {
     "sql-safety-checker": {
       "command": "python",
-      "args": ["mcp_sql_server.py"],
+      "args": ["start_server.py"],
       "env": {
         "DB_USER": "${DB_USER}",
         "DB_PASSWORD": "${DB_PASSWORD}",
