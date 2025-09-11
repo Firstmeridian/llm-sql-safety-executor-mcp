@@ -6,25 +6,25 @@ A Python-based tool that enables Large Language Models (LLMs) to safely execute 
 
 This project has been transformed from a direct function-call approach to a standardized MCP service architecture, providing:
 
-- **Service-Oriented Architecture**: Converted direct LLM function calls to a standalone MCP server
-- **Standardized Protocol**: Implemented MCP tools for consistent AI model integration
-- **Enhanced Separation of Concerns**: Split server startup logic into dedicated `start_server.py`
-- **Improved Scalability**: Single server instance supports multiple concurrent LLM clients
-- **Better Security**: Service isolation and controlled access through MCP protocol
+- Service-Oriented Architecture: Converted direct LLM function calls to a standalone MCP server
+- Standardized Protocol: Implemented MCP tools for consistent AI model integration
+- Enhanced Separation of Concerns: Split server startup logic into dedicated `start_server.py`
+- Improved Scalability: Single server instance supports multiple concurrent LLM clients
+- Better Security: Service isolation and controlled access through MCP protocol
 
 ## Problem Statement
 
 ### Original Challenge
 Traditional LLM-database integrations face several limitations:
-- **Tight Coupling**: Database logic intertwined with LLM interaction code
-- **Scalability Issues**: Each LLM instance requires separate database connections
-- **Security Concerns**: Direct access to database functions without proper isolation
-- **Maintenance Overhead**: Changes require updates across multiple LLM implementations
-- **Limited Reusability**: Platform-specific implementations difficult to share
+- Tight Coupling: Database logic intertwined with LLM interaction code
+- Scalability Issues: Each LLM instance requires separate database connections
+- Security Concerns: Direct access to database functions without proper isolation
+- Maintenance Overhead: Changes require updates across multiple LLM implementations
+- Limited Reusability: Platform-specific implementations difficult to share
 
 ### Core Requirements
 - Enable safe SQL query execution for AI models
-- Ensure only `SELECT` statements are allowed
+- Ensure only SELECT statements are allowed
 - Provide consistent interface across different AI platforms
 - Maintain high performance and reliability
 - Support multiple concurrent AI model connections
@@ -42,33 +42,33 @@ LLM → Direct Function       LLM → MCP Client → MCP Server → Database
 
 ### Key Components
 
-1. **`start_server.py`**: Server startup and environment validation
-2. **`mcp_sql_server.py`**: Core MCP tool definitions and functionality  
-3. **`sql_safety_checker.py`**: Original validation and execution logic (unchanged)
-4. **`test_mcp_functions.py`**: Comprehensive testing suite
+1. `start_server.py`: Server startup and environment validation
+2. `mcp_sql_server.py`: Core MCP tool definitions and functionality
+3. `sql_safety_checker.py`: Original validation and execution logic (unchanged)
+4. `test_mcp_functions.py`: Comprehensive testing suite
 
 ### Implementation Strategy
 
-- **Backward Compatibility**: Original functionality preserved without modification
-- **Incremental Adoption**: Can run alongside existing direct-call implementations
-- **Minimal Dependencies**: Uses FastMCP framework for simplified development
-- **Environment-Based Configuration**: Secure credential management through `.env` files
+- Backward Compatibility: Original functionality preserved without modification
+- Incremental Adoption: Can run alongside existing direct-call implementations
+- Minimal Dependencies: Uses FastMCP framework for simplified development
+- Environment-Based Configuration: Secure credential management through `.env` files
 
 ## MCP Tools Exposed
 
 The service exposes four standardized MCP tools:
 
 ### 1. `validate_sql_query`
-**Purpose**: Validates SQL queries for safety (SELECT-only operations)
+Purpose: Validates SQL queries for safety (SELECT-only operations)
 
-**Input**: 
+Input:
 ```json
 {
   "sql_query": "SELECT name, email FROM users WHERE active = 1"
 }
 ```
 
-**Output**:
+Output:
 ```json
 {
   "is_safe": true,
@@ -80,30 +80,31 @@ The service exposes four standardized MCP tools:
 ```
 
 ### 2. `execute_safe_sql`
-**Purpose**: Executes validated SQL queries against the database
+Purpose: Executes validated SQL queries against the database
 
-**Input**:
+Input:
 ```json
 {
   "sql_query": "SELECT COUNT(*) as total FROM products"
 }
 ```
 
-**Output**:
+Output:
 ```json
 {
   "success": true,
-  "query": "SELECT COUNT(*) as total FROM products", 
+  "query": "SELECT COUNT(*) as total FROM products",
   "message": "Query executed successfully",
-  "data": [{"total": 150}],
+  "data": [[150]],
   "row_count": 1
 }
 ```
+Note: `data` is a list of rows; each row is a tuple-like result (not a dict). Clients needing JSON objects should map rows to field names client-side.
 
 ### 3. `get_server_info`
-**Purpose**: Provides server capabilities and configuration information
+Purpose: Provides server capabilities and configuration information
 
-**Output**:
+Output:
 ```json
 {
   "name": "SQL Safety Checker MCP Server",
@@ -115,36 +116,46 @@ The service exposes four standardized MCP tools:
 ```
 
 ### 4. `check_database_connection`
-**Purpose**: Tests database connectivity and configuration
+Purpose: Tests database connectivity and configuration
 
-**Output**:
+Output:
 ```json
 {
   "connected": true,
   "message": "Database connection successful",
-  "test_result": [{"test": 1}]
+  "test_result": [[1]]
 }
 ```
 
 ## Benefits Achieved
 
-- 🛡️ Enhanced security: Isolated server environment with query validation
-- 📊 Standardized interface: Fully MCP-compliant for broad LLM compatibility
-- ⚡ Better performance: SQLAlchemy connection pooling and optional async operations
-- 🔌 Universal integration: Works with Claude Desktop, ChatGPT (with MCP), and custom apps
-- 📈 Scalability: Supports multiple concurrent LLM clients
-- 🔄 Backward compatibility: Original functions remain importable and unchanged
-- 📚 Full documentation: Comprehensive guides for deployment and integration
+- Enhanced security: Service isolation with SELECT-only enforcement (via SQL parsing)
+- Standardized integration: MCP tools provide a consistent interface for LLM clients
+- Maintainability: Clear separation of concerns (startup/env validation in `start_server.py`; tools isolated)
+- Performance: SQLAlchemy connection pooling reduces connection overhead
+- Compatibility: MySQL support; works with MCP-compatible clients (e.g., Claude Desktop) and custom apps; original direct-call functions preserved
+- Configurability: Environment-based credentials and startup-time validation of required variables
 
 ## Testing Results
 
-All functionality has been thoroughly verified:
+Based on the included scripts and program behavior:
 
-- ✅ Safe SELECT queries: correctly validated and executed
-- ❌ Unsafe queries (DELETE, INSERT, UPDATE, DROP): blocked by the safety layer
-- 🛡️ Safety enforcement: operates as designed
-- 📋 Tool registration: all tools registered successfully and callable
-- 🔄 JSON responses: well-structured and consistent
+- Validation
+  - SELECT queries: Reported as safe and eligible for execution.
+  - Non-SELECT queries (DELETE/INSERT/UPDATE/DROP): Reported as unsafe and blocked.
+  - Multiple statements: Allowed only if all statements are SELECT; any non-SELECT causes failure.
+  - Empty query: Treated as safe by the current implementation.
+- Connection check (`check_database_connection`)
+  - Failure modes (e.g., missing env vars, unreachable DB): Returns `connected: false` and includes `config_check` with missing variables.
+  - Success: Executes `SELECT 1 as test` and returns `connected: true` with tuple-like result.
+- Execution (`execute_safe_sql`)
+  - Unsafe queries: Blocked at validation with `success: false` and a clear message.
+  - Safe queries:
+    - With valid DB connectivity: Returns raw rows (tuple-like) and `row_count`.
+    - Without valid connectivity: Returns `success: false` with an error message.
+- Response shape
+  - Tools return structured dictionaries with stable keys (`is_safe`, `success`, `message`, `data`, etc.).
+  - Note: `data` is a list of tuples/Row objects, not dictionaries.
 
 ## Quick Start
 
@@ -178,7 +189,7 @@ python test_mcp_functions.py
 ```
 
 ### Configure MCP Client
-Add the server to your MCP-compatible client configuration. For example, in Claude Desktop or other MCP clients:
+Add the server to your MCP-compatible client configuration (e.g., Claude Desktop or other MCP clients):
 
 ```json
 {
@@ -197,12 +208,12 @@ Add the server to your MCP-compatible client configuration. For example, in Clau
 }
 ```
 
-- For ChatGPT (MCP-enabled) and other clients, provide the same command/args and environment in the client’s MCP server settings.
-- If you are using a `.env` file with `python-dotenv`, the `env` block may be optional.
+- If your client loads `.env` automatically (e.g., via python-dotenv), the `env` block can be omitted.
+- Ensure your client allows running local commands and passing environment variables.
 
 ## Migration Path
 
-Existing users can continue using the original functions without any changes:
+Existing users can continue using the original functions with no changes:
 
 ```python
 from sql_safety_checker import is_sql_safe, execute_sql  # Still works exactly as before
@@ -223,11 +234,11 @@ See `mcp_config.json` for a complete client configuration example.
 
 ## Safety Features
 
-- **Query Restriction**: Only `SELECT` statements allowed
-- **SQL Parsing Validation**: Uses `sqlparse` for comprehensive query analysis
-- **Connection Security**: Environment-based credential management
-- **Error Isolation**: Comprehensive exception handling and reporting
-- **Access Control**: MCP protocol-level permission management
+- Query Restriction: Only SELECT statements allowed
+- SQL Parsing Validation: Uses `sqlparse` for comprehensive query analysis
+- Connection Security: Environment-based credential management
+- Error Isolation: Comprehensive exception handling and reporting
+- Access Control: MCP protocol-level permission management
 
 ## Requirements
 
@@ -237,8 +248,8 @@ See `mcp_config.json` for a complete client configuration example.
 
 ## Additional Documentation
 
-- **[Feasibility Analysis](LLM_TO_MCP_FEASIBILITY_ANALYSIS.md)**: Detailed analysis of LLM to MCP conversion
-- **[Original Context](GEMINI.md)**: Project background and development guidelines
+- [Feasibility Analysis](LLM_TO_MCP_FEASIBILITY_ANALYSIS.md): Detailed analysis of LLM to MCP conversion
+- [Original Context](GEMINI.md): Project background and development guidelines
 
 ## Contributing
 
