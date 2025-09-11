@@ -82,6 +82,11 @@ Output:
 ### 2. `execute_safe_sql`
 Purpose: Executes validated SQL queries against the database
 
+Safety behavior:
+- Automatic SQL safety validation is performed before execution. Only SELECT statements are allowed.
+- If the query contains any non-SELECT operation or mixed statements, the tool rejects it and returns `success: false` with an explanatory `message`.
+- To pre-check without executing, use `validate_sql_query`.
+
 Input:
 ```json
 {
@@ -129,31 +134,31 @@ Output:
 
 ## Benefits Achieved
 
-- Enhanced security: Service isolation with SELECT-only enforcement (via SQL parsing)
-- Standardized integration: MCP tools provide a consistent interface for LLM clients
-- Maintainability: Clear separation of concerns (startup/env validation in `start_server.py`; tools isolated)
-- Performance: SQLAlchemy connection pooling reduces connection overhead
-- Compatibility: MySQL support; works with MCP-compatible clients (e.g., Claude Desktop) and custom apps; original direct-call functions preserved
-- Configurability: Environment-based credentials and startup-time validation of required variables
+- 🔒 Enhanced security: Service isolation with SELECT-only enforcement (via SQL parsing)
+- 🔌 Standardized integration: MCP tools provide a consistent interface for LLM clients
+- 🧹 Maintainability: Clear separation of concerns (startup/env validation in `start_server.py`; tools isolated)
+- ⚡ Performance: SQLAlchemy connection pooling reduces connection overhead
+- 🧩 Compatibility: MySQL support; works with MCP-compatible clients (e.g., Claude Desktop) and custom apps; original direct-call functions preserved
+- ⚙️ Configurability: Environment-based credentials and startup-time validation of required variables
 
 ## Testing Results
 
 Based on the included scripts and program behavior:
 
-- Validation
+- ✅ Validation
   - SELECT queries: Reported as safe and eligible for execution.
   - Non-SELECT queries (DELETE/INSERT/UPDATE/DROP): Reported as unsafe and blocked.
   - Multiple statements: Allowed only if all statements are SELECT; any non-SELECT causes failure.
   - Empty query: Treated as safe by the current implementation.
-- Connection check (`check_database_connection`)
+- 🔗 Connection check (`check_database_connection`)
   - Failure modes (e.g., missing env vars, unreachable DB): Returns `connected: false` and includes `config_check` with missing variables.
   - Success: Executes `SELECT 1 as test` and returns `connected: true` with tuple-like result.
-- Execution (`execute_safe_sql`)
+- ▶️ Execution (`execute_safe_sql`)
   - Unsafe queries: Blocked at validation with `success: false` and a clear message.
   - Safe queries:
     - With valid DB connectivity: Returns raw rows (tuple-like) and `row_count`.
     - Without valid connectivity: Returns `success: false` with an error message.
-- Response shape
+- 🧾 Response shape
   - Tools return structured dictionaries with stable keys (`is_safe`, `success`, `message`, `data`, etc.).
   - Note: `data` is a list of tuples/Row objects, not dictionaries.
 
