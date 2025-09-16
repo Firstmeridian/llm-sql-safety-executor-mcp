@@ -20,6 +20,26 @@ logger = logging.getLogger(__name__)
 # Create the MCP server
 mcp = FastMCP("SQL Safety Checker")
 
+def serialize_result(data: Any) -> Any:
+    """
+    Convert SQLAlchemy Row objects and other non-serializable types to JSON-serializable format.
+    """
+    if data is None:
+        return None
+    
+    if isinstance(data, list):
+        return [serialize_result(item) for item in data]
+    
+    # Handle SQLAlchemy Row objects
+    if hasattr(data, '_mapping'):
+        return dict(data._mapping)
+    
+    if hasattr(data, '__dict__'):
+        # Convert object to dict, excluding private attributes
+        return {k: v for k, v in data.__dict__.items() if not k.startswith('_')}
+    
+    return data
+
 @mcp.tool()
 def validate_sql_query(sql_query: str) -> Dict[str, Any]:
     """
@@ -88,11 +108,14 @@ def execute_safe_sql(sql_query: str) -> Dict[str, Any]:
                 "data": None
             }
         
+        # Serialize the result for JSON compatibility
+        serialized_data = serialize_result(result)
+        
         return {
             "success": True,
             "query": sql_query,
             "message": "Query executed successfully",
-            "data": result,
+            "data": serialized_data,
             "row_count": len(result) if isinstance(result, list) else 0
         }
         
@@ -175,10 +198,13 @@ def check_database_connection() -> Dict[str, Any]:
                 }
             }
         
+        # Serialize the result for JSON compatibility
+        serialized_result = serialize_result(result)
+        
         return {
             "connected": True,
             "message": "Database connection successful",
-            "test_result": result
+            "test_result": serialized_result
         }
         
     except Exception as e:
