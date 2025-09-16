@@ -10,7 +10,7 @@ standardized protocol.
 import os
 import logging
 from typing import Any, Dict, List, Union
-from fastmcp import FastMCP
+from mcp.server.fastmcp import FastMCP
 from sql_safety_checker import is_sql_safe, execute_sql
 
 # Set up logging
