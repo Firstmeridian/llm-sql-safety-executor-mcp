@@ -12,7 +12,7 @@ The primary technologies used are:
 - **SQLAlchemy** for database connection and execution, using a connection pool.
 - **mysql-connector-python** as the database driver for MySQL.
 - **python-dotenv** for managing database credentials through a `.env` file.
-- **fastMCP** for creating the MCP service implementation.
+- **mcp** (official MCP Python SDK) for creating the MCP service implementation.
 
 ## Key Files
 
@@ -28,7 +28,7 @@ The primary technologies used are:
 *   `mcp_config.json`: **NEW** - Configuration file for MCP client integration
 *   `Dockerfile`: **NEW** - Docker configuration for containerized deployment
 *   `.env.example`: **NEW** - Example environment configuration file
-*   `requirements.txt`: Lists all the necessary Python packages for this project (now includes fastMCP).
+*   `requirements.txt`: Lists all the necessary Python packages for this project (now includes the official MCP Python SDK).
 *   `.gitignore`: A standard Python `.gitignore` file to exclude unnecessary files from version control.
 *   `GEMINI.md`: This file, providing context for the Gemini CLI.
 
@@ -60,7 +60,7 @@ The primary technologies used are:
 
 The project now supports running as an MCP (Model Context Protocol) service, which provides a standardized way for AI models to interact with the SQL safety checker.
 
-1.  **Install Dependencies (including fastMCP):**
+1.  **Install Dependencies (including official MCP SDK):**
     ```bash
     pip install -r requirements.txt
     ```
@@ -115,7 +115,7 @@ To integrate with an MCP-compatible AI system, use the provided configuration:
 
 The conversion of this SQL safety checker tool to an MCP (Model Context Protocol) service has been successfully implemented and is **highly feasible**. The implementation leverages:
 
-1. **FastMCP Framework**: Provides a simple, decorator-based approach to creating MCP services
+1. **Official MCP Python SDK**: Provides a simple, decorator-based approach to creating MCP services
 2. **Existing Codebase**: Minimal changes required to the original SQL safety checker logic
 3. **Standardized Protocol**: MCP provides a well-defined interface for AI-tool interaction
 4. **Python Ecosystem**: Full compatibility with existing Python dependencies

@@ -249,7 +249,7 @@ See `mcp_config.json` for a complete client configuration example.
 
 - Python 3.12+
 - MySQL database
-- Dependencies: `sqlparse`, `SQLAlchemy`, `mysql-connector-python`, `fastMCP`, `python-dotenv`
+- Dependencies: `sqlparse`, `SQLAlchemy`, `mysql-connector-python`, `mcp` (official MCP Python SDK), `python-dotenv`
 
 ## Additional Documentation
 

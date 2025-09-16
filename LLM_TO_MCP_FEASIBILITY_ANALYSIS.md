@@ -94,13 +94,13 @@ validation = is_sql_safe("SELECT * FROM users")
 #### ✅ Favorable Factors
 1. **Existing Code Base**: Original functionality is well-structured and modular
 2. **Clear API Surface**: Limited number of functions to wrap (4 main functions)
-3. **FastMCP Framework**: Simplified MCP server development with decorators
+3. **Official MCP Python SDK**: Simplified MCP server development with decorators
 4. **Python Ecosystem**: Rich tooling and libraries for service development
 5. **Backward Compatibility**: Original functions remain unchanged
 
 #### ⚠️ Considerations
 1. **Network Overhead**: MCP communication adds latency compared to direct calls
-2. **Dependency Management**: Additional dependencies (fastMCP, etc.)
+2. **Dependency Management**: Additional dependencies (official MCP Python SDK, etc.)
 3. **Deployment Complexity**: Need to manage server lifecycle
 4. **Error Handling**: More complex error propagation across service boundaries
 
@@ -271,7 +271,7 @@ The conversion from direct LLM tool calls to MCP server architecture is not only
 4. **check_database_connection**: Connection health monitoring
 
 ### Technology Stack
-- **FastMCP**: MCP server framework
+- **MCP Python SDK**: Official MCP server framework
 - **SQLAlchemy**: Database connection pooling
 - **sqlparse**: SQL query parsing and validation
 - **python-dotenv**: Environment configuration management
