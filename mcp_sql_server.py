@@ -40,16 +40,10 @@ def serialize_result(data: Any) -> Any:
     
     return data
 
-@mcp.tool()
-def validate_sql_query(sql_query: str) -> Dict[str, Any]:
+# 0917 Internal helper functions - do not use @mcp.tool() decorator
+def _validate_sql_query_internal(sql_query: str) -> Dict[str, Any]:
     """
-    Validates if a SQL query is safe (contains only SELECT statements).
-    
-    Args:
-        sql_query: The SQL query to validate
-        
-    Returns:
-        Dictionary containing validation result and details
+    Internal validation function - not exposed as MCP tool
     """
     try:
         is_safe = is_sql_safe(sql_query)
@@ -70,6 +64,38 @@ def validate_sql_query(sql_query: str) -> Dict[str, Any]:
             "error": str(e),
             "validation_passed": False
         }
+@mcp.tool()
+def validate_sql_query(sql_query: str) -> Dict[str, Any]:
+    """
+    Validates if a SQL query is safe (contains only SELECT statements).
+    
+    Args:
+        sql_query: The SQL query to validate
+        
+    Returns:
+        Dictionary containing validation result and details
+    """
+    # try:
+    #     is_safe = is_sql_safe(sql_query)
+        
+    #     return {
+    #         "is_safe": is_safe,
+    #         "query": sql_query,
+    #         "message": "Query is safe for execution" if is_safe else "Query contains unsafe operations (only SELECT statements are allowed)",
+    #         "allowed_operations": ["SELECT"],
+    #         "validation_passed": is_safe
+    #     }
+    # except Exception as e:
+    #     logger.error(f"Error validating SQL query: {e}")
+    #     return {
+    #         "is_safe": False,
+    #         "query": sql_query,
+    #         "message": f"Validation error: {str(e)}",
+    #         "error": str(e),
+    #         "validation_passed": False
+    #     }
+    
+    return _validate_sql_query_internal(sql_query) # 0917 fix: use internal function to avoid issues
 
 @mcp.tool()
 def execute_safe_sql(sql_query: str) -> Dict[str, Any]:
@@ -84,8 +110,10 @@ def execute_safe_sql(sql_query: str) -> Dict[str, Any]:
     """
     try:
         # First validate the query
-        validation_result = validate_sql_query(sql_query)
-        
+        # 0917 fix: do not use decorator function
+        # validation_result = validate_sql_query(sql_query)
+        validation_result = _validate_sql_query_internal(sql_query)
+
         if not validation_result["is_safe"]:
             return {
                 "success": False,
@@ -173,8 +201,10 @@ def check_database_connection() -> Dict[str, Any]:
     try:
         # Try a simple validation query first
         test_query = "SELECT 1 as test"
-        validation_result = validate_sql_query(test_query)
-        
+        # 0917 fix: do not use decorator function
+        # validation_result = validate_sql_query(test_query)
+        validation_result = _validate_sql_query_internal(test_query)
+
         if not validation_result["is_safe"]:
             return {
                 "connected": False,

@@ -10,14 +10,26 @@ import os
 import logging
 from dotenv import load_dotenv
 from mcp_sql_server import mcp
+from datetime import datetime
 
 # Load environment variables from .env file
 load_dotenv()
 
+# 0917 Add logs directory
+log_dir = "logs"
+if not os.path.exists(log_dir):
+    os.makedirs(log_dir)
+# New file name with time
+log_filename = f"{log_dir}/sql_safety_checker_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
+
 # Set up logging
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler(log_filename),  # to file
+        logging.StreamHandler()             # to console
+    ]
 )
 logger = logging.getLogger(__name__)
 
@@ -36,6 +48,7 @@ def validate_environment():
 def main():
     """Main function to start the MCP server with validation."""
     logger.info("=== SQL Safety Checker MCP Server ===")
+    logger.info(f"Log file: {log_filename}") # 0917 Log file path
     logger.info("Initializing server startup...")
     
     # Validate environment configuration
