@@ -20,6 +20,45 @@ logger = logging.getLogger(__name__)
 # Create the MCP server
 mcp = FastMCP("SQL Safety Checker")
 
+# 0918 Add system-level orchestration prompt
+@mcp.prompt(
+    name="system_orchestration",
+    description="System-level orchestration: read-only policy and tool call order (validate → execute)"
+)
+def system_orchestration() -> str:
+    # """System-level orchestration: read-only policy and tool call order (validate → execute)"""
+    """System-level orchestration for safe SQL usage via MCP tools."""
+    logger.info(f"[system_orchestration]: System orchestration initiated.")
+    return (
+        "You are a SQL safety assistant and must interact with the database exclusively via MCP tools.\n"
+        "Rules:\n"
+        "1) Read-only access (SELECT only).\n"
+        "2) Before any execution, always call validate_sql_query to check the candidate SQL; if unsafe, return reasons and a safe alternative.\n"
+        "3) Only if validation passes, call execute_safe_sql to run it.\n"
+        "4) Optionally call check_database_connection first to verify connectivity.\n"
+        "5) Never generate or execute any DML/DDL (INSERT/UPDATE/DELETE/CREATE/ALTER/DROP/TRUNCATE, etc.).\n"
+        "When presenting query results, include a brief natural-language explanation."
+    )
+# 0917 Add prompt for generating safe SELECT statements
+@mcp.prompt(
+    name="generate_select_sql",
+    description="Turn a natural language request into a single safe SELECT statement (no DML/DDL)"
+)
+def generate_select_sql(user_request: str, schema: str = "", dialect: str = "mysql") -> str:
+    # """Turn a natural language request into a single safe SELECT statement (no DML/DDL)"""
+    """Generate one safe, executable SELECT statement from a natural language request."""
+    logger.info(f"[generate_select_sql]: Generating SELECT SQL for request: {user_request} with schema: {schema} and dialect: {dialect}")
+    return (
+        "Task: Generate a single safe, executable SELECT statement from the user request.\n"
+        "Requirements:\n"
+        "- SELECT only; strictly no DML/DDL;\n"
+        "- Explicitly list required columns; avoid SELECT *;\n"
+        f"- Use {dialect} syntax;\n"
+        + (f"- Choose tables and columns based on the following schema:\n{schema}\n" if schema else "")
+        + f"User request: {user_request}\n"
+        "Output only the SQL statement itself, with no explanations."
+    )
+
 def serialize_result(data: Any) -> Any:
     """
     Convert SQLAlchemy Row objects and other non-serializable types to JSON-serializable format.
@@ -94,7 +133,8 @@ def validate_sql_query(sql_query: str) -> Dict[str, Any]:
     #         "error": str(e),
     #         "validation_passed": False
     #     }
-    
+
+    logger.info(f"[validate_sql_query_internal]: validating SQL query: {sql_query}")
     return _validate_sql_query_internal(sql_query) # 0917 fix: use internal function to avoid issues
 
 @mcp.tool()
@@ -115,6 +155,7 @@ def execute_safe_sql(sql_query: str) -> Dict[str, Any]:
         validation_result = _validate_sql_query_internal(sql_query)
 
         if not validation_result["is_safe"]:
+            logger.warning(f"[execute_safe_sql]: SQL query validation failed: {sql_query}")
             return {
                 "success": False,
                 "query": sql_query,
@@ -128,6 +169,7 @@ def execute_safe_sql(sql_query: str) -> Dict[str, Any]:
         
         # Check if result is an error message (string) or actual data (list)
         if isinstance(result, str) and result.startswith("Error:"):
+            logger.error(f"[execute_safe_sql]: SQL execution error: {result}")
             return {
                 "success": False,
                 "query": sql_query,
@@ -138,7 +180,8 @@ def execute_safe_sql(sql_query: str) -> Dict[str, Any]:
         
         # Serialize the result for JSON compatibility
         serialized_data = serialize_result(result)
-        
+
+        logger.info(f"[execute_safe_sql]: SQL query executed successfully: {sql_query} with {len(serialized_data) if isinstance(serialized_data, list) else 0} rows returned.")
         return {
             "success": True,
             "query": sql_query,
@@ -148,7 +191,7 @@ def execute_safe_sql(sql_query: str) -> Dict[str, Any]:
         }
         
     except Exception as e:
-        logger.error(f"Error executing SQL query: {e}")
+        logger.error(f"[execute_safe_sql]: Error executing SQL query: {e}")
         return {
             "success": False,
             "query": sql_query,
@@ -165,6 +208,7 @@ def get_server_info() -> Dict[str, Any]:
     Returns:
         Dictionary containing server information and capabilities
     """
+    logger.info(f"[get_server_info]: retrieving server information")
     return {
         "name": "SQL Safety Checker MCP Server",
         "version": "1.0.0",
@@ -206,6 +250,7 @@ def check_database_connection() -> Dict[str, Any]:
         validation_result = _validate_sql_query_internal(test_query)
 
         if not validation_result["is_safe"]:
+            logger.warning(f"[check_database_connection]: SQL query validation failed: {test_query}")
             return {
                 "connected": False,
                 "message": "Internal validation error",
@@ -216,6 +261,7 @@ def check_database_connection() -> Dict[str, Any]:
         result = execute_sql(test_query)
         
         if isinstance(result, str) and result.startswith("Error:"):
+            logger.error(f"[check_database_connection]: Database connection test failed: {result}")
             return {
                 "connected": False,
                 "message": "Database connection failed",
@@ -231,6 +277,7 @@ def check_database_connection() -> Dict[str, Any]:
         # Serialize the result for JSON compatibility
         serialized_result = serialize_result(result)
         
+        logger.info(f"[check_database_connection]: Database connection successful.")
         return {
             "connected": True,
             "message": "Database connection successful",
@@ -238,7 +285,7 @@ def check_database_connection() -> Dict[str, Any]:
         }
         
     except Exception as e:
-        logger.error(f"Error checking database connection: {e}")
+        logger.error(f"[check_database_connection]: Error checking database connection: {e}")
         return {
             "connected": False,
             "message": f"Connection test failed: {str(e)}",
