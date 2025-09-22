@@ -14,7 +14,7 @@ from fastmcp import FastMCP
 from sql_safety_checker import is_sql_safe, execute_sql
 
 # Set up logging
-logging.basicConfig(level=logging.INFO)
+# logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Create the MCP server
@@ -36,8 +36,9 @@ def system_orchestration() -> str:
         "2) Before any execution, always call validate_sql_query to check the candidate SQL; if unsafe, return reasons and a safe alternative.\n"
         "3) Only if validation passes, call execute_safe_sql to run it.\n"
         "4) Optionally call check_database_connection first to verify connectivity.\n"
-        "5) Never generate or execute any DML/DDL (INSERT/UPDATE/DELETE/CREATE/ALTER/DROP/TRUNCATE, etc.).\n"
-        "When presenting query results, include a brief natural-language explanation."
+        "5) Never generate or execute any DML/DDL (INSERT/UPDATE/DELETE/CREATE/ALTER/DROP/TRUNCATE/GRANT/REVOKE, etc.).\n"
+        "6) Available tools: validate_sql_query, execute_safe_sql, check_database_connection, get_server_info.\n"
+        "When presenting query results, include a brief natural-language explanation and show the actual SQL executed."
     )
 # 0917 Add prompt for generating safe SELECT statements
 @mcp.prompt(
