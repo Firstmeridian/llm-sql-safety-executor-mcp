@@ -14,12 +14,12 @@ DB_USER = os.getenv("DB_USER")
 DB_PASSWORD = os.getenv("DB_PASSWORD")
 DB_HOST = os.getenv("DB_HOST")
 DB_NAME = os.getenv("DB_NAME")
-DATABASE_URL = f"mysql+mysqlconnector://{DB_USER}:{DB_PASSWORD}@{DB_HOST}/{DB_NAME}?charset=utf8mb4"
+DATABASE_URL = f"mysql+pymysql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}/{DB_NAME}?charset=utf8mb4"
 
 try:
     engine = create_engine(DATABASE_URL, pool_pre_ping=True)
 except ImportError:
-    print("Error: mysql-connector-python is not installed. Please install it using: pip install mysql-connector-python")
+    print("Error: PyMySQL is not installed. Please install it using: pip install PyMySQL")
     engine = None
 
 def execute_sql(sql_query: str) -> list | str:
@@ -80,7 +80,7 @@ if __name__ == '__main__':
     # Note: To run this example, you need to have a MySQL database running
     # and have the .env file configured with your database credentials.
     # You also need to install the required libraries:
-    # pip install sqlalchemy mysql-connector-python python-dotenv
+    # pip install sqlalchemy PyMySQL python-dotenv
 
     if not engine:
         exit()

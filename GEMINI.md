@@ -10,7 +10,7 @@ The primary technologies used are:
 - **Python** as the programming language.
 - **sqlparse** for SQL query validation.
 - **SQLAlchemy** for database connection and execution, using a connection pool.
-- **mysql-connector-python** as the database driver for MySQL.
+- **PyMySQL** as the database driver for MySQL.
 - **python-dotenv** for managing database credentials through a `.env` file.
 - **fastMCP** for creating the MCP service implementation.
 

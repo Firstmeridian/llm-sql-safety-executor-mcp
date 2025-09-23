@@ -1,5 +1,5 @@
 sqlparse
 python-dotenv
 SQLAlchemy
-mysql-connector-python
+PyMySQL
 fastmcp
