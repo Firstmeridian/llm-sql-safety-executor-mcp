@@ -95,3 +95,6 @@ env/
 
 # Gemini CLI conversation logs
 gemini_conversation.md
+
+# .github/copilot-instructions.md
+.github/copilot-instructions.md
