@@ -5,6 +5,7 @@ Test script to verify the MCP server functions work correctly.
 
 import os
 import json
+from mcp_sql_server import get_sample_data, get_table_schema
 from sql_safety_checker import is_sql_safe, execute_sql
 from typing import Any, Dict
 
@@ -221,3 +222,34 @@ if __name__ == "__main__":
     print("-" * 30)
     exec_result = execute_safe_sql("SELECT 1 as test")
     print(json.dumps(exec_result, indent=2))
+
+    # Test get_table_schema (if enabled)
+    # Load environment to check if schema tools are enabled
+    from dotenv import load_dotenv
+    load_dotenv()
+    schema_tools_enabled = os.getenv("ENABLE_SCHEMA_TOOLS", "1") == "1"
+    if schema_tools_enabled:
+        print("\n5. Testing Get Table Schema")
+        print("-" * 30)
+        
+        # Test getting all tables
+        print("Getting all tables:")
+        all_tables_result = get_table_schema()
+        print(json.dumps(all_tables_result, indent=2))
+        
+        # Test getting specific table schema
+        print("\nGetting schema for 'test_users' table:")
+        table_schema_result = get_table_schema("test_users")
+        print(json.dumps(table_schema_result, indent=2))
+        
+        # Test get_sample_data
+        print("\n6. Testing Get Sample Data")
+        print("-" * 30)
+        
+        print("Getting sample data from 'test_users' (limit 5):")
+        sample_data_result = get_sample_data("test_users", 5)
+        print(json.dumps(sample_data_result, indent=2))
+    else:
+        print("\n5-6. Schema Tools Disabled")
+        print("-" * 30)
+        print("ENABLE_SCHEMA_TOOLS is set to 0. Skipping schema and sample data tests.")

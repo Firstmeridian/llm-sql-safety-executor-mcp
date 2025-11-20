@@ -56,7 +56,7 @@ LLM → Direct Function       LLM → MCP Client → MCP Server → Database
 
 ## MCP Tools Exposed
 
-The service exposes four standardized MCP tools:
+The service exposes six standardized MCP tools:
 
 ### 1. `validate_sql_query`
 Purpose: Validates SQL queries for safety (SELECT-only operations)
@@ -100,11 +100,13 @@ Output:
   "success": true,
   "query": "SELECT COUNT(*) as total FROM products",
   "message": "Query executed successfully",
-  "data": [[150]],
+  "data": [
+    {"total": 150}
+  ],
   "row_count": 1
 }
 ```
-Note: `data` is a list of rows; each row is a tuple-like result (not a dict). Clients needing JSON objects should map rows to field names client-side.
+Note: `data` is a JSON-serializable list (typically a list of objects). For this query it looks like `[{"total": 150}]`.
 
 ### 3. `get_server_info`
 Purpose: Provides server capabilities and configuration information
@@ -128,7 +130,102 @@ Output:
 {
   "connected": true,
   "message": "Database connection successful",
-  "test_result": [[1]]
+  "test_result": [
+    {"test": 1}
+  ]
+}
+```
+
+### 5. `get_table_schema` (Optional)
+Purpose: Retrieves schema information for database tables
+
+**Note**: This tool is controlled by the `ENABLE_SCHEMA_TOOLS` environment variable (default: enabled)
+
+Input:
+```json
+{
+  "table_name": "users"  // Optional - if empty, returns all tables
+}
+```
+
+Output (specific table):
+```json
+{
+  "success": true,
+  "table_name": "users",
+  "message": "Schema retrieved successfully",
+  "data": [
+    {
+      "COLUMN_NAME": "id",
+      "DATA_TYPE": "int",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": null,
+      "COLUMN_KEY": "PRI",
+      "EXTRA": "auto_increment"
+    },
+    {
+      "COLUMN_NAME": "name",
+      "DATA_TYPE": "varchar",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": null,
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    }
+  ],
+  "row_count": 2
+}
+```
+
+Output (all tables):
+```json
+{
+  "success": true,
+  "table_name": "all_tables",
+  "message": "Schema retrieved successfully",
+  "data": [
+    {
+      "TABLE_NAME": "users",
+      "TABLE_ROWS": 150,
+      "TABLE_COMMENT": "User accounts"
+    },
+    {
+      "TABLE_NAME": "products",
+      "TABLE_ROWS": 500,
+      "TABLE_COMMENT": "Product catalog"
+    }
+  ],
+  "row_count": 2
+}
+```
+
+### 6. `get_sample_data` (Optional)
+Purpose: Retrieves sample data from a specified table
+
+**Note**: This tool is controlled by the `ENABLE_SCHEMA_TOOLS` environment variable (default: enabled)
+
+Input:
+```json
+{
+  "table_name": "users",
+  "limit": 5  // Optional - default: 5, max: 20
+}
+```
+
+Output:
+```json
+{
+  "success": true,
+  "table_name": "users",
+  "message": "Sample data retrieved successfully (limit: 5)",
+  "data": [
+    {"id": 1, "name": "Alice"},
+    {"id": 2, "name": "Bob"},
+    {"id": 3, "name": "Charlie"},
+    {"id": 4, "name": "David"},
+    {"id": 5, "name": "Eve"}
+  ],
+  "row_count": 5,
+  "query_executed": "SELECT * FROM users LIMIT 5"
 }
 ```
 
@@ -140,6 +237,7 @@ Output:
 - ⚡ Performance: SQLAlchemy connection pooling reduces connection overhead
 - 🧩 Compatibility: MySQL support; works with MCP-compatible clients (e.g., Claude Desktop) and custom apps; original direct-call functions preserved
 - ⚙️ Configurability: Environment-based credentials and startup-time validation of required variables
+- 🔍 Discoverability: Optional database introspection tools for exploring schemas and data
 
 ## Testing Results
 
@@ -156,11 +254,21 @@ Based on the included scripts and program behavior:
 - ▶️ Execution (`execute_safe_sql`)
   - Unsafe queries: Blocked at validation with `success: false` and a clear message.
   - Safe queries:
-    - With valid DB connectivity: Returns raw rows (tuple-like) and `row_count`.
+    - With valid DB connectivity: Returns serialized rows (JSON-serializable) and `row_count`.
     - Without valid connectivity: Returns `success: false` with an error message.
+- 📊 Schema Introspection (`get_table_schema`) - **Optional Feature**
+  - All tables: Returns list of tables with row counts and comments
+  - Specific table: Returns detailed column information including types and constraints
+  - Can be disabled via `ENABLE_SCHEMA_TOOLS=0`
+- 📋 Sample Data (`get_sample_data`) - **Optional Feature**
+  - Retrieves limited sample rows from specified tables
+  - Enforces maximum limit of 20 rows for safety
+  - Returns actual query executed for transparency
+  - Can be disabled via `ENABLE_SCHEMA_TOOLS=0`
 - 🧾 Response shape
   - Tools return structured dictionaries with stable keys (`is_safe`, `success`, `message`, `data`, etc.).
-  - Note: `data` is a list of tuples/Row objects, not dictionaries.
+  - For MCP tools, `data` / `test_result` are JSON-serializable values (typically a list of objects, e.g., `[{"total": 150}]`).
+  - If you call `sql_safety_checker.execute_sql` directly (bypassing MCP), you will get raw Row/tuple lists instead.
 
 ## Quick Start
 
@@ -234,6 +342,12 @@ DB_HOST=your_database_host
 DB_NAME=your_database_name
 ```
 
+### Optional Environment Variables
+```bash
+# Feature Toggles (1=enabled, 0=disabled)
+ENABLE_SCHEMA_TOOLS=1  # Controls get_table_schema and get_sample_data tools
+```
+
 ### MCP Client Integration
 See `mcp_config.json` for a complete client configuration example.
 
@@ -255,6 +369,7 @@ See `mcp_config.json` for a complete client configuration example.
 
 - [Feasibility Analysis](LLM_TO_MCP_FEASIBILITY_ANALYSIS.md): Detailed analysis of LLM to MCP conversion
 - [Original Context](GEMINI.md): Project background and development guidelines
+- [Prompt Templates](PROMPTS.md): Guide for using MCP prompt templates
 
 ## Contributing
 

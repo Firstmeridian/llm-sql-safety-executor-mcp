@@ -19,6 +19,8 @@ logger = logging.getLogger(__name__)
 
 # Create the MCP server
 mcp = FastMCP("SQL Safety Checker")
+# Check if schema tools are enabled
+SCHEMA_TOOLS_ENABLED = os.getenv("ENABLE_SCHEMA_TOOLS", "1") == "1"
 
 # 0918 Add system-level orchestration prompt
 @mcp.prompt(
@@ -37,8 +39,15 @@ def system_orchestration() -> str:
         "3) Only if validation passes, call execute_safe_sql to run it.\n"
         "4) Optionally call check_database_connection first to verify connectivity.\n"
         "5) Never generate or execute any DML/DDL (INSERT/UPDATE/DELETE/CREATE/ALTER/DROP/TRUNCATE/GRANT/REVOKE, etc.).\n"
-        "6) Available tools: validate_sql_query, execute_safe_sql, check_database_connection, get_server_info.\n"
-        "When presenting query results, include a brief natural-language explanation and show the actual SQL executed."
+        "6) Available tools:\n"
+        "   - validate_sql_query: Validate SQL safety\n"
+        "   - execute_safe_sql: Execute validated queries\n"
+        "   - check_database_connection: Test database connectivity\n"
+        "   - get_server_info: Get server capabilities\n"
+        "   - get_table_schema: Retrieve table structure information\n"
+        "   - get_sample_data: Get sample data from tables\n"
+        "When presenting query results, include a brief natural-language explanation and show the actual SQL executed.\n"
+        "For complex queries, consider first using get_table_schema to understand the database structure."
     )
 # 0917 Add prompt for generating safe SELECT statements
 @mcp.prompt(
@@ -292,6 +301,162 @@ def check_database_connection() -> Dict[str, Any]:
             "message": f"Connection test failed: {str(e)}",
             "error": str(e)
         }
+
+def _get_table_schema_internal(table_name: str = "") -> Dict[str, Any]:
+    """Internal function for getting table schema"""
+    try:
+        # 如果指定了表名，获取该表的结构
+        if table_name:
+            # MySQL specific query for table structure
+            schema_query = f"""
+                SELECT 
+                    COLUMN_NAME,
+                    DATA_TYPE,
+                    IS_NULLABLE,
+                    COLUMN_DEFAULT,
+                    COLUMN_KEY,
+                    EXTRA
+                FROM INFORMATION_SCHEMA.COLUMNS
+                WHERE TABLE_SCHEMA = DATABASE()
+                AND TABLE_NAME = '{table_name}'
+                ORDER BY ORDINAL_POSITION
+            """
+        else:
+            # 获取所有表的列表
+            schema_query = """
+                SELECT 
+                    TABLE_NAME,
+                    TABLE_ROWS,
+                    TABLE_COMMENT
+                FROM INFORMATION_SCHEMA.TABLES
+                WHERE TABLE_SCHEMA = DATABASE()
+                AND TABLE_TYPE = 'BASE TABLE'
+                ORDER BY TABLE_NAME
+            """
+        
+        # 验证查询安全性
+        validation_result = _validate_sql_query_internal(schema_query)
+        if not validation_result["is_safe"]:
+            logger.warning(f"[get_table_schema]: Schema query validation failed")
+            return {
+                "success": False,
+                "message": "Schema query validation failed",
+                "data": None
+            }
+        
+        # 执行查询
+        result = execute_sql(schema_query)
+        
+        if isinstance(result, str) and result.startswith("Error:"):
+            logger.error(f"[get_table_schema]: Failed to retrieve schema: {result}")
+            return {
+                "success": False,
+                "message": "Failed to retrieve schema",
+                "error": result,
+                "data": None
+            }
+        
+        serialized_data = serialize_result(result)
+        
+        logger.info(f"[get_table_schema]: Schema retrieved for {table_name if table_name else 'all tables'}")
+        return {
+            "success": True,
+            "table_name": table_name if table_name else "all_tables",
+            "message": "Schema retrieved successfully",
+            "data": serialized_data,
+            "row_count": len(serialized_data) if isinstance(serialized_data, list) else 0
+        }
+        
+    except Exception as e:
+        logger.error(f"[get_table_schema]: Error retrieving schema: {e}")
+        return {
+            "success": False,
+            "message": f"Schema retrieval error: {str(e)}",
+            "error": str(e),
+            "data": None
+        }
+
+def _get_sample_data_internal(table_name: str, limit: int = 5) -> Dict[str, Any]:
+    """Internal function for getting sample data"""
+    try:
+        # 限制最大样本数量
+        limit = min(limit, 20)
+        
+        # 构建查询
+        sample_query = f"SELECT * FROM {table_name} LIMIT {limit}"
+        
+        # 验证查询安全性
+        validation_result = _validate_sql_query_internal(sample_query)
+        if not validation_result["is_safe"]:
+            logger.warning(f"[get_sample_data]: Sample query validation failed")
+            return {
+                "success": False,
+                "message": "Sample query validation failed",
+                "data": None
+            }
+        
+        # 执行查询
+        result = execute_sql(sample_query)
+        
+        if isinstance(result, str) and result.startswith("Error:"):
+            logger.error(f"[get_sample_data]: Failed to retrieve sample data: {result}")
+            return {
+                "success": False,
+                "message": "Failed to retrieve sample data",
+                "error": result,
+                "data": None
+            }
+        
+        serialized_data = serialize_result(result)
+        
+        logger.info(f"[get_sample_data]: Retrieved {len(serialized_data) if isinstance(serialized_data, list) else 0} sample rows from {table_name}")
+        return {
+            "success": True,
+            "table_name": table_name,
+            "message": f"Sample data retrieved successfully (limit: {limit})",
+            "data": serialized_data,
+            "row_count": len(serialized_data) if isinstance(serialized_data, list) else 0,
+            "query_executed": sample_query
+        }
+        
+    except Exception as e:
+        logger.error(f"[get_sample_data]: Error retrieving sample data: {e}")
+        return {
+            "success": False,
+            "message": f"Sample data retrieval error: {str(e)}",
+            "error": str(e),
+            "data": None
+        }
+
+if SCHEMA_TOOLS_ENABLED:
+    @mcp.tool()
+    def get_table_schema(table_name: str = "") -> Dict[str, Any]:
+        """
+        Retrieves the schema information for database tables.
+        
+        Args:
+            table_name: Specific table name (optional). If empty, returns all tables.
+            
+        Returns:
+            Dictionary containing table schema information
+        """
+        logger.info(f"[get_table_schema]: Retrieving schema for {table_name if table_name else 'all tables'}")
+        return _get_table_schema_internal(table_name)
+    
+    @mcp.tool()
+    def get_sample_data(table_name: str, limit: int = 5) -> Dict[str, Any]:
+        """
+        Retrieves sample data from a specified table.
+        
+        Args:
+            table_name: The table name to get sample data from
+            limit: Number of sample rows to retrieve (default: 5, max: 20)
+            
+        Returns:
+            Dictionary containing sample data from the table
+        """
+        logger.info(f"[get_sample_data]: Retrieving sample data from {table_name}")
+        return _get_sample_data_internal(table_name, limit)
 
 # Note: Server startup is handled by start_server.py
 # This module focuses on MCP tool definitions and functionality

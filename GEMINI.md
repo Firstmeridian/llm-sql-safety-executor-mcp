@@ -24,6 +24,10 @@ The primary technologies used are:
     *   `execute_safe_sql()`: MCP tool for executing safe SQL queries
     *   `get_server_info()`: MCP tool for retrieving server information
     *   `check_database_connection()`: MCP tool for testing database connectivity
+    *   `get_table_schema()`: **Optional** MCP tool for retrieving table schemas (controlled by `ENABLE_SCHEMA_TOOLS`)
+    *   `get_sample_data()`: **Optional** MCP tool for retrieving sample data (controlled by `ENABLE_SCHEMA_TOOLS`)
+    *   `system_orchestration()`: MCP prompt for system-level workflow guidance
+    *   `generate_select_sql()`: MCP prompt for SQL generation guidance
 *   `test_mcp_functions.py`: **NEW** - Test script to verify MCP functions work correctly
 *   `mcp_config.json`: **NEW** - Configuration file for MCP client integration
 *   `Dockerfile`: **NEW** - Docker configuration for containerized deployment
@@ -48,6 +52,9 @@ The primary technologies used are:
     DB_PASSWORD=your_db_password
     DB_HOST=your_db_host
     DB_NAME=your_db_name
+    
+    # Optional: Feature toggles (1=enabled, 0=disabled)
+    ENABLE_SCHEMA_TOOLS=1
     ```
 
 3.  **Run the Example:**
@@ -74,7 +81,7 @@ The project now supports running as an MCP (Model Context Protocol) service, whi
 
 3.  **Run the MCP Server:**
     ```bash
-    python mcp_sql_server.py
+    python start_server.py
     ```
 
 4.  **Test MCP Functions:**
@@ -154,12 +161,21 @@ The conversion of this SQL safety checker tool to an MCP (Model Context Protocol
 
 ### Available MCP Tools
 
-The MCP service provides four main tools:
+The MCP service provides six main tools:
 
 1. **`validate_sql_query`**: Validates SQL queries for safety (SELECT-only)
 2. **`execute_safe_sql`**: Executes validated SQL queries against the database
 3. **`get_server_info`**: Provides information about server capabilities
 4. **`check_database_connection`**: Tests database connectivity and configuration
+5. **`get_table_schema`**: **Optional** - Retrieves table structure information (controlled by `ENABLE_SCHEMA_TOOLS`)
+6. **`get_sample_data`**: **Optional** - Retrieves sample data from tables (controlled by `ENABLE_SCHEMA_TOOLS`)
+
+### Available MCP Prompts
+
+The MCP service provides two prompt templates:
+
+1. **`system_orchestration`**: System-level workflow guidance for safe SQL usage
+2. **`generate_select_sql`**: Guidance for generating safe SELECT statements from natural language
 
 ### Deployment Options
 
