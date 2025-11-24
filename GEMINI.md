@@ -28,8 +28,10 @@ The primary technologies used are:
     *   `get_sample_data()`: **Optional** MCP tool for retrieving sample data (controlled by `ENABLE_SCHEMA_TOOLS`)
     *   `system_orchestration()`: MCP prompt for system-level workflow guidance
     *   `generate_select_sql()`: MCP prompt for SQL generation guidance
-*   `test_mcp_functions.py`: **NEW** - Test script to verify MCP functions work correctly
+*   `test_mcp_functions.py`: **NEW** - Test script to verify MCP functions work correctly (internal tests)
+*   `test_mcp_client.py`: **NEW** - MCP client test script that simulates real client connections
 *   `mcp_config.json`: **NEW** - Configuration file for MCP client integration
+*   `TEST_MCP_CLIENT_GUIDE.md`: **NEW** - Usage guide for the MCP client test script
 *   `Dockerfile`: **NEW** - Docker configuration for containerized deployment
 *   `.env.example`: **NEW** - Example environment configuration file
 *   `requirements.txt`: Lists all the necessary Python packages for this project (now includes fastMCP).
@@ -86,7 +88,11 @@ The project now supports running as an MCP (Model Context Protocol) service, whi
 
 4.  **Test MCP Functions:**
     ```bash
+    # Test internal functions
     python test_mcp_functions.py
+    
+    # Test via MCP client (simulates real client)
+    python test_mcp_client.py
     ```
 
 5.  **Docker Deployment:**
@@ -199,3 +205,4 @@ The implementation preserves all original functionality while adding the benefit
 *   **Version Control:** The project is managed using Git.
 *   **Branching:** The main development branch is `main`.
 *   **Remote Repository:** The code is hosted on GitHub at `https://github.com/Firstmeridian/vibe-coding-gemini-llm-execute-sql-tools.git`.
+*   **Language:** Unless otherwise specified, all code, comments, and documentation in this project should be written in English.

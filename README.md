@@ -297,8 +297,11 @@ cp .env.example .env
 # Start MCP server
 python start_server.py
 
-# Test MCP functionality
+# Test MCP functionality (internal functions)
 python test_mcp_functions.py
+
+# Test MCP server via client (simulates real MCP client)
+python test_mcp_client.py
 ```
 
 ### Configure MCP Client
@@ -364,6 +367,48 @@ See `mcp_config.json` for a complete client configuration example.
 - Python 3.12+
 - MySQL database
 - Dependencies: `sqlparse`, `SQLAlchemy`, `PyMySQL`, `fastMCP`, `python-dotenv`
+
+## Testing
+
+### Test Scripts
+
+The project includes two complementary test scripts:
+
+#### 1. `test_mcp_functions.py` - Internal Function Tests
+Tests the underlying functions directly without going through the MCP protocol:
+```bash
+python test_mcp_functions.py
+```
+
+This script validates:
+- SQL validation logic (safe and unsafe queries)
+- Database connection
+- Query execution
+- Schema introspection (if enabled)
+- Sample data retrieval (if enabled)
+
+#### 2. `test_mcp_client.py` - MCP Protocol Tests
+Uses FastMCP Client to test the server via the MCP protocol:
+```bash
+python test_mcp_client.py
+```
+
+This script:
+- Connects to the MCP server using FastMCP's `Client` API
+- Tests server info and database connectivity
+- Executes multiple SQL queries (list tables, SELECT, COUNT)
+- Tests optional schema tools (if enabled)
+- Verifies data serialization format
+
+**Key Features:**
+- Configurable test parameters (`TEST_TABLE_NAME`, `TEST_SAMPLE_LIMIT`)
+- Focuses on protocol communication and data format validation
+- Complements `test_mcp_functions.py` by avoiding duplicate tests
+
+**Use this to verify that:**
+- `data` fields return `[{"key": value}]` (not `[[value]]`)
+- MCP protocol communication works correctly
+- All tool responses match the README documentation
 
 ## Additional Documentation
 
