@@ -69,13 +69,13 @@ async def test_mcp_server():
             
             # Test 1: Get Server Info
             result = await client.call_tool("get_server_info", {})
-            # Extract content from CallToolResult
-            content = json.loads(result.content[0].text) if hasattr(result.content[0], 'text') else result.content[0]
+            # FastMCP's .data property automatically deserializes the result
+            content = result.data if result.data else json.loads(result.content[0].text)
             print_result("TEST 1: get_server_info", content)
             
             # Test 2: Check Database Connection
             result = await client.call_tool("check_database_connection", {})
-            content = json.loads(result.content[0].text) if hasattr(result.content[0], 'text') else result.content[0]
+            content = result.data if result.data else json.loads(result.content[0].text)
             print_result("TEST 2: check_database_connection", content)
             
             # Test 3: Execute Safe SQL
@@ -89,7 +89,7 @@ async def test_mcp_server():
             result = await client.call_tool("execute_safe_sql", {
                 "sql_query": list_tables_query
             })
-            content = json.loads(result.content[0].text) if hasattr(result.content[0], 'text') else result.content[0]
+            content = result.data if result.data else json.loads(result.content[0].text)
             if content.get('success') and isinstance(content.get('data'), list):
                 print(f"Found {len(content['data'])} tables:")
                 print(json.dumps(content, indent=2, ensure_ascii=False))
@@ -101,7 +101,7 @@ async def test_mcp_server():
             result = await client.call_tool("execute_safe_sql", {
                 "sql_query": "SELECT 1 as test"
             })
-            content = json.loads(result.content[0].text) if hasattr(result.content[0], 'text') else result.content[0]
+            content = result.data if result.data else json.loads(result.content[0].text)
             print(json.dumps(content, indent=2, ensure_ascii=False))
             print("📝 Verify: 'data' field is [{'test': 1}] not [[1]]")
             
@@ -111,7 +111,7 @@ async def test_mcp_server():
             result = await client.call_tool("execute_safe_sql", {
                 "sql_query": count_query
             })
-            content = json.loads(result.content[0].text) if hasattr(result.content[0], 'text') else result.content[0]
+            content = result.data if result.data else json.loads(result.content[0].text)
             print(json.dumps(content, indent=2, ensure_ascii=False))
             print("📝 Verify: 'data' field is [{'total': N}] not [[N]]")
             print()
@@ -120,7 +120,7 @@ async def test_mcp_server():
             if SCHEMA_TOOLS_ENABLED:
                 # Test 4: Get Table Schema
                 result = await client.call_tool("get_table_schema", {})
-                content = json.loads(result.content[0].text) if hasattr(result.content[0], 'text') else result.content[0]
+                content = result.data if result.data else json.loads(result.content[0].text)
                 # Limit output for readability
                 print("-" * 70)
                 print("TEST 4: get_table_schema (All Tables)")
@@ -144,7 +144,7 @@ async def test_mcp_server():
                     "table_name": TEST_TABLE_NAME,
                     "limit": TEST_SAMPLE_LIMIT
                 })
-                content = json.loads(result.content[0].text) if hasattr(result.content[0], 'text') else result.content[0]
+                content = result.data if result.data else json.loads(result.content[0].text)
                 print(json.dumps(content, indent=2, ensure_ascii=False))
                 print()
             else:
