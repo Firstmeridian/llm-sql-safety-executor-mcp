@@ -44,9 +44,21 @@ async def lifespan(mcp_server: FastMCP) -> AsyncIterator[dict[str, Any]]:
 # Create MCP server with lifespan
 mcp = FastMCP(
     name="sql-db",
-    instructions="""You are a database query assistant with READ-ONLY access.
-Use the query tool for most operations. Only SELECT statements are allowed.
-Use list_tables first if you don't know the database structure.""",
+    instructions="""SQL database assistant with READ-ONLY access.
+
+TOOL PRIORITY:
+1. query - PRIMARY. Use FIRST for all data requests.
+2. list_tables - Only if query fails with "table not found"
+3. describe_table - Only if query fails with "column not found"
+4. check_connection - Only for connection errors
+
+RULES:
+- DO NOT call check_connection before queries
+- DO NOT call list_tables/describe_table to explore
+- START with query() for any data request
+
+CORRECT: query("SELECT * FROM table WHERE condition")
+WRONG: check_connection -> list_tables -> describe_table -> query""",
     lifespan=lifespan,
 )
 
@@ -153,9 +165,9 @@ async def query(sql: str, ctx: Context) -> dict[str, Any]:
 async def check_connection(ctx: Context) -> dict[str, Any]:
     """
     Check if the database connection is working.
-    
+
     Use this to verify database connectivity before running queries.
-    
+
     Returns:
         Connection status and configuration check
     """
@@ -194,9 +206,9 @@ async def check_connection(ctx: Context) -> dict[str, Any]:
 async def list_tables(ctx: Context) -> dict[str, Any]:
     """
     List all tables in the database with row counts.
-    
+
     Use this FIRST if you don't know the database structure.
-    
+
     Returns:
         List of tables with their names and approximate row counts
     """
@@ -236,9 +248,9 @@ async def list_tables(ctx: Context) -> dict[str, Any]:
 async def describe_table(table_name: str, ctx: Context) -> dict[str, Any]:
     """
     Get column information for a specific table.
-    
+
     Use this to understand table structure before writing queries.
-    
+
     Args:
         table_name: Name of the table to describe
         
