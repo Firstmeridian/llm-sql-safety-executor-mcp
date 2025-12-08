@@ -56,41 +56,17 @@ LLM → Direct Function       LLM → MCP Client → MCP Server → Database
 
 ## MCP Tools Exposed
 
-The service exposes six standardized MCP tools:
+The service exposes five standardized MCP tools (refactored December 2025):
 
-### 1. `validate_sql_query`
-Purpose: Validates SQL queries for safety (SELECT-only operations)
+### 1. `query` (Primary Tool)
+Purpose: Executes SQL SELECT queries with automatic safety validation
 
-Input:
-```json
-{
-  "sql_query": "SELECT name, email FROM users WHERE active = 1"
-}
-```
-
-Output:
-```json
-{
-  "is_safe": true,
-  "query": "SELECT name, email FROM users WHERE active = 1",
-  "message": "Query is safe for execution",
-  "allowed_operations": ["SELECT"],
-  "validation_passed": true
-}
-```
-
-### 2. `execute_safe_sql`
-Purpose: Executes validated SQL queries against the database
-
-Safety behavior:
-- Automatic SQL safety validation is performed before execution. Only SELECT statements are allowed.
-- If the query contains any non-SELECT operation or mixed statements, the tool rejects it and returns `success: false` with an explanatory `message`.
-- To pre-check without executing, use `validate_sql_query`.
+This is the primary tool for all database operations. Safety validation is automatic - only SELECT statements are allowed.
 
 Input:
 ```json
 {
-  "sql_query": "SELECT COUNT(*) as total FROM products"
+  "sql": "SELECT COUNT(*) as total FROM products"
 }
 ```
 
@@ -99,7 +75,6 @@ Output:
 {
   "success": true,
   "query": "SELECT COUNT(*) as total FROM products",
-  "message": "Query executed successfully",
   "data": [
     {"total": 150}
   ],
@@ -108,97 +83,56 @@ Output:
 ```
 Note: `data` is a JSON-serializable list (typically a list of objects). For this query it looks like `[{"total": 150}]`.
 
-### 3. `get_server_info`
-Purpose: Provides server capabilities and configuration information
-
-Output:
-```json
-{
-  "name": "SQL Safety Checker MCP Server",
-  "version": "1.0.0",
-  "capabilities": ["SQL query validation (SELECT-only)", "Safe SQL query execution"],
-  "supported_databases": ["MySQL"],
-  "safety_features": ["Only SELECT statements allowed", "SQL parsing validation"]
-}
-```
-
-### 4. `check_database_connection`
+### 2. `check_connection`
 Purpose: Tests database connectivity and configuration
 
 Output:
 ```json
 {
   "connected": true,
-  "message": "Database connection successful",
-  "test_result": [
-    {"test": 1}
-  ]
+  "message": "Database connection successful"
 }
 ```
 
-### 5. `get_table_schema` (Optional)
-Purpose: Retrieves schema information for database tables
+### 3. `list_tables`
+Purpose: Lists all tables in the database with row counts
 
-**Note**: This tool is controlled by the `ENABLE_SCHEMA_TOOLS` environment variable (default: enabled)
+Output:
+```json
+{
+  "success": true,
+  "data": [
+    {"table_name": "users", "row_count": 150},
+    {"table_name": "products", "row_count": 500}
+  ],
+  "table_count": 2
+}
+```
+
+### 4. `describe_table`
+Purpose: Retrieves column information for a specific table
 
 Input:
 ```json
 {
-  "table_name": "users"  // Optional - if empty, returns all tables
+  "table_name": "users"
 }
 ```
 
-Output (specific table):
+Output:
 ```json
 {
   "success": true,
   "table_name": "users",
-  "message": "Schema retrieved successfully",
-  "data": [
-    {
-      "COLUMN_NAME": "id",
-      "DATA_TYPE": "int",
-      "IS_NULLABLE": "NO",
-      "COLUMN_DEFAULT": null,
-      "COLUMN_KEY": "PRI",
-      "EXTRA": "auto_increment"
-    },
-    {
-      "COLUMN_NAME": "name",
-      "DATA_TYPE": "varchar",
-      "IS_NULLABLE": "YES",
-      "COLUMN_DEFAULT": null,
-      "COLUMN_KEY": "",
-      "EXTRA": ""
-    }
+  "columns": [
+    {"column_name": "id", "data_type": "int", "nullable": "NO", "key_type": "PRI"},
+    {"column_name": "name", "data_type": "varchar", "nullable": "YES", "key_type": ""}
   ],
-  "row_count": 2
+  "column_count": 2
 }
 ```
 
-Output (all tables):
-```json
-{
-  "success": true,
-  "table_name": "all_tables",
-  "message": "Schema retrieved successfully",
-  "data": [
-    {
-      "TABLE_NAME": "users",
-      "TABLE_ROWS": 150,
-      "TABLE_COMMENT": "User accounts"
-    },
-    {
-      "TABLE_NAME": "products",
-      "TABLE_ROWS": 500,
-      "TABLE_COMMENT": "Product catalog"
-    }
-  ],
-  "row_count": 2
-}
-```
-
-### 6. `get_sample_data` (Optional)
+### 5. `sample` (Optional)
 Purpose: Retrieves sample data from a specified table
 
 **Note**: This tool is controlled by the `ENABLE_SCHEMA_TOOLS` environment variable (default: enabled)
@@ -207,7 +141,7 @@ Input:
 ```json
 {
   "table_name": "users",
-  "limit": 5  // Optional - default: 5, max: 20
+  "limit": 5
 }
 ```
 
@@ -216,16 +150,12 @@ Output:
 {
   "success": true,
   "table_name": "users",
-  "message": "Sample data retrieved successfully (limit: 5)",
   "data": [
     {"id": 1, "name": "Alice"},
-    {"id": 2, "name": "Bob"},
-    {"id": 3, "name": "Charlie"},
-    {"id": 4, "name": "David"},
-    {"id": 5, "name": "Eve"}
+    {"id": 2, "name": "Bob"}
   ],
-  "row_count": 5,
-  "query_executed": "SELECT * FROM users LIMIT 5"
+  "row_count": 2,
+  "query": "SELECT * FROM `users` LIMIT 5"
 }
 ```
 
@@ -248,19 +178,18 @@ Based on the included scripts and program behavior:
   - Non-SELECT queries (DELETE/INSERT/UPDATE/DROP): Reported as unsafe and blocked.
   - Multiple statements: Allowed only if all statements are SELECT; any non-SELECT causes failure.
   - Empty query: Treated as safe by the current implementation.
-- 🔗 Connection check (`check_database_connection`)
-  - Failure modes (e.g., missing env vars, unreachable DB): Returns `connected: false` and includes `config_check` with missing variables.
-  - Success: Executes `SELECT 1 as test` and returns `connected: true` with tuple-like result.
-- ▶️ Execution (`execute_safe_sql`)
+- 🔗 Connection check (`check_connection`)
+  - Failure modes (e.g., missing env vars, unreachable DB): Returns `connected: false` and includes `config` with missing variables.
+  - Success: Executes `SELECT 1 as test` and returns `connected: true`.
+- ▶️ Execution (`query`)
   - Unsafe queries: Blocked at validation with `success: false` and a clear message.
   - Safe queries:
     - With valid DB connectivity: Returns serialized rows (JSON-serializable) and `row_count`.
     - Without valid connectivity: Returns `success: false` with an error message.
-- 📊 Schema Introspection (`get_table_schema`) - **Optional Feature**
-  - All tables: Returns list of tables with row counts and comments
-  - Specific table: Returns detailed column information including types and constraints
-  - Can be disabled via `ENABLE_SCHEMA_TOOLS=0`
-- 📋 Sample Data (`get_sample_data`) - **Optional Feature**
+- 📊 Table Discovery (`list_tables`, `describe_table`)
+  - list_tables: Returns list of tables with row counts
+  - describe_table: Returns detailed column information including types and constraints
+- 📋 Sample Data (`sample`) - **Optional Feature**
   - Retrieves limited sample rows from specified tables
   - Enforces maximum limit of 20 rows for safety
   - Returns actual query executed for transparency
@@ -348,7 +277,7 @@ DB_NAME=your_database_name
 ### Optional Environment Variables
 ```bash
 # Feature Toggles (1=enabled, 0=disabled)
-ENABLE_SCHEMA_TOOLS=1  # Controls get_table_schema and get_sample_data tools
+ENABLE_SCHEMA_TOOLS=1  # Controls sample() tool
 ```
 
 ### MCP Client Integration
@@ -414,7 +343,8 @@ This script:
 
 - [Feasibility Analysis](LLM_TO_MCP_FEASIBILITY_ANALYSIS.md): Detailed analysis of LLM to MCP conversion
 - [Original Context](GEMINI.md): Project background and development guidelines
-- [Prompt Templates](PROMPTS.md): Guide for using MCP prompt templates
+- [Refactoring Log](REFACTORING_LOG.md): December 2025 refactoring changes documentation
+- [MCP Client Test Guide](TEST_MCP_CLIENT_GUIDE.md): Guide for testing MCP server via client
 
 ## Contributing
 

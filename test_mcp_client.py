@@ -2,12 +2,15 @@
 """
 MCP Client Test Script (FastMCP)
 
-This script uses FastMCP's simplified client to test the SQL Safety Checker MCP server.
-It connects to the server and calls various tools to verify their actual return 
-structures match the documentation.
+This script uses FastMCP's Client to test the SQL Safety Checker MCP server
+via the MCP protocol. It connects to the server and calls various tools to 
+verify their actual return structures match the documentation.
 
 Usage:
     python test_mcp_client.py
+
+This tests the MCP protocol communication. For direct function tests, 
+use test_mcp_functions.py instead.
 """
 
 import asyncio
@@ -25,7 +28,6 @@ load_dotenv()
 SCHEMA_TOOLS_ENABLED = os.getenv("ENABLE_SCHEMA_TOOLS", "1") == "1"
 
 # Test configuration
-TEST_TABLE_NAME = "information_schema.TABLES"  # Table to use for testing queries
 TEST_SAMPLE_LIMIT = 3  # Number of sample rows to retrieve
 
 
@@ -40,6 +42,15 @@ def print_result(title: str, data: dict, note: str = None):
     print()
 
 
+def parse_result(result) -> dict:
+    """Parse MCP tool result to dictionary."""
+    if hasattr(result, 'data') and result.data:
+        return result.data
+    if hasattr(result, 'content') and result.content:
+        return json.loads(result.content[0].text)
+    return {}
+
+
 async def test_mcp_server():
     """Connect to the MCP server and test all available tools."""
     # Get the absolute path to start_server.py
@@ -51,7 +62,7 @@ async def test_mcp_server():
         return
     
     print("=" * 70)
-    print("MCP CLIENT TEST - SQL Safety Checker MCP Server (FastMCP)")
+    print("MCP CLIENT TEST - SQL Safety Checker MCP Server")
     print("=" * 70)
     print(f"Server script: {server_script}")
     print(f"Schema tools enabled: {SCHEMA_TOOLS_ENABLED}")
@@ -65,96 +76,87 @@ async def test_mcp_server():
             
             # List available tools
             tools = await client.list_tools()
-            print(f"Available tools: {[tool.name for tool in tools]}\n")
+            tool_names = [tool.name for tool in tools]
+            print(f"Available tools: {tool_names}\n")
             
-            # Test 1: Get Server Info
-            result = await client.call_tool("get_server_info", {})
-            # FastMCP's .data property automatically deserializes the result
-            content = result.data if result.data else json.loads(result.content[0].text)
-            print_result("TEST 1: get_server_info", content)
+            # Test 1: Check Database Connection
+            result = await client.call_tool("check_connection", {})
+            content = parse_result(result)
+            print_result("TEST 1: check_connection", content)
             
-            # Test 2: Check Database Connection
-            result = await client.call_tool("check_database_connection", {})
-            content = result.data if result.data else json.loads(result.content[0].text)
-            print_result("TEST 2: check_database_connection", content)
+            db_connected = content.get("connected", False)
+            if not db_connected:
+                print("⚠️  Database not connected. Some tests may fail.")
+                print("    Check your .env file for DB credentials.\n")
             
-            # Test 3: Execute Safe SQL
+            # Test 2: List Tables
+            result = await client.call_tool("list_tables", {})
+            content = parse_result(result)
+            print_result("TEST 2: list_tables", content)
+            
+            # Get first table name for later tests
+            first_table = None
+            if content.get("success") and content.get("data"):
+                first_table = content["data"][0].get("table_name")
+            
+            # Test 3: Query Tool (Primary)
             print("-" * 70)
-            print("TEST 3: execute_safe_sql")
+            print("TEST 3: query (Primary Tool)")
             print("-" * 70)
-            
-            # Test listing all tables in current database
-            list_tables_query = "SELECT TABLE_NAME, TABLE_ROWS, TABLE_COMMENT FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_TYPE = 'BASE TABLE'"
-            print(f"Query 1: List all tables in current database")
-            result = await client.call_tool("execute_safe_sql", {
-                "sql_query": list_tables_query
-            })
-            content = result.data if result.data else json.loads(result.content[0].text)
-            if content.get('success') and isinstance(content.get('data'), list):
-                print(f"Found {len(content['data'])} tables:")
-                print(json.dumps(content, indent=2, ensure_ascii=False))
-            else:
-                print(json.dumps(content, indent=2, ensure_ascii=False))
             
             # Test simple SELECT
-            print("\nQuery 2: SELECT 1 as test")
-            result = await client.call_tool("execute_safe_sql", {
-                "sql_query": "SELECT 1 as test"
-            })
-            content = result.data if result.data else json.loads(result.content[0].text)
+            print("Query 1: SELECT 1 as test")
+            result = await client.call_tool("query", {"sql": "SELECT 1 as test"})
+            content = parse_result(result)
             print(json.dumps(content, indent=2, ensure_ascii=False))
-            print("📝 Verify: 'data' field is [{'test': 1}] not [[1]]")
+            print("📝 Verify: 'data' field is [{'test': 1}] not [[1]]\n")
             
-            # Test COUNT query with configured table
-            count_query = f"SELECT COUNT(*) as total FROM {TEST_TABLE_NAME}"
-            print(f"\nQuery 3: {count_query}")
-            result = await client.call_tool("execute_safe_sql", {
-                "sql_query": count_query
-            })
-            content = result.data if result.data else json.loads(result.content[0].text)
-            print(json.dumps(content, indent=2, ensure_ascii=False))
-            print("📝 Verify: 'data' field is [{'total': N}] not [[N]]")
-            print()
-            
-            # Test 4-5: Schema tools (if enabled)
-            if SCHEMA_TOOLS_ENABLED:
-                # Test 4: Get Table Schema
-                result = await client.call_tool("get_table_schema", {})
-                content = result.data if result.data else json.loads(result.content[0].text)
-                # Limit output for readability
-                print("-" * 70)
-                print("TEST 4: get_table_schema (All Tables)")
-                print("-" * 70)
-                if isinstance(content, dict) and 'data' in content and isinstance(content['data'], list):
-                    if len(content['data']) > 3:
-                        print(f"Showing first 3 of {len(content['data'])} tables:")
-                        content['data'] = content['data'][:3] + [{"...": "more tables"}]
-                    print(json.dumps(content, indent=2, ensure_ascii=False))
-                    print()
-                else:
-                    print(json.dumps(content, indent=2, ensure_ascii=False))
-                    print()
-                
-                # Test 5: Get Sample Data
-                print("-" * 70)
-                print("TEST 5: get_sample_data")
-                print("-" * 70)
-                print(f"Table: {TEST_TABLE_NAME}, Limit: {TEST_SAMPLE_LIMIT}")
-                result = await client.call_tool("get_sample_data", {
-                    "table_name": TEST_TABLE_NAME,
-                    "limit": TEST_SAMPLE_LIMIT
-                })
-                content = result.data if result.data else json.loads(result.content[0].text)
+            # Test COUNT query
+            if first_table:
+                count_query = f"SELECT COUNT(*) as total FROM `{first_table}`"
+                print(f"Query 2: {count_query}")
+                result = await client.call_tool("query", {"sql": count_query})
+                content = parse_result(result)
                 print(json.dumps(content, indent=2, ensure_ascii=False))
-                print()
+                print("📝 Verify: 'data' field is [{'total': N}]\n")
+            
+            # Test unsafe query (should be blocked)
+            print("Query 3: DELETE FROM users (should be blocked)")
+            result = await client.call_tool("query", {"sql": "DELETE FROM users"})
+            content = parse_result(result)
+            print(json.dumps(content, indent=2, ensure_ascii=False))
+            print("📝 Verify: 'success' is false, query blocked\n")
+            
+            # Test 4: Describe Table
+            if first_table:
+                result = await client.call_tool("describe_table", {"table_name": first_table})
+                content = parse_result(result)
+                # Limit columns shown
+                if content.get("columns") and len(content["columns"]) > 5:
+                    content["columns"] = content["columns"][:5] + [{"...": "more columns"}]
+                print_result(f"TEST 4: describe_table('{first_table}')", content)
             else:
                 print("-" * 70)
-                print("TEST 4-5: Schema tools disabled (ENABLE_SCHEMA_TOOLS=0)")
+                print("TEST 4: describe_table (skipped - no tables)")
+                print("-" * 70)
+                print()
+            
+            # Test 5: Sample Tool (if enabled and table exists)
+            if SCHEMA_TOOLS_ENABLED and first_table and "sample" in tool_names:
+                result = await client.call_tool("sample", {
+                    "table_name": first_table,
+                    "limit": TEST_SAMPLE_LIMIT
+                })
+                content = parse_result(result)
+                print_result(f"TEST 5: sample('{first_table}', limit={TEST_SAMPLE_LIMIT})", content)
+            else:
+                print("-" * 70)
+                print("TEST 5: sample (skipped - disabled or no tables)")
                 print("-" * 70)
                 print()
             
             print("=" * 70)
-            print("✓ All tests completed!")
+            print("✓ All MCP protocol tests completed!")
             print("=" * 70)
             
     except Exception as e:
@@ -163,6 +165,8 @@ async def test_mcp_server():
         print("1. Make sure start_server.py exists and is executable")
         print("2. Check that all required environment variables are set in .env")
         print("3. Verify that 'fastmcp' package is installed: pip install fastmcp")
+        import traceback
+        traceback.print_exc()
 
 
 if __name__ == "__main__":

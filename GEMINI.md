@@ -19,15 +19,13 @@ The primary technologies used are:
 *   `sql_safety_checker.py`: The core logic of the project resides here. It contains:
     *   `is_sql_safe(sql_query)`: A function that checks if a SQL query contains only `SELECT` statements.
     *   `execute_sql(sql_query)`: A function that first validates the query using `is_sql_safe` and then executes it against the database.
-*   `mcp_sql_server.py`: **NEW** - MCP (Model Context Protocol) server implementation that wraps the SQL safety checker functionality:
-    *   `validate_sql_query()`: MCP tool for validating SQL queries
-    *   `execute_safe_sql()`: MCP tool for executing safe SQL queries
-    *   `get_server_info()`: MCP tool for retrieving server information
-    *   `check_database_connection()`: MCP tool for testing database connectivity
-    *   `get_table_schema()`: **Optional** MCP tool for retrieving table schemas (controlled by `ENABLE_SCHEMA_TOOLS`)
-    *   `get_sample_data()`: **Optional** MCP tool for retrieving sample data (controlled by `ENABLE_SCHEMA_TOOLS`)
-    *   `system_orchestration()`: MCP prompt for system-level workflow guidance
-    *   `generate_select_sql()`: MCP prompt for SQL generation guidance
+*   `mcp_sql_server.py`: MCP (Model Context Protocol) server implementation that wraps the SQL safety checker functionality (refactored December 2025):
+    *   `query(sql)`: Primary MCP tool for executing SELECT queries (with automatic validation)
+    *   `check_connection()`: MCP tool for testing database connectivity
+    *   `list_tables()`: MCP tool for listing all tables with row counts
+    *   `describe_table(table_name)`: MCP tool for retrieving table column information
+    *   `sample(table_name, limit)`: **Optional** MCP tool for retrieving sample data (controlled by `ENABLE_SCHEMA_TOOLS`)
+    *   `sql_assistant()`: MCP prompt for SQL query assistance
 *   `test_mcp_functions.py`: **NEW** - Test script to verify MCP functions work correctly (internal tests)
 *   `test_mcp_client.py`: **NEW** - MCP client test script that simulates real client connections
 *   `mcp_config.json`: **NEW** - Configuration file for MCP client integration
@@ -167,21 +165,19 @@ The conversion of this SQL safety checker tool to an MCP (Model Context Protocol
 
 ### Available MCP Tools
 
-The MCP service provides six main tools:
+The MCP service provides five main tools (refactored December 2025 for simplicity):
 
-1. **`validate_sql_query`**: Validates SQL queries for safety (SELECT-only)
-2. **`execute_safe_sql`**: Executes validated SQL queries against the database
-3. **`get_server_info`**: Provides information about server capabilities
-4. **`check_database_connection`**: Tests database connectivity and configuration
-5. **`get_table_schema`**: **Optional** - Retrieves table structure information (controlled by `ENABLE_SCHEMA_TOOLS`)
-6. **`get_sample_data`**: **Optional** - Retrieves sample data from tables (controlled by `ENABLE_SCHEMA_TOOLS`)
+1. **`query`**: Primary tool - Executes SELECT queries with automatic safety validation
+2. **`check_connection`**: Tests database connectivity and configuration
+3. **`list_tables`**: Lists all tables in the database with row counts
+4. **`describe_table`**: Retrieves table column information (similar to SQL DESCRIBE)
+5. **`sample`**: **Optional** - Retrieves sample data from tables (controlled by `ENABLE_SCHEMA_TOOLS`)
 
 ### Available MCP Prompts
 
-The MCP service provides two prompt templates:
+The MCP service provides one prompt template:
 
-1. **`system_orchestration`**: System-level workflow guidance for safe SQL usage
-2. **`generate_select_sql`**: Guidance for generating safe SELECT statements from natural language
+1. **`sql_assistant`**: Workflow guidance for SQL query assistance
 
 ### Deployment Options
 
