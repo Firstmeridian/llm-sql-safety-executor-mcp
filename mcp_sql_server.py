@@ -44,21 +44,10 @@ async def lifespan(mcp_server: FastMCP) -> AsyncIterator[dict[str, Any]]:
 # Create MCP server with lifespan
 mcp = FastMCP(
     name="sql-db",
-    instructions="""SQL database assistant with READ-ONLY access.
-
-TOOL PRIORITY:
-1. query - PRIMARY. Use FIRST for all data requests.
-2. list_tables - Only if query fails with "table not found"
-3. describe_table - Only if query fails with "column not found"
-4. check_connection - Only for connection errors
-
-RULES:
-- DO NOT call check_connection before queries
-- DO NOT call list_tables/describe_table to explore
-- START with query() for any data request
-
-CORRECT: query("SELECT * FROM table WHERE condition")
-WRONG: check_connection -> list_tables -> describe_table -> query""",
+    instructions="""You are a database query assistant with READ-ONLY access.
+Use the query tool for most operations. Safe statements: SELECT, SHOW, DESCRIBE, EXPLAIN.
+Use list_tables or describe_table first if you don't know the table structure.
+If you already know the table structure: query directly""",
     lifespan=lifespan,
 )
 
@@ -104,7 +93,8 @@ async def query(sql: str, ctx: Context) -> dict[str, Any]:
     Execute a SQL SELECT query on the database.
     
     This is the PRIMARY tool for all database queries.
-    Safety validation is automatic - only SELECT statements are allowed.
+    Safety validation is automatic - only read-only statements are allowed.
+    Supported: SELECT, SHOW, DESCRIBE, EXPLAIN.
     
     Args:
         sql: A SQL SELECT query to execute
@@ -116,7 +106,9 @@ async def query(sql: str, ctx: Context) -> dict[str, Any]:
         query("SELECT * FROM users LIMIT 10")
         query("SELECT name, email FROM users WHERE active = 1")
         query("SELECT COUNT(*) as total FROM orders")
-        query("SELECT * FROM products WHERE name LIKE '%phone%'")
+        query("SHOW TABLES")
+        query("DESCRIBE users")
+        query("EXPLAIN SELECT * FROM products WHERE id = 1")
     """
     await ctx.info(f"Executing query: {sql}")
     
@@ -125,7 +117,7 @@ async def query(sql: str, ctx: Context) -> dict[str, Any]:
         await ctx.warning(f"Rejected unsafe query: {sql}")
         return {
             "success": False,
-            "error": "Only SELECT queries are allowed",
+            "error": "Only read-only queries allowed (SELECT, SHOW, DESCRIBE, EXPLAIN)",
             "query": sql
         }
     
@@ -364,10 +356,16 @@ def sql_assistant() -> str:
     return """You are a database query assistant with READ-ONLY access.
 
 TOOL USAGE (in order of preference):
-1. query(sql) - Execute any SELECT query. This is your PRIMARY tool.
+1. query(sql) - Execute any read-only query. This is your PRIMARY tool.
 2. list_tables() - See available tables (use first if unsure)
 3. describe_table(name) - See table columns before complex queries
 4. sample(table, limit) - Preview table data
+
+SUPPORTED STATEMENTS:
+- SELECT: Data retrieval queries
+- SHOW: Database metadata (SHOW TABLES, SHOW COLUMNS, etc.)
+- DESCRIBE: Table structure information
+- EXPLAIN: Query execution plan analysis
 
 WORKFLOW:
 - For simple queries: Use query() directly
@@ -375,6 +373,6 @@ WORKFLOW:
 - Always show the SQL you executed in your response
 
 RULES:
-- Only SELECT statements allowed (enforced automatically)
+- Only read-only statements allowed (enforced automatically)
 - Be helpful and explain results clearly
 - Format results in readable tables when appropriate"""

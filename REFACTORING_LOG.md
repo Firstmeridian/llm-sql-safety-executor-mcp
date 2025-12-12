@@ -1,11 +1,40 @@
 # MCP SQL Server Refactoring Log
 
-**Date:** December 2, 2025  
+**Date:** December 2, 2025 (Updated: December 10, 2025)  
 **Author:** Code Refactoring Session  
 
 ## Overview
 
 This document records the major refactoring changes made to `mcp_sql_server.py` to follow FastMCP best practices and improve the overall design.
+
+---
+
+## Latest Update (December 10, 2025)
+
+### Extended SQL Statement Support
+
+Added support for additional read-only SQL statement types beyond SELECT:
+
+| Statement | Purpose | Example |
+|-----------|---------|---------|
+| `SELECT` | Data retrieval | `SELECT * FROM users` |
+| `SHOW` | Database metadata | `SHOW TABLES`, `SHOW COLUMNS FROM users` |
+| `DESCRIBE` | Table structure | `DESCRIBE users` |
+| `EXPLAIN` | Query plan analysis | `EXPLAIN SELECT * FROM users` |
+
+**Files Changed:**
+- `sql_safety_checker.py`: Added `SAFE_SQL_TYPES` constant and updated `is_sql_safe()` function
+- `mcp_sql_server.py`: Updated instructions, tool descriptions, and prompts
+- `README.md`: Updated documentation to reflect new capabilities
+
+**Server Instructions Updated:**
+```python
+instructions="""You are a database query assistant with READ-ONLY access.
+Use the query tool for most operations. Safe statements: SELECT, SHOW, DESCRIBE, EXPLAIN.
+Use list_tables first if you don't know the database structure.
+If first time querying or unsure about columns: list_tables() -> describe_table() -> query()
+If you already know the table structure: query directly"""
+```
 
 ---
 
@@ -136,19 +165,44 @@ async def query(sql: str, ctx: Context) -> dict[str, Any]:
 - Client can receive real-time progress updates
 - Better debugging and monitoring capabilities
 
-### D. Improved Server Instructions
+### D. Improved Server Instructions (Updated December 2025)
 
+The server instructions were optimized following prompt engineering best practices to reduce LLM's "exploratory behavior" (making unnecessary tool calls).
+
+**Original Instructions:**
 ```python
-mcp = FastMCP(
-    name="sql-db",
-    instructions="""You are a database query assistant with READ-ONLY access.
+instructions="""You are a database query assistant with READ-ONLY access.
 Use the query tool for most operations. Only SELECT statements are allowed.
-Use list_tables first if you don't know the database structure.""",
-    lifespan=lifespan,
-)
+Use list_tables first if you don't know the database structure."""
 ```
 
-**Reason:** Guides LLM on optimal tool usage, reducing unnecessary tool calls.
+**Optimized Instructions:**
+```python
+instructions="""SQL database assistant with READ-ONLY access.
+
+TOOL PRIORITY:
+1. query - PRIMARY. Use FIRST for all data requests.
+2. list_tables - Only if query fails with "table not found"
+3. describe_table - Only if query fails with "column not found"
+4. check_connection - Only for connection errors
+
+RULES:
+- DO NOT call check_connection before queries
+- DO NOT call list_tables/describe_table to explore
+- START with query() for any data request
+
+CORRECT: query("SELECT * FROM table WHERE condition")
+WRONG: check_connection -> list_tables -> describe_table -> query"""
+```
+
+**Reasons:**
+- Establishes clear tool priority (query first)
+- Explicitly states when NOT to use certain tools
+- Provides correct/wrong usage examples
+- Follows Microsoft/OpenAI prompt engineering best practices
+- Expected to reduce tool calls from 4-5 to 1-2 per query
+
+See [PROMPT_ENGINEERING_BEST_PRACTICES.md](PROMPT_ENGINEERING_BEST_PRACTICES.md) for detailed guidelines.
 
 ### E. Added SQL Injection Prevention
 

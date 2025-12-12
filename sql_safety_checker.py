@@ -36,7 +36,7 @@ def execute_sql(sql_query: str) -> list | str:
         return "Error: Database engine could not be initialized. Please check your installation."
 
     if not is_sql_safe(sql_query):
-        return "Error: Only SELECT queries are allowed."
+        return "Error: Only read-only queries are allowed (SELECT, SHOW, DESCRIBE, EXPLAIN)."
 
     try:
         with engine.connect() as connection:
@@ -51,15 +51,25 @@ def execute_sql(sql_query: str) -> list | str:
     except Exception as e:
         return f"An unexpected error occurred: {e}"
 
+# Safe read-only SQL statement types
+SAFE_SQL_TYPES = {'SELECT', 'SHOW', 'DESCRIBE', 'EXPLAIN'}
+
+
 def is_sql_safe(sql_query: str) -> bool:
     """
-    Checks if a given SQL query is safe by ensuring it only contains SELECT statements.
+    Checks if a given SQL query is safe by ensuring it only contains read-only statements.
+
+    Allowed statement types:
+    - SELECT: Standard data retrieval
+    - SHOW: Database metadata (SHOW TABLES, SHOW COLUMNS, etc.)
+    - DESCRIBE: Table structure information
+    - EXPLAIN: Query execution plan analysis
 
     Args:
         sql_query: The SQL query to check.
 
     Returns:
-        True if the query is safe, False otherwise.
+        True if the query is safe (read-only), False otherwise.
     """
     if not sql_query:
         return True
@@ -67,10 +77,16 @@ def is_sql_safe(sql_query: str) -> bool:
     try:
         parsed = sqlparse.parse(sql_query)
         for statement in parsed:
-            if statement.get_type() != 'SELECT':
+            stmt_type = statement.get_type()
+            # sqlparse returns 'UNKNOWN' for SHOW/DESCRIBE/EXPLAIN, check first token
+            if stmt_type == 'UNKNOWN' or stmt_type is None:
+                first_token = statement.token_first(skip_cm=True)
+                if first_token:
+                    stmt_type = first_token.normalized.upper()
+            if stmt_type not in SAFE_SQL_TYPES:
                 return False
     except Exception:
-        # In case of a parsing error, we can consider it unsafe
+        # In case of a parsing error, we consider it unsafe
         return False
 
     return True

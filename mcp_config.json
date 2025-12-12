@@ -1,14 +1,10 @@
 {
   "mcpServers": {
     "sql-safety-checker": {
+      "type": "stdio",
       "command": "python",
       "args": ["start_server.py"],
-      "env": {
-        "DB_USER": "${DB_USER}",
-        "DB_PASSWORD": "${DB_PASSWORD}",
-        "DB_HOST": "${DB_HOST}",
-        "DB_NAME": "${DB_NAME}"
-      }
+      "cwd": "/path/to/vibe-coding-gemini-llm-execute-sql-tools"
     }
   }
 }

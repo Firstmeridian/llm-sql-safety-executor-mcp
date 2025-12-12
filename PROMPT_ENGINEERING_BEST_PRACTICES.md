@@ -207,5 +207,5 @@ RULES:
 
 ---
 
-*Document created: December 2024*  
-*Last updated: December 2024*
+*Document created: December 2025*  
+*Last updated: December 2025*

@@ -1,8 +1,33 @@
 # SQL Safety Checker - MCP Service Implementation
 
-A Python-based tool that enables Large Language Models (LLMs) to safely execute SQL queries through a standardized MCP (Model Context Protocol) service interface.
+A Python-based tool that enables Large Language Models (LLMs) to safely execute read-only SQL queries through a standardized MCP (Model Context Protocol) service interface.
 
 ## What Changed
+
+### v2.0 Refactoring (December 2025) - Current Branch: `feature/v2.0-mcp-server-refactoring`
+
+Major improvements following FastMCP best practices:
+
+- **Extended SQL Support**: Now supports multiple read-only statement types
+  - `SELECT`: Standard data retrieval
+  - `SHOW`: Database metadata (SHOW TABLES, SHOW COLUMNS, etc.)
+  - `DESCRIBE`: Table structure information
+  - `EXPLAIN`: Query execution plan analysis
+- **Tool Consolidation**: Reduced from 6 tools to 5 with clearer responsibilities
+  - `validate_sql_query` + `execute_safe_sql` → merged into `query` (automatic validation)
+  - Added new `list_tables` tool for database discovery
+  - Renamed tools for clarity: `check_connection`, `describe_table`, `sample`
+- **Optimized Server Instructions**: Reduced LLM's "exploratory behavior" (unnecessary tool calls)
+  - Clear tool priority: `query` first, others only on error
+  - Expected reduction: 4-5 tool calls → 1-2 per query
+- **Code Quality**: ~40% code reduction (~460 → ~280 lines) while maintaining functionality
+- **Enhanced Metadata**: Added `ToolAnnotations` for better LLM tool selection
+- **Lifespan Management**: Proper async resource lifecycle (FastMCP best practice)
+- **SQL Injection Prevention**: Added identifier validation for dynamic table names
+
+See [REFACTORING_LOG.md](REFACTORING_LOG.md) for detailed changes.
+
+### v1.0 - MCP Service Architecture
 
 This project has been transformed from a direct function-call approach to a standardized MCP service architecture, providing:
 
@@ -24,14 +49,37 @@ Traditional LLM-database integrations face several limitations:
 
 ### Core Requirements
 - Enable safe SQL query execution for AI models
-- Ensure only SELECT statements are allowed
+- Ensure only read-only statements are allowed (SELECT, SHOW, DESCRIBE, EXPLAIN)
 - Provide consistent interface across different AI platforms
 - Maintain high performance and reliability
 - Support multiple concurrent AI model connections
 
 ## Solution
 
-### MCP Service Architecture
+### v2.0 - Optimized Tool Design (December 2025)
+
+The v2.0 refactoring focuses on reducing LLM's "exploratory behavior" through:
+
+```
+Before (v1.0):                          After (v2.0):
+LLM calls 4-5 tools per query           LLM calls 1-2 tools per query
+
+check_connection                        query (PRIMARY)
+    ↓                                      ↓
+list_tables                             [only on error]
+    ↓                                      ↓
+describe_table                          list_tables / describe_table
+    ↓
+query
+```
+
+**Key Optimizations:**
+- Clear tool priority in server instructions
+- Explicit "when NOT to use" guidance
+- Correct/Wrong usage examples for LLM guidance
+- Following Microsoft/OpenAI prompt engineering best practices
+
+### v1.0 - MCP Service Architecture
 
 Our solution implements a Model Context Protocol (MCP) server that provides standardized database access:
 
@@ -43,25 +91,33 @@ LLM → Direct Function       LLM → MCP Client → MCP Server → Database
 ### Key Components
 
 1. `start_server.py`: Server startup and environment validation
-2. `mcp_sql_server.py`: Core MCP tool definitions and functionality
+2. `mcp_sql_server.py`: Core MCP tool definitions and functionality (refactored v2.0)
 3. `sql_safety_checker.py`: Original validation and execution logic (unchanged)
-4. `test_mcp_functions.py`: Comprehensive testing suite
+4. `test_mcp_functions.py`: Internal function tests
+5. `test_mcp_client.py`: MCP protocol tests
 
 ### Implementation Strategy
 
+**v1.0 Architecture:**
 - Backward Compatibility: Original functionality preserved without modification
 - Incremental Adoption: Can run alongside existing direct-call implementations
 - Minimal Dependencies: Uses FastMCP framework for simplified development
 - Environment-Based Configuration: Secure credential management through `.env` files
+
+**v2.0 Optimizations:**
+- Tool Consolidation: Merged validation + execution into single `query` tool
+- Prompt Engineering: Optimized server instructions following best practices
+- Metadata Enhancement: Added `ToolAnnotations` for better LLM tool selection
+- Defensive Programming: SQL injection prevention for dynamic identifiers
 
 ## MCP Tools Exposed
 
 The service exposes five standardized MCP tools (refactored December 2025):
 
 ### 1. `query` (Primary Tool)
-Purpose: Executes SQL SELECT queries with automatic safety validation
+Purpose: Executes read-only SQL queries with automatic safety validation
 
-This is the primary tool for all database operations. Safety validation is automatic - only SELECT statements are allowed.
+This is the primary tool for all database operations. Safety validation is automatic - only read-only statements are allowed (SELECT, SHOW, DESCRIBE, EXPLAIN).
 
 Input:
 ```json
@@ -234,27 +290,24 @@ python test_mcp_client.py
 ```
 
 ### Configure MCP Client
-Add the server to your MCP-compatible client configuration (e.g., Claude Desktop or other MCP clients):
+Add the server to your MCP-compatible client configuration (e.g., VS Code, Claude Desktop, or other MCP clients):
 
 ```json
 {
   "mcpServers": {
     "sql-safety-checker": {
+      "type": "stdio",
       "command": "python",
       "args": ["start_server.py"],
-      "env": {
-        "DB_USER": "${DB_USER}",
-        "DB_PASSWORD": "${DB_PASSWORD}",
-        "DB_HOST": "${DB_HOST}",
-        "DB_NAME": "${DB_NAME}"
-      }
+      "cwd": "/path/to/vibe-coding-gemini-llm-execute-sql-tools"
     }
   }
 }
 ```
 
-- If your client loads `.env` automatically (e.g., via python-dotenv), the `env` block can be omitted.
-- Ensure your client allows running local commands and passing environment variables.
+- Replace `/path/to/` with your actual project path.
+- The server loads credentials from `.env` file in the working directory.
+- For virtual environments, use the full path to the Python interpreter.
 
 ## Migration Path
 
@@ -345,6 +398,7 @@ This script:
 - [Original Context](GEMINI.md): Project background and development guidelines
 - [Refactoring Log](REFACTORING_LOG.md): December 2025 refactoring changes documentation
 - [MCP Client Test Guide](TEST_MCP_CLIENT_GUIDE.md): Guide for testing MCP server via client
+- [Prompt Engineering Best Practices](PROMPT_ENGINEERING_BEST_PRACTICES.md): Guidelines for MCP tool descriptions and prompts
 
 ## Contributing
 

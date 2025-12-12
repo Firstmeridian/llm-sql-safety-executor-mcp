@@ -30,6 +30,8 @@ The primary technologies used are:
 *   `test_mcp_client.py`: **NEW** - MCP client test script that simulates real client connections
 *   `mcp_config.json`: **NEW** - Configuration file for MCP client integration
 *   `TEST_MCP_CLIENT_GUIDE.md`: **NEW** - Usage guide for the MCP client test script
+*   `PROMPT_ENGINEERING_BEST_PRACTICES.md`: **NEW** - Guidelines for MCP tool descriptions and prompts
+*   `REFACTORING_LOG.md`: **NEW** - December 2025 refactoring changes documentation
 *   `Dockerfile`: **NEW** - Docker configuration for containerized deployment
 *   `.env.example`: **NEW** - Example environment configuration file
 *   `requirements.txt`: Lists all the necessary Python packages for this project (now includes fastMCP).
@@ -101,24 +103,24 @@ The project now supports running as an MCP (Model Context Protocol) service, whi
 
 ### MCP Client Integration
 
-To integrate with an MCP-compatible AI system, use the provided configuration:
+To integrate with an MCP-compatible AI system (e.g., VS Code, Claude Desktop), use the provided configuration:
 
 ```json
 {
   "mcpServers": {
     "sql-safety-checker": {
+      "type": "stdio",
       "command": "python",
-      "args": ["mcp_sql_server.py"],
-      "env": {
-        "DB_USER": "${DB_USER}",
-        "DB_PASSWORD": "${DB_PASSWORD}",
-        "DB_HOST": "${DB_HOST}",
-        "DB_NAME": "${DB_NAME}"
-      }
+      "args": ["start_server.py"],
+      "cwd": "/path/to/vibe-coding-gemini-llm-execute-sql-tools"
     }
   }
 }
 ```
+
+- Replace `/path/to/` with your actual project path.
+- The server loads credentials from `.env` file in the working directory.
+- For virtual environments, use the full path to the Python interpreter.
 
 ## MCP Conversion: Feasibility and Benefits
 
