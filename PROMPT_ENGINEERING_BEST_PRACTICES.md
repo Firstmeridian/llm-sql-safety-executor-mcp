@@ -100,25 +100,25 @@ Models are trained on large quantities of web content in XML and Markdown.
 
 ### 4.1 For MCP Server Instructions
 
-Establish clear tool priority and usage rules:
+Provide clear tool priority while maintaining flexibility for LLM decision-making:
 
 ```python
-instructions="""SQL database assistant with READ-ONLY access.
+instructions="""Database query assistant with READ-ONLY access.
 
-TOOL PRIORITY:
-1. query - PRIMARY. Use FIRST for all data requests.
-2. list_tables - Only if query fails with "table not found"
-3. describe_table - Only if query fails with "column not found"
-4. check_connection - Only for connection errors
+Tools: query (primary), list_tables, describe_table, check_connection
 
-RULES:
-- DO NOT call check_connection before queries
-- DO NOT call list_tables/describe_table to explore
-- START with query() for any data request
+Workflow:
+- Known table structure: query directly
+- Unknown structure: list_tables first, then query
 
-CORRECT: query("SELECT * FROM table WHERE condition")
-WRONG: check_connection -> list_tables -> describe_table -> query"""
+Safe statements: SELECT, SHOW, DESCRIBE, EXPLAIN."""
 ```
+
+**Key principles:**
+- Concise over verbose (fewer tokens = faster, cheaper)
+- Descriptive over restrictive (let LLM decide based on context)
+- Clear primary tool indication without forbidding exploration
+- Aligned with MCP spec: tools are "model-controlled"
 
 ### 4.2 For Tool Docstrings
 

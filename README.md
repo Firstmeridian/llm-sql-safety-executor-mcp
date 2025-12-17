@@ -295,7 +295,7 @@ Add the server to your MCP-compatible client configuration (e.g., VS Code, Claud
 ```json
 {
   "mcpServers": {
-    "sql-safety-checker": {
+    "sql-safety-executor-mcp": {
       "type": "stdio",
       "command": "python",
       "args": ["start_server.py"],

@@ -1,6 +1,6 @@
 # MCP SQL Server Refactoring Log
 
-**Date:** December 2, 2025 (Updated: December 10, 2025)  
+**Date:** December 2, 2025 (Updated: December 15, 2025)  
 **Author:** Code Refactoring Session  
 
 ## Overview
@@ -9,7 +9,7 @@ This document records the major refactoring changes made to `mcp_sql_server.py` 
 
 ---
 
-## Latest Update (December 10, 2025)
+## Latest Update (December 15, 2025)
 
 ### Extended SQL Statement Support
 
@@ -176,31 +176,25 @@ Use the query tool for most operations. Only SELECT statements are allowed.
 Use list_tables first if you don't know the database structure."""
 ```
 
-**Optimized Instructions:**
+**Optimized Instructions (Updated December 15, 2025):**
 ```python
-instructions="""SQL database assistant with READ-ONLY access.
+instructions="""Database query assistant with READ-ONLY access.
 
-TOOL PRIORITY:
-1. query - PRIMARY. Use FIRST for all data requests.
-2. list_tables - Only if query fails with "table not found"
-3. describe_table - Only if query fails with "column not found"
-4. check_connection - Only for connection errors
+Tools: query (primary), list_tables, describe_table, check_connection
 
-RULES:
-- DO NOT call check_connection before queries
-- DO NOT call list_tables/describe_table to explore
-- START with query() for any data request
+Workflow:
+- Known table structure: query directly
+- Unknown structure: list_tables first, then query
 
-CORRECT: query("SELECT * FROM table WHERE condition")
-WRONG: check_connection -> list_tables -> describe_table -> query"""
+Safe statements: SELECT, SHOW, DESCRIBE, EXPLAIN."""
 ```
 
-**Reasons:**
-- Establishes clear tool priority (query first)
-- Explicitly states when NOT to use certain tools
-- Provides correct/wrong usage examples
-- Follows Microsoft/OpenAI prompt engineering best practices
-- Expected to reduce tool calls from 4-5 to 1-2 per query
+**Design Rationale:**
+- **Concise**: Reduced token count while preserving all essential information
+- **Flexible**: Allows LLM to choose exploration when needed (per MCP design philosophy)
+- **Clear priority**: `query (primary)` indicates main tool without being restrictive
+- **Workflow guidance**: Provides both paths (known/unknown structure) without forcing either
+- **Aligned with MCP spec**: Tools are "model-controlled" - LLM decides based on context
 
 See [PROMPT_ENGINEERING_BEST_PRACTICES.md](PROMPT_ENGINEERING_BEST_PRACTICES.md) for detailed guidelines.
 

@@ -97,8 +97,8 @@ The project now supports running as an MCP (Model Context Protocol) service, whi
 
 5.  **Docker Deployment:**
     ```bash
-    docker build -t sql-safety-checker-mcp .
-    docker run --env-file .env sql-safety-checker-mcp
+    docker build -t sql-safety-executor-mcp-mcp .
+    docker run --env-file .env sql-safety-executor-mcp-mcp
     ```
 
 ### MCP Client Integration
@@ -108,7 +108,7 @@ To integrate with an MCP-compatible AI system (e.g., VS Code, Claude Desktop), u
 ```json
 {
   "mcpServers": {
-    "sql-safety-checker": {
+    "sql-safety-executor-mcp": {
       "type": "stdio",
       "command": "python",
       "args": ["start_server.py"],

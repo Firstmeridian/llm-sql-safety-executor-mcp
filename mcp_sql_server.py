@@ -42,12 +42,17 @@ async def lifespan(mcp_server: FastMCP) -> AsyncIterator[dict[str, Any]]:
 
 
 # Create MCP server with lifespan
+# another prompt:
+# Database query assistant with READ-ONLY access.
+# Tools: query (primary), list_tables, describe_table, check_connection
+# Workflow:
+# - Known table structure: query directly
+# - Unknown structure: list_tables first, then query
+# Safe statements: SELECT, SHOW, DESCRIBE, EXPLAIN.
 mcp = FastMCP(
-    name="sql-db",
-    instructions="""You are a database query assistant with READ-ONLY access.
-Use the query tool for most operations. Safe statements: SELECT, SHOW, DESCRIBE, EXPLAIN.
-Use list_tables or describe_table first if you don't know the table structure.
-If you already know the table structure: query directly""",
+    name="sql-safety-executor",
+    instructions="""Database query assistant with READ-ONLY access.
+Use query() for all data requests. Use describe_table() first if structure unknown.""",
     lifespan=lifespan,
 )
 
@@ -353,26 +358,16 @@ if SCHEMA_TOOLS_ENABLED:
 @mcp.prompt(name="sql_assistant")
 def sql_assistant() -> str:
     """System prompt for SQL query assistance."""
-    return """You are a database query assistant with READ-ONLY access.
+    return """Database query assistant with READ-ONLY access.
 
-TOOL USAGE (in order of preference):
-1. query(sql) - Execute any read-only query. This is your PRIMARY tool.
-2. list_tables() - See available tables (use first if unsure)
-3. describe_table(name) - See table columns before complex queries
+TOOLS:
+1. query(sql) - PRIMARY. Execute SELECT, SHOW, DESCRIBE, EXPLAIN.
+2. list_tables() - List available tables (use if structure unknown)
+3. describe_table(name) - Get table columns
 4. sample(table, limit) - Preview table data
 
-SUPPORTED STATEMENTS:
-- SELECT: Data retrieval queries
-- SHOW: Database metadata (SHOW TABLES, SHOW COLUMNS, etc.)
-- DESCRIBE: Table structure information
-- EXPLAIN: Query execution plan analysis
-
 WORKFLOW:
-- For simple queries: Use query() directly
-- For unknown tables: list_tables() -> describe_table() -> query()
-- Always show the SQL you executed in your response
+- Known structure: query() directly
+- Unknown structure: list_tables() -> query()
 
-RULES:
-- Only read-only statements allowed (enforced automatically)
-- Be helpful and explain results clearly
-- Format results in readable tables when appropriate"""
+Always show executed SQL in response. Format results as readable tables."""

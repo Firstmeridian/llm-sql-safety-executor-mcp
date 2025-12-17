@@ -1,6 +1,6 @@
 {
   "mcpServers": {
-    "sql-safety-checker": {
+    "sql-safety-executor-mcp": {
       "type": "stdio",
       "command": "python",
       "args": ["start_server.py"],
