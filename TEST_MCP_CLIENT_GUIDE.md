@@ -55,7 +55,7 @@ Schema tools enabled: True
 
 ✓ Successfully connected to MCP server
 
-Available tools: ['query', 'check_connection', 'list_tables', 'describe_table', 'sample']
+Available tools: ['query', 'check_connection', 'list_tables', 'describe_table', 'get_full_schema', 'get_table_summary', 'sample']
 
 ----------------------------------------------------------------------
 TEST 1: check_connection
@@ -101,7 +101,9 @@ The script tests the following tools:
    - COUNT query
    - Unsafe query rejection
 4. ✅ `describe_table` - Table structure information
-5. ✅ `sample` - Sample data retrieval (optional)
+5. ✅ `get_full_schema` - Complete database schema in one call
+6. ✅ `get_table_summary` - Table statistics without raw data
+7. ✅ `sample` - Sample data retrieval (optional)
 
 **Note**: SQL validation tests are also covered in `test_mcp_functions.py`.
 

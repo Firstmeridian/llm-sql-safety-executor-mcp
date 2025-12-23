@@ -24,6 +24,8 @@ The primary technologies used are:
     *   `check_connection()`: MCP tool for testing database connectivity
     *   `list_tables()`: MCP tool for listing all tables with row counts
     *   `describe_table(table_name)`: MCP tool for retrieving table column information
+    *   `get_full_schema()`: MCP tool for getting complete database schema in one call
+    *   `get_table_summary(table_name)`: MCP tool for getting table statistics without raw data
     *   `sample(table_name, limit)`: **Optional** MCP tool for retrieving sample data (controlled by `ENABLE_SCHEMA_TOOLS`)
     *   `sql_assistant()`: MCP prompt for SQL query assistance
 *   `test_mcp_functions.py`: **NEW** - Test script to verify MCP functions work correctly (internal tests)
@@ -57,6 +59,11 @@ The primary technologies used are:
     
     # Optional: Feature toggles (1=enabled, 0=disabled)
     ENABLE_SCHEMA_TOOLS=1
+    
+    # Optional: Security configuration
+    QUERY_TIMEOUT_SECONDS=30
+    ALLOWED_TABLES=products,orders,customers
+    ALLOW_UNION=0
     ```
 
 3.  **Run the Example:**
@@ -167,13 +174,15 @@ The conversion of this SQL safety checker tool to an MCP (Model Context Protocol
 
 ### Available MCP Tools
 
-The MCP service provides five main tools (refactored December 2025 for simplicity):
+The MCP service provides seven main tools (refactored December 2025 for simplicity):
 
 1. **`query`**: Primary tool - Executes SELECT queries with automatic safety validation
 2. **`check_connection`**: Tests database connectivity and configuration
 3. **`list_tables`**: Lists all tables in the database with row counts
 4. **`describe_table`**: Retrieves table column information (similar to SQL DESCRIBE)
-5. **`sample`**: **Optional** - Retrieves sample data from tables (controlled by `ENABLE_SCHEMA_TOOLS`)
+5. **`get_full_schema`**: Gets complete database schema in ONE call (recommended first)
+6. **`get_table_summary`**: Gets table statistics without fetching raw data
+7. **`sample`**: **Optional** - Retrieves sample data from tables (controlled by `ENABLE_SCHEMA_TOOLS`)
 
 ### Available MCP Prompts
 
@@ -204,3 +213,9 @@ The implementation preserves all original functionality while adding the benefit
 *   **Branching:** The main development branch is `main`.
 *   **Remote Repository:** The code is hosted on GitHub at `https://github.com/Firstmeridian/vibe-coding-gemini-llm-execute-sql-tools.git`.
 *   **Language:** Unless otherwise specified, all code, comments, and documentation in this project should be written in English.
+*   **Virtual Environment:** Development is typically done in a Python virtual environment (venv). The venv is located at `.venv/` in the project root.
+*   **Best Practices Reference:** Follow best practices from web and GitHub sources, especially:
+    - **Microsoft** (primary reference): AutoGen framework patterns, Azure Logic Apps agent guidelines
+    - **Anthropic**: MCP protocol specifications, tool design patterns
+    - **Google**: Gemini API best practices, token optimization guidelines
+    - **FastMCP**: Server implementation patterns, context management

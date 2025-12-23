@@ -1,6 +1,6 @@
 # MCP SQL Server Refactoring Log
 
-**Date:** December 2, 2025 (Updated: December 15, 2025)  
+**Date:** December 2, 2025 (Updated: December 23, 2025)  
 **Author:** Code Refactoring Session  
 
 ## Overview
@@ -9,7 +9,119 @@ This document records the major refactoring changes made to `mcp_sql_server.py` 
 
 ---
 
-## Latest Update (December 15, 2025)
+## Latest Update (December 23, 2025)
+
+### Security & Token Optimization
+
+This update adds configurable UNION query policy, startup logging, and significant prompt optimization following OpenAI/Google best practices.
+
+#### 1. ALLOW_UNION Configuration (P2 Security)
+
+Added configurable UNION query handling for flexible security vs efficiency trade-off:
+
+| Setting | Behavior | Use Case |
+|---------|----------|----------|
+| `ALLOW_UNION=0` (default) | Block UNION, guide LLM to multiple queries | Maximum security |
+| `ALLOW_UNION=1` + `ALLOWED_TABLES` | Allow UNION with table validation | Efficiency mode |
+| `ALLOW_UNION=1` without allowlist | Block UNION (requires allowlist) | Defense-in-depth |
+
+**Configuration Example (.env):**
+```env
+# P2: UNION Query Policy (0=disabled/safer, 1=enabled with table allowlist)
+ALLOW_UNION=0
+
+# Required when ALLOW_UNION=1
+ALLOWED_TABLES=customers,orders,products
+```
+
+#### 2. Startup Logging for Security Configuration
+
+Added logging at module load to confirm security settings:
+
+```python
+# Log security configuration at module load
+if ALLOW_UNION:
+    if ALLOWED_TABLES:
+        logger.info(f"UNION queries enabled with table allowlist: {sorted(ALLOWED_TABLES)}")
+    else:
+        logger.warning("ALLOW_UNION=1 but no ALLOWED_TABLES configured - UNION will be blocked")
+else:
+    logger.info("UNION queries disabled (default safe mode)")
+```
+
+#### 3. Prompt Token Optimization (69% Reduction)
+
+Significantly reduced `sql_assistant` prompt size following OpenAI/Google best practices:
+
+> **Google**: "Token limits: function descriptions and parameters count toward input token limits"
+> **OpenAI**: "If you run into token limits, we suggest limiting the number of functions or the length of the descriptions"
+
+| Metric | Before | After | Improvement |
+|--------|--------|-------|-------------|
+| Characters | 1,224 | 376 | -69% |
+| Tokens (approx) | ~306 | ~94 | -69% |
+
+**Before (verbose):**
+```python
+"""Database query assistant with READ-ONLY access.
+
+TOOLS:
+1. query(sql) - PRIMARY. Execute SELECT, SHOW, DESCRIBE, EXPLAIN.
+2. list_tables() - List available tables (use if structure unknown)
+3. describe_table(name) - Get single table columns
+4. get_full_schema() - Get ALL tables and columns in ONE call (recommended first)
+5. get_table_summary(name) - Get table statistics without raw data
+6. sample(table, limit) - Preview table data
+
+QUERY GUIDELINES:
+- Use JOINs for combining related tables (INNER JOIN, LEFT JOIN)
+- Use aggregation (COUNT, SUM, GROUP BY) instead of fetching all rows
+- Always include LIMIT for large result sets
+
+UNION QUERIES:
+- UNION is enabled for combining results from multiple tables
+- All tables in UNION must be in allowlist: customers, orders, products
+- Example: SELECT id, name FROM products UNION SELECT id, title FROM categories
+
+WORKFLOW (Token Optimized):
+- Start with: get_full_schema() to understand database structure
+- For large tables: get_table_summary() first, then query with LIMIT
+- Prefer aggregation over raw data retrieval
+
+Always show executed SQL in response. Format results as readable tables."""
+```
+
+**After (optimized):**
+```python
+"""READ-ONLY SQL assistant. Tools: query (primary), get_full_schema, list_tables, describe_table, get_table_summary, sample.
+
+Workflow: get_full_schema() first → query with LIMIT for large tables.
+Guidelines: Use aggregation (COUNT/GROUP BY) over raw data. UNION enabled (tables: customers, orders, products). Use JOINs for related data.
+Always show SQL in response."""
+```
+
+**Key optimization principles applied:**
+- Remove redundant tool descriptions (already in docstrings)
+- Combine related guidelines into single sentences
+- Remove examples (LLM can infer from context)
+- Dynamic UNION guidance based on configuration
+
+#### Files Changed
+
+| File | Change |
+|------|--------|
+| `mcp_sql_server.py` | Added ALLOW_UNION config, startup logging, optimized prompt |
+| `.env.example` | Added ALLOW_UNION=0 documentation |
+
+#### References
+
+- [OpenAI Function Calling Best Practices](https://platform.openai.com/docs/guides/function-calling)
+- [Google Gemini Function Calling](https://ai.google.dev/gemini-api/docs/function-calling)
+- [FastMCP Prompts Documentation](https://github.com/jlowin/fastmcp)
+
+---
+
+## Update (December 15, 2025)
 
 ### Extended SQL Statement Support
 
@@ -56,11 +168,13 @@ If you already know the table structure: query directly"""
 | `get_sample_data` | `sample` | Shorter, more intuitive name |
 | `get_server_info` | *(removed)* | Rarely used, low value |
 | *(new)* | `list_tables` | Essential for database discovery |
+| *(new - Dec 23)* | `get_full_schema` | Token optimization: Get all tables/columns in ONE call |
+| *(new - Dec 23)* | `get_table_summary` | Token optimization: Get table stats without raw data |
 
 **Summary:**
-- Original: 6 tools → Now: 5 tools
+- Original: 6 tools → Now: 7 tools
 - 2 removed (`validate_sql_query`, `get_server_info`)
-- 1 added (`list_tables`)
+- 3 added (`list_tables`, `get_full_schema`, `get_table_summary`)
 - 4 renamed
 
 ### Tool Migration Diagram
@@ -70,7 +184,7 @@ If you already know the table structure: query directly"""
 │                         TOOL MIGRATION MAP                                  │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
-│   OLD TOOLS (6)                              NEW TOOLS (5)                  │
+│   OLD TOOLS (6)                              NEW TOOLS (7)                  │
 │   ═══════════                                ════════════                   │
 │                                                                             │
 │   ┌──────────────────────┐                                                  │
@@ -100,6 +214,14 @@ If you already know the table structure: query directly"""
 │                                                                             │
 │                              (new)       ┌──────────────────┐               │
 │                          ★ ─────────────►│   list_tables    │               │
+│                                          └──────────────────┘               │
+│                                                                             │
+│                          ★ (new Dec 23)  ┌──────────────────┐               │
+│                            ─────────────►│  get_full_schema │               │
+│                                          └──────────────────┘               │
+│                                                                             │
+│                          ★ (new Dec 23)  ┌──────────────────┐               │
+│                            ─────────────►│ get_table_summary│               │
 │                                          └──────────────────┘               │
 │                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘

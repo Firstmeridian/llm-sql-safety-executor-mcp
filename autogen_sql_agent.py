@@ -30,7 +30,7 @@ from autogen_agentchat.ui import Console
 from autogen_ext.models.openai import OpenAIChatCompletionClient
 from autogen_ext.tools.mcp import McpWorkbench, StdioServerParams
 from autogen_core.models import ModelInfo
-from autogen_core.model_context import BufferedChatCompletionContext
+from autogen_core.model_context import BufferedChatCompletionContext, TokenLimitedChatCompletionContext
 from autogen_core import CancellationToken
 
 # Configure logging
@@ -59,7 +59,7 @@ def get_model_client() -> tuple[OpenAIChatCompletionClient, str]:
     # Check for Gemini API key first
     gemini_api_key = os.environ.get("GEMINI_API_KEY")
     if gemini_api_key:
-        model_name = "gemini-2.5-flash"
+        model_name = "gemini-2.5-flash-lite-preview-09-2025"
         return OpenAIChatCompletionClient(
             model=model_name,
             api_key=gemini_api_key,
@@ -124,23 +124,28 @@ Your team members are:
 - AnalystAgent: Analyzes query results and provides insights
 - User: The human user who can provide clarification, feedback, or additional requirements
 
-## UNDERSTANDING TOOL RESULTS
-
-IMPORTANT: When SQLExecutorAgent uses tools, the results appear in the conversation as:
-- ToolCallExecutionEvent: Contains raw JSON data from the tool
-- TextMessage from SQLExecutorAgent: Contains the summary of results
-
-If you see a ToolCallExecutionEvent with data like:
-`{"success":true,"data":[{"table_name":"test_users"}...]}`
-
-This means the tool HAS ALREADY EXECUTED and returned data. Do NOT say you are "waiting" for results.
-
-## CRITICAL RULES - YOU MUST FOLLOW:
-1. NEVER guess or fabricate data - only use information that has been returned
+CRITICAL RULES - YOU MUST FOLLOW:
+1. NEVER guess or fabricate data - only use information that SQLExecutorAgent has actually returned
 2. NEVER assume table names, column names, or data values - always query first
 3. When summarizing, use ONLY the exact data from query results - copy the actual values
-4. If you see ToolCallExecutionEvent in the history, the data IS AVAILABLE - use it
-5. Do NOT say "waiting for results" if tool execution events are visible in the conversation
+4. If you haven't seen specific information from a query result, say "not yet queried" instead of making up data
+5. Before making any claims about the database, verify you have seen that information in a tool result
+
+EFFICIENCY RULES - AVOID DELAYS:
+1. Do NOT say "I am waiting for results" - tool results appear immediately in conversation
+2. If you see ToolCallExecutionEvent or FunctionExecutionResult in history, DATA HAS ARRIVED - process it immediately
+3. When you see SQLExecutorAgent's response, proceed directly to next step - never pause
+4. Give clear, specific instructions - not vague requests
+5. Remind SQLExecutorAgent to use LIMIT clause for large tables
+6. Ask for aggregated statistics (COUNT, AVG) instead of raw data when possible
+7. Never request all data from large tables - always ask for samples or summaries
+
+QUERY STRATEGY (Token Optimization - Google/Microsoft Best Practices):
+- For unknown tables: First use list_tables() or get_full_schema() to get overview
+- For large tables (>100 rows): Request COUNT(*) first, then sample with LIMIT
+- Prefer aggregation queries (GROUP BY, COUNT, AVG) over raw data retrieval
+- Never request SELECT * without LIMIT - always specify needed columns
+- Use get_table_summary() for quick table statistics instead of raw queries
 
 Workflow:
 - Work step by step, planning multiple queries as needed
@@ -148,8 +153,9 @@ Workflow:
 - Verify assumptions with actual data
 - If the request is unclear or ambiguous, ask the User for clarification
 
-When assigning tasks, use this format:
-1. <agent>: <specific task description>
+When assigning tasks, be SPECIFIC:
+- GOOD: "SQLExecutorAgent: Run SELECT COUNT(*) FROM users to get the total count"
+- BAD: "SQLExecutorAgent: Query the users table"
 
 After all subtasks are complete and you have sufficient data, summarize the findings.
 In your summary, QUOTE the actual data returned by SQLExecutorAgent.
@@ -167,30 +173,55 @@ Available tools:
 2. list_tables - List all tables with row counts
 3. describe_table - Get table structure (columns, types)
 4. query - Execute read-only SQL queries (SELECT, SHOW, DESCRIBE, EXPLAIN)
+5. get_full_schema - Get complete database schema (all tables and columns) in one call
+6. get_table_summary - Get table statistics (row count, column stats) without fetching raw data
 
-## CRITICAL RESPONSE FORMAT
+PRE-QUERY VALIDATION (Microsoft Azure Best Practices):
+Before executing any SELECT query on data tables:
+1. If table row count is unknown, run COUNT(*) first OR use get_table_summary()
+2. If COUNT(*) > 100, you MUST use aggregation (GROUP BY, COUNT) or LIMIT
+3. Never fetch all rows from large tables - use sampling or aggregation
+4. Use get_full_schema() at the start instead of multiple describe_table() calls
 
-After EVERY tool call, you MUST respond with a clear text summary. Use this format:
+CRITICAL TOKEN OPTIMIZATION RULES:
+1. ALWAYS use LIMIT clause in SELECT queries - default to LIMIT 10 unless user specifies otherwise
+2. For large tables (>100 rows), first get COUNT(*), then retrieve samples with LIMIT
+3. Never SELECT * without LIMIT - select only needed columns
+4. Summarize large results - don't return raw data exceeding 20 rows
+5. Use aggregation (COUNT, SUM, AVG, MAX, MIN) instead of returning all rows
 
-=== Tool Result Summary ===
-Tool executed: [tool name]
-Status: Success/Failed
+Example of good queries:
+- SELECT COUNT(*) FROM users;  -- Get count first
+- SELECT id, name FROM users LIMIT 10;  -- Sample with limit
+- SELECT status, COUNT(*) FROM orders GROUP BY status;  -- Aggregate instead of raw data
 
-Results:
-- [Key finding 1]
-- [Key finding 2]
-- [etc.]
+HANDLING TRUNCATED RESULTS:
+The server automatically truncates large results to prevent token overflow.
+When you see "truncated": true in the response:
+1. Inform the user: "Results truncated to X/Y rows"
+2. Suggest using LIMIT clause for precise control
+3. Offer to run aggregation queries (COUNT, GROUP BY) for full data analysis
+4. Do NOT request more data without LIMIT - it will be truncated again
 
-Raw data: [paste relevant portions of the returned data]
-===========================
+CRITICAL: After EVERY tool call, you MUST:
+1. Summarize the results in plain text (NOT raw JSON/data dump)
+2. List only KEY information (not all rows)
+3. For large datasets, provide statistics (count, sample, distribution)
+4. If truncated, mention it and suggest alternatives
 
-## STRICT RULES
+Step-by-Step Query Approach:
+- Execute one query at a time
+- Report results clearly and concisely
+- If a query fails, explain the error and suggest alternatives
+- Only use read-only queries (no INSERT, UPDATE, DELETE, DROP)
 
-1. NEVER return an empty message - always write a summary
-2. ALWAYS include the actual data values in your response
-3. If the tool returns JSON, extract and list the key information
-4. Execute one query at a time, report results, then wait for next instruction
-5. Only use read-only queries (no INSERT, UPDATE, DELETE, DROP)
+When you complete a query, report:
+- The query executed
+- Summary statistics (row count, key patterns, truncation status)
+- Sample data (max 5-10 rows)
+- Observations about the data
+
+NEVER dump large result sets. Always summarize.
 """
 
 ANALYST_AGENT_PROMPT = """You are a data analyst agent that interprets query results.
@@ -243,43 +274,22 @@ Only return the agent name.
 # Main Application
 # =============================================================================
 
-def create_selector_func(planning_agent_name: str, sql_executor_name: str = "SQLExecutorAgent"):
-    """
-    Create a selector function that ensures proper conversation flow.
-    
-    Based on Microsoft AutoGen best practices:
-    - PlanningAgent checks progress after specialized agents complete work
-    - SQLExecutorAgent can continue if it returned an empty message (tool call without summary)
-    - User agent is selected when task is complete
-    """
-    from autogen_agentchat.messages import ToolCallSummaryMessage, ToolCallExecutionEvent
-    
+def create_selector_func(planning_agent_name: str):
+    """Create a selector function that ensures PlanningAgent checks progress after each step."""
     def selector_func(messages: Sequence[BaseAgentEvent | BaseChatMessage]) -> str | None:
         if len(messages) == 0:
             return planning_agent_name
         
-        last_message = messages[-1]
-        last_source = last_message.source if hasattr(last_message, 'source') else None
+        last_source = messages[-1].source if hasattr(messages[-1], 'source') else None
         
-        # If SQLExecutorAgent just made a tool call but returned empty summary,
-        # let it continue to produce a proper text summary
-        if last_source == sql_executor_name:
-            # Check if the last message is a ToolCallSummaryMessage with no content
-            if isinstance(last_message, ToolCallSummaryMessage):
-                content = last_message.content if hasattr(last_message, 'content') else ""
-                if not content or content.strip() == "":
-                    # Let SQLExecutorAgent try again to summarize
-                    return sql_executor_name
-        
-        # After any non-planning agent speaks with actual content, return to planning agent
-        if last_source and last_source != planning_agent_name and last_source != "User":
+        # After any non-planning agent speaks, return to planning agent to check progress
+        if last_source and last_source != planning_agent_name and last_source != "user":
             return planning_agent_name
         
         # Let the model decide otherwise
         return None
     
     return selector_func
-
 
 
 async def main() -> None:
@@ -308,6 +318,10 @@ async def main() -> None:
         )
         
         # Create the SQL Executor Agent (with MCP tools)
+        # Use TokenLimitedChatCompletionContext to prevent token explosion from large query results
+        sql_agent_context = TokenLimitedChatCompletionContext(
+            max_token=8000,  # Limit context to prevent massive token usage
+        )
         sql_executor_agent = AssistantAgent(
             name="SQLExecutorAgent",
             description="An agent that executes SQL queries using database tools. Can list tables, describe schemas, and run SELECT queries.",
@@ -315,6 +329,7 @@ async def main() -> None:
             workbench=mcp_workbench,  # Connect MCP tools
             reflect_on_tool_use=True,  # Reflect on tool results
             system_message=SQL_EXECUTOR_AGENT_PROMPT,
+            model_context=sql_agent_context,  # Limit context size
         )
         
         # Create the Analyst Agent (interprets results)
@@ -341,7 +356,7 @@ async def main() -> None:
         termination = user_terminate | user_approve | max_messages_termination
         
         # Create the selector function
-        selector_func = create_selector_func(planning_agent.name, sql_executor_agent.name)
+        selector_func = create_selector_func(planning_agent.name)
         
         # Create model context to limit token usage in selector
         # Best practice: Use BufferedChatCompletionContext to prevent context overflow
@@ -470,6 +485,7 @@ async def run_single_task(task: str) -> None:
             workbench=mcp_workbench,
             reflect_on_tool_use=True,
             system_message=SQL_EXECUTOR_AGENT_PROMPT,
+            model_context=TokenLimitedChatCompletionContext(max_token=8000),
         )
         
         analyst_agent = AssistantAgent(

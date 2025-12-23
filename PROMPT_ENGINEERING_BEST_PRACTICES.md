@@ -1,6 +1,6 @@
 # Prompt Engineering Best Practices for MCP Tool Descriptions
 
-This document summarizes best practices for designing prompts and tool descriptions in MCP (Model Context Protocol) servers, based on official guidelines from Microsoft, OpenAI, and industry research.
+This document summarizes best practices for designing prompts and tool descriptions in MCP (Model Context Protocol) servers, based on official guidelines from Microsoft, OpenAI, Google, and industry research.
 
 ## Table of Contents
 
@@ -10,6 +10,7 @@ This document summarizes best practices for designing prompts and tool descripti
 - [4. Tool Description Design](#4-tool-description-design)
 - [5. Before vs After Examples](#5-before-vs-after-examples)
 - [6. References](#6-references)
+- [7. Token Optimization for MCP Prompts](#7-token-optimization-for-mcp-prompts-added-december-2025)
 
 ---
 
@@ -194,6 +195,14 @@ RULES:
    - URL: https://www.promptingguide.ai/introduction/tips
    - Key points: Start simple, be specific, avoid impreciseness
 
+5. **OpenAI Function Calling Guide** (Added December 2025)
+   - URL: https://platform.openai.com/docs/guides/function-calling
+   - Key points: Token limits apply to function descriptions, keep descriptions concise
+
+6. **Google Gemini Function Calling** (Added December 2025)
+   - URL: https://ai.google.dev/gemini-api/docs/function-calling
+   - Key points: "Token limits: function descriptions and parameters count toward input token limits"
+
 ### Key Takeaways Summary
 
 | Principle | Description |
@@ -204,6 +213,78 @@ RULES:
 | **Say What TO DO** | Positive instructions outperform prohibitions |
 | **Keep It Brief** | Long instructions cause latency and handling issues |
 | **Use Separators** | `###`, `---`, `"""` help distinguish content blocks |
+| **Minimize Tool Descriptions** | Function descriptions count toward token limits |
+
+---
+
+## 7. Token Optimization for MCP Prompts (Added December 2025)
+
+### Why Token Optimization Matters
+
+Function/tool descriptions and prompts count toward input token limits. Verbose prompts:
+- Increase latency
+- Increase cost  
+- May hit context limits in complex conversations
+
+### Optimization Techniques
+
+#### 7.1 Remove Redundancy
+
+Tool information already in docstrings doesn't need to repeat in system prompts:
+
+| ❌ Redundant | ✅ Optimized |
+|--------------|-------------|
+| "query(sql) - Execute SQL queries. Use for SELECT, SHOW..." | "query (primary)" |
+| "list_tables() - List all database tables with row counts" | "list_tables" |
+
+#### 7.2 Combine Related Instructions
+
+| ❌ Verbose (5 lines) | ✅ Concise (1 line) |
+|---------------------|---------------------|
+| "Use JOINs for combining related tables. Use INNER JOIN or LEFT JOIN. Use aggregation instead of fetching all rows. Use COUNT, SUM, GROUP BY. Always include LIMIT." | "Use aggregation (COUNT/GROUP BY) over raw data. Use JOINs for related data." |
+
+#### 7.3 Remove Examples from System Prompts
+
+LLMs can infer usage from context. Examples should go in tool docstrings, not system prompts.
+
+| ❌ With Examples | ✅ Without Examples |
+|-----------------|---------------------|
+| "Example: SELECT id FROM products UNION SELECT id FROM categories" | "UNION enabled (tables: customers, orders, products)" |
+
+### Real-World Case Study: sql_assistant Prompt
+
+**Before optimization:** ~306 tokens
+```
+Database query assistant with READ-ONLY access.
+
+TOOLS:
+1. query(sql) - PRIMARY. Execute SELECT, SHOW, DESCRIBE, EXPLAIN.
+2. list_tables() - List available tables...
+[... 20+ lines ...]
+```
+
+**After optimization:** ~94 tokens (69% reduction)
+```
+READ-ONLY SQL assistant. Tools: query (primary), get_full_schema, list_tables, describe_table, get_table_summary, sample.
+
+Workflow: get_full_schema() first → query with LIMIT for large tables.
+Guidelines: Use aggregation (COUNT/GROUP BY) over raw data. Use JOINs for related data.
+Always show SQL in response.
+```
+
+**Key changes:**
+1. Removed tool descriptions (redundant with docstrings)
+2. Combined guidelines into single sentences
+3. Removed examples
+4. Used symbols (→) instead of words
+
+### Token Budget Guidelines
+
+| Prompt Type | Recommended Limit | Rationale |
+|-------------|------------------|-----------|
+| System instructions | < 100 tokens | Leave room for conversation |
+| Tool docstrings | < 50 tokens each | Models read all tools |
+| MCP prompts | < 150 tokens | May be included in context |
 
 ---
 

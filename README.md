@@ -1,6 +1,110 @@
 # SQL Safety Checker - MCP Service Implementation
 
+English | [中文](README_ZH.md)
+
 A Python-based tool that enables Large Language Models (LLMs) to safely execute read-only SQL queries through a standardized MCP (Model Context Protocol) service interface.
+
+## Quick Start
+
+### Traditional Usage (Preserved)
+```bash
+# Install dependencies
+pip install -r requirements.txt
+
+# Configure environment
+cp .env.example .env
+# Edit .env with your database credentials
+
+# Run original implementation
+python sql_safety_checker.py
+```
+
+### MCP Service Usage (Recommended)
+```bash
+# Install dependencies including MCP support
+pip install -r requirements.txt
+
+# Configure environment
+cp .env.example .env
+# Edit .env with your database credentials
+
+# Start MCP server
+python start_server.py
+
+# Test MCP functionality (internal functions)
+python test_mcp_functions.py
+
+# Test MCP server via client (simulates real MCP client)
+python test_mcp_client.py
+```
+
+### AutoGen Multi-Agent Example
+```bash
+# Run the AutoGen multi-agent SQL query system
+# Requires: GEMINI_API_KEY, OPENAI_API_KEY, or USE_OLLAMA=true
+python autogen_sql_agent.py
+
+# Or run with a specific task
+python autogen_sql_agent.py "List all tables and describe their structure"
+```
+
+The `autogen_sql_agent.py` demonstrates how to use Microsoft AutoGen framework with a multi-agent team (PlanningAgent, SQLExecutorAgent, AnalystAgent) to interact with the MCP server.
+
+### Configure MCP Client
+Add the server to your MCP-compatible client configuration (e.g., VS Code, Claude Desktop, or other MCP clients):
+
+```json
+{
+  "mcpServers": {
+    "sql-safety-executor-mcp": {
+      "type": "stdio",
+      "command": "python",
+      "args": ["start_server.py"],
+      "cwd": "/path/to/vibe-coding-gemini-llm-execute-sql-tools"
+    }
+  }
+}
+```
+
+- Replace `/path/to/` with your actual project path.
+- The server loads credentials from `.env` file in the working directory.
+- For virtual environments, use the full path to the Python interpreter.
+
+## Configuration
+
+### Required Environment Variables
+```bash
+DB_USER=your_database_user
+DB_PASSWORD=your_database_password
+DB_HOST=your_database_host
+DB_NAME=your_database_name
+```
+
+### Optional Environment Variables
+```bash
+# Feature Toggles (1=enabled, 0=disabled)
+ENABLE_SCHEMA_TOOLS=1  # Controls sample() tool
+
+# Security Configuration (Recommended for Production)
+QUERY_TIMEOUT_SECONDS=30   # Query timeout in seconds (P0 security)
+CONNECT_TIMEOUT_SECONDS=10 # Connection timeout in seconds
+
+# Table Allowlist (comma-separated, case-insensitive)
+# Only allow access to specific tables - leave empty to allow all
+ALLOWED_TABLES=products,orders,customers
+
+# UNION Query Policy (0=disabled/safer, 1=enabled with table allowlist)
+# When disabled: LLM executes separate queries (more secure, more tool calls)
+# When enabled: UNION allowed but ALL tables must be in allowlist
+ALLOW_UNION=0
+
+# Token Optimization: Limit result size to prevent context overflow
+MAX_RESULT_ROWS=50    # Max rows returned per query
+MAX_RESULT_CHARS=8000 # Max characters in response
+```
+
+### MCP Client Integration
+See `mcp_config.json` for a complete client configuration example.
 
 ## What Changed
 
@@ -13,13 +117,19 @@ Major improvements following FastMCP best practices:
   - `SHOW`: Database metadata (SHOW TABLES, SHOW COLUMNS, etc.)
   - `DESCRIBE`: Table structure information
   - `EXPLAIN`: Query execution plan analysis
-- **Tool Consolidation**: Reduced from 6 tools to 5 with clearer responsibilities
+- **Tool Consolidation**: Reduced from 6 tools to 5, then expanded to 7 with new optimization tools
   - `validate_sql_query` + `execute_safe_sql` → merged into `query` (automatic validation)
   - Added new `list_tables` tool for database discovery
   - Renamed tools for clarity: `check_connection`, `describe_table`, `sample`
+  - **New (Dec 23)**: Added `get_full_schema` and `get_table_summary` for token optimization
 - **Optimized Server Instructions**: Reduced LLM's "exploratory behavior" (unnecessary tool calls)
   - Clear tool priority: `query` first, others only on error
   - Expected reduction: 4-5 tool calls → 1-2 per query
+- **Security Enhancements (December 23, 2025)**:
+  - Query timeout protection (P0 security)
+  - Table allowlist support (`ALLOWED_TABLES`)
+  - Configurable UNION policy (`ALLOW_UNION`)
+  - Result truncation to prevent token explosion
 - **Code Quality**: ~40% code reduction (~460 → ~280 lines) while maintaining functionality
 - **Enhanced Metadata**: Added `ToolAnnotations` for better LLM tool selection
 - **Lifespan Management**: Proper async resource lifecycle (FastMCP best practice)
@@ -112,7 +222,7 @@ LLM → Direct Function       LLM → MCP Client → MCP Server → Database
 
 ## MCP Tools Exposed
 
-The service exposes five standardized MCP tools (refactored December 2025):
+The service exposes seven standardized MCP tools (refactored December 2025):
 
 ### 1. `query` (Primary Tool)
 Purpose: Executes read-only SQL queries with automatic safety validation
@@ -215,6 +325,54 @@ Output:
 }
 ```
 
+### 6. `get_full_schema` (New - December 2025)
+Purpose: Gets complete database schema (all tables and columns) in ONE call
+
+Use this FIRST instead of calling `describe_table()` multiple times. Reduces tool calls and provides complete context upfront.
+
+Output:
+```json
+{
+  "success": true,
+  "schema": {
+    "users": {
+      "row_count": 150,
+      "columns": [
+        {"name": "id", "type": "int", "nullable": "NO", "key": "PRI"},
+        {"name": "name", "type": "varchar", "nullable": "YES", "key": ""}
+      ]
+    }
+  },
+  "table_count": 1,
+  "total_columns": 2
+}
+```
+
+### 7. `get_table_summary` (New - December 2025)
+Purpose: Gets summary statistics for a table WITHOUT fetching raw data
+
+Use this for quick analysis instead of `SELECT *` queries.
+
+Input:
+```json
+{
+  "table_name": "users"
+}
+```
+
+Output:
+```json
+{
+  "success": true,
+  "table_name": "users",
+  "total_rows": 150,
+  "column_count": 5,
+  "columns": [...],
+  "is_large": true,
+  "recommendation": "Table has 150 rows. Use 'SELECT ... LIMIT 10' for samples."
+}
+```
+
 ## Benefits Achieved
 
 - 🔒 Enhanced security: Service isolation with SELECT-only enforcement (via SQL parsing)
@@ -254,87 +412,6 @@ Based on the included scripts and program behavior:
   - Tools return structured dictionaries with stable keys (`is_safe`, `success`, `message`, `data`, etc.).
   - For MCP tools, `data` / `test_result` are JSON-serializable values (typically a list of objects, e.g., `[{"total": 150}]`).
   - If you call `sql_safety_checker.execute_sql` directly (bypassing MCP), you will get raw Row/tuple lists instead.
-
-## Quick Start
-
-### Traditional Usage (Preserved)
-```bash
-# Install dependencies
-pip install -r requirements.txt
-
-# Configure environment
-cp .env.example .env
-# Edit .env with your database credentials
-
-# Run original implementation
-python sql_safety_checker.py
-```
-
-### MCP Service Usage (Recommended)
-```bash
-# Install dependencies including MCP support
-pip install -r requirements.txt
-
-# Configure environment
-cp .env.example .env
-# Edit .env with your database credentials
-
-# Start MCP server
-python start_server.py
-
-# Test MCP functionality (internal functions)
-python test_mcp_functions.py
-
-# Test MCP server via client (simulates real MCP client)
-python test_mcp_client.py
-```
-
-### Configure MCP Client
-Add the server to your MCP-compatible client configuration (e.g., VS Code, Claude Desktop, or other MCP clients):
-
-```json
-{
-  "mcpServers": {
-    "sql-safety-executor-mcp": {
-      "type": "stdio",
-      "command": "python",
-      "args": ["start_server.py"],
-      "cwd": "/path/to/vibe-coding-gemini-llm-execute-sql-tools"
-    }
-  }
-}
-```
-
-- Replace `/path/to/` with your actual project path.
-- The server loads credentials from `.env` file in the working directory.
-- For virtual environments, use the full path to the Python interpreter.
-
-## Migration Path
-
-Existing users can continue using the original functions with no changes:
-
-```python
-from sql_safety_checker import is_sql_safe, execute_sql  # Still works exactly as before
-```
-
-## Configuration
-
-### Required Environment Variables
-```bash
-DB_USER=your_database_user
-DB_PASSWORD=your_database_password
-DB_HOST=your_database_host
-DB_NAME=your_database_name
-```
-
-### Optional Environment Variables
-```bash
-# Feature Toggles (1=enabled, 0=disabled)
-ENABLE_SCHEMA_TOOLS=1  # Controls sample() tool
-```
-
-### MCP Client Integration
-See `mcp_config.json` for a complete client configuration example.
 
 ## Safety Features
 
