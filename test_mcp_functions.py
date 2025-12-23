@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 """
 Test script to verify the MCP server functions work correctly.
+
+This script tests the underlying SQL safety checker functions directly.
+For MCP protocol tests, use test_mcp_client.py instead.
 """
 
 import os
 import json
-from mcp_sql_server import get_sample_data, get_table_schema
 from sql_safety_checker import is_sql_safe, execute_sql
 from typing import Any, Dict
 
@@ -229,25 +231,37 @@ if __name__ == "__main__":
     load_dotenv()
     schema_tools_enabled = os.getenv("ENABLE_SCHEMA_TOOLS", "1") == "1"
     if schema_tools_enabled:
-        print("\n5. Testing Get Table Schema")
+        print("\n5. Testing Schema Query (via execute_sql)")
         print("-" * 30)
         
-        # Test getting all tables
+        # Test getting all tables using raw SQL
         print("Getting all tables:")
-        all_tables_result = get_table_schema()
+        all_tables_sql = """
+            SELECT TABLE_NAME as table_name, TABLE_ROWS as row_count
+            FROM INFORMATION_SCHEMA.TABLES
+            WHERE TABLE_SCHEMA = DATABASE() AND TABLE_TYPE = 'BASE TABLE'
+            ORDER BY TABLE_NAME
+        """
+        all_tables_result = execute_safe_sql(all_tables_sql)
         print(json.dumps(all_tables_result, indent=2))
         
         # Test getting specific table schema
         print("\nGetting schema for 'test_users' table:")
-        table_schema_result = get_table_schema("test_users")
+        table_schema_sql = """
+            SELECT COLUMN_NAME, DATA_TYPE, IS_NULLABLE, COLUMN_KEY
+            FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'test_users'
+            ORDER BY ORDINAL_POSITION
+        """
+        table_schema_result = execute_safe_sql(table_schema_sql)
         print(json.dumps(table_schema_result, indent=2))
         
-        # Test get_sample_data
-        print("\n6. Testing Get Sample Data")
+        # Test sample data
+        print("\n6. Testing Sample Data Query")
         print("-" * 30)
         
         print("Getting sample data from 'test_users' (limit 5):")
-        sample_data_result = get_sample_data("test_users", 5)
+        sample_data_result = execute_safe_sql("SELECT * FROM test_users LIMIT 5")
         print(json.dumps(sample_data_result, indent=2))
     else:
         print("\n5-6. Schema Tools Disabled")

@@ -3,3 +3,8 @@ python-dotenv
 SQLAlchemy
 PyMySQL
 fastmcp
+
+# AutoGen dependencies for SQL Agent
+autogen-agentchat
+autogen-ext[openai]
+autogen-ext[mcp]

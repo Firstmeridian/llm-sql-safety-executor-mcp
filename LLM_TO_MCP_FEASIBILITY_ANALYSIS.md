@@ -1,5 +1,7 @@
 # LLM Direct Tool Call to MCP Server Conversion - Feasibility Analysis Report
 
+> **Note:** This document was written on September 10, 2025. Tool names and API have changed after the December 2, 2025 refactoring. See [REFACTORING_LOG.md](REFACTORING_LOG.md) for current implementation details.
+
 ## Executive Summary
 
 This report analyzes the feasibility and benefits of converting direct LLM tool calling mechanisms to a standardized MCP (Model Context Protocol) server architecture. Based on our implementation of the SQL Safety Checker MCP service, we demonstrate that this conversion is not only feasible but provides significant advantages for AI-driven database operations.

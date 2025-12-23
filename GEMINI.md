@@ -19,19 +19,21 @@ The primary technologies used are:
 *   `sql_safety_checker.py`: The core logic of the project resides here. It contains:
     *   `is_sql_safe(sql_query)`: A function that checks if a SQL query contains only `SELECT` statements.
     *   `execute_sql(sql_query)`: A function that first validates the query using `is_sql_safe` and then executes it against the database.
-*   `mcp_sql_server.py`: **NEW** - MCP (Model Context Protocol) server implementation that wraps the SQL safety checker functionality:
-    *   `validate_sql_query()`: MCP tool for validating SQL queries
-    *   `execute_safe_sql()`: MCP tool for executing safe SQL queries
-    *   `get_server_info()`: MCP tool for retrieving server information
-    *   `check_database_connection()`: MCP tool for testing database connectivity
-    *   `get_table_schema()`: **Optional** MCP tool for retrieving table schemas (controlled by `ENABLE_SCHEMA_TOOLS`)
-    *   `get_sample_data()`: **Optional** MCP tool for retrieving sample data (controlled by `ENABLE_SCHEMA_TOOLS`)
-    *   `system_orchestration()`: MCP prompt for system-level workflow guidance
-    *   `generate_select_sql()`: MCP prompt for SQL generation guidance
+*   `mcp_sql_server.py`: MCP (Model Context Protocol) server implementation that wraps the SQL safety checker functionality (refactored December 2025):
+    *   `query(sql)`: Primary MCP tool for executing SELECT queries (with automatic validation)
+    *   `check_connection()`: MCP tool for testing database connectivity
+    *   `list_tables()`: MCP tool for listing all tables with row counts
+    *   `describe_table(table_name)`: MCP tool for retrieving table column information
+    *   `get_full_schema()`: MCP tool for getting complete database schema in one call
+    *   `get_table_summary(table_name)`: MCP tool for getting table statistics without raw data
+    *   `sample(table_name, limit)`: **Optional** MCP tool for retrieving sample data (controlled by `ENABLE_SCHEMA_TOOLS`)
+    *   `sql_assistant()`: MCP prompt for SQL query assistance
 *   `test_mcp_functions.py`: **NEW** - Test script to verify MCP functions work correctly (internal tests)
 *   `test_mcp_client.py`: **NEW** - MCP client test script that simulates real client connections
 *   `mcp_config.json`: **NEW** - Configuration file for MCP client integration
 *   `TEST_MCP_CLIENT_GUIDE.md`: **NEW** - Usage guide for the MCP client test script
+*   `PROMPT_ENGINEERING_BEST_PRACTICES.md`: **NEW** - Guidelines for MCP tool descriptions and prompts
+*   `REFACTORING_LOG.md`: **NEW** - December 2025 refactoring changes documentation
 *   `Dockerfile`: **NEW** - Docker configuration for containerized deployment
 *   `.env.example`: **NEW** - Example environment configuration file
 *   `requirements.txt`: Lists all the necessary Python packages for this project (now includes fastMCP).
@@ -57,6 +59,11 @@ The primary technologies used are:
     
     # Optional: Feature toggles (1=enabled, 0=disabled)
     ENABLE_SCHEMA_TOOLS=1
+    
+    # Optional: Security configuration
+    QUERY_TIMEOUT_SECONDS=30
+    ALLOWED_TABLES=products,orders,customers
+    ALLOW_UNION=0
     ```
 
 3.  **Run the Example:**
@@ -97,30 +104,30 @@ The project now supports running as an MCP (Model Context Protocol) service, whi
 
 5.  **Docker Deployment:**
     ```bash
-    docker build -t sql-safety-checker-mcp .
-    docker run --env-file .env sql-safety-checker-mcp
+    docker build -t sql-safety-executor-mcp-mcp .
+    docker run --env-file .env sql-safety-executor-mcp-mcp
     ```
 
 ### MCP Client Integration
 
-To integrate with an MCP-compatible AI system, use the provided configuration:
+To integrate with an MCP-compatible AI system (e.g., VS Code, Claude Desktop), use the provided configuration:
 
 ```json
 {
   "mcpServers": {
-    "sql-safety-checker": {
+    "sql-safety-executor-mcp": {
+      "type": "stdio",
       "command": "python",
-      "args": ["mcp_sql_server.py"],
-      "env": {
-        "DB_USER": "${DB_USER}",
-        "DB_PASSWORD": "${DB_PASSWORD}",
-        "DB_HOST": "${DB_HOST}",
-        "DB_NAME": "${DB_NAME}"
-      }
+      "args": ["start_server.py"],
+      "cwd": "/path/to/vibe-coding-gemini-llm-execute-sql-tools"
     }
   }
 }
 ```
+
+- Replace `/path/to/` with your actual project path.
+- The server loads credentials from `.env` file in the working directory.
+- For virtual environments, use the full path to the Python interpreter.
 
 ## MCP Conversion: Feasibility and Benefits
 
@@ -167,21 +174,21 @@ The conversion of this SQL safety checker tool to an MCP (Model Context Protocol
 
 ### Available MCP Tools
 
-The MCP service provides six main tools:
+The MCP service provides seven main tools (refactored December 2025 for simplicity):
 
-1. **`validate_sql_query`**: Validates SQL queries for safety (SELECT-only)
-2. **`execute_safe_sql`**: Executes validated SQL queries against the database
-3. **`get_server_info`**: Provides information about server capabilities
-4. **`check_database_connection`**: Tests database connectivity and configuration
-5. **`get_table_schema`**: **Optional** - Retrieves table structure information (controlled by `ENABLE_SCHEMA_TOOLS`)
-6. **`get_sample_data`**: **Optional** - Retrieves sample data from tables (controlled by `ENABLE_SCHEMA_TOOLS`)
+1. **`query`**: Primary tool - Executes SELECT queries with automatic safety validation
+2. **`check_connection`**: Tests database connectivity and configuration
+3. **`list_tables`**: Lists all tables in the database with row counts
+4. **`describe_table`**: Retrieves table column information (similar to SQL DESCRIBE)
+5. **`get_full_schema`**: Gets complete database schema in ONE call (recommended first)
+6. **`get_table_summary`**: Gets table statistics without fetching raw data
+7. **`sample`**: **Optional** - Retrieves sample data from tables (controlled by `ENABLE_SCHEMA_TOOLS`)
 
 ### Available MCP Prompts
 
-The MCP service provides two prompt templates:
+The MCP service provides one prompt template:
 
-1. **`system_orchestration`**: System-level workflow guidance for safe SQL usage
-2. **`generate_select_sql`**: Guidance for generating safe SELECT statements from natural language
+1. **`sql_assistant`**: Workflow guidance for SQL query assistance
 
 ### Deployment Options
 
@@ -206,3 +213,9 @@ The implementation preserves all original functionality while adding the benefit
 *   **Branching:** The main development branch is `main`.
 *   **Remote Repository:** The code is hosted on GitHub at `https://github.com/Firstmeridian/vibe-coding-gemini-llm-execute-sql-tools.git`.
 *   **Language:** Unless otherwise specified, all code, comments, and documentation in this project should be written in English.
+*   **Virtual Environment:** Development is typically done in a Python virtual environment (venv). The venv is located at `.venv/` in the project root.
+*   **Best Practices Reference:** Follow best practices from web and GitHub sources, especially:
+    - **Microsoft** (primary reference): AutoGen framework patterns, Azure Logic Apps agent guidelines
+    - **Anthropic**: MCP protocol specifications, tool design patterns
+    - **Google**: Gemini API best practices, token optimization guidelines
+    - **FastMCP**: Server implementation patterns, context management
