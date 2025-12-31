@@ -188,7 +188,7 @@ The MCP service provides seven main tools (refactored December 2025 for simplici
 
 The MCP service provides one prompt template:
 
-1. **`sql_assistant`**: Workflow guidance for SQL query assistance
+1. **`sql_assistant`**: Guidance (heuristics) for SQL query assistance
 
 ### Deployment Options
 

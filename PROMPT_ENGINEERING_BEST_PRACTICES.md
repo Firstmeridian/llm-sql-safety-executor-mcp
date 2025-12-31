@@ -45,6 +45,17 @@ Positive instructions are more effective than prohibitions.
 |-------------------|-----------|
 | "DO NOT ASK FOR PERSONAL INFORMATION. DO NOT REPEAT." | "If the user asks for personal info, respond with 'I cannot help with that. Please visit our FAQ page.'" |
 
+### 1.5 Prefer Guidance (Heuristics) Over Rigid Workflows
+
+In MCP-style tool use, prompts should describe **capabilities**, **priorities**, and **decision rules**, not force a single mandatory sequence. Rigid checklists often create unnecessary tool calls and token usage (and can fail when the task is straightforward).
+
+Good prompts use conditional guidance:
+- If the schema is unknown → call a schema tool (e.g., `get_full_schema()` or `describe_table()`).
+- If a table might be large / output might explode → call `get_table_summary(table)` first, then query with `LIMIT` or aggregation.
+- If the table/columns are known and the request is small → query directly.
+
+Reserve “must/always” language for true safety or protocol constraints (e.g., read-only SQL).
+
 ---
 
 ## 2. Emoji Usage
@@ -106,11 +117,12 @@ Provide clear tool priority while maintaining flexibility for LLM decision-makin
 ```python
 instructions="""Database query assistant with READ-ONLY access.
 
-Tools: query (primary), list_tables, describe_table, check_connection
+Tools: query (primary), get_full_schema, list_tables, describe_table, get_table_summary, check_connection
 
-Workflow:
-- Known table structure: query directly
-- Unknown structure: list_tables first, then query
+Guidance (not mandatory):
+- Known table/columns and small request: query directly
+- Unknown structure: get_full_schema() or list_tables()/describe_table() first
+- Potentially large tables or uncertain result size: get_table_summary(table) before selecting raw rows
 
 Safe statements: SELECT, SHOW, DESCRIBE, EXPLAIN."""
 ```
@@ -267,7 +279,7 @@ TOOLS:
 ```
 READ-ONLY SQL assistant. Tools: query (primary), get_full_schema, list_tables, describe_table, get_table_summary, sample.
 
-Workflow: get_full_schema() first → query with LIMIT for large tables.
+Guidance (not mandatory): schema unknown → get_full_schema()/describe_table(); before querying a table → get_table_summary() (size); large tables → LIMIT or aggregation.
 Guidelines: Use aggregation (COUNT/GROUP BY) over raw data. Use JOINs for related data.
 Always show SQL in response.
 ```

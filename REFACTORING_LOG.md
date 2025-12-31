@@ -1,6 +1,6 @@
 # MCP SQL Server Refactoring Log
 
-**Date:** December 2, 2025 (Updated: December 23, 2025)  
+**Date:** December 2, 2025 (Updated: December 29, 2025)  
 **Author:** Code Refactoring Session  
 
 ## Overview
@@ -9,7 +9,165 @@ This document records the major refactoring changes made to `mcp_sql_server.py` 
 
 ---
 
-## Latest Update (December 23, 2025)
+## Latest Update (December 29, 2025) - Bug Fixes
+
+### Bug Fix 1: Schema.table Regex Extraction (P1)
+
+**Problem:** `_extract_tables_from_sql()` incorrectly extracted schema name instead of table name when using `schema.table` syntax (e.g., `SELECT * FROM mydb.users` extracted "mydb" instead of "users").
+
+**Impact:** Table allowlist validation could incorrectly block/allow queries when using schema-qualified table names.
+
+**Root Cause:**
+```python
+# Old regex - captures first identifier (schema)
+from_join_pattern = r'(?:FROM|JOIN)\s+`?([a-zA-Z_\u4e00-\u9fff][a-zA-Z0-9_\u4e00-\u9fff]*)`?'
+```
+
+**Fix:** Updated regex to handle optional schema prefix and capture only the table name:
+```python
+# Fixed regex - skips optional schema., captures table name
+from_join_pattern = r'(?:FROM|JOIN)\s+(?:`?[a-zA-Z_\u4e00-\u9fff][a-zA-Z0-9_\u4e00-\u9fff]*`?\s*\.\s*)?`?([a-zA-Z_\u4e00-\u9fff][a-zA-Z0-9_\u4e00-\u9fff]*)`?'
+```
+
+**Test Cases Verified:**
+- `SELECT * FROM mydb.users` → extracts "users" ✅
+- `SELECT * FROM \`mydb\`.\`users\`` → extracts "users" ✅
+- `DESCRIBE mydb.products` → extracts "products" ✅
+
+### Bug Fix 2: sql_assistant Prompt Display for ALLOWED_TABLES=* (P2)
+
+**Problem:** When `ALLOWED_TABLES=*` was set, the prompt displayed "UNION enabled (tables: *)" which was unclear to LLMs.
+
+**Fix:** Added special handling to display "all tables" instead of "*":
+```python
+# Before
+cross_table = f"UNION enabled (tables: {', '.join(sorted(ALLOWED_TABLES))})"
+# Output: "UNION enabled (tables: *)"
+
+# After
+if "*" in ALLOWED_TABLES:
+    tables_desc = "all tables"
+else:
+    tables_desc = ', '.join(sorted(ALLOWED_TABLES))
+cross_table = f"UNION enabled ({tables_desc})"
+# Output: "UNION enabled (all tables)"
+```
+
+### Bug Fix 3: get_full_schema Truncation Protection (P0)
+
+**Problem:** `get_full_schema()` could return extremely large responses for databases with many tables (100+ tables with 30+ columns each could exceed 200K+ characters), causing LLM context overflow.
+
+**Fix:** Added truncation protection with `MAX_SCHEMA_TABLES = 50`:
+```python
+MAX_SCHEMA_TABLES = 50  # Reasonable limit for most LLM contexts
+total_tables = len(tables_data)
+truncated = False
+
+if total_tables > MAX_SCHEMA_TABLES:
+    tables_data = tables_data[:MAX_SCHEMA_TABLES]
+    truncated = True
+    await ctx.warning(f"Schema truncated: showing {MAX_SCHEMA_TABLES}/{total_tables} tables")
+
+# ... (build schema) ...
+
+if truncated:
+    result["truncated"] = True
+    result["truncation_note"] = f"Showing {MAX_SCHEMA_TABLES}/{total_tables} tables. Use describe_table(table_name) for specific tables not shown."
+```
+
+**Size Estimates:**
+| Database Size | Tables | Estimated Chars | Truncated? |
+|--------------|--------|-----------------|------------|
+| Small | 10 | ~9K | No |
+| Medium | 50 | ~88K | At limit |
+| Large | 100 | ~260K | Yes → 50 |
+| Very Large | 200 | ~860K | Yes → 50 |
+
+---
+
+### Previous Fix: ALLOWED_TABLES=* Filtering Issue
+
+**Problem:** When `ALLOWED_TABLES=*` was set, `list_tables()` and `get_full_schema()` returned empty results because the filter logic checked if table names were literally in the set `{"*"}`.
+
+**Root Cause:**
+```python
+# Buggy code
+if ALLOWED_TABLES is not None:
+    data = [t for t in data if t["table_name"].lower() in ALLOWED_TABLES]
+    # ALLOWED_TABLES = {"*"}, no table name equals "*", so all filtered out!
+```
+
+**Fix:** Added check to skip filtering when `"*"` is in the allowlist:
+```python
+# Fixed code
+if ALLOWED_TABLES is not None and "*" not in ALLOWED_TABLES:
+    data = [t for t in data if t["table_name"].lower() in ALLOWED_TABLES]
+```
+
+**Affected Functions:**
+- `list_tables()` - Line ~552
+- `get_full_schema()` - Line ~683
+
+### Configuration Improvements & Truncation Optimization
+
+This update relaxes default truncation limits, adds `ALLOWED_TABLES=*` support, and simplifies error messages.
+
+#### 1. Relaxed Default Truncation Limits
+
+| Setting | Before | After | Reason |
+|---------|--------|-------|--------|
+| `MAX_RESULT_ROWS` | 50 | 100 | More practical for analysis tasks |
+| `MAX_RESULT_CHARS` | 8000 | 16000 | Reduces premature truncation |
+
+#### 2. Disable Truncation Support
+
+Set `MAX_RESULT_ROWS=0` or `MAX_RESULT_CHARS=0` to disable respective limits:
+
+```env
+# Disable all truncation (for data export scenarios)
+MAX_RESULT_ROWS=0
+MAX_RESULT_CHARS=0
+```
+
+#### 3. ALLOWED_TABLES=* Support
+
+Added special value `*` to explicitly allow all tables (required for UNION with unrestricted access):
+
+```env
+# Enable UNION and allow all tables
+ALLOW_UNION=1
+ALLOWED_TABLES=*
+```
+
+**Behavior:**
+- `ALLOWED_TABLES=` (empty): Allow all tables for normal queries, but UNION still blocked
+- `ALLOWED_TABLES=*`: Explicitly allow all tables, enables UNION when `ALLOW_UNION=1`
+- `ALLOWED_TABLES=t1,t2`: Only allow specified tables
+
+#### 4. Simplified Truncation Messages
+
+Reduced truncation note length to minimize token consumption:
+
+| Before | After |
+|--------|-------|
+| `"Results truncated to 50 rows. Use 'SELECT ... LIMIT n' for precise control. Total available: 200 rows."` | `"Showing 100/200 rows. Use LIMIT clause for full control."` |
+
+#### 5. Simplified UNION Error Message
+
+| Before | After |
+|--------|-------|
+| `"UNION queries require ALLOWED_TABLES to be configured. Set ALLOWED_TABLES environment variable or use separate queries."` | `"UNION requires ALLOWED_TABLES. Set ALLOWED_TABLES=table1,table2 or ALLOWED_TABLES=* to enable."` |
+
+#### Files Changed
+
+| File | Change |
+|------|--------|
+| `mcp_sql_server.py` | Relaxed defaults, added `*` support, simplified messages |
+| `.env.example` | Updated documentation and default values |
+
+---
+
+## Update (December 23, 2025)
 
 ### Security & Token Optimization
 

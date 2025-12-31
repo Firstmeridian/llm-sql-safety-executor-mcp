@@ -6,18 +6,61 @@ A Python-based tool that enables Large Language Models (LLMs) to safely execute 
 
 ## Quick Start
 
-### Traditional Usage (Preserved)
-```bash
-# Install dependencies
-pip install -r requirements.txt
+### Use with VS Code (Quick Start)
 
-# Configure environment
-cp .env.example .env
-# Edit .env with your database credentials
+Quickly integrate via `mcp.json` in VS Code to directly use this project's SQL tools within GitHub Copilot Chat, empowering it with database capabilities. [You can also use it in other MCP-supported AI assistants.](#configure-mcp-client)
 
-# Run original implementation
-python sql_safety_checker.py
+#### 1. Preparation
+*   Ensure VS Code is updated to the latest version.
+*   Install the **GitHub Copilot Chat** extension.
+*   Ensure project dependencies are installed (run `pip install -r requirements.txt` in the project path).
+*   Configure environment: `cp .env.example .env` and edit `.env` with your database credentials. [See Configuration](#configuration)
+
+#### 2. Create Configuration File
+Create a `.vscode` folder in the project root (if it doesn't exist), and create a file named `mcp.json` inside it.
+
+#### 3. Fill Configuration (Critical Step)
+Copy the following content into `mcp.json` (if `mcp.json` already exists, append the configuration). **Make sure to modify it to your actual absolute paths**:
+
+```json
+{
+  "mcpServers": {
+    "sql-safety-executor-mcp": {
+      "type": "stdio",
+      "command": "/absolute/path/to/python", 
+      "args": ["/absolute/path/to/start_server.py"],
+      "cwd": "/absolute/path/to/project_root"
+    }
+  }
+}
 ```
+
+**Configuration Details:**
+*   `command`: **Must** point to the absolute path of the Python interpreter in your virtual environment (e.g., `.venv/bin/python`), do not use the system `python` directly.
+*   `args`: Absolute path to `start_server.py`.
+*   `cwd`: Absolute path to the project root directory, ensuring `.env` can be read.
+
+**Alternative: Configure via VS Code UI (Recommended)**
+
+1. Complete "1. Preparation".
+2. Open VS Code Command Palette (`Ctrl+Shift+P` / `Cmd+Shift+P`).
+3. Type and select `MCP: Add Server`. ![MCP: Add Server](readme_pic/MCP:AddServer.png)
+4. Follow the prompts to add the details above (modify paths accordingly).
+
+Both methods achieve the same result by generating the `mcp.json` file. Ensure `.vscode/mcp.json` contains the configuration above.
+
+#### 4. Verification and Usage
+1.  Restart VS Code or reload the window.
+2.  Open GitHub Copilot Chat.
+3.  Click the **Tools icon** near the model selection box.
+4.  You should see `sql-safety-executor` and its tools (e.g., `query`, `list_tables`). Ensure they are checked. ![Add tools](readme_pic/Addtools.png)
+5.  Ask directly in the chat: "List all tables" or "Query the first 5 rows of users table". ![ask](readme_pic/ask.png)![answer](readme_pic/answer.png)
+
+*Note: Although tool usage is optimized, it is recommended to use lightweight models (e.g., GPT-5 mini) in GitHub Copilot Chat to avoid excessive request costs.*
+
+#### Common Issues
+*   **Tools not found?** Check the `Output` panel and switch to "GitHub Copilot" to see any errors.
+*   **Path errors**: Windows users must escape backslashes in JSON (e.g., `C:\\Users\\...`).
 
 ### MCP Service Usage (Recommended)
 ```bash
@@ -91,16 +134,20 @@ CONNECT_TIMEOUT_SECONDS=10 # Connection timeout in seconds
 
 # Table Allowlist (comma-separated, case-insensitive)
 # Only allow access to specific tables - leave empty to allow all
+# Use "*" to explicitly allow all tables (required for UNION with all tables)
 ALLOWED_TABLES=products,orders,customers
 
-# UNION Query Policy (0=disabled/safer, 1=enabled with table allowlist)
-# When disabled: LLM executes separate queries (more secure, more tool calls)
-# When enabled: UNION allowed but ALL tables must be in allowlist
+# UNION Query Policy
+# IMPORTANT: UNION requires DUAL configuration to enable:
+#   1. ALLOW_UNION=1
+#   2. ALLOWED_TABLES=table1,table2 OR ALLOWED_TABLES=*
+# If ALLOW_UNION=1 but ALLOWED_TABLES is empty, UNION will still be blocked.
 ALLOW_UNION=0
 
 # Token Optimization: Limit result size to prevent context overflow
-MAX_RESULT_ROWS=50    # Max rows returned per query
-MAX_RESULT_CHARS=8000 # Max characters in response
+# Set to 0 to disable truncation (for data export scenarios)
+MAX_RESULT_ROWS=100   # Max rows returned per query (0=unlimited)
+MAX_RESULT_CHARS=16000 # Max characters in response (0=unlimited)
 ```
 
 ### MCP Client Integration

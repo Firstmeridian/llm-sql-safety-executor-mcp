@@ -26,8 +26,10 @@ SCHEMA_TOOLS_ENABLED = os.getenv("ENABLE_SCHEMA_TOOLS", "1") == "1"
 # Token optimization: Limit result size to prevent context overflow
 # Reference: Google Gemini best practices - "Token limits: function descriptions and parameters count toward input token limits"
 # Reference: MCP Security best practices - "Sanitize tool outputs"
-MAX_RESULT_ROWS = int(os.getenv("MAX_RESULT_ROWS", "50"))  # Max rows to return
-MAX_RESULT_CHARS = int(os.getenv("MAX_RESULT_CHARS", "8000"))  # Max chars in response
+# Set to 0 to disable truncation (for data export scenarios)
+MAX_RESULT_ROWS = int(os.getenv("MAX_RESULT_ROWS", "100"))  # Max rows (0=unlimited)
+MAX_RESULT_CHARS = int(os.getenv("MAX_RESULT_CHARS", "16000"))  # Max chars (0=unlimited)
+MAX_SCHEMA_TABLES = int(os.getenv("MAX_SCHEMA_TABLES", "50"))  # Max tables in get_full_schema
 
 # UNION Query Policy (P2 Security: Configurable UNION handling)
 # Reference: OWASP Defense-in-Depth - block UNION by default for safety
@@ -47,14 +49,21 @@ def _parse_table_allowlist() -> set[str] | None:
     Parse ALLOWED_TABLES environment variable into a set.
     
     Format: Comma-separated table names (case-insensitive)
+    Special value: "*" means allow all tables (explicit opt-in for UNION)
     Example: ALLOWED_TABLES=products,orders,customers
     
     Returns:
-        Set of allowed table names (lowercase), or None if not configured (allow all)
+        Set of allowed table names (lowercase), None if not configured,
+        or {"*"} if explicitly set to allow all
     """
     allowed_tables_env = os.getenv("ALLOWED_TABLES", "").strip()
     if not allowed_tables_env:
         return None  # No allowlist configured - allow all tables
+    
+    # Special case: "*" means explicitly allow all tables
+    if allowed_tables_env == "*":
+        logger.info("Table allowlist set to '*' - all tables allowed (explicit)")
+        return {"*"}  # Special marker for "allow all"
     
     # Parse comma-separated list, normalize to lowercase
     tables = {t.strip().lower() for t in allowed_tables_env.split(",") if t.strip()}
@@ -88,6 +97,8 @@ def _is_table_allowed(table_name: str) -> bool:
     """
     if ALLOWED_TABLES is None:
         return True  # No allowlist - allow all
+    if "*" in ALLOWED_TABLES:
+        return True  # Explicit "allow all" via ALLOWED_TABLES=*
     return table_name.lower() in ALLOWED_TABLES
 
 
@@ -110,13 +121,14 @@ def _extract_tables_from_sql(sql: str) -> list[str]:
     tables = []
     
     # Pattern for FROM/JOIN clauses
-    # Handles: FROM table, FROM `table`, FROM schema.table
-    from_join_pattern = r'(?:FROM|JOIN)\s+`?([a-zA-Z_\u4e00-\u9fff][a-zA-Z0-9_\u4e00-\u9fff]*)`?'
+    # Handles: FROM table, FROM `table`, FROM schema.table, FROM `schema`.`table`
+    # Reference: MySQL identifier syntax - captures only the table name (after optional schema.)
+    from_join_pattern = r'(?:FROM|JOIN)\s+(?:`?[a-zA-Z_\u4e00-\u9fff][a-zA-Z0-9_\u4e00-\u9fff]*`?\s*\.\s*)?`?([a-zA-Z_\u4e00-\u9fff][a-zA-Z0-9_\u4e00-\u9fff]*)`?'
     matches = re.findall(from_join_pattern, sql, re.IGNORECASE)
     tables.extend(matches)
     
-    # Pattern for table in DESCRIBE/EXPLAIN
-    describe_pattern = r'(?:DESCRIBE|DESC|EXPLAIN)\s+`?([a-zA-Z_\u4e00-\u9fff][a-zA-Z0-9_\u4e00-\u9fff]*)`?'
+    # Pattern for table in DESCRIBE/EXPLAIN (also handles schema.table)
+    describe_pattern = r'(?:DESCRIBE|DESC|EXPLAIN)\s+(?:`?[a-zA-Z_\u4e00-\u9fff][a-zA-Z0-9_\u4e00-\u9fff]*`?\s*\.\s*)?`?([a-zA-Z_\u4e00-\u9fff][a-zA-Z0-9_\u4e00-\u9fff]*)`?'
     matches = re.findall(describe_pattern, sql, re.IGNORECASE)
     tables.extend(matches)
     
@@ -163,17 +175,12 @@ async def lifespan(mcp_server: FastMCP) -> AsyncIterator[dict[str, Any]]:
 
 
 # Create MCP server with lifespan
-# another prompt:
-# Database query assistant with READ-ONLY access.
-# Tools: query (primary), list_tables, describe_table, check_connection
-# Workflow:
-# - Known table structure: query directly
-# - Unknown structure: list_tables first, then query
-# Safe statements: SELECT, SHOW, DESCRIBE, EXPLAIN.
+# Reference: Google/Anthropic best practices - server instructions should describe capabilities,
+# not prescribe workflow (let LLM decide based on task context)
 mcp = FastMCP(
     name="sql-safety-executor",
     instructions="""Database query assistant with READ-ONLY access.
-Use query() for all data requests. Use describe_table() first if structure unknown.""",
+Use query() for all data requests. Use get_full_schema() or describe_table() first if structure unknown.""",
     lifespan=lifespan,
 )
 
@@ -285,11 +292,11 @@ def _is_query_safe_extended(sql: str) -> tuple[bool, str | None]:
         # UNION enabled: Require table allowlist for validation
         if ALLOWED_TABLES is None:
             return False, (
-                "UNION queries require ALLOWED_TABLES to be configured. "
-                "Set ALLOWED_TABLES environment variable or use separate queries."
+                "UNION requires ALLOWED_TABLES. "
+                "Set ALLOWED_TABLES=table1,table2 or ALLOWED_TABLES=* to enable."
             )
         # UNION will be validated by _check_table_allowlist() which extracts all tables
-        logger.info("UNION query allowed - will validate tables against allowlist")
+        logger.info("UNION query allowed - validating tables")
     
     # Block subqueries in FROM clause (potential info disclosure)
     # Allow subqueries in WHERE for legitimate use
@@ -303,10 +310,7 @@ def _truncate_result(data: list, total_rows: int) -> dict[str, Any]:
     """
     Truncate query results to prevent token explosion.
     
-    Best practices implemented:
-    - Google: "Token limits: function descriptions and parameters count toward input token limits"
-    - MCP: "Sanitize tool outputs" and "Rate limit tool invocations"
-    - Microsoft: "Least Privilege Principle" - return only necessary data
+    Set MAX_RESULT_ROWS=0 or MAX_RESULT_CHARS=0 to disable respective limits.
     
     Returns:
         Dict with truncated data and metadata
@@ -317,32 +321,33 @@ def _truncate_result(data: list, total_rows: int) -> dict[str, Any]:
     truncation_reason = None
     returned_rows = len(data)
     
-    # Step 1: Limit by row count
-    if len(data) > MAX_RESULT_ROWS:
+    # Step 1: Limit by row count (0 = disabled)
+    if MAX_RESULT_ROWS > 0 and len(data) > MAX_RESULT_ROWS:
         data = data[:MAX_RESULT_ROWS]
         truncated = True
-        truncation_reason = f"rows_exceeded (limit: {MAX_RESULT_ROWS})"
+        truncation_reason = f"row_limit ({MAX_RESULT_ROWS})"
         returned_rows = MAX_RESULT_ROWS
     
-    # Step 2: Limit by character count (approximate token limit)
-    try:
-        json_str = json.dumps(data, ensure_ascii=False, default=str)
-        if len(json_str) > MAX_RESULT_CHARS:
-            # Binary search for optimal row count within char limit
-            low, high = 1, len(data)
-            while low < high:
-                mid = (low + high + 1) // 2
-                test_str = json.dumps(data[:mid], ensure_ascii=False, default=str)
-                if len(test_str) <= MAX_RESULT_CHARS:
-                    low = mid
-                else:
-                    high = mid - 1
-            data = data[:low]
-            truncated = True
-            truncation_reason = f"chars_exceeded (limit: {MAX_RESULT_CHARS})"
-            returned_rows = low
-    except (TypeError, ValueError):
-        pass  # If JSON encoding fails, skip char limit check
+    # Step 2: Limit by character count (0 = disabled)
+    if MAX_RESULT_CHARS > 0:
+        try:
+            json_str = json.dumps(data, ensure_ascii=False, default=str)
+            if len(json_str) > MAX_RESULT_CHARS:
+                # Binary search for optimal row count within char limit
+                low, high = 1, len(data)
+                while low < high:
+                    mid = (low + high + 1) // 2
+                    test_str = json.dumps(data[:mid], ensure_ascii=False, default=str)
+                    if len(test_str) <= MAX_RESULT_CHARS:
+                        low = mid
+                    else:
+                        high = mid - 1
+                data = data[:low]
+                truncated = True
+                truncation_reason = f"char_limit ({MAX_RESULT_CHARS})"
+                returned_rows = low
+        except (TypeError, ValueError):
+            pass  # If JSON encoding fails, skip char limit check
     
     return {
         "data": data,
@@ -443,9 +448,8 @@ async def query(sql: str, ctx: Context) -> dict[str, Any]:
     
     if truncation_result["truncated"]:
         await ctx.warning(
-            f"Results truncated: {truncation_result['returned_rows']}/{total_rows} rows returned. "
-            f"Reason: {truncation_result['truncation_reason']}. "
-            f"Use LIMIT clause for better control."
+            f"Truncated: {truncation_result['returned_rows']}/{total_rows} rows. "
+            f"Add LIMIT to your query for precise control."
         )
     else:
         await ctx.info(f"Query returned {total_rows} rows")
@@ -457,9 +461,8 @@ async def query(sql: str, ctx: Context) -> dict[str, Any]:
         "total_rows": total_rows,
         "truncated": truncation_result["truncated"],
         "truncation_note": (
-            f"Results truncated to {truncation_result['returned_rows']} rows. "
-            f"Use 'SELECT ... LIMIT n' for precise control. "
-            f"Total available: {total_rows} rows."
+            f"Showing {truncation_result['returned_rows']}/{total_rows} rows. "
+            f"Use LIMIT clause for full control."
         ) if truncation_result["truncated"] else None,
         "query": sql
     }
@@ -517,11 +520,12 @@ async def check_connection(ctx: Context) -> dict[str, Any]:
 async def list_tables(ctx: Context) -> dict[str, Any]:
     """
     List all tables in the database with row counts.
-
-    Use this FIRST if you don't know the database structure.
+    
+    Lightweight option for table discovery. Returns names and row counts only.
+    For columns, use get_full_schema() or describe_table().
 
     Returns:
-        List of tables with their names and approximate row counts
+        List of tables with names and approximate row counts
     """
     await ctx.info("Listing database tables")
     
@@ -541,7 +545,8 @@ async def list_tables(ctx: Context) -> dict[str, Any]:
     data = _serialize_result(result)
     
     # Filter by allowlist if configured (P1 Security)
-    if ALLOWED_TABLES is not None:
+    # Skip filtering if ALLOWED_TABLES=* (explicit allow all)
+    if ALLOWED_TABLES is not None and "*" not in ALLOWED_TABLES:
         original_count = len(data)
         data = [t for t in data if t["table_name"].lower() in ALLOWED_TABLES]
         if len(data) < original_count:
@@ -566,9 +571,10 @@ async def list_tables(ctx: Context) -> dict[str, Any]:
 )
 async def describe_table(table_name: str, ctx: Context) -> dict[str, Any]:
     """
-    Get column information for a specific table.
-
-    Use this to understand table structure before writing queries.
+    Get column details for a single table.
+    
+    Best for: querying 1-2 specific tables where you know the names.
+    Alternative: get_full_schema() returns all tables in one call.
 
     Args:
         table_name: Name of the table to describe
@@ -645,12 +651,9 @@ async def describe_table(table_name: str, ctx: Context) -> dict[str, Any]:
 )
 async def get_full_schema(ctx: Context) -> dict[str, Any]:
     """
-    Get complete database schema (all tables and their columns) in ONE call.
+    Get complete database schema (all tables and columns) in one call.
     
-    Use this FIRST instead of calling describe_table() multiple times.
-    This reduces tool calls and provides complete context upfront.
-    
-    Best Practice (Microsoft): Cache schema at startup to avoid repeated queries.
+    Best for: exploring unknown databases, multi-table queries, or complex JOINs.
     
     Returns:
         Complete schema with all tables and their column definitions
@@ -673,7 +676,8 @@ async def get_full_schema(ctx: Context) -> dict[str, Any]:
     tables_data = _serialize_result(tables_result)
     
     # Filter tables by allowlist if configured (P1 Security)
-    if ALLOWED_TABLES is not None:
+    # Skip filtering if ALLOWED_TABLES=* (explicit allow all)
+    if ALLOWED_TABLES is not None and "*" not in ALLOWED_TABLES:
         tables_data = [t for t in tables_data if t["table_name"].lower() in ALLOWED_TABLES]
         await ctx.info(f"Allowlist active: showing {len(tables_data)} allowed tables")
     
@@ -697,7 +701,17 @@ async def get_full_schema(ctx: Context) -> dict[str, Any]:
     
     columns_data = _serialize_result(columns_result)
     
-    # Step 3: Organize into structured schema
+    # Step 3: Apply truncation to prevent token overflow (P0 security/performance)
+    # Reference: Google Gemini best practices - token limits
+    total_tables = len(tables_data)
+    truncated = False
+    
+    if MAX_SCHEMA_TABLES > 0 and total_tables > MAX_SCHEMA_TABLES:
+        tables_data = tables_data[:MAX_SCHEMA_TABLES]
+        truncated = True
+        await ctx.warning(f"Schema truncated: showing {MAX_SCHEMA_TABLES}/{total_tables} tables")
+    
+    # Step 4: Organize into structured schema
     schema = {}
     for table in tables_data:
         table_name = table["table_name"]
@@ -716,15 +730,23 @@ async def get_full_schema(ctx: Context) -> dict[str, Any]:
                 "key": col["key_type"]
             })
     
-    await ctx.info(f"Schema loaded: {len(schema)} tables, {len(columns_data)} columns total")
+    total_columns_shown = sum(len(t["columns"]) for t in schema.values())
+    await ctx.info(f"Schema loaded: {len(schema)} tables, {total_columns_shown} columns")
     
-    return {
+    result = {
         "success": True,
         "schema": schema,
         "table_count": len(schema),
-        "total_columns": len(columns_data),
+        "total_columns": total_columns_shown,
         "hint": "Use this schema info to construct queries. For large tables (row_count > 100), use LIMIT or aggregation."
     }
+    
+    # Add truncation notice if applicable
+    if truncated:
+        result["truncated"] = True
+        result["truncation_note"] = f"Showing {MAX_SCHEMA_TABLES}/{total_tables} tables. Use describe_table(table_name) for specific tables not shown."
+    
+    return result
 
 
 @mcp.tool(
@@ -737,12 +759,10 @@ async def get_full_schema(ctx: Context) -> dict[str, Any]:
 )
 async def get_table_summary(table_name: str, ctx: Context) -> dict[str, Any]:
     """
-    Get summary statistics for a table WITHOUT fetching raw data.
+    Quick table statistics without fetching data.
     
-    Use this for quick analysis instead of SELECT * queries.
-    Provides: row count, column count, numeric column stats.
-    
-    Best Practice (Google/Microsoft): Use aggregation instead of raw data retrieval.
+    Returns: row count, column list, and basic stats.
+    Best for: checking table size before large queries.
     
     Args:
         table_name: Name of the table to summarize
@@ -872,14 +892,30 @@ if SCHEMA_TOOLS_ENABLED:
 def sql_assistant() -> str:
     """System prompt for SQL query assistance."""
     # Build dynamic prompt based on UNION policy
-    # Reference: OpenAI/Google best practices - keep descriptions concise to minimize token usage
+    # Reference: Anthropic/OpenAI best practices - provide clear guidance, let LLM decide
     if ALLOW_UNION and ALLOWED_TABLES:
-        cross_table = f"UNION enabled (tables: {', '.join(sorted(ALLOWED_TABLES))}). Use JOINs for related data."
+        if "*" in ALLOWED_TABLES:
+            cross_table = "UNION supported for combining results from multiple tables."
+        else:
+            tables_desc = ', '.join(sorted(ALLOWED_TABLES))
+            cross_table = f"UNION supported (allowed tables: {tables_desc})."
     else:
-        cross_table = "Use JOINs for related tables. For unrelated tables, query separately and combine in response."
+        cross_table = "Query tables separately and combine results in response."
     
-    return f"""READ-ONLY SQL assistant. Tools: query (primary), get_full_schema, list_tables, describe_table, get_table_summary, sample.
+    return f"""READ-ONLY SQL assistant.
 
-Workflow: get_full_schema() first → query with LIMIT for large tables.
-Guidelines: Use aggregation (COUNT/GROUP BY) over raw data. {cross_table}
-Always show SQL in response."""
+Start: get_full_schema() or describe_table() for unknown databases.
+Query:
+1. Query with LIMIT for large tables
+2. Prefer COUNT/GROUP BY over SELECT *
+
+Tools:
+- query(sql): Execute SELECT, SHOW, DESCRIBE, EXPLAIN
+- get_full_schema(): All tables and columns in one call
+- describe_table(name): Single table details
+- list_tables(): Table names and row counts only
+- get_table_summary(name): Row count and columns for one table
+
+Rules:
+- {cross_table}
+- Always show SQL in response."""

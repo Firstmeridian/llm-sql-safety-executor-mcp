@@ -6,20 +6,62 @@
 
 ## 快速开始
 
-### 传统用法（保留）
-```bash
-# 安装依赖
-pip install -r requirements.txt
+### 使用 VS Code 快速调用 MCP 服务
 
-# 配置环境
-cp .env.example .env
-# 使用您的数据库凭据编辑 .env
+在 VS Code 通过配置 `mcp.json` 实现快速集成，可以直接在 GitHub Copilot Chat 中调用本项目的 SQL 工具。使 GitHub Copilot Chat 拥有面向数据库的能力。[当然，还可以在其它支持MCP的AI助手中使用。](README_ZH.md#配置-mcp-客户端)
 
-# 运行原始实现
-python sql_safety_checker.py
+#### 1. 准备工作
+*   确保 VS Code 为最新版本。
+*   安装 **GitHub Copilot Chat** 扩展。
+*   确保本项目已安装依赖 (在本项目路径下运行 `pip install -r requirements.txt`)。
+*   配置环境 `cp .env.example .env` 使用您的数据库凭据编辑 .env [在.env中配置环境变量](README_ZH.md#配置)
+
+#### 2. 创建配置文件
+在项目根目录下新建文件夹 `.vscode`（可能已存在，不存在则新建），并在其中新建文件 `mcp.json`。
+
+#### 3. 填写配置 (关键步骤)
+将以下内容复制到 `mcp.json` 中（如果`mcp.json`已存在则在其中追加配置即可， VS Code 是通过配置 `mcp.json` 进行 MCP Server 的识别）。**请务必修改为您的实际绝对路径**：
+
+```json
+{
+  "mcpServers": {
+    "sql-safety-executor-mcp": {
+      "type": "stdio",
+      "command": "/absolute/path/to/python", 
+      "args": ["/absolute/path/to/start_server.py"],
+      "cwd": "/absolute/path/to/project_root"
+    }
+  }
+}
 ```
 
-### MCP 服务用法（推荐）
+**配置详解：**
+*   `command`: **必须**指向虚拟环境中的 Python 解释器绝对路径 (例如 `.venv/bin/python`)，不要直接用系统 `python`。
+*   `args`: 指向 `start_server.py` 的绝对路径。
+*   `cwd`: 项目根目录的绝对路径，确保能读取到 `.env` 文件。
+
+**也可以用以下方式在 VS Code 的图形界面中配置：（推荐）**
+
+1. 完成 “1. 准备工作” 。
+2. 打开 VS Code 命令面板 (`Ctrl+Shift+P` / `Cmd+Shift+P`)。
+3. 输入并选择 `MCP: Add Server`。![MCP: Add Server](readme_pic/MCP:AddServer.png)
+4. 根据引导一步一步添加上面的内容（请根据实际路径修改）：
+
+实际上二者殊途同归，它们会生成一样位置的 `mcp.json` 文件。无论如何，您只需要保证 `.vscode` 中的 `mcp.json` 有以上配置即可。
+
+#### 4. 验证与使用
+1.  重启 VS Code，或使用 VS Code 命令面板重新加载窗口。
+2.  打开 GitHub Copilot Chat ，确保为Plan或Agent模式。
+3.  点击输入框下方，模型选择框旁边的 **工具图标**。
+4.  您应该能看到 `sql-safety-executor` 及其提供的工具 (如 `query`, `list_tables`)。确保它们已经被全部勾选。![Add tools](readme_pic/Addtools.png)
+5.  直接在对话中发送提问即可：“列出所有表”或“查询 users 表的前5行”。![ask](readme_pic/ask.png)![answer](readme_pic/answer.png)
+注意：虽然已经优化了工具使用，但还是推荐在 GitHub Copilot Chat 中通过免费模型（例如GPT-5 mini）进行使用，以避免额外的请求消耗。
+
+#### 常见问题
+*   **找不到工具？** 检查 `Output` (输出) 面板，切换到 "GitHub Copilot" 查看是否有报错。
+*   **路径错误**：Windows 用户请注意 JSON 中的反斜杠转义 (例如 `C:\\Users\\...`)。
+
+### MCP 服务用法
 ```bash
 # 安装包括 MCP 支持在内的依赖
 pip install -r requirements.txt
@@ -91,16 +133,20 @@ CONNECT_TIMEOUT_SECONDS=10 # 连接超时秒数
 
 # 表白名单（逗号分隔，不区分大小写）
 # 仅允许访问特定表 - 留空则允许所有
+# 使用 "*" 显式允许所有表（UNION 需要配合此设置）
 ALLOWED_TABLES=products,orders,customers
 
-# UNION 查询策略（0=禁用/更安全，1=启用但需要表白名单）
-# 禁用时：LLM 执行单独的查询（更安全，更多工具调用）
-# 启用时：允许 UNION 但所有表必须在白名单中
+# UNION 查询策略
+# 重要：UNION 需要双重配置才能启用：
+#   1. ALLOW_UNION=1
+#   2. ALLOWED_TABLES=table1,table2 或 ALLOWED_TABLES=*
+# 如果 ALLOW_UNION=1 但 ALLOWED_TABLES 为空，UNION 仍会被阻止。
 ALLOW_UNION=0
 
 # Token 优化：限制结果大小以防止上下文溢出
-MAX_RESULT_ROWS=50    # 每次查询返回的最大行数
-MAX_RESULT_CHARS=8000 # 响应中的最大字符数
+# 设为 0 可禁用截断（用于数据导出场景）
+MAX_RESULT_ROWS=100    # 每次查询返回的最大行数（0=不限制）
+MAX_RESULT_CHARS=16000 # 响应中的最大字符数（0=不限制）
 ```
 
 ### MCP 客户端集成
