@@ -2,13 +2,13 @@
 
 [English](README.md) | 中文
 
-### 摘要
-一个面向 AI Agent 的 MCP 数据库查询工具：使大型语言模型（LLM）能够通过标准化的 MCP（Model Context Protocol，模型上下文协议）服务接口安全的通过只读 SQL（SELECT/SHOW/DESCRIBE/EXPLAIN）查询你的数据库。并提供白名单/超时/结果截断等防护，避免误操作与 token 成本失控。**赋予LLM(Agents)进入数据库的能力，可以使LLM(Agents)代替成为新的“前端”，动态的与用户交互** 
+一个面向 AI Agent 的安全数据库查询服务：使大型语言模型(LLM)可通过标准化的MCP接口，以只读 SQL(SELECT/SHOW/DESCRIBE/EXPLAIN)安全获取数据库查询。并提供白名单、超时与结果截断等防护。降低误操作风险同时避免 Token 成本失控。  
+它的目标是让 LLM(Agent) 具备“进入数据库”的能力。通过与AI Agent的配合，可以使LLM成为新的“前端”，动态地与用户交互。
 
 ### 介绍
 **启发：基于LLM/Agents的用户界面**  
-本项目的理念最早起源于2025年初，受到部分GraphQL的影响。最初是计划由LLM或Agents作为前端入口，通过明确的语义向后端获取信息。
-实际上，SQL本身就是良好的查询信息载体。与其传递GraphQL，不如直接进一步直接传递SQL本身。并且目前几乎所有主流的LLM都可以在不经额外微调的情况下较稳定的生成常用场景下的SQL语句。
+本项目的理念最早起源于2025年初，受到部分GraphQL的影响。最初是计划由LLM或Agents作为前端入口，通过明确的语义向后端获取信息。  
+实际上，SQL语句本身就是良好的查询信息载体。与其传递GraphQL，不如进一步直接传递SQL。尤其是考虑到目前主流的LLM几乎都可以在不经额外微调的情况下，较稳定的生成常用的SQL。  
 但在此基础上，需要考虑三个关键问题：
 1. 潜在的SQL注入
 2. LLM本身的不确定性：生成SQL的安全性
@@ -20,22 +20,22 @@
 LLM的生成具有不确定性。即便有极小概率，这也会导致生成SQL的安全性无法得到保障。需要有SQL安全检查工具对生成的SQL进行检查和过滤。  
 **关于问题3：**  
 LLM(Agents)不能凭空生成SQL，需要有一定的上下文基础。这里的上下文可以是自然语言提示或数据库文档，但更重要的是数据库结构、查询示例以及数据本身。对于高质量的查询，就目前的来讲（截至2025年末），应当采用ReAct方案：即为推理 (Thought) --> 行动 (Action) --> 观察(Observation) --> 再思考决定下一步行动的循环。  
-**总的来说，本项目是对于问题2和问题3解决方案。**
+**总的来说，本项目是针对问题2和问题3的解决方案。**
 
 ### 项目演进：
 在早期，本项目的目标是编写一个简易的SQL安全检查工具，用于在执行前对SQL语句检查和过滤。作为方法供LLM(Agents)进行调用(FunctionCall)
 
-- 之后，[在(v1.0)](LLM_TO_MCP_FEASIBILITY_ANALYSIS.md)进行了重构，以增加对标准化MCP服务架构的支持。同时进行解耦，在增强安全性和可扩展性的同时简化维护。
+- 之后，[在(v1.0)版本](LLM_TO_MCP_FEASIBILITY_ANALYSIS.md) 进行了重构，以增加对标准化MCP服务架构的支持。同时进行解耦，在增强安全性和可扩展性的同时简化维护。
 
-- [在(v2.0)](REFACTORING_LOG.md)进行了针对MCP实际使用场景下查询效率和LLM调用风险优化。
-  1. 通过工具合并和增加新的常用工具，减少工具调用次数，优化工具调用的效率。
-  2. 聚焦于实际使用上的token爆炸风险（这可能导致大量的LLM API费用支出）进行针对性优化。
-  3. 同时新增了[多Agent调用该服务的示例](README_ZH.md#autogen-多-agent-示例)，基于AutoGen框架，用于示范Agents于本服务的结合。
+- [在(v2.0)版本](REFACTORING_LOG.md) 针对实际的MCP使用场景，进行了查询效率和调用风险的优化。
+  1. 通过工具合并以及增加新的常用工具，减少工具调用次数，优化工具调用效率。
+  2. 聚焦于真实使用中的token爆炸风险（这可能导致大量的LLM API费用支出）进行针对性优化。
+  3. 同时新增了[多Agent调用该MCP服务的示例](README_ZH.md#autogen-多-agent-示例)，基于AutoGen框架，用于示范Agents于本服务的结合。
 
-- [在(v2.1)](REFACTORING_LOG.md#latest-update-january-4-2026---tool-optimization--field-naming)进行了专注于工具设计和输出一致性的改进。优化并重构了大量工具，尽可能的遵守业界相关的最佳实践。整体设计上，尽可能采用ReAct方案推理 (Thought) --> 行动 (Action) --> 观察(Observation) --> 再思考决定下一步行动的循环范式。在保证查询效率的同时提升查询准确性和多步骤查询的质量。基于AutoGen的多agent调用示例也同步更新。
+- [在(v2.1)版本](REFACTORING_LOG.md#latest-update-january-4-2026---tool-optimization--field-naming) 专注于工具设计和输出一致性的改进。优化并重构了大量工具，尽可能的遵守业界相关的最佳实践。整体设计上，采用ReAct方案推理 (Thought) --> 行动 (Action) --> 观察(Observation) --> 再思考决定下一步行动的循环范式。在保证查询效率的同时提升查询准确性和多步骤查询的质量。基于AutoGen的多agent调用示例也同步更新。
 
-经过这几次迭代，本项目从最初基于LLM(Agents)的用户界面设想，演进到基于MCP的SQL综合查询服务。但需要承认的是，现在的项目，虽然出发点不同，但与目前的Text2SQL实际上有所相似。  
-在本项目构思初期（2025年3-4月），此类系统还是较为少见的。在当时，类似的Text2SQL实践主要还停留在：接收相关人员的提示下，LLM单次生成SQL语句辅助其进行查询的背景下。而本项目的出发点不同，核心动机主要是 **使LLM(Agents)代替成为新的“前端”，动态的与用户交互，无论是界面中的数据还是界面。** 让整个系统达到充分灵活且动态的效果。  
+经过上述迭代，本项目从最初基于LLM/Agents的用户界面设想，演进到支持MCP的SQL综合查询服务。但需要承认的是，当前的项目虽然出发点不同，但实际上与目前的Text2SQL有所相似。  
+在本项目构思初期（2025年3-4月），此类系统还是较为少见的。在当时，类似的Text2SQL实践主要还停留在：接收相关人员的提示，LLM单次生成SQL语句辅助其进行查询的背景下。而本项目的出发点不同，核心动机主要是 **使LLM(Agents)代替传统前端，成为新的“前端”，动态地与用户交互，无论是界面中的数据还是界面。** 让整个系统达到充分灵活且动态的效果。  
 就目前来说，**本项目的核心思想是赋予LLM(Agents)进入数据库的能力。** 搭配不同的Agent，可以开发扩展出不同的工作场景。
 
 ### 项目路线图
@@ -47,19 +47,19 @@ LLM(Agents)不能凭空生成SQL，需要有一定的上下文基础。这里的
 > "Combine functions that are always called in sequence."
 > [— OpenAI, "Best practices for defining functions" (December 2025)](https://platform.openai.com/docs/guides/function-calling#best-practices-for-defining-functions)
 
-这说明在合理的情况下，一个实用的系统应该添加，并支持添加针对特殊场景的额外工具（方法）。但是，过多的工具会占用更多上下文，并且会降低准确率/增加成本[1]。而Agent Skills的渐进式披露(progressive disclosure)[2]则可以避免这些问题。
-因此，我们可以设想这样一个方案：用户或开发人员可以编写大量依赖于本MCP服务之上的“插件”（代码段/工具），使用SKILL.md管理，可以方便的动态增加与配置。而Agent则可以加载这些“插件”，灵活扩展其能力。
+这说明在合理的情况下，一个实用的系统应该加入、并支持添加针对特定场景的额外工具。但是，过多的工具会占用更多上下文，并且会降低准确率/增加成本[1]。而Agent Skills的渐进式披露(progressive disclosure)[2]则可以避免这些问题。
+因此，我们可以设想这样一个方案：用户或开发人员可以编写大量依赖于本MCP服务之上的“插件”（代码段/工具），通过SKILL.md管理，可以动态的增加与配置工具。而Agent则可以加载这些“插件”，灵活扩展其能力。
 
-> [1]: ["Keep the number of functions small for higher accuracy."](https://platform.openai.com/docs/guides/function-calling)
+> [1]: ["Keep the number of functions small for higher accuracy."](https://platform.openai.com/docs/guides/function-calling)  
 > [2]: ["This filesystem-based architecture enables progressive disclosure: Claude loads information in stages as needed, rather than consuming context upfront."](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview#how-skills-work)
 
 
 ### 关于AI辅助开发(copilot, vibe-coding)的实践经验
-本项目最初由Gemini CLI创建，在v1.0之后主要使用GitHub copilot进行开发。
+本项目最初由Gemini CLI创建，在v1.0之后主要使用GitHub copilot进行开发。  
 在使用AI辅助开发本项目的时候，基本遵循以下经验。
-1. 尽可能的提示AI遵循web和GitHub上相关的最佳实践，比如Anthropic，Google，FastMCP和Microsoft等。避免幻觉的产生。
+1. 尽可能的遵循web和GitHub上相关的最佳实践，比如Anthropic，Google，FastMCP和Microsoft等。避免幻觉和局部最优解的产生。
 2. 尽可能使AI进行反思自己的输出。
-3. 在满足1，2的前提下，尽可能减少对AI的约束。用最简洁的提示和步骤完成任务，使AI拥有完整的工作流。
+3. 在满足1，2的前提下，尽可能减少对AI的约束。用最简洁的提示和步骤完成任务，并使AI完成完整的工作流。
 > 对于上下文，要尽可能的保留充分完整；对于提示和约束，要尽量减少。
 
 这就是本项目虽然保留了最初的GEMINI.md，但仅作为记录使用，并且也未增加AGENTS.md的原因。但SKILL.md或类似的“渐进式”文档是良好的实践。本项目的相关文档 [REFACTORING_LOG.md](REFACTORING_LOG.md) 和 [PROMPT_ENGINEERING_BEST_PRACTICES.md](PROMPT_ENGINEERING_BEST_PRACTICES.md) 体现了这一实践。
@@ -76,16 +76,16 @@ LLM(Agents)不能凭空生成SQL，需要有一定的上下文基础。这里的
 
 - **为避免 token 爆炸，返回结果可能被截断**：`query()`、`list_tables()`、`get_full_schema()` 会根据 `MAX_RESULT_ROWS` / `MAX_RESULT_CHARS` / `MAX_OVERVIEW_TABLES` / `MAX_SCHEMA_TABLES` 截断输出；因此“返回的数据/表/列”可能不是全量。需要全量时请显式使用更小范围的查询（加 `LIMIT`、按条件分页），或调整相关环境变量（风险自担）。
 
-- **部分“总数”字段是“可见范围”语义**：例如 `total_tables` 在工具输出中表示“allowlist 过滤后的可见表数量（再考虑截断）”，并非一定等同于数据库实际总表数；请避免将其误读为“全库统计”。
+- **部分“总数”字段是“可见范围”语义**：例如 `total_tables` 在工具输出中表示“allowlist 参数过滤后的可见表数量（再考虑截断）”，并非一定等同于数据库实际总表数；请避免将其误读为“全库统计”。
 
 ### 使用本项目的最佳实践
-- **推荐首先接入VS Code的GitHub Copilot进行试用。** VS Code中的GitHub Copilot是一个成熟的AI Agent工具，你可以选择免费模型（例如GPT-5 mini）在测试数据库中进行使用，这样安全性较高，同时可以避免额外的AI请求消耗。
+- **推荐首先接入VS Code的GitHub Copilot进行试用。** VS Code中的GitHub Copilot是一个成熟的AI Agent工具，你可以选择免费模型（例如GPT-5 mini）在测试数据库中进行使用，这样安全性较高，同时可以避免额外的AI请求费用消耗。
 - **在GitHub Copilot中使用的另一个好处是：可以使Copilot这种辅助编码AI获得进入数据库的能力，** 使其了解目标数据库的结构和数据分布。这在编写程序时可以提供更好的开发辅助和建议。
-- **（以GitHub Copilot为例）在使用时显式的附加“#sql-safety-executor-mcp”工具，这样可以提醒AI优先使用该工具。** ![tools](readme_pic/tools.png)
 - **（以GitHub Copilot为例）在使用时，可以在提示中加上类似“为了回答的数据和理由准确充分，你需要一步一步，多次进行查询。”** 的提醒。这会引导AI进行多次，复杂，类似ReAct模式的查询，以获得更好的效果。这在解决复杂问题时尤为有用。
+- **（以GitHub Copilot为例）在使用时显式的附加“#sql-safety-executor-mcp”工具，这样可以提醒AI优先使用该工具。** ![tools](readme_pic/tools.png)
 - **（以GitHub Copilot为例）善用Agent提供的“todo”工具**，这样可以让AI帮助计划查询步骤，提升性能和效率。![todo](readme_pic/todo.png)
 - 在最近的几次修改中（截至2026.1.7），进行了多次的安全优化，比如大数据量下的截断，特殊关键词的使用（比如union），表的白名单设置，针对不同配置的动态提示词等。但是 **更高的安全意味着更低的性能、效率和更高的消耗（比如更多的请求参数和token消耗），因此请酌情配置安全性设置。**
-- 实际上，Claude Code、Codex、Gemini CLI这样的AI客户端也与GitHub Copilot类似，并且 **请注意AI调用可能产生大量token的费用问题。** 并且目前的测试（包括能力测试）主要在GitHub Copilot上。
+- 实际上，Claude Code、Codex、Gemini CLI这样的AI客户端也与GitHub Copilot类似，但是 **请注意AI调用可能产生大量token的费用问题。** 并且目前的测试（包括能力测试）主要集中在GitHub Copilot上完成。
 
 
 ## 快速开始
@@ -135,11 +135,11 @@ LLM(Agents)不能凭空生成SQL，需要有一定的上下文基础。这里的
 
 #### 4. 验证与使用
 1.  重启 VS Code，或使用 VS Code 命令面板重新加载窗口。
-2.  打开 GitHub Copilot Chat ，确保为Plan或Agent模式。
+2.  打开 GitHub Copilot Chat ，确保处于Plan或Agent模式。
 3.  点击输入框下方，模型选择框旁边的 **工具图标**。
 4.  您应该能看到 `sql-safety-executor` 及其提供的工具 (如 `query`, `list_tables`)。确保它们已经被全部勾选。![Add tools](readme_pic/Addtools.png)
-5.  直接在对话中发送提问即可：“列出所有表”或“查询 users 表的前5行”。![ask](readme_pic/ask.png)
-可以看到 MCP 工具被调用![answer](readme_pic/answer.png)
+5.  直接在对话中发送提问即可：“列出所有表”或“查询 users 表的前5行”。![ask](readme_pic/ask.png)  
+可以看到 MCP 工具被调用![answer](readme_pic/answer.png)  
 注意：虽然已经优化了工具使用，但还是推荐在 GitHub Copilot Chat 中通过免费模型（例如GPT-5 mini）进行使用，以避免额外的请求消耗。
 
 #### 常见问题
@@ -197,9 +197,9 @@ python autogen_sql_agent.py "列出所有表并描述它们的结构"
 - 服务器从工作目录中的 `.env` 文件加载凭据。
 - 对于虚拟环境，使用 Python 解释器的完整路径。
 
-## 配置
+## 配置（位于.env文件中。需要先拷贝.env.example，重命名为.env以进行配置）
 
-### 必需的环境配置变量
+### 必需的环境变量
 ```bash
 DB_USER=your_database_user
 DB_PASSWORD=your_database_password
@@ -207,7 +207,7 @@ DB_HOST=your_database_host
 DB_NAME=your_database_name
 ```
 
-### 可选的环境配置变量
+### 可选的环境变量
 ```bash
 # 功能开关（1=启用，0=禁用）
 ENABLE_SCHEMA_TOOLS=1    # 控制 sample() 工具
