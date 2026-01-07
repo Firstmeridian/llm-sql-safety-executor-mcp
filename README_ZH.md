@@ -1,8 +1,92 @@
-# SQL 安全检查器 - MCP 服务实现
+# SQL 安全执行器 - MCP 服务实现
 
 [English](README.md) | 中文
 
-一个基于 Python 的工具，使大型语言模型（LLM）能够通过标准化的 MCP（Model Context Protocol，模型上下文协议）服务接口安全地执行只读 SQL 查询。
+### 摘要
+一个面向 AI Agent 的 MCP 数据库查询工具：使大型语言模型（LLM）能够通过标准化的 MCP（Model Context Protocol，模型上下文协议）服务接口安全的通过只读 SQL（SELECT/SHOW/DESCRIBE/EXPLAIN）查询你的数据库。并提供白名单/超时/结果截断等防护，避免误操作与 token 成本失控。**赋予LLM(Agents)进入数据库的能力，可以使LLM(Agents)代替成为新的“前端”，动态的与用户交互** 
+
+### 介绍
+**启发：基于LLM/Agents的用户界面**  
+本项目的理念最早起源于2025年初，受到部分GraphQL的影响。最初是计划由LLM或Agents作为前端入口，通过明确的语义向后端获取信息。
+实际上，SQL本身就是良好的查询信息载体。与其传递GraphQL，不如直接进一步直接传递SQL本身。并且目前几乎所有主流的LLM都可以在不经额外微调的情况下较稳定的生成常用场景下的SQL语句。
+但在此基础上，需要考虑三个关键问题：
+1. 潜在的SQL注入
+2. LLM本身的不确定性：生成SQL的安全性
+3. 生成SQL的查询准确性、查询质量和查询效率
+
+**关于问题1：**  
+此场景实际上并非“前端直接传递SQL给后端使用”的情况，LLM(Agents)在这里更类似一个于服务端运行的服务端程序。所有的SQL，都是在服务端可控的环境下生成，通过stdio模式（当然也可以是在内网安全的HTTP方式）与其它后端服务通信。此场景中的Agents是可约束输入/输出的程序，与前端（外部用户）仅通过prompt对接。而在2025年的当下，防止prompt注入已经是十分广泛且成熟的实践，Agents的编写者可以很轻松的用多种方法来避免外部prompt注入。  
+**关于问题2：**  
+LLM的生成具有不确定性。即便有极小概率，这也会导致生成SQL的安全性无法得到保障。需要有SQL安全检查工具对生成的SQL进行检查和过滤。  
+**关于问题3：**  
+LLM(Agents)不能凭空生成SQL，需要有一定的上下文基础。这里的上下文可以是自然语言提示或数据库文档，但更重要的是数据库结构、查询示例以及数据本身。对于高质量的查询，就目前的来讲（截至2025年末），应当采用ReAct方案：即为推理 (Thought) --> 行动 (Action) --> 观察(Observation) --> 再思考决定下一步行动的循环。  
+**总的来说，本项目是对于问题2和问题3解决方案。**
+
+### 项目演进：
+在早期，本项目的目标是编写一个简易的SQL安全检查工具，用于在执行前对SQL语句检查和过滤。作为方法供LLM(Agents)进行调用(FunctionCall)
+
+- 之后，[在(v1.0)](LLM_TO_MCP_FEASIBILITY_ANALYSIS.md)进行了重构，以增加对标准化MCP服务架构的支持。同时进行解耦，在增强安全性和可扩展性的同时简化维护。
+
+- [在(v2.0)](REFACTORING_LOG.md)进行了针对MCP实际使用场景下查询效率和LLM调用风险优化。
+  1. 通过工具合并和增加新的常用工具，减少工具调用次数，优化工具调用的效率。
+  2. 聚焦于实际使用上的token爆炸风险（这可能导致大量的LLM API费用支出）进行针对性优化。
+  3. 同时新增了[多Agent调用该服务的示例](README_ZH.md#autogen-多-agent-示例)，基于AutoGen框架，用于示范Agents于本服务的结合。
+
+- [在(v2.1)](REFACTORING_LOG.md#latest-update-january-4-2026---tool-optimization--field-naming)进行了专注于工具设计和输出一致性的改进。优化并重构了大量工具，尽可能的遵守业界相关的最佳实践。整体设计上，尽可能采用ReAct方案推理 (Thought) --> 行动 (Action) --> 观察(Observation) --> 再思考决定下一步行动的循环范式。在保证查询效率的同时提升查询准确性和多步骤查询的质量。基于AutoGen的多agent调用示例也同步更新。
+
+经过这几次迭代，本项目从最初基于LLM(Agents)的用户界面设想，演进到基于MCP的SQL综合查询服务。但需要承认的是，现在的项目，虽然出发点不同，但与目前的Text2SQL实际上有所相似。  
+在本项目构思初期（2025年3-4月），此类系统还是较为少见的。在当时，类似的Text2SQL实践主要还停留在：接收相关人员的提示下，LLM单次生成SQL语句辅助其进行查询的背景下。而本项目的出发点不同，核心动机主要是 **使LLM(Agents)代替成为新的“前端”，动态的与用户交互，无论是界面中的数据还是界面。** 让整个系统达到充分灵活且动态的效果。  
+就目前来说，**本项目的核心思想是赋予LLM(Agents)进入数据库的能力。** 搭配不同的Agent，可以开发扩展出不同的工作场景。
+
+### 项目路线图
+**Agent Skills和扩展性**  
+在未来，计划引入对Agent Skills的支持。
+同时计划对于本项目进行扩展性的提升。在现有的实践中我们认识到提供（封装成）具体的语义化工具的意义。业界也有对应的最佳实践论述：
+> "Offload the burden from the model and use code where possible."  
+> "Don't make the model fill arguments you already know."  
+> "Combine functions that are always called in sequence."
+> [— OpenAI, "Best practices for defining functions" (December 2025)](https://platform.openai.com/docs/guides/function-calling#best-practices-for-defining-functions)
+
+这说明在合理的情况下，一个实用的系统应该添加，并支持添加针对特殊场景的额外工具（方法）。但是，过多的工具会占用更多上下文，并且会降低准确率/增加成本[1]。而Agent Skills的渐进式披露(progressive disclosure)[2]则可以避免这些问题。
+因此，我们可以设想这样一个方案：用户或开发人员可以编写大量依赖于本MCP服务之上的“插件”（代码段/工具），使用SKILL.md管理，可以方便的动态增加与配置。而Agent则可以加载这些“插件”，灵活扩展其能力。
+
+> [1]: ["Keep the number of functions small for higher accuracy."](https://platform.openai.com/docs/guides/function-calling)
+> [2]: ["This filesystem-based architecture enables progressive disclosure: Claude loads information in stages as needed, rather than consuming context upfront."](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview#how-skills-work)
+
+
+### 关于AI辅助开发(copilot, vibe-coding)的实践经验
+本项目最初由Gemini CLI创建，在v1.0之后主要使用GitHub copilot进行开发。
+在使用AI辅助开发本项目的时候，基本遵循以下经验。
+1. 尽可能的提示AI遵循web和GitHub上相关的最佳实践，比如Anthropic，Google，FastMCP和Microsoft等。避免幻觉的产生。
+2. 尽可能使AI进行反思自己的输出。
+3. 在满足1，2的前提下，尽可能减少对AI的约束。用最简洁的提示和步骤完成任务，使AI拥有完整的工作流。
+> 对于上下文，要尽可能的保留充分完整；对于提示和约束，要尽量减少。
+
+这就是本项目虽然保留了最初的GEMINI.md，但仅作为记录使用，并且也未增加AGENTS.md的原因。但SKILL.md或类似的“渐进式”文档是良好的实践。本项目的相关文档 [REFACTORING_LOG.md](REFACTORING_LOG.md) 和 [PROMPT_ENGINEERING_BEST_PRACTICES.md](PROMPT_ENGINEERING_BEST_PRACTICES.md) 体现了这一实践。
+
+### 风险和局限
+在编写本项目的实践中，使用了大量的AI辅助开发。尽管已经尽可能的review代码和进行测试，并添加了一系列安全设置。但精力有限，无法覆盖全部情况，尤其是考虑到有LLM参与其中的情况。  
+**因此，不要在未经测试的情况下直接接入生产环境或与Agent搭配。这可能会导致意想不到的后果！**
+贸然接入未经测试的Agent可能会导致 **不稳定、死循环、token爆炸、巨量查询** 或其它未验证的负面影响。  
+在最近的几次修改中，进行了多次的效率优化，主要聚焦于减少不必要的工具调用次数和速度优化。但因为LLM(Agents)的随机性，在实际使用时，仍可能出现不必要的工具调用情况，尽管概率较小。
+
+### 已知问题和不足
+- **行数相关字段可能不精确**：`list_tables()` / `describe_table()` / `get_full_schema()` 在默认情况下返回的 `row_count` 来自 `INFORMATION_SCHEMA.TABLES.TABLE_ROWS`，属于统计估计值（尤其对 InnoDB 可能有明显偏差或滞后），仅建议用于“量级判断/是否加 LIMIT/是否大表”等策略，不应当当作精确计数。
+  - 如需精确行数，请使用 `SELECT COUNT(*) ...`，或启用 `ENABLE_TABLE_SUMMARY=1` 后使用 `get_table_summary(exact_count=True)`（注意大表可能较慢）。
+
+- **为避免 token 爆炸，返回结果可能被截断**：`query()`、`list_tables()`、`get_full_schema()` 会根据 `MAX_RESULT_ROWS` / `MAX_RESULT_CHARS` / `MAX_OVERVIEW_TABLES` / `MAX_SCHEMA_TABLES` 截断输出；因此“返回的数据/表/列”可能不是全量。需要全量时请显式使用更小范围的查询（加 `LIMIT`、按条件分页），或调整相关环境变量（风险自担）。
+
+- **部分“总数”字段是“可见范围”语义**：例如 `total_tables` 在工具输出中表示“allowlist 过滤后的可见表数量（再考虑截断）”，并非一定等同于数据库实际总表数；请避免将其误读为“全库统计”。
+
+### 使用本项目的最佳实践
+- **推荐首先接入VS Code的GitHub Copilot进行试用。** VS Code中的GitHub Copilot是一个成熟的AI Agent工具，你可以选择免费模型（例如GPT-5 mini）在测试数据库中进行使用，这样安全性较高，同时可以避免额外的AI请求消耗。
+- **在GitHub Copilot中使用的另一个好处是：可以使Copilot这种辅助编码AI获得进入数据库的能力，** 使其了解目标数据库的结构和数据分布。这在编写程序时可以提供更好的开发辅助和建议。
+- **（以GitHub Copilot为例）在使用时显式的附加“#sql-safety-executor-mcp”工具，这样可以提醒AI优先使用该工具。** ![tools](readme_pic/tools.png)
+- **（以GitHub Copilot为例）在使用时，可以在提示中加上类似“为了回答的数据和理由准确充分，你需要一步一步，多次进行查询。”** 的提醒。这会引导AI进行多次，复杂，类似ReAct模式的查询，以获得更好的效果。这在解决复杂问题时尤为有用。
+- **（以GitHub Copilot为例）善用Agent提供的“todo”工具**，这样可以让AI帮助计划查询步骤，提升性能和效率。![todo](readme_pic/todo.png)
+- 在最近的几次修改中（截至2026.1.7），进行了多次的安全优化，比如大数据量下的截断，特殊关键词的使用（比如union），表的白名单设置，针对不同配置的动态提示词等。但是 **更高的安全意味着更低的性能、效率和更高的消耗（比如更多的请求参数和token消耗），因此请酌情配置安全性设置。**
+- 实际上，Claude Code、Codex、Gemini CLI这样的AI客户端也与GitHub Copilot类似，并且 **请注意AI调用可能产生大量token的费用问题。** 并且目前的测试（包括能力测试）主要在GitHub Copilot上。
+
 
 ## 快速开始
 
@@ -54,7 +138,8 @@
 2.  打开 GitHub Copilot Chat ，确保为Plan或Agent模式。
 3.  点击输入框下方，模型选择框旁边的 **工具图标**。
 4.  您应该能看到 `sql-safety-executor` 及其提供的工具 (如 `query`, `list_tables`)。确保它们已经被全部勾选。![Add tools](readme_pic/Addtools.png)
-5.  直接在对话中发送提问即可：“列出所有表”或“查询 users 表的前5行”。![ask](readme_pic/ask.png)![answer](readme_pic/answer.png)
+5.  直接在对话中发送提问即可：“列出所有表”或“查询 users 表的前5行”。![ask](readme_pic/ask.png)
+可以看到 MCP 工具被调用![answer](readme_pic/answer.png)
 注意：虽然已经优化了工具使用，但还是推荐在 GitHub Copilot Chat 中通过免费模型（例如GPT-5 mini）进行使用，以避免额外的请求消耗。
 
 #### 常见问题
@@ -114,7 +199,7 @@ python autogen_sql_agent.py "列出所有表并描述它们的结构"
 
 ## 配置
 
-### 必需的环境变量
+### 必需的环境配置变量
 ```bash
 DB_USER=your_database_user
 DB_PASSWORD=your_database_password
@@ -122,10 +207,16 @@ DB_HOST=your_database_host
 DB_NAME=your_database_name
 ```
 
-### 可选的环境变量
+### 可选的环境配置变量
 ```bash
 # 功能开关（1=启用，0=禁用）
-ENABLE_SCHEMA_TOOLS=1  # 控制 sample() 工具
+ENABLE_SCHEMA_TOOLS=1    # 控制 sample() 工具
+ENABLE_TABLE_SUMMARY=0   # 控制 get_table_summary() 工具（默认：禁用）
+                         # describe_table() 已提供估计行数
+
+# 大表阈值，用于 is_large 标志和查询建议
+# 超过此行数的表会触发 LIMIT/聚合提示
+LARGE_TABLE_THRESHOLD=1000
 
 # 安全配置（生产环境推荐）
 QUERY_TIMEOUT_SECONDS=30   # 查询超时秒数（P0 安全）
@@ -145,14 +236,34 @@ ALLOW_UNION=0
 
 # Token 优化：限制结果大小以防止上下文溢出
 # 设为 0 可禁用截断（用于数据导出场景）
-MAX_RESULT_ROWS=100    # 每次查询返回的最大行数（0=不限制）
-MAX_RESULT_CHARS=16000 # 响应中的最大字符数（0=不限制）
+MAX_RESULT_ROWS=100      # 每次查询返回的最大行数（0=不限制）
+MAX_RESULT_CHARS=16000   # 响应中的最大字符数（0=不限制）
+MAX_SCHEMA_TABLES=50     # get_full_schema 返回的最大表数（0=不限制）
+MAX_OVERVIEW_TABLES=100  # list_tables 返回的最大表数（0=不限制）
 ```
 
 ### MCP 客户端集成
 有关完整的客户端配置示例，请参阅 `mcp_config.json`。
 
 ## 更新日志
+
+### v2.1 工具优化（2026年1月）
+
+专注于工具设计和输出一致性的改进：
+
+- **`get_table_summary` 现为可选工具**：默认禁用（`ENABLE_TABLE_SUMMARY=0`），因为 `describe_table()` 已提供估计行数。仅在需要精确 COUNT(*) 时启用。
+- **增强的 `describe_table`**：现在返回 `row_count`、`row_count_approximate`、`is_large` 标志和 `recommendation` 查询建议。
+- **重构 `list_tables` 输出**：
+  - `data` → `tables`，更清晰
+  - 新增 `database_name`、`returned_table_count`、`total_tables`、`truncated`、`truncation_note`
+- **一致的字段命名**：`returned_table_count` vs `total_tables` 规范同时应用于 `list_tables` 和 `get_full_schema`
+- **新增环境变量**：
+  - `ENABLE_TABLE_SUMMARY=0` - 控制 `get_table_summary()` 工具
+  - `LARGE_TABLE_THRESHOLD=1000` - `is_large` 标志的阈值
+  - `MAX_OVERVIEW_TABLES=100` - `list_tables()` 最大表数
+- **AutoGen Agent 提示更新**：移除 `get_table_summary()` 引用，更新工作流为 `list_tables() → describe_table()` 模式
+
+详细变更请参阅 [REFACTORING_LOG.md](REFACTORING_LOG.md)。
 
 ### v2.0 重构（2025年12月）- 当前分支：`feature/v2.0-mcp-server-refactoring`
 
@@ -237,24 +348,26 @@ query
 
 ### v1.0 - MCP 服务架构
 
-我们的解决方案实现了一个 MCP 服务器，提供标准化的数据库访问：
+该解决方案实现了一个 MCP 服务器，提供标准化的数据库访问：
 
 ```
 传统方式：                    MCP 服务方式：
 LLM → 直接函数调用            LLM → MCP 客户端 → MCP 服务器 → 数据库
 ```
 
+---
+
 ### 关键组件
 
 1. `start_server.py`：服务器启动和环境验证
 2. `mcp_sql_server.py`：核心 MCP 工具定义和功能（v2.0 重构）
-3. `sql_safety_checker.py`：原始验证和执行逻辑（未更改）
+3. `sql_safety_checker.py`：原始验证和执行逻辑
 4. `test_mcp_functions.py`：内部函数测试
 5. `test_mcp_client.py`：MCP 协议测试
 
 ## 公开的 MCP 工具
 
-该服务公开了七个标准化的 MCP 工具（2025年12月重构）：
+该服务公开 5-7 个标准化的 MCP 工具（取决于配置）：
 
 ### 1. `query`（主要工具）
 用途：执行带有自动安全验证的只读 SQL 查询
@@ -292,22 +405,32 @@ LLM → 直接函数调用            LLM → MCP 客户端 → MCP 服务器 �
 ```
 
 ### 3. `list_tables`
-用途：列出数据库中所有表及其行数
+用途：数据库概览 - 列出所有表及其估计行数
+
+轻量级的初始探索工具。行数为 INFORMATION_SCHEMA 估计值（InnoDB 可能有 ±40% 误差）。
 
 输出：
 ```json
 {
   "success": true,
-  "data": [
+  "database_name": "mydb",
+  "returned_table_count": 2,
+  "total_tables": 2,
+  "tables": [
     {"table_name": "users", "row_count": 150},
     {"table_name": "products", "row_count": 500}
   ],
-  "table_count": 2
+  "row_count_approximate": true,
+  "truncated": false,
+  "truncation_note": null,
+  "hint": "Row counts are estimates (InnoDB ±40%). total_tables = visible after allowlist."
 }
 ```
 
 ### 4. `describe_table`
-用途：检索特定表的列信息
+用途：获取表结构 - 列信息、估计行数和查询建议
+
+返回列详情以及来自 INFORMATION_SCHEMA 的估计行数（避免 COUNT(*) 全表扫描）。包含 `is_large` 标志用于查询规划。
 
 输入：
 ```json
@@ -321,11 +444,15 @@ LLM → 直接函数调用            LLM → MCP 客户端 → MCP 服务器 �
 {
   "success": true,
   "table_name": "users",
+  "row_count": 1500,
+  "row_count_approximate": true,
+  "column_count": 5,
   "columns": [
     {"column_name": "id", "data_type": "int", "nullable": "NO", "key_type": "PRI"},
     {"column_name": "name", "data_type": "varchar", "nullable": "YES", "key_type": ""}
   ],
-  "column_count": 2
+  "is_large": true,
+  "recommendation": "Large table (~1500 rows). Use LIMIT or aggregation (COUNT/GROUP BY)."
 }
 ```
 
@@ -356,10 +483,10 @@ LLM → 直接函数调用            LLM → MCP 客户端 → MCP 服务器 �
 }
 ```
 
-### 6. `get_full_schema`（新增 - 2025年12月）
+### 6. `get_full_schema`
 用途：在一次调用中获取完整的数据库模式（所有表和列）
 
-首先使用此工具，而不是多次调用 `describe_table()`。减少工具调用并提前提供完整上下文。
+适用于多表 JOIN 或需要一次性获取所有表结构的场景。对于单表查询，建议使用 `describe_table()`。
 
 输出：
 ```json
@@ -374,20 +501,28 @@ LLM → 直接函数调用            LLM → MCP 客户端 → MCP 服务器 �
       ]
     }
   },
-  "table_count": 1,
-  "total_columns": 2
+  "returned_table_count": 1,
+  "total_tables": 1,
+  "total_columns": 2,
+  "row_count_approximate": true,
+  "truncated": false,
+  "truncation_note": null,
+  "hint": "Row counts are estimates (InnoDB ±40%). Use LIMIT for large tables (row_count > 1000). total_tables = visible after allowlist."
 }
 ```
 
-### 7. `get_table_summary`（新增 - 2025年12月）
-用途：获取表的汇总统计信息，无需获取原始数据
+### 7. `get_table_summary`（可选）
+用途：获取表统计信息，支持可选的精确行数计算
 
-使用此工具进行快速分析，而不是 `SELECT *` 查询。
+**注意**：此工具由 `ENABLE_TABLE_SUMMARY` 环境变量控制（默认：**禁用**）。`describe_table()` 工具已经提供估计行数，因此只有在需要精确计数时才需要此工具。
+
+**警告**：`exact_count=True` 会运行 COUNT(*)，在大型 InnoDB 表上可能很慢（全表扫描）。
 
 输入：
 ```json
 {
-  "table_name": "users"
+  "table_name": "users",
+  "exact_count": false
 }
 ```
 
@@ -396,11 +531,12 @@ LLM → 直接函数调用            LLM → MCP 客户端 → MCP 服务器 �
 {
   "success": true,
   "table_name": "users",
-  "total_rows": 150,
+  "row_count": 150,
+  "row_count_approximate": true,
   "column_count": 5,
   "columns": [...],
   "is_large": true,
-  "recommendation": "Table has 150 rows. Use 'SELECT ... LIMIT 10' for samples."
+  "recommendation": "Large table (~150 rows). Use LIMIT or aggregation (COUNT/GROUP BY)."
 }
 ```
 
@@ -485,5 +621,3 @@ python test_mcp_client.py
 - 提供重现问题的步骤
 
 ---
-
-*本项目展示了从直接 LLM 函数调用到标准化 MCP 服务的成功转换，为 AI 驱动的数据工作流提供了改进的可扩展性、安全性和可维护性。*

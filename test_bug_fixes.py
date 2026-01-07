@@ -5,10 +5,16 @@ Directly read the source code to verify the fix and avoid issues caused by the F
 """
 
 import re
+from pathlib import Path
+
+# Use relative path from script location
+SCRIPT_DIR = Path(__file__).parent
+MCP_SERVER_FILE = SCRIPT_DIR / "mcp_sql_server.py"
+
 
 def read_source_file():
     """Read the mcp_sql_server.py source file."""
-    with open('/home/andy/my_programs/vibe-coding-gemini-llm-execute-sql-tools/mcp_sql_server.py', 'r') as f:
+    with open(MCP_SERVER_FILE, 'r') as f:
         return f.read()
 
 
@@ -89,10 +95,11 @@ def test_sql_assistant_prompt_fix():
     source = read_source_file()
     
     # Look for the fixed logic in sql_assistant
+    # Current implementation: ALLOWED_TABLES=* results in "UNION supported for combining results."
     checks = [
         ('if "*" in ALLOWED_TABLES:' in source, 'Check for "*" in ALLOWED_TABLES'),
-        ('tables_desc = "all tables"' in source, '"all tables" text for ALLOWED_TABLES=*'),
-        ('tables_desc = \', \'.join' in source or "tables_desc = ', '.join" in source, 'tables_desc variable used'),
+        ('UNION supported for combining results' in source, 'UNION message for ALLOWED_TABLES=*'),
+        ('cross_table' in source, 'cross_table variable used in prompt'),
     ]
     
     all_passed = True
@@ -123,9 +130,9 @@ def test_sql_assistant_prompt_fix():
 
 
 def test_get_full_schema_truncation():
-    """Verify get_full_schema has truncation logic."""
+    """Verify get_full_schema has truncation logic and correct field names."""
     print("\n" + "=" * 60)
-    print("TEST 3: get_full_schema truncation verification")
+    print("TEST 3: get_full_schema truncation & field naming verification")
     print("=" * 60)
     
     source = read_source_file()
@@ -138,11 +145,13 @@ def test_get_full_schema_truncation():
         func_source = source
     
     checks = [
-        ("MAX_SCHEMA_TABLES" in func_source, "MAX_SCHEMA_TABLES constant defined"),
+        ("MAX_SCHEMA_TABLES" in func_source, "MAX_SCHEMA_TABLES constant used"),
         ("truncated = False" in func_source or "truncated = True" in func_source, "truncated flag variable"),
         ("truncation_note" in func_source, "truncation_note in output"),
         ("await ctx.warning" in func_source, "Warning logged when truncated"),
         ("tables_data[:MAX_SCHEMA_TABLES]" in func_source, "Tables list is sliced for truncation"),
+        ("returned_table_count" in func_source, "returned_table_count field (renamed from table_count)"),
+        ("total_tables" in func_source, "total_tables field for visible tables count"),
     ]
     
     all_passed = True
@@ -170,7 +179,7 @@ def check_syntax():
     
     import py_compile
     try:
-        py_compile.compile('/home/andy/my_programs/vibe-coding-gemini-llm-execute-sql-tools/mcp_sql_server.py', doraise=True)
+        py_compile.compile(str(MCP_SERVER_FILE), doraise=True)
         print("✅ PASS: No syntax errors in mcp_sql_server.py")
         return True
     except py_compile.PyCompileError as e:

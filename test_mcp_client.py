@@ -24,8 +24,9 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
-# Check if schema tools are enabled
+# Check if optional tools are enabled
 SCHEMA_TOOLS_ENABLED = os.getenv("ENABLE_SCHEMA_TOOLS", "1") == "1"
+TABLE_SUMMARY_ENABLED = os.getenv("ENABLE_TABLE_SUMMARY", "0") == "1"
 
 # Test configuration
 TEST_SAMPLE_LIMIT = 3  # Number of sample rows to retrieve
@@ -66,6 +67,7 @@ async def test_mcp_server():
     print("=" * 70)
     print(f"Server script: {server_script}")
     print(f"Schema tools enabled: {SCHEMA_TOOLS_ENABLED}")
+    print(f"Table summary enabled: {TABLE_SUMMARY_ENABLED}")
     print()
     
     try:
@@ -89,15 +91,24 @@ async def test_mcp_server():
                 print("⚠️  Database not connected. Some tests may fail.")
                 print("    Check your .env file for DB credentials.\n")
             
-            # Test 2: List Tables
+            # Test 2: List Tables - verify new field structure
             result = await client.call_tool("list_tables", {})
             content = parse_result(result)
             print_result("TEST 2: list_tables", content)
             
+            # Validate new fields (returned_table_count, total_tables, truncated)
+            if content.get("success"):
+                required_fields = ["returned_table_count", "total_tables", "truncated", "truncation_note"]
+                missing = [f for f in required_fields if f not in content]
+                if missing:
+                    print(f"⚠️  Missing new fields: {missing}")
+                else:
+                    print(f"✓ All new fields present: returned_table_count={content['returned_table_count']}, total_tables={content['total_tables']}")
+            
             # Get first table name for later tests
             first_table = None
-            if content.get("success") and content.get("data"):
-                first_table = content["data"][0].get("table_name")
+            if content.get("success") and content.get("tables"):
+                first_table = content["tables"][0].get("table_name")
             
             # Test 3: Query Tool (Primary)
             print("-" * 70)

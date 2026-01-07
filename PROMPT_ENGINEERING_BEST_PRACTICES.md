@@ -47,14 +47,29 @@ Positive instructions are more effective than prohibitions.
 
 ### 1.5 Prefer Guidance (Heuristics) Over Rigid Workflows
 
-In MCP-style tool use, prompts should describe **capabilities**, **priorities**, and **decision rules**, not force a single mandatory sequence. Rigid checklists often create unnecessary tool calls and token usage (and can fail when the task is straightforward).
+> "When more complexity is warranted, workflows offer predictability and consistency for well-defined tasks, whereas agents are the better option when flexibility and model-driven decision-making are needed at scale."  
+> — Anthropic, "Building Effective Agents" (December 2024)
 
-Good prompts use conditional guidance:
-- If the schema is unknown → call a schema tool (e.g., `get_full_schema()` or `describe_table()`).
-- If a table might be large / output might explode → call `get_table_summary(table)` first, then query with `LIMIT` or aggregation.
-- If the table/columns are known and the request is small → query directly.
+**The Trade-off:**
 
-Reserve “must/always” language for true safety or protocol constraints (e.g., read-only SQL).
+| Mode | Pros | Cons |
+|------|------|------|
+| **Deterministic Chain** (Explore structure before querying) | Predictable, easy to audit, consistent results | Inflexible, requires code changes to adapt to new scenarios |
+| **Model-driven** (Heuristic exploration) | Flexible, can handle diverse requests | Unpredictable, potential for incorrect calls |
+
+**For MCP tool prompts**, we design interfaces for LLM agents. The goal is **decision rules** (heuristics) rather than **fixed sequences** (rigid checklists). This aligns with Anthropic's guidance that tools are "model-controlled."
+
+**Good prompts use conditional guidance:**
+- Schema unknown → call schema tool (e.g., `list_tables()` then `describe_table()`)
+- Table might be large (`is_large=true`) → use LIMIT or aggregation
+- Known table/columns and small request → query directly
+
+Reserve "must/always" language for true safety constraints (e.g., read-only SQL).
+
+**Key insight from Anthropic:**
+> "Start with simple prompts, optimize them with comprehensive evaluation, and add multi-step agentic systems only when simpler solutions fall short."
+
+**Practical recommendation:** For MCP tools, lean toward model-driven (heuristics) but document common patterns. Let the LLM decide based on context, guided by clear decision rules.
 
 ---
 
@@ -215,6 +230,14 @@ RULES:
    - URL: https://ai.google.dev/gemini-api/docs/function-calling
    - Key points: "Token limits: function descriptions and parameters count toward input token limits"
 
+7. **Anthropic - Building Effective Agents** (Added January 2026)
+   - URL: https://www.anthropic.com/engineering/building-effective-agents
+   - Key points: 
+     - "Workflows offer predictability and consistency for well-defined tasks, agents for flexibility"
+     - "Start with simple prompts, add complexity only when simpler solutions fall short"
+     - Tools should have clear documentation; invest in agent-computer interface (ACI) design
+     - For MCP tools: "Tools enable Claude to interact with external services... tool definitions should be given just as much prompt engineering attention as your overall prompts"
+
 ### Key Takeaways Summary
 
 | Principle | Description |
@@ -226,6 +249,8 @@ RULES:
 | **Keep It Brief** | Long instructions cause latency and handling issues |
 | **Use Separators** | `###`, `---`, `"""` help distinguish content blocks |
 | **Minimize Tool Descriptions** | Function descriptions count toward token limits |
+| **Prefer Heuristics** | Provide decision rules, not fixed sequences (Anthropic) |
+| **Start Simple** | Add complexity only when simpler solutions fall short (Anthropic) |
 
 ---
 
@@ -301,4 +326,4 @@ Always show SQL in response.
 ---
 
 *Document created: December 2025*  
-*Last updated: December 2025*
+*Last updated: January 2026 (Added Anthropic best practices)*

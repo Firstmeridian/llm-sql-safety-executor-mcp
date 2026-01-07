@@ -1,6 +1,6 @@
 # MCP SQL Server Refactoring Log
 
-**Date:** December 2, 2025 (Updated: December 29, 2025)  
+**Date:** December 2, 2025 (Updated: January 4, 2026)  
 **Author:** Code Refactoring Session  
 
 ## Overview
@@ -9,7 +9,113 @@ This document records the major refactoring changes made to `mcp_sql_server.py` 
 
 ---
 
-## Latest Update (December 29, 2025) - Bug Fixes
+## Latest Update v2.1 (January 4, 2026) - Tool Optimization & Field Naming
+
+### Major Changes
+
+#### 1. `get_table_summary` Now Optional (Default: Disabled)
+
+**Rationale:** The `describe_table()` tool already provides estimated row counts from INFORMATION_SCHEMA. The `get_table_summary()` tool with its optional `COUNT(*)` feature is only needed when exact counts are required.
+
+**Configuration:**
+```env
+# Default: disabled (describe_table provides estimates)
+ENABLE_TABLE_SUMMARY=0
+
+# Enable when exact counts via COUNT(*) are needed
+ENABLE_TABLE_SUMMARY=1
+```
+
+**New Parameters:**
+- `exact_count` (bool, default: False): When True, runs COUNT(*) for precise count (slow on large tables)
+
+#### 2. `describe_table` Enhanced with Row Count and Hints
+
+**New Output Fields:**
+```json
+{
+  "row_count": 1500,
+  "row_count_approximate": true,
+  "is_large": true,
+  "recommendation": "Large table (~1500 rows). Use LIMIT or aggregation (COUNT/GROUP BY)."
+}
+```
+
+**Benefits:**
+- Eliminates need for separate `get_table_summary()` call in most cases
+- Provides query planning hints based on `LARGE_TABLE_THRESHOLD`
+
+#### 3. `list_tables` Output Restructured
+
+**Before:**
+```json
+{
+  "success": true,
+  "data": [...],
+  "table_count": 2
+}
+```
+
+**After:**
+```json
+{
+  "success": true,
+  "database_name": "mydb",
+  "returned_table_count": 2,
+  "total_tables": 2,
+  "tables": [...],
+  "row_count_approximate": true,
+  "truncated": false,
+  "truncation_note": null
+}
+```
+
+**Field Naming Convention:**
+- `returned_table_count`: Number of tables in response (after truncation)
+- `total_tables`: Visible tables (after allowlist filtering, before truncation)
+- `tables`: Renamed from `data` for clarity
+
+#### 4. `get_full_schema` Output Aligned
+
+Same field naming convention applied:
+- `returned_table_count` instead of `table_count`
+- `total_tables` field added
+- `truncated` and `truncation_note` always present
+
+#### 5. New Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `ENABLE_TABLE_SUMMARY` | 0 | Enable `get_table_summary()` tool |
+| `LARGE_TABLE_THRESHOLD` | 1000 | Rows threshold for `is_large` flag |
+| `MAX_OVERVIEW_TABLES` | 100 | Max tables in `list_tables()` |
+
+#### 6. AutoGen Agent Prompts Updated
+
+Removed `get_table_summary()` references from agent prompts since:
+- Tool is disabled by default
+- `describe_table()` now provides equivalent functionality
+
+Updated workflow guidance:
+```
+- For unknown tables: list_tables() → describe_table()
+- For multi-table JOINs: get_full_schema()
+- Check is_large flag in describe_table response
+```
+
+### Files Changed
+
+| File | Changes |
+|------|---------|
+| `mcp_sql_server.py` | Tool restructuring, field naming, new env vars |
+| `.env.example` | New environment variable documentation |
+| `autogen_sql_agent.py` | Updated prompts, removed get_table_summary refs |
+| `test_mcp_client.py` | Validate new field structure |
+| `test_bug_fixes.py` | Updated tests for new fields |
+
+---
+
+## Previous Update (December 29, 2025) - Bug Fixes
 
 ### Bug Fix 1: Schema.table Regex Extraction (P1)
 
@@ -17,7 +123,7 @@ This document records the major refactoring changes made to `mcp_sql_server.py` 
 
 **Impact:** Table allowlist validation could incorrectly block/allow queries when using schema-qualified table names.
 
-**Root Cause:**
+**Root Cause:****
 ```python
 # Old regex - captures first identifier (schema)
 from_join_pattern = r'(?:FROM|JOIN)\s+`?([a-zA-Z_\u4e00-\u9fff][a-zA-Z0-9_\u4e00-\u9fff]*)`?'
@@ -308,7 +414,7 @@ If you already know the table structure: query directly"""
 
 ---
 
-## Changes Summary
+## Changes Summary (v2.0 vs. v1.0)
 
 ### 1. Code Reduction
 - **Before:** ~460 lines
@@ -397,7 +503,7 @@ Legend:
 
 ---
 
-## Detailed Changes
+## Detailed Changes (v2.0)
 
 ### A. Added Lifespan Management
 
@@ -503,7 +609,7 @@ if SCHEMA_TOOLS_ENABLED:
 
 ---
 
-## Tool Usage Guide (After Refactoring)
+## Tool Usage Guide (After Refactoring, v2.0)
 
 ### Primary Workflow
 ```
@@ -544,7 +650,7 @@ sample("users", limit=5)               # Preview table data
 
 ---
 
-## Files Modified
+## Files Modified (After Refactoring, v2.0)
 
 | File | Change Type |
 |------|-------------|
@@ -649,7 +755,7 @@ Legend:
 
 ---
 
-## Why This Refactoring Follows Best Practices
+## Why This Refactoring Follows Best Practices (v2.0)
 
 ### 1. Tool Design Simplification
 

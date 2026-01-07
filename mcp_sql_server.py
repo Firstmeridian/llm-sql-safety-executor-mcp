@@ -23,6 +23,15 @@ logger = logging.getLogger(__name__)
 
 SCHEMA_TOOLS_ENABLED = os.getenv("ENABLE_SCHEMA_TOOLS", "1") == "1"
 
+# Enable get_table_summary tool (with exact COUNT(*) option)
+# Default: disabled - describe_table already provides row_count (estimated)
+# Enable when exact counts are needed for specific workflows
+TABLE_SUMMARY_ENABLED = os.getenv("ENABLE_TABLE_SUMMARY", "0") == "1"
+
+# Large table threshold for is_large flag and query recommendations
+# Reference: MySQL InnoDB full table scan cost considerations
+LARGE_TABLE_THRESHOLD = int(os.getenv("LARGE_TABLE_THRESHOLD", "1000"))
+
 # Token optimization: Limit result size to prevent context overflow
 # Reference: Google Gemini best practices - "Token limits: function descriptions and parameters count toward input token limits"
 # Reference: MCP Security best practices - "Sanitize tool outputs"
@@ -30,6 +39,7 @@ SCHEMA_TOOLS_ENABLED = os.getenv("ENABLE_SCHEMA_TOOLS", "1") == "1"
 MAX_RESULT_ROWS = int(os.getenv("MAX_RESULT_ROWS", "100"))  # Max rows (0=unlimited)
 MAX_RESULT_CHARS = int(os.getenv("MAX_RESULT_CHARS", "16000"))  # Max chars (0=unlimited)
 MAX_SCHEMA_TABLES = int(os.getenv("MAX_SCHEMA_TABLES", "50"))  # Max tables in get_full_schema
+MAX_OVERVIEW_TABLES = int(os.getenv("MAX_OVERVIEW_TABLES", "100"))  # Max tables in list_tables
 
 # UNION Query Policy (P2 Security: Configurable UNION handling)
 # Reference: OWASP Defense-in-Depth - block UNION by default for safety
@@ -519,18 +529,23 @@ async def check_connection(ctx: Context) -> dict[str, Any]:
 )
 async def list_tables(ctx: Context) -> dict[str, Any]:
     """
-    List all tables in the database with row counts.
+    Database overview: list all tables with names and approximate row counts.
     
-    Lightweight option for table discovery. Returns names and row counts only.
-    For columns, use get_full_schema() or describe_table().
+    Lightweight initial discovery tool. Row counts are estimates from
+    INFORMATION_SCHEMA (InnoDB may vary ±40%).
+    For column details, use describe_table(name).
 
     Returns:
-        List of tables with names and approximate row counts
+        Database name, table count, and list of tables with approximate row counts
     """
     await ctx.info("Listing database tables")
     
+    # Get database name and tables in one query
     sql = """
-        SELECT TABLE_NAME as table_name, TABLE_ROWS as row_count
+        SELECT 
+            DATABASE() as database_name,
+            TABLE_NAME as table_name, 
+            TABLE_ROWS as row_count
         FROM INFORMATION_SCHEMA.TABLES
         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_TYPE = 'BASE TABLE'
         ORDER BY TABLE_NAME
@@ -544,20 +559,45 @@ async def list_tables(ctx: Context) -> dict[str, Any]:
     
     data = _serialize_result(result)
     
+    # Extract database name from first row
+    database_name = data[0]["database_name"] if data else None
+    
+    # Remove database_name from each row (only needed once)
+    tables = [{"table_name": t["table_name"], "row_count": t["row_count"]} for t in data]
+    
     # Filter by allowlist if configured (P1 Security)
     # Skip filtering if ALLOWED_TABLES=* (explicit allow all)
     if ALLOWED_TABLES is not None and "*" not in ALLOWED_TABLES:
-        original_count = len(data)
-        data = [t for t in data if t["table_name"].lower() in ALLOWED_TABLES]
-        if len(data) < original_count:
-            await ctx.info(f"Filtered {original_count - len(data)} tables by allowlist")
+        original_count = len(tables)
+        tables = [t for t in tables if t["table_name"].lower() in ALLOWED_TABLES]
+        if len(tables) < original_count:
+            await ctx.info(f"Filtered {original_count - len(tables)} tables by allowlist")
     
-    await ctx.info(f"Found {len(data)} tables")
+    # Apply truncation to prevent token overflow (consistent with get_full_schema)
+    total_tables = len(tables)
+    truncated = False
+    if MAX_OVERVIEW_TABLES > 0 and total_tables > MAX_OVERVIEW_TABLES:
+        tables = tables[:MAX_OVERVIEW_TABLES]
+        truncated = True
+        await ctx.warning(f"Overview truncated: showing {MAX_OVERVIEW_TABLES}/{total_tables} tables")
     
+    await ctx.info(f"Found {len(tables)} tables in {database_name}")
+    
+    # Use consistent field names: returned_table_count vs total_tables (visible before truncation)
+    # Note: total_tables is after allowlist filtering, before truncation
+    # "returned_" prefix avoids confusion with "total tables in database"
     return {
         "success": True,
-        "data": data,
-        "table_count": len(data)
+        "database_name": database_name,
+        "returned_table_count": len(tables),
+        "total_tables": total_tables,  # Visible tables (after allowlist, before truncation)
+        "tables": tables,
+        "row_count_approximate": True,
+        "truncated": truncated,
+        "truncation_note": (
+            f"Showing {len(tables)}/{total_tables} tables. Use describe_table(name) for specific tables."
+        ) if truncated else None,
+        "hint": "Row counts are estimates (InnoDB ±40%). total_tables = visible after allowlist."
     }
 
 
@@ -571,16 +611,16 @@ async def list_tables(ctx: Context) -> dict[str, Any]:
 )
 async def describe_table(table_name: str, ctx: Context) -> dict[str, Any]:
     """
-    Get column details for a single table.
+    Get table structure: columns, row count estimate, and query hints.
     
-    Best for: querying 1-2 specific tables where you know the names.
-    Alternative: get_full_schema() returns all tables in one call.
+    Returns column details plus approximate row count from INFORMATION_SCHEMA
+    (avoids COUNT(*) full table scan). Includes is_large flag and recommendations.
 
     Args:
         table_name: Name of the table to describe
         
     Returns:
-        List of columns with their data types and properties
+        Table structure with columns, row count, and query recommendations
     """
     # Validate table name to prevent SQL injection
     if not _is_valid_identifier(table_name):
@@ -600,7 +640,9 @@ async def describe_table(table_name: str, ctx: Context) -> dict[str, Any]:
     
     await ctx.info(f"Describing table: {table_name}")
     
-    sql = f"""
+    # Get columns and row count estimate in parallel-safe queries
+    # Using INFORMATION_SCHEMA.TABLES for row count (O(1), no table scan)
+    columns_sql = f"""
         SELECT 
             COLUMN_NAME as column_name,
             DATA_TYPE as data_type,
@@ -612,28 +654,57 @@ async def describe_table(table_name: str, ctx: Context) -> dict[str, Any]:
         ORDER BY ORDINAL_POSITION
     """
     
-    result = execute_sql(sql)
+    row_count_sql = f"""
+        SELECT TABLE_ROWS as row_count
+        FROM INFORMATION_SCHEMA.TABLES
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '{table_name}'
+    """
     
-    if isinstance(result, str) and result.startswith("Error:"):
-        await ctx.error(f"Failed to describe table: {result}")
-        return {"success": False, "error": result}
+    columns_result = execute_sql(columns_sql)
+    row_count_result = execute_sql(row_count_sql)
     
-    data = _serialize_result(result)
+    if isinstance(columns_result, str) and columns_result.startswith("Error:"):
+        await ctx.error(f"Failed to describe table: {columns_result}")
+        return {"success": False, "error": columns_result}
     
-    if not data:
+    columns_data = _serialize_result(columns_result)
+    
+    if not columns_data:
         return {
             "success": False,
             "error": f"Table '{table_name}' not found"
         }
     
-    await ctx.info(f"Table {table_name} has {len(data)} columns")
+    # Extract row count (estimate from INFORMATION_SCHEMA)
+    row_count = 0
+    if not isinstance(row_count_result, str):
+        row_count_data = _serialize_result(row_count_result)
+        if row_count_data:
+            row_count = row_count_data[0].get("row_count", 0) or 0
     
-    return {
+    # Determine if table is large (needs LIMIT)
+    is_large = row_count > LARGE_TABLE_THRESHOLD
+    
+    await ctx.info(f"Table {table_name}: ~{row_count} rows, {len(columns_data)} columns")
+    
+    # Build response with query recommendations
+    result = {
         "success": True,
         "table_name": table_name,
-        "columns": data,
-        "column_count": len(data)
+        "row_count": row_count,
+        "row_count_approximate": True,
+        "column_count": len(columns_data),
+        "columns": columns_data,
+        "is_large": is_large,
     }
+    
+    # Add recommendation only for large tables (reduce token overhead)
+    if is_large:
+        result["recommendation"] = (
+            f"Large table (~{row_count} rows). Use LIMIT or aggregation (COUNT/GROUP BY)."
+        )
+    
+    return result
 
 
 # =============================================================================
@@ -733,96 +804,128 @@ async def get_full_schema(ctx: Context) -> dict[str, Any]:
     total_columns_shown = sum(len(t["columns"]) for t in schema.values())
     await ctx.info(f"Schema loaded: {len(schema)} tables, {total_columns_shown} columns")
     
-    result = {
-        "success": True,
-        "schema": schema,
-        "table_count": len(schema),
-        "total_columns": total_columns_shown,
-        "hint": "Use this schema info to construct queries. For large tables (row_count > 100), use LIMIT or aggregation."
-    }
-    
-    # Add truncation notice if applicable
-    if truncated:
-        result["truncated"] = True
-        result["truncation_note"] = f"Showing {MAX_SCHEMA_TABLES}/{total_tables} tables. Use describe_table(table_name) for specific tables not shown."
-    
-    return result
-
-
-@mcp.tool(
-    annotations=ToolAnnotations(
-        title="Get Table Summary Statistics",
-        readOnlyHint=True,
-        destructiveHint=False,
-        idempotentHint=True,
-    )
-)
-async def get_table_summary(table_name: str, ctx: Context) -> dict[str, Any]:
-    """
-    Quick table statistics without fetching data.
-    
-    Returns: row count, column list, and basic stats.
-    Best for: checking table size before large queries.
-    
-    Args:
-        table_name: Name of the table to summarize
-        
-    Returns:
-        Table statistics including row count and column info
-    """
-    # Validate table name
-    if not _is_valid_identifier(table_name):
-        await ctx.warning(f"Invalid table name rejected: {table_name}")
-        return {"success": False, "error": f"Invalid table name: {table_name}"}
-    
-    # Check table allowlist (P1 Security)
-    if not _is_table_allowed(table_name):
-        await ctx.warning(f"Table access denied by allowlist: {table_name}")
-        return {"success": False, "error": f"Access denied to table: {table_name}"}
-    
-    await ctx.info(f"Getting summary for table: {table_name}")
-    
-    # Get row count
-    count_sql = f"SELECT COUNT(*) as total_rows FROM `{table_name}`"
-    count_result = execute_sql(count_sql)
-    
-    if isinstance(count_result, str) and count_result.startswith("Error:"):
-        await ctx.error(f"Failed to count rows: {count_result}")
-        return {"success": False, "error": count_result}
-    
-    count_data = _serialize_result(count_result)
-    total_rows = count_data[0]["total_rows"] if count_data else 0
-    
-    # Get column info
-    columns_sql = f"""
-        SELECT 
-            COLUMN_NAME as name,
-            DATA_TYPE as type,
-            IS_NULLABLE as nullable
-        FROM INFORMATION_SCHEMA.COLUMNS
-        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '{table_name}'
-        ORDER BY ORDINAL_POSITION
-    """
-    columns_result = execute_sql(columns_sql)
-    columns_data = _serialize_result(columns_result) if not isinstance(columns_result, str) else []
-    
-    # Determine if table is large (needs LIMIT)
-    is_large = total_rows > 100
-    
-    await ctx.info(f"Table {table_name}: {total_rows} rows, {len(columns_data)} columns")
-    
+    # Use consistent field names: returned_table_count vs total_tables (visible before truncation)
+    # Note: total_tables is after allowlist filtering, before truncation
+    # "returned_" prefix avoids confusion with "total tables in database"
     return {
         "success": True,
-        "table_name": table_name,
-        "total_rows": total_rows,
-        "column_count": len(columns_data),
-        "columns": columns_data,
-        "is_large": is_large,
-        "recommendation": (
-            f"Table has {total_rows} rows. Use 'SELECT ... LIMIT 10' for samples, "
-            "or aggregation queries (COUNT, GROUP BY) for analysis."
-        ) if is_large else f"Table has {total_rows} rows. Safe to query directly with LIMIT."
+        "schema": schema,
+        "returned_table_count": len(schema),
+        "total_tables": total_tables,  # Visible tables (after allowlist, before truncation)
+        "total_columns": total_columns_shown,
+        "row_count_approximate": True,
+        "truncated": truncated,
+        "truncation_note": (
+            f"Showing {len(schema)}/{total_tables} tables. Use describe_table(name) for specific tables."
+        ) if truncated else None,
+        "hint": f"Row counts are estimates (InnoDB ±40%). Use LIMIT for large tables (row_count > {LARGE_TABLE_THRESHOLD}). total_tables = visible after allowlist."
     }
+
+
+# Optional tool: get_table_summary with exact COUNT(*) option
+# Default: disabled - describe_table already provides estimated row_count
+# Enable via ENABLE_TABLE_SUMMARY=1 when exact counts are needed
+if TABLE_SUMMARY_ENABLED:
+    @mcp.tool(
+        annotations=ToolAnnotations(
+            title="Get Table Summary with Exact Count",
+            readOnlyHint=True,
+            destructiveHint=False,
+            idempotentHint=True,
+        )
+    )
+    async def get_table_summary(
+        table_name: str, 
+        ctx: Context, 
+        exact_count: bool = False
+    ) -> dict[str, Any]:
+        """
+        Table statistics with optional exact row count.
+        
+        WARNING: exact_count=True runs COUNT(*) which may be slow on large InnoDB tables
+        (full table scan, potential MDL contention). Use only when precision is required.
+        
+        Default: Uses INFORMATION_SCHEMA estimate (fast, ~40% variance for InnoDB).
+        
+        Args:
+            table_name: Name of the table
+            exact_count: If True, run COUNT(*) for precise count (slow on large tables)
+            
+        Returns:
+            Table statistics with row count, columns, and query hints
+        """
+        # Validate table name
+        if not _is_valid_identifier(table_name):
+            await ctx.warning(f"Invalid table name rejected: {table_name}")
+            return {"success": False, "error": f"Invalid table name: {table_name}"}
+        
+        # Check table allowlist (P1 Security)
+        if not _is_table_allowed(table_name):
+            await ctx.warning(f"Table access denied by allowlist: {table_name}")
+            return {"success": False, "error": f"Access denied to table: {table_name}"}
+        
+        await ctx.info(f"Getting summary for table: {table_name} (exact_count={exact_count})")
+        
+        # Get row count - choose method based on exact_count flag
+        row_count_approximate = True
+        if exact_count:
+            # WARNING: COUNT(*) can be slow on large InnoDB tables
+            count_sql = f"SELECT COUNT(*) as total_rows FROM `{table_name}`"
+            row_count_approximate = False
+            await ctx.warning(f"Running COUNT(*) on {table_name} - may be slow on large tables")
+        else:
+            # Fast estimate from INFORMATION_SCHEMA (no table scan)
+            count_sql = f"""
+                SELECT TABLE_ROWS as total_rows
+                FROM INFORMATION_SCHEMA.TABLES
+                WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '{table_name}'
+            """
+        
+        count_result = execute_sql(count_sql)
+        
+        if isinstance(count_result, str) and count_result.startswith("Error:"):
+            await ctx.error(f"Failed to count rows: {count_result}")
+            return {"success": False, "error": count_result}
+        
+        count_data = _serialize_result(count_result)
+        total_rows = count_data[0]["total_rows"] if count_data else 0
+        total_rows = total_rows or 0  # Handle None
+        
+        # Get column info
+        columns_sql = f"""
+            SELECT 
+                COLUMN_NAME as name,
+                DATA_TYPE as type,
+                IS_NULLABLE as nullable
+            FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '{table_name}'
+            ORDER BY ORDINAL_POSITION
+        """
+        columns_result = execute_sql(columns_sql)
+        columns_data = _serialize_result(columns_result) if not isinstance(columns_result, str) else []
+        
+        # Determine if table is large
+        is_large = total_rows > LARGE_TABLE_THRESHOLD
+        
+        await ctx.info(f"Table {table_name}: {'~' if row_count_approximate else ''}{total_rows} rows, {len(columns_data)} columns")
+        
+        result = {
+            "success": True,
+            "table_name": table_name,
+            "row_count": total_rows,
+            "row_count_approximate": row_count_approximate,
+            "column_count": len(columns_data),
+            "columns": columns_data,
+            "is_large": is_large,
+        }
+        
+        if is_large:
+            result["recommendation"] = (
+                f"Large table ({'~' if row_count_approximate else ''}{total_rows} rows). "
+                "Use LIMIT or aggregation (COUNT/GROUP BY)."
+            )
+        
+        return result
 
 
 # Optional tool: Only register if enabled
@@ -891,31 +994,33 @@ if SCHEMA_TOOLS_ENABLED:
 @mcp.prompt(name="sql_assistant")
 def sql_assistant() -> str:
     """System prompt for SQL query assistance."""
-    # Build dynamic prompt based on UNION policy
-    # Reference: Anthropic/OpenAI best practices - provide clear guidance, let LLM decide
+    # Build dynamic prompt based on configuration
+    # Reference: Microsoft prompt engineering - clear, structured, avoid unnecessary steps
+    # Reference: MCP spec - model-driven tool selection, provide decision rules not fixed paths
     if ALLOW_UNION and ALLOWED_TABLES:
         if "*" in ALLOWED_TABLES:
-            cross_table = "UNION supported for combining results from multiple tables."
+            cross_table = "UNION supported for combining results."
         else:
             tables_desc = ', '.join(sorted(ALLOWED_TABLES))
-            cross_table = f"UNION supported (allowed tables: {tables_desc})."
+            cross_table = f"UNION allowed for: {tables_desc}."
     else:
-        cross_table = "Query tables separately and combine results in response."
+        cross_table = "Query tables separately."
     
-    return f"""READ-ONLY SQL assistant.
+    # Conditional heuristic prompt - let LLM decide based on context
+    # Reference: "Model-driven tool selection" - provide rules, not fixed chains
+    return f"""READ-ONLY SQL query executor.
 
-Start: get_full_schema() or describe_table() for unknown databases.
-Query:
-1. Query with LIMIT for large tables
-2. Prefer COUNT/GROUP BY over SELECT *
+Tools (choose based on need):
+- query(sql): Execute SELECT/SHOW/DESCRIBE/EXPLAIN
+- list_tables(): Database overview with table names and row estimates
+- describe_table(name): Single table columns + row estimate + is_large hint
+- get_full_schema(): All tables with columns (use for multi-table JOINs)
+- check_connection(): Verify database connectivity (use only on connection errors)
 
-Tools:
-- query(sql): Execute SELECT, SHOW, DESCRIBE, EXPLAIN
-- get_full_schema(): All tables and columns in one call
-- describe_table(name): Single table details
-- list_tables(): Table names and row counts only
-- get_table_summary(name): Row count and columns for one table
-
-Rules:
+Decision rules:
+- Unknown structure? list_tables() for overview, then describe_table() for details
+- Know the table? Query directly with appropriate LIMIT
+- is_large=true in response? Use LIMIT or aggregation
 - {cross_table}
-- Always show SQL in response."""
+
+Always include SQL in response."""

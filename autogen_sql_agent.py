@@ -141,11 +141,11 @@ EFFICIENCY RULES - AVOID DELAYS:
 7. Never request all data from large tables - always ask for samples or summaries
 
 QUERY STRATEGY (Token Optimization - Google/Microsoft Best Practices):
-- For unknown tables: First use list_tables() or get_full_schema() to get overview
-- For large tables (>100 rows): Request COUNT(*) first, then sample with LIMIT
+- For unknown tables: First use list_tables() for overview, then describe_table() for details
+- For multi-table JOINs: Use get_full_schema() to get all tables at once
+- For large tables (is_large=true in response): Request COUNT(*) first, then sample with LIMIT
 - Prefer aggregation queries (GROUP BY, COUNT, AVG) over raw data retrieval
 - Never request SELECT * without LIMIT - always specify needed columns
-- Use get_table_summary() for quick table statistics instead of raw queries
 
 Workflow:
 - Work step by step, planning multiple queries as needed
@@ -169,22 +169,23 @@ Only the User can say TERMINATE or APPROVE to end the conversation.
 SQL_EXECUTOR_AGENT_PROMPT = """You are a SQL executor agent with access to database tools.
 
 Available tools:
-1. check_connection - Verify database connectivity
-2. list_tables - List all tables with row counts
-3. describe_table - Get table structure (columns, types)
+1. check_connection - Verify database connectivity (use only on connection errors)
+2. list_tables - Database overview with table names and row estimates
+3. describe_table - Single table columns + row estimate + is_large hint
 4. query - Execute read-only SQL queries (SELECT, SHOW, DESCRIBE, EXPLAIN)
-5. get_full_schema - Get complete database schema (all tables and columns) in one call
-6. get_table_summary - Get table statistics (row count, column stats) without fetching raw data
+5. get_full_schema - All tables with columns (use for multi-table JOINs)
+
+Note: describe_table returns row_count (estimated) and is_large flag. Use is_large hint to decide if LIMIT is needed.
 
 PRE-QUERY VALIDATION (Microsoft Azure Best Practices):
 Before executing any SELECT query on data tables:
-1. If table row count is unknown, run COUNT(*) first OR use get_table_summary()
-2. If COUNT(*) > 100, you MUST use aggregation (GROUP BY, COUNT) or LIMIT
+1. If table structure is unknown, use list_tables() first, then describe_table() for details
+2. Check is_large flag in describe_table response - if true, use LIMIT or aggregation
 3. Never fetch all rows from large tables - use sampling or aggregation
-4. Use get_full_schema() at the start instead of multiple describe_table() calls
+4. For multi-table JOINs, use get_full_schema() to get all tables at once
 
 CRITICAL TOKEN OPTIMIZATION RULES:
-1. ALWAYS use LIMIT clause in SELECT queries - default to LIMIT 10 unless user specifies otherwise
+1. ALWAYS use LIMIT clause in SELECT queries - default to LIMIT 20 unless user specifies otherwise
 2. For large tables (>100 rows), first get COUNT(*), then retrieve samples with LIMIT
 3. Never SELECT * without LIMIT - select only needed columns
 4. Summarize large results - don't return raw data exceeding 20 rows
@@ -192,7 +193,7 @@ CRITICAL TOKEN OPTIMIZATION RULES:
 
 Example of good queries:
 - SELECT COUNT(*) FROM users;  -- Get count first
-- SELECT id, name FROM users LIMIT 10;  -- Sample with limit
+- SELECT id, name FROM users LIMIT 20;  -- Sample with limit
 - SELECT status, COUNT(*) FROM orders GROUP BY status;  -- Aggregate instead of raw data
 
 HANDLING TRUNCATED RESULTS:
@@ -320,7 +321,8 @@ async def main() -> None:
         # Create the SQL Executor Agent (with MCP tools)
         # Use TokenLimitedChatCompletionContext to prevent token explosion from large query results
         sql_agent_context = TokenLimitedChatCompletionContext(
-            max_token=8000,  # Limit context to prevent massive token usage
+            model_client=model_client,
+            token_limit=16000,  # Limit context to prevent massive token usage
         )
         sql_executor_agent = AssistantAgent(
             name="SQLExecutorAgent",
@@ -360,14 +362,14 @@ async def main() -> None:
         
         # Create model context to limit token usage in selector
         # Best practice: Use BufferedChatCompletionContext to prevent context overflow
-        model_context = BufferedChatCompletionContext(buffer_size=10)
+        model_context = BufferedChatCompletionContext(buffer_size=20)
         
         # Create the SelectorGroupChat team
         team = SelectorGroupChat(
             participants=[planning_agent, sql_executor_agent, analyst_agent, user_proxy],
             model_client=model_client,
             termination_condition=termination,
-            max_turns=15,  # Best practice: Add max_turns as additional safety limit
+            max_turns=30,  # Best practice: Add max_turns as additional safety limit
             selector_prompt=SELECTOR_PROMPT,
             selector_func=selector_func,  # Custom selector to ensure planning agent checks progress
             allow_repeated_speaker=True,  # Allow same agent to speak multiple times
@@ -485,7 +487,7 @@ async def run_single_task(task: str) -> None:
             workbench=mcp_workbench,
             reflect_on_tool_use=True,
             system_message=SQL_EXECUTOR_AGENT_PROMPT,
-            model_context=TokenLimitedChatCompletionContext(max_token=8000),
+            model_context=TokenLimitedChatCompletionContext(model_client=model_client, token_limit=16000),
         )
         
         analyst_agent = AssistantAgent(
@@ -505,14 +507,14 @@ async def run_single_task(task: str) -> None:
         selector_func = create_selector_func(planning_agent.name)
         
         # Create model context to limit token usage
-        model_context = BufferedChatCompletionContext(buffer_size=10)
+        model_context = BufferedChatCompletionContext(buffer_size=20)
         
         # Create team
         team = SelectorGroupChat(
             participants=[planning_agent, sql_executor_agent, analyst_agent],
             model_client=model_client,
             termination_condition=termination,
-            max_turns=15,
+            max_turns=30,
             selector_prompt=SELECTOR_PROMPT,
             selector_func=selector_func,
             allow_repeated_speaker=True,

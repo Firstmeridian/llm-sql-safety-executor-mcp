@@ -126,7 +126,13 @@ DB_NAME=your_database_name
 ### Optional Environment Variables
 ```bash
 # Feature Toggles (1=enabled, 0=disabled)
-ENABLE_SCHEMA_TOOLS=1  # Controls sample() tool
+ENABLE_SCHEMA_TOOLS=1    # Controls sample() tool
+ENABLE_TABLE_SUMMARY=0   # Controls get_table_summary() tool (default: disabled)
+                         # describe_table() already provides estimated row counts
+
+# Large table threshold for is_large flag and query recommendations
+# Tables exceeding this row count trigger LIMIT/aggregation hints
+LARGE_TABLE_THRESHOLD=1000
 
 # Security Configuration (Recommended for Production)
 QUERY_TIMEOUT_SECONDS=30   # Query timeout in seconds (P0 security)
@@ -146,14 +152,34 @@ ALLOW_UNION=0
 
 # Token Optimization: Limit result size to prevent context overflow
 # Set to 0 to disable truncation (for data export scenarios)
-MAX_RESULT_ROWS=100   # Max rows returned per query (0=unlimited)
-MAX_RESULT_CHARS=16000 # Max characters in response (0=unlimited)
+MAX_RESULT_ROWS=100      # Max rows returned per query (0=unlimited)
+MAX_RESULT_CHARS=16000   # Max characters in response (0=unlimited)
+MAX_SCHEMA_TABLES=50     # Max tables in get_full_schema (0=unlimited)
+MAX_OVERVIEW_TABLES=100  # Max tables in list_tables (0=unlimited)
 ```
 
 ### MCP Client Integration
 See `mcp_config.json` for a complete client configuration example.
 
 ## What Changed
+
+### v2.1 Tool Optimization (January 2026)
+
+Focused improvements on tool design and output consistency:
+
+- **`get_table_summary` Now Optional**: Disabled by default (`ENABLE_TABLE_SUMMARY=0`) since `describe_table()` already provides estimated row counts. Enable only when exact COUNT(*) is required.
+- **Enhanced `describe_table`**: Now returns `row_count`, `row_count_approximate`, `is_large` flag, and `recommendation` for query planning hints.
+- **Restructured `list_tables` Output**:
+  - `data` → `tables` for clarity
+  - Added `database_name`, `returned_table_count`, `total_tables`, `truncated`, `truncation_note`
+- **Consistent Field Naming**: `returned_table_count` vs `total_tables` convention applied to both `list_tables` and `get_full_schema`
+- **New Environment Variables**:
+  - `ENABLE_TABLE_SUMMARY=0` - Control `get_table_summary()` tool
+  - `LARGE_TABLE_THRESHOLD=1000` - Threshold for `is_large` flag
+  - `MAX_OVERVIEW_TABLES=100` - Max tables in `list_tables()`
+- **AutoGen Agent Prompts Updated**: Removed `get_table_summary()` references, updated workflow to `list_tables() → describe_table()` pattern
+
+See [REFACTORING_LOG.md](REFACTORING_LOG.md) for detailed changes.
 
 ### v2.0 Refactoring (December 2025) - Current Branch: `feature/v2.0-mcp-server-refactoring`
 
@@ -269,7 +295,7 @@ LLM → Direct Function       LLM → MCP Client → MCP Server → Database
 
 ## MCP Tools Exposed
 
-The service exposes seven standardized MCP tools (refactored December 2025):
+The service exposes 5-7 standardized MCP tools (depending on configuration):
 
 ### 1. `query` (Primary Tool)
 Purpose: Executes read-only SQL queries with automatic safety validation
@@ -308,22 +334,32 @@ Output:
 ```
 
 ### 3. `list_tables`
-Purpose: Lists all tables in the database with row counts
+Purpose: Database overview - lists all tables with names and approximate row counts
+
+Lightweight discovery tool for initial exploration. Row counts are estimates from INFORMATION_SCHEMA (InnoDB may vary ±40%).
 
 Output:
 ```json
 {
   "success": true,
-  "data": [
+  "database_name": "mydb",
+  "returned_table_count": 2,
+  "total_tables": 2,
+  "tables": [
     {"table_name": "users", "row_count": 150},
     {"table_name": "products", "row_count": 500}
   ],
-  "table_count": 2
+  "row_count_approximate": true,
+  "truncated": false,
+  "truncation_note": null,
+  "hint": "Row counts are estimates (InnoDB ±40%). total_tables = visible after allowlist."
 }
 ```
 
 ### 4. `describe_table`
-Purpose: Retrieves column information for a specific table
+Purpose: Get table structure - columns, row count estimate, and query hints
+
+Returns column details plus approximate row count from INFORMATION_SCHEMA (avoids COUNT(*) full table scan). Includes `is_large` flag for query planning.
 
 Input:
 ```json
@@ -337,11 +373,15 @@ Output:
 {
   "success": true,
   "table_name": "users",
+  "row_count": 1500,
+  "row_count_approximate": true,
+  "column_count": 5,
   "columns": [
     {"column_name": "id", "data_type": "int", "nullable": "NO", "key_type": "PRI"},
     {"column_name": "name", "data_type": "varchar", "nullable": "YES", "key_type": ""}
   ],
-  "column_count": 2
+  "is_large": true,
+  "recommendation": "Large table (~1500 rows). Use LIMIT or aggregation (COUNT/GROUP BY)."
 }
 ```
 
@@ -372,10 +412,10 @@ Output:
 }
 ```
 
-### 6. `get_full_schema` (New - December 2025)
+### 6. `get_full_schema`
 Purpose: Gets complete database schema (all tables and columns) in ONE call
 
-Use this FIRST instead of calling `describe_table()` multiple times. Reduces tool calls and provides complete context upfront.
+Use for multi-table JOINs or when you need all table structures at once. For single tables, prefer `describe_table()`.
 
 Output:
 ```json
@@ -390,20 +430,28 @@ Output:
       ]
     }
   },
-  "table_count": 1,
-  "total_columns": 2
+  "returned_table_count": 1,
+  "total_tables": 1,
+  "total_columns": 2,
+  "row_count_approximate": true,
+  "truncated": false,
+  "truncation_note": null,
+  "hint": "Row counts are estimates (InnoDB ±40%). Use LIMIT for large tables (row_count > 1000). total_tables = visible after allowlist."
 }
 ```
 
-### 7. `get_table_summary` (New - December 2025)
-Purpose: Gets summary statistics for a table WITHOUT fetching raw data
+### 7. `get_table_summary` (Optional)
+Purpose: Gets table statistics with optional exact row count via COUNT(*)
 
-Use this for quick analysis instead of `SELECT *` queries.
+**Note**: This tool is controlled by `ENABLE_TABLE_SUMMARY` environment variable (default: **disabled**). The `describe_table()` tool already provides estimated row counts, so this tool is only needed when exact counts are required.
+
+**Warning**: `exact_count=True` runs COUNT(*) which may be slow on large InnoDB tables (full table scan).
 
 Input:
 ```json
 {
-  "table_name": "users"
+  "table_name": "users",
+  "exact_count": false
 }
 ```
 
@@ -412,11 +460,12 @@ Output:
 {
   "success": true,
   "table_name": "users",
-  "total_rows": 150,
+  "row_count": 150,
+  "row_count_approximate": true,
   "column_count": 5,
   "columns": [...],
   "is_large": true,
-  "recommendation": "Table has 150 rows. Use 'SELECT ... LIMIT 10' for samples."
+  "recommendation": "Large table (~150 rows). Use LIMIT or aggregation (COUNT/GROUP BY)."
 }
 ```
 
