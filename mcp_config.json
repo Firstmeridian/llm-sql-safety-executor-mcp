@@ -4,7 +4,7 @@
       "type": "stdio",
       "command": "python",
       "args": ["start_server.py"],
-      "cwd": "/path/to/vibe-coding-gemini-llm-execute-sql-tools"
+      "cwd": "/path/to/llm-sql-executor-gateway-mcp"
     }
   }
 }

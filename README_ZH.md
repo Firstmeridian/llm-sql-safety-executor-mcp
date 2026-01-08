@@ -2,8 +2,8 @@
 
 [English](README.md) | 中文
 
-一个面向 AI Agent 的安全数据库查询服务：使大型语言模型(LLM)可通过标准化的MCP接口，以只读 SQL(SELECT/SHOW/DESCRIBE/EXPLAIN)安全获取数据库查询。并提供白名单、超时与结果截断等防护。降低误操作风险同时避免 Token 成本失控。  
-它的目标是让 LLM(Agent) 具备“进入数据库”的能力。通过与AI Agent的配合，可以使LLM成为新的“前端”，动态地与用户交互。
+一个面向 LLM 以及 AI Agent 的安全数据库查询服务：使大型语言模型(LLM)可通过标准化的MCP接口，以只读 SQL(SELECT/SHOW/DESCRIBE/EXPLAIN)安全获取数据库查询。并提供白名单、超时与结果截断等防护。降低误操作风险同时避免 Token 成本失控。  
+它的目标是让 LLM(Agent) 具备“进入数据库”的能力。通过与AI Agent的配合，可以使LLM成为类似前端的系统，动态地与用户交互。
 
 ### 介绍
 **启发：基于LLM/Agents的用户界面**  
@@ -187,7 +187,7 @@ python autogen_sql_agent.py "列出所有表并描述它们的结构"
       "type": "stdio",
       "command": "python",
       "args": ["start_server.py"],
-      "cwd": "/path/to/vibe-coding-gemini-llm-execute-sql-tools"
+      "cwd": "/path/to/llm-sql-executor-gateway-mcp"
     }
   }
 }

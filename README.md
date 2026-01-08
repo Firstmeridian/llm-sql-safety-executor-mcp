@@ -103,7 +103,7 @@ Add the server to your MCP-compatible client configuration (e.g., VS Code, Claud
       "type": "stdio",
       "command": "python",
       "args": ["start_server.py"],
-      "cwd": "/path/to/vibe-coding-gemini-llm-execute-sql-tools"
+      "cwd": "/path/to/llm-sql-executor-gateway-mcp"
     }
   }
 }
