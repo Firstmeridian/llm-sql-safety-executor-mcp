@@ -104,8 +104,8 @@ The project now supports running as an MCP (Model Context Protocol) service, whi
 
 5.  **Docker Deployment:**
     ```bash
-    docker build -t sql-safety-executor-mcp-mcp .
-    docker run --env-file .env sql-safety-executor-mcp-mcp
+    docker build -t sql-safety-executor-mcp .
+    docker run --env-file .env sql-safety-executor-mcp
     ```
 
 ### MCP Client Integration
@@ -119,7 +119,7 @@ To integrate with an MCP-compatible AI system (e.g., VS Code, Claude Desktop), u
       "type": "stdio",
       "command": "python",
       "args": ["start_server.py"],
-      "cwd": "/path/to/llm-sql-executor-gateway-mcp"
+      "cwd": "/path/to/llm-sql-safety-executor-mcp"
     }
   }
 }
@@ -211,7 +211,7 @@ The implementation preserves all original functionality while adding the benefit
 
 *   **Version Control:** The project is managed using Git.
 *   **Branching:** The main development branch is `main`.
-*   **Remote Repository:** The code is hosted on GitHub at `https://github.com/Firstmeridian/llm-sql-executor-gateway-mcp.git`.
+*   **Remote Repository:** The code is hosted on GitHub at `https://github.com/Firstmeridian/llm-sql-safety-executor-mcp.git`.
 *   **Language:** Unless otherwise specified, all code, comments, and documentation in this project should be written in English.
 *   **Virtual Environment:** Development is typically done in a Python virtual environment (venv). The venv is located at `.venv/` in the project root.
 *   **Best Practices Reference:** Follow best practices from web and GitHub sources, especially:

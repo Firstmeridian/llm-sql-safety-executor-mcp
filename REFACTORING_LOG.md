@@ -9,13 +9,13 @@ This document records the major refactoring changes made to `mcp_sql_server.py` 
 
 ---
 
-## Update (January 8, 2026) - GitHub Repository Rename
+## Update (January 13, 2026) - GitHub Repository Rename
 
 This update records a repository-level rename (no functional code changes).
 
 - **Old repo name:** `vibe-coding-gemini-llm-execute-sql-tools`
-- **New repo name:** `llm-sql-executor-gateway-mcp`
-- **New URL:** https://github.com/Firstmeridian/llm-sql-executor-gateway-mcp
+- **New repo name:** `llm-sql-safety-executor-mcp`
+- **New URL:** https://github.com/Firstmeridian/llm-sql-safety-executor-mcp
 
 ### Local Git Update
 
@@ -23,7 +23,7 @@ After renaming on GitHub, update your local `origin` remote to avoid relying on 
 
 ```bash
 git remote -v
-git remote set-url origin https://github.com/Firstmeridian/llm-sql-executor-gateway-mcp.git
+git remote set-url origin https://github.com/Firstmeridian/llm-sql-safety-executor-mcp.git
 git remote -v
 
 # optional verification
