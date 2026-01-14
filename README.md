@@ -1,4 +1,10 @@
-# LLM Database Safety Gateway - MCP Service Implementation
+# LLM Database Safety Gateway - MCP Service
+
+![Version](https://img.shields.io/badge/version-2.1-blue)
+![License](https://img.shields.io/badge/license-MIT-green)
+![Python](https://img.shields.io/badge/python-3.12+-blue?logo=python)
+![MCP](https://img.shields.io/badge/MCP-Protocol-orange)
+![AutoGen](https://img.shields.io/badge/Framework-AutoGen-blueviolet?logo=microsoft)
 
 English | [中文](README_ZH.md)
 > [Introduction](#introduction) | 
@@ -11,15 +17,10 @@ English | [中文](README_ZH.md)
 > aka: SQL Safety Executor MCP for LLM
 
 **A secure database access gateway for AI Agents: Empowering LLM (Agents) with database access capabilities.**  
-Enables Large Language Models (LLMs) to safely execute database queries via standardized MCP interfaces using authenticated SQL.
-Provides protections such as allowlists, timeouts, and result truncation. Mitigates operational risks while preventing token cost overruns.
-In addition to MySQL and SQLite, it also supports NoSQL.
+Enables Large Language Models (LLMs) to safely execute database queries via standardized MCP interfaces using authenticated SQL.  
+Provides protections such as allowlists, timeouts, and result truncation. Mitigates operational risks while preventing token cost overruns.  
+In addition to MySQL and SQLite, it also supports NoSQL. (in progress)  
 This project resolves the LLM database accessibility bottleneck. By coordinating with AI Agents, it expands the capability boundaries of LLMs and extends the application scope of large models in real-world business scenarios.
-
-![Version](https://img.shields.io/badge/version-2.1-blue)
-![License](https://img.shields.io/badge/license-MIT-green)
-![Python](https://img.shields.io/badge/python-3.12+-blue?logo=python)
-![MCP](https://img.shields.io/badge/MCP-Protocol-orange)
 
 ## Problem Statement
 

@@ -1,9 +1,10 @@
-# 面向 AI Agent 的数据库安全访问入口 - MCP服务实现
+# 面向 AI Agent 的数据库安全访问入口 - MCP 服务
 
 ![Version](https://img.shields.io/badge/version-2.1-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Python](https://img.shields.io/badge/python-3.12+-blue?logo=python)
 ![MCP](https://img.shields.io/badge/MCP-Protocol-orange)
+![AutoGen](https://img.shields.io/badge/Framework-AutoGen-blueviolet?logo=microsoft)
 
 [English](README.md) | 中文  
 > [介绍](#介绍) | 
@@ -17,7 +18,7 @@
 **面向 AI Agent 的数据库安全访问入口：赋予LLM(Agents)进入数据库的能力。**  
 使大模型 (LLM) 通过标准化的 MCP 接口，以经过认证的 SQL 安全获取数据库查询。
 并提供白名单、超时与结果截断等防护。降低误操作风险同时避免 Token 成本失控。  
-除 MySQL、SQLite 外，还提供对 NoSQL 的支持。  
+除 MySQL、SQLite 外，还提供对 NoSQL 的支持。(in progress)  
 本项目解决了 LLM “进入数据库”的需求。并可通过与 AI Agent 的配合，扩展 LLM 的能力边界，延伸大模型在实际业务中的应用范围。
 
 ## 问题陈述

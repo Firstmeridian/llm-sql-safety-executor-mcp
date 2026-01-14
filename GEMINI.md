@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-This project is a Python-based tool designed to allow Large Language Models (LLMs) to safely execute SQL queries. It provides functions to first validate a given SQL query to ensure it is read-only (i.e., only `SELECT` statements are allowed) and then to execute the validated query against a database.
+This project is a Python-based tool designed to allow Large Language Models (LLMs) to safely execute read-only SQL queries. It provides functions to validate a given SQL query to ensure it is safe and read-only (i.e., only `SELECT` / `SHOW` / `DESCRIBE` / `EXPLAIN` are allowed), and then execute the validated query against a database.
 
 **NEW: MCP Service Implementation** - The project now includes a Model Context Protocol (MCP) service that wraps the original functionality, providing a standardized interface for AI models to interact with the SQL safety checker.
 
@@ -17,16 +17,16 @@ The primary technologies used are:
 ## Key Files
 
 *   `sql_safety_checker.py`: The core logic of the project resides here. It contains:
-    *   `is_sql_safe(sql_query)`: A function that checks if a SQL query contains only `SELECT` statements.
-    *   `execute_sql(sql_query)`: A function that first validates the query using `is_sql_safe` and then executes it against the database.
+    *   `is_sql_safe(sql_query)`: Validates whether a SQL query is read-only and safe (e.g., `SELECT` / `SHOW` / `DESCRIBE` / `EXPLAIN`).
+    *   `execute_sql(sql_query)`: Validates the query using `is_sql_safe` and then executes it against the database.
 *   `mcp_sql_server.py`: MCP (Model Context Protocol) server implementation that wraps the SQL safety checker functionality (refactored December 2025):
-    *   `query(sql)`: Primary MCP tool for executing SELECT queries (with automatic validation)
+    *   `query(sql)`: Primary MCP tool for executing read-only SQL queries (with automatic validation)
     *   `check_connection()`: MCP tool for testing database connectivity
-    *   `list_tables()`: MCP tool for listing all tables with row counts
-    *   `describe_table(table_name)`: MCP tool for retrieving table column information
+    *   `list_tables()`: MCP tool for listing all tables with estimated row counts
+    *   `describe_table(table_name)`: MCP tool for retrieving table column info and query recommendations
     *   `get_full_schema()`: MCP tool for getting complete database schema in one call
-    *   `get_table_summary(table_name)`: MCP tool for getting table statistics without raw data
-    *   `sample(table_name, limit)`: **Optional** MCP tool for retrieving sample data (controlled by `ENABLE_SCHEMA_TOOLS`)
+    *   `get_table_summary(table_name)`: **Optional** MCP tool for getting table statistics (controlled by `ENABLE_TABLE_SUMMARY`, default disabled)
+    *   `sample(table_name, limit)`: **Optional** MCP tool for retrieving sample data (controlled by `ENABLE_SCHEMA_TOOLS`, default enabled)
     *   `sql_assistant()`: MCP prompt for SQL query assistance
 *   `test_mcp_functions.py`: **NEW** - Test script to verify MCP functions work correctly (internal tests)
 *   `test_mcp_client.py`: **NEW** - MCP client test script that simulates real client connections
@@ -34,7 +34,6 @@ The primary technologies used are:
 *   `TEST_MCP_CLIENT_GUIDE.md`: **NEW** - Usage guide for the MCP client test script
 *   `PROMPT_ENGINEERING_BEST_PRACTICES.md`: **NEW** - Guidelines for MCP tool descriptions and prompts
 *   `REFACTORING_LOG.md`: **NEW** - December 2025 refactoring changes documentation
-*   `Dockerfile`: **NEW** - Docker configuration for containerized deployment
 *   `.env.example`: **NEW** - Example environment configuration file
 *   `requirements.txt`: Lists all the necessary Python packages for this project (now includes fastMCP).
 *   `.gitignore`: A standard Python `.gitignore` file to exclude unnecessary files from version control.
@@ -59,11 +58,22 @@ The primary technologies used are:
     
     # Optional: Feature toggles (1=enabled, 0=disabled)
     ENABLE_SCHEMA_TOOLS=1
+    ENABLE_TABLE_SUMMARY=0
     
     # Optional: Security configuration
     QUERY_TIMEOUT_SECONDS=30
+    CONNECT_TIMEOUT_SECONDS=10
     ALLOWED_TABLES=products,orders,customers
     ALLOW_UNION=0
+
+    # Optional: Token protection / truncation
+    MAX_RESULT_ROWS=100
+    MAX_RESULT_CHARS=16000
+    MAX_SCHEMA_TABLES=50
+    MAX_OVERVIEW_TABLES=100
+
+    # Optional: Large table threshold (for is_large hints)
+    LARGE_TABLE_THRESHOLD=1000
     ```
 
 3.  **Run the Example:**
@@ -104,8 +114,8 @@ The project now supports running as an MCP (Model Context Protocol) service, whi
 
 5.  **Docker Deployment:**
     ```bash
-    docker build -t sql-safety-executor-mcp .
-    docker run --env-file .env sql-safety-executor-mcp
+    # Not documented in README.md.
+    # If you need container deployment, add a Dockerfile and document it accordingly.
     ```
 
 ### MCP Client Integration
@@ -145,7 +155,7 @@ The conversion of this SQL safety checker tool to an MCP (Model Context Protocol
 #### 1. **Standardized Interface**
 - Provides a consistent API for AI models to interact with SQL tools
 - Follows MCP protocol specifications for reliable integration
-- Supports multiple transport mechanisms (STDIO, HTTP, SSE)
+- Uses STDIO transport for broad MCP client compatibility
 
 #### 2. **Enhanced Security**
 - Clear separation between AI model and database operations
@@ -155,7 +165,6 @@ The conversion of this SQL safety checker tool to an MCP (Model Context Protocol
 #### 3. **Improved Scalability**
 - Can be deployed as a standalone service
 - Supports multiple concurrent AI model connections
-- Container-ready with Docker support
 
 #### 4. **Better Integration**
 - Compatible with MCP-enabled AI platforms and tools
@@ -174,15 +183,15 @@ The conversion of this SQL safety checker tool to an MCP (Model Context Protocol
 
 ### Available MCP Tools
 
-The MCP service provides seven main tools (refactored December 2025 for simplicity):
+The MCP service provides 5-7 tools (depending on configuration):
 
-1. **`query`**: Primary tool - Executes SELECT queries with automatic safety validation
+1. **`query`**: Primary tool - Executes read-only SQL queries with automatic safety validation
 2. **`check_connection`**: Tests database connectivity and configuration
-3. **`list_tables`**: Lists all tables in the database with row counts
-4. **`describe_table`**: Retrieves table column information (similar to SQL DESCRIBE)
-5. **`get_full_schema`**: Gets complete database schema in ONE call (recommended first)
-6. **`get_table_summary`**: Gets table statistics without fetching raw data
-7. **`sample`**: **Optional** - Retrieves sample data from tables (controlled by `ENABLE_SCHEMA_TOOLS`)
+3. **`list_tables`**: Lists all tables in the database with estimated row counts
+4. **`describe_table`**: Retrieves table column info and query recommendations
+5. **`get_full_schema`**: Gets complete database schema in one call
+6. **`get_table_summary`**: **Optional** - Gets table statistics (controlled by `ENABLE_TABLE_SUMMARY`, default disabled)
+7. **`sample`**: **Optional** - Retrieves sample data from tables (controlled by `ENABLE_SCHEMA_TOOLS`, default enabled)
 
 ### Available MCP Prompts
 
@@ -193,8 +202,6 @@ The MCP service provides one prompt template:
 ### Deployment Options
 
 - **Development**: Direct Python execution with STDIO transport
-- **Production**: Docker container with environment variable configuration
-- **Cloud**: Containerized deployment on cloud platforms
 - **Local**: Integration with local AI development environments
 
 ### Recommendation
