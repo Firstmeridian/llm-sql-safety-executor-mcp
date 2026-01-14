@@ -13,7 +13,7 @@
 > [更新日志](#更新日志) | 
 > [公开的 MCP 工具](#公开的-mcp-工具) | 
 > [本项目的其它文档](#本项目的其它文档)  
-> [项目路线图](#项目路线图) 下一步：（2026.1）计划增加对NoSQL和SQLite的支持
+> [项目路线图](#项目路线图) · **下一步计划（2026.1）:** 增加对SQLite和NoSQL的支持  
 
 **面向 AI Agent 的数据库安全访问入口：赋予LLM(Agents)进入数据库的能力。**  
 使大模型 (LLM) 通过标准化的 MCP 接口，以经过认证的 SQL 安全获取数据库查询。
@@ -154,7 +154,9 @@ LLM(Agents)不能凭空生成SQL，需要有一定的上下文基础。这里的
 > [2]: ["This filesystem-based architecture enables progressive disclosure: Claude loads information in stages as needed, rather than consuming context upfront."](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview#how-skills-work)
 
 **多种类数据库支持（SQLite、NoSQL等）**  
+
 **人工定义的对数据库写入过程方法**  
+
 **基于MCP协议细化权限管理**  
 
 ### 关于AI辅助开发(copilot, vibe-coding)的实践经验
@@ -186,8 +188,10 @@ LLM(Agents)不能凭空生成SQL，需要有一定的上下文基础。这里的
 - **推荐首先接入VS Code的GitHub Copilot进行试用。** VS Code中的GitHub Copilot是一个成熟的AI Agent工具，你可以选择免费模型（例如GPT-5 mini）在测试数据库中进行使用，这样安全性较高，同时可以避免额外的AI请求费用消耗。
 - **在GitHub Copilot中使用的另一个好处是：可以赋予Copilot这种辅助编码AI进入数据库的能力，** 使其了解目标数据库的结构和数据分布。这在编写程序时可以提供更好的开发辅助和建议。
 - **（以GitHub Copilot为例）在使用时，可以在提示中加上类似“为了回答的数据和理由准确充分，你需要一步一步，多次进行查询。”** 的提醒。这会引导AI进行多次逐步求精的，类似ReAct模式的查询，以获得更好的效果。这在解决复杂问题时尤为有用。
-- **（以GitHub Copilot为例）在使用时显式的附加“#sql-safety-executor-mcp”工具，这样可以提醒AI优先使用该工具。** ![tools](readme_pic/tools.png)
-- **（以GitHub Copilot为例）善用Agent提供的“todo”工具**，这样可以让AI帮助计划查询步骤，提升性能和效率。![todo](readme_pic/todo.png)
+- **（以GitHub Copilot为例）在使用时显式的附加“#sql-safety-executor-mcp”工具，这样可以提醒AI优先使用该工具。** 
+  - ![tools](readme_pic/tools.png)
+- **（以GitHub Copilot为例）善用Agent提供的“todo”工具**，这样可以让AI帮助计划查询步骤，提升性能和效率。
+  - ![todo](readme_pic/todo.png)
 - 在最近的几次修改中（截至2026.1.7），进行了多次的安全优化，比如大数据量下的截断，特殊关键词的使用（比如union），表的白名单设置，针对不同配置的动态提示词等。但是 **更高的安全意味着更低的性能、效率和更高的消耗（比如更多的请求参数和Token消耗），因此请酌情配置安全性设置。**
 - 实际上，Claude Code、Codex、Gemini CLI这样的AI客户端也与GitHub Copilot类似，但是 **应注意AI调用可能产生大量Token的费用问题。** 并且目前的测试（包括能力测试）主要集中在GitHub Copilot上完成。
 
@@ -232,8 +236,10 @@ LLM(Agents)不能凭空生成SQL，需要有一定的上下文基础。这里的
 
 1. 完成 “1. 准备工作” 。
 2. 打开 VS Code 命令面板 (`Ctrl+Shift+P` / `Cmd+Shift+P`)。
-3. 输入并选择 `MCP: Add Server`。![MCP: Add Server](readme_pic/MCP:AddServer.png)
-4. 根据引导一步一步添加上面的内容（请根据实际路径修改）：
+3. 输入并选择 `MCP: Add Server`。
+
+    ![MCP: Add Server](readme_pic/MCP:AddServer.png)
+4. 根据引导一步一步添加上面的内容（请根据实际路径修改）。
 
 实际上二者殊途同归，它们会生成一样位置的 `mcp.json` 文件。无论如何，您只需要保证 `.vscode` 中的 `mcp.json` 有以上配置即可。
 
@@ -241,9 +247,16 @@ LLM(Agents)不能凭空生成SQL，需要有一定的上下文基础。这里的
 1.  重启 VS Code，或使用 VS Code 命令面板重新加载窗口。
 2.  打开 GitHub Copilot Chat ，确保处于Plan或Agent模式。
 3.  点击输入框下方，模型选择框旁边的 **工具图标**。
-4.  您应该能看到 `sql-safety-executor` 及其提供的工具 (如 `query`, `list_tables`)。确保它们已经被全部勾选。![Add tools](readme_pic/Addtools.png)
-5.  直接在对话中发送提问即可：“列出所有表”或“查询 users 表的前5行”。![ask](readme_pic/ask.png)  
-可以看到 MCP 工具被调用![answer](readme_pic/answer.png)  
+4.  您应该能看到 `sql-safety-executor` 及其提供的工具 (如 `query`, `list_tables`)。确保它们已经被全部勾选。
+
+    ![Add tools](readme_pic/Addtools.png)
+5.  直接在对话中发送提问即可：“列出所有表”或“查询 users 表的前5行”。
+
+    ![ask](readme_pic/ask.png)  
+6. 之后可以看到 MCP 工具被调用。
+
+    ![answer](readme_pic/answer.png) 
+
 注意：虽然已经优化了工具使用，但还是推荐在 GitHub Copilot Chat 中通过免费模型（例如GPT-5 mini）进行使用，以避免额外的请求消耗。
 
 #### 常见问题

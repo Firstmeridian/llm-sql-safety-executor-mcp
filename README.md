@@ -13,7 +13,8 @@ English | [中文](README_ZH.md)
 > [Changelog](#changelog) | 
 > [Exposed MCP Tools](#exposed-mcp-tools) | 
 > [Other Documentation](#other-documentation)  
-> [Roadmap](#roadmap) Next: (2026.1) Planned support for NoSQL and SQLite
+> [Roadmap](#roadmap) · **Upcoming (2026.1):** Support for SQLite and NoSQL  
+
 > aka: SQL Safety Executor MCP for LLM
 
 **A secure database access gateway for AI Agents: Empowering LLM (Agents) with database access capabilities.**  
@@ -158,7 +159,9 @@ Therefore, we can envision a scheme where users or developers can write a large 
 > [2]: ["This filesystem-based architecture enables progressive disclosure: Claude loads information in stages as needed, rather than consuming context upfront."](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview#how-skills-work)
 
 **Support for Multiple Database Types (SQLite, NoSQL, etc.)**  
+
 **Manually Defined Methods for Database Write Processes**  
+
 **Refined Permission Management Based on MCP Protocol**  
 
 ### Experience with AI-Assisted Development (Copilot, Vibe-Coding)
@@ -190,8 +193,14 @@ In recent updates, multiple efficiency optimizations have been carried out for t
 - **Recommend trying with VS Code's GitHub Copilot first.** GitHub Copilot in VS Code is a mature AI Agent tool. You can choose a free model (e.g., GPT-4o mini) to use in a test database, which offers higher security and avoids extra AI request costs.
 - **Another benefit of using GitHub Copilot is:** It allows empowering Copilot, this auxiliary coding AI, with the ability to enter the database, making it understand the structure and data distribution of the target database. This provides better development assistance and suggestions when writing programs.
 - **(Taking GitHub Copilot as an example) When using it, you can add a reminder in the prompt like "To ensure the data and reasoning are accurate and sufficient, you need to query step by step, multiple times."** This guides the AI to perform multiple steps of refinement, similar to a ReAct pattern query, for better results. This is especially useful when solving complex problems.
-- **(Taking GitHub Copilot as an example) Explicitly attach the "#sql-safety-executor-mcp" tool when using it, which reminds the AI to prioritize using this tool.** ![tools](readme_pic/tools.png)
-- **(Taking GitHub Copilot as an example) Make good use of the "todo" tool provided by the Agent**, which helps the AI plan query steps, improving performance and efficiency. ![todo](readme_pic/todo.png)
+- **(Taking GitHub Copilot as an example) Explicitly attach the "#sql-safety-executor-mcp" tool when using it, which reminds the AI to prioritize using this tool.** 
+
+    ![tools](readme_pic/tools.png)
+
+- **(Taking GitHub Copilot as an example) Make good use of the "todo" tool provided by the Agent**, which helps the AI plan query steps, improving performance and efficiency. 
+
+    ![todo](readme_pic/todo.png)
+
 - In recent modifications (as of Jan 7, 2026), multiple security optimizations have been made, such as truncation for large data volumes, use of special keywords (like union), table allowlist settings, and dynamic prompts for different configurations. However, **higher security means lower performance/efficiency and higher consumption (e.g., more request parameters and Token consumption), so please configure security settings as appropriate.**
 - Actually, AI clients like Claude Code, Codex, and Gemini CLI are similar to GitHub Copilot, but **be aware that AI calls may generate significant Token costs.** And current tests (including capability tests) are mainly completed on GitHub Copilot.
 
@@ -235,8 +244,10 @@ Copy the following content into `mcp.json` (if `mcp.json` already exists, append
 
 1. Complete "1. Preparation".
 2. Open VS Code Command Palette (`Ctrl+Shift+P` / `Cmd+Shift+P`).
-3. Type and select `MCP: Add Server`. ![MCP: Add Server](readme_pic/MCP:AddServer.png)
-4. Add the above content step by step following the guide (please modify according to actual path):
+3. Type and select `MCP: Add Server`. 
+
+    ![MCP: Add Server](readme_pic/MCP:AddServer.png)
+4. Add the above content step by step following the guide (please modify according to actual path).
 
 Basically, both methods achieve the same goal; they generate the `mcp.json` file in the same location. In any case, you just need to ensure `.vscode/mcp.json` has the above configuration.
 
@@ -244,10 +255,14 @@ Basically, both methods achieve the same goal; they generate the `mcp.json` file
 1.  Restart VS Code, or use the Command Palette to reload the window.
 2.  Open GitHub Copilot Chat, ensure it is in Plan or Agent mode.
 3.  Click the **Tool Icon** next to the model selection box below the input field.
-4.  You should be able to see `sql-safety-executor` and its provided tools (e.g., `query`, `list_tables`). Ensure they are all checked. ![Add tools](readme_pic/Addtools.png)
-5.  Send a question directly in the conversation: "List all tables" or "Query the first 5 rows of the users table". ![ask](readme_pic/ask.png)
-You can see the MCP tool being called ![answer](readme_pic/answer.png)
-Note: Although tool usage has been optimized, it is still recommended to use free models (e.g., GPT-4o mini) in GitHub Copilot Chat to avoid extra request consumption.
+4.  You should be able to see `sql-safety-executor` and its provided tools (e.g., `query`, `list_tables`). Ensure they are all checked. 
+
+    ![Add tools](readme_pic/Addtools.png)
+5.  Send a question directly in the conversation: "List all tables" or "Query the first 5 rows of the users table". Then you can see the MCP tool being called. 
+
+    ![ask](readme_pic/ask.png)
+
+Note: Although tool usage has been optimized, it is still recommended to use free models (e.g., GPT-5 mini) in GitHub Copilot Chat to avoid extra request consumption.
 
 #### Common Issues
 *   **Cannot find tools?** Check the `Output` panel, switch to "GitHub Copilot" to see if there are errors.
