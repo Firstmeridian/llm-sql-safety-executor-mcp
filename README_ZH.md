@@ -1,4 +1,9 @@
-# LLM Database Safety Gateway 面向 LLM 的数据库安全访问入口 - MCP服务实现
+# 面向 AI Agent 的数据库安全访问入口 - MCP服务实现
+
+![Version](https://img.shields.io/badge/version-2.1-blue)
+![License](https://img.shields.io/badge/license-MIT-green)
+![Python](https://img.shields.io/badge/python-3.12+-blue?logo=python)
+![MCP](https://img.shields.io/badge/MCP-Protocol-orange)
 
 [English](README.md) | 中文  
 > [介绍](#介绍) | 
@@ -9,16 +14,11 @@
 > [本项目的其它文档](#本项目的其它文档)  
 > [项目路线图](#项目路线图) 下一步：（2026.1）计划增加对NoSQL和SQLite的支持
 
-**数据库安全访问入口：使 LLM(AI Agent) 可通过执行经认证的 SQL 语句访问数据库**  
-一个面向 LLM(Agent) 的数据库安全访问入口：
-使大语言模型(LLM)可通过标准化的 MCP 接口，以经过认证的 SQL 安全获取数据库查询。
+**面向 AI Agent 的数据库安全访问入口：赋予LLM(Agents)进入数据库的能力。**  
+使大模型 (LLM) 通过标准化的 MCP 接口，以经过认证的 SQL 安全获取数据库查询。
 并提供白名单、超时与结果截断等防护。降低误操作风险同时避免 Token 成本失控。  
-本项目解决了 LLM(Agent) “进入数据库”的需求。通过与 AI Agent 的配合，可以扩展 LLM 的能力边界。
-
-![Version](https://img.shields.io/badge/version-2.1-blue)
-![License](https://img.shields.io/badge/license-MIT-green)
-![Python](https://img.shields.io/badge/python-3.12+-blue?logo=python)
-![MCP](https://img.shields.io/badge/MCP-Protocol-orange)
+除 MySQL、SQLite 外，还提供对 NoSQL 的支持。  
+本项目解决了 LLM “进入数据库”的需求。并可通过与 AI Agent 的配合，扩展 LLM 的能力边界，延伸大模型在实际业务中的应用范围。
 
 ## 问题陈述
 
@@ -114,7 +114,7 @@
 3. 生成SQL的查询准确性、查询质量和查询效率
 
 **关于问题1：**  
-此场景实际上并非“前端直接传递SQL给后端使用”的情况，LLM(Agents)在这里更类似一个于服务端运行的服务端程序。所有的SQL，都是在服务端可控的环境下生成，通过stdio模式（当然也可以在安全的内网环境下使用HTTP方式）与其它后端服务通信。此场景中的Agents是可约束输入/输出的程序，与前端（外部用户）仅通过prompt对接。而在2025年末的当下，防止prompt注入已经是十分广泛且成熟的实践，Agents的编写者可以很轻松的用多种方法来避免外部prompt注入。  
+此场景实际上并非“前端直接传递SQL给后端使用”的情况，LLM(Agents)在这里更类似于运行服务端在服务端的程序。所有的SQL，都是在服务端可控的环境下生成，通过stdio模式（当然也可以在安全的内网环境下使用HTTP方式）与其它后端服务通信。此场景中的Agents是可约束输入/输出的程序，与前端（外部用户）仅通过Prompt对接。而在2025年末的当下，防止Prompt注入已经是十分广泛且成熟的实践，Agents的编写者可以很轻松的用多种方法来避免外部Prompt注入。  
 **关于问题2：**  
 LLM的生成具有不确定性。即便有极小概率，这也会导致生成SQL的安全性无法得到保障。需要有SQL安全检查工具对生成的SQL进行检查和过滤。  
 **关于问题3：**  
@@ -128,7 +128,7 @@ LLM(Agents)不能凭空生成SQL，需要有一定的上下文基础。这里的
 
 - [在(v2.0)版本](REFACTORING_LOG.md) 针对实际的MCP使用场景，进行了查询效率和调用风险的优化。
   1. 通过工具合并以及增加新的常用工具，减少工具调用次数，优化工具调用效率。
-  2. 聚焦于真实使用中的token爆炸风险（这可能导致大量的LLM API费用支出）进行针对性优化。
+  2. 聚焦于真实使用中的Token爆炸风险（这可能导致大量的LLM API费用支出）进行针对性优化。
   3. 同时新增了[多Agent调用该MCP服务的示例](README_ZH.md#autogen-多-agent-示例)，基于AutoGen框架，用于示范Agents与本服务的结合。
 
 - [在(v2.1)版本](REFACTORING_LOG.md#latest-update-january-4-2026---tool-optimization--field-naming) 专注于工具设计和输出一致性的改进。优化并重构了大量工具，尽可能地遵守业界相关的最佳实践。整体设计上，采用ReAct方案推理 (Thought) --> 行动 (Action) --> 观察(Observation) --> 再思考决定下一步行动的循环范式。在保证查询效率的同时提升查询准确性和多步骤查询的质量。基于AutoGen的多agent调用示例也同步更新。
@@ -169,7 +169,7 @@ LLM(Agents)不能凭空生成SQL，需要有一定的上下文基础。这里的
 ### 风险和局限
 在编写本项目的实践中，使用了大量的AI辅助开发。尽管已经尽可能的review代码和进行测试，并添加了一系列安全设置。但精力有限，无法覆盖全部情况，尤其是考虑到有LLM参与其中的情况。  
 **因此，不要在未经测试的情况下直接接入生产环境或与Agent搭配。这可能会导致意想不到的后果！**
-贸然接入未经测试的Agent可能会导致 **不稳定、死循环、token爆炸、巨量查询** 或其它未验证的负面影响。  
+贸然接入未经测试的Agent可能会导致 **不稳定、死循环、Token爆炸、巨量查询** 或其它未验证的负面影响。  
 在近几次更新中，本项目进行了多次的效率优化，主要聚焦于减少不必要的工具调用次数和提升速度。并已经进行了一定的测试。但因为LLM(Agents)的随机性，在实际使用时，仍可能出现不必要的工具调用情况，尽管概率较小。  
 **目前仅支持MySQL**（但在未来计划提供对更多数据库（如SQLite）和NoSQL的支持）
 
@@ -177,18 +177,18 @@ LLM(Agents)不能凭空生成SQL，需要有一定的上下文基础。这里的
 - **行数相关字段可能不精确**：`list_tables()` / `describe_table()` / `get_full_schema()` 在默认情况下返回的 `row_count` 来自 `INFORMATION_SCHEMA.TABLES.TABLE_ROWS`，属于统计估计值（尤其对 InnoDB 可能有明显偏差或滞后），仅建议用于“量级判断/是否加 LIMIT/是否大表”等策略，不应当作精确计数。
   - 如需精确行数，请使用 `SELECT COUNT(*) ...`，或启用 `ENABLE_TABLE_SUMMARY=1` 后使用 `get_table_summary(exact_count=True)`（注意大表可能较慢）。
 
-- **为避免 token 爆炸，返回结果可能被截断**：`query()`、`list_tables()`、`get_full_schema()` 会根据 `MAX_RESULT_ROWS` / `MAX_RESULT_CHARS` / `MAX_OVERVIEW_TABLES` / `MAX_SCHEMA_TABLES` 截断输出；因此“返回的数据/表/列”可能不是全量。需要全量时请显式使用更小范围的查询（加 `LIMIT`、按条件分页），或调整相关环境变量（风险自担）。
+- **为避免 Token 爆炸，返回结果可能被截断**：`query()`、`list_tables()`、`get_full_schema()` 会根据 `MAX_RESULT_ROWS` / `MAX_RESULT_CHARS` / `MAX_OVERVIEW_TABLES` / `MAX_SCHEMA_TABLES` 截断输出；因此“返回的数据/表/列”可能不是全量。需要全量时请显式使用更小范围的查询（加 `LIMIT`、按条件分页），或调整相关环境变量（风险自担）。
 
 - **部分“总数”字段是“可见范围”语义**：例如 `total_tables` 在工具输出中表示“allowlist 参数过滤后的可见表数量（再考虑截断）”，并非一定等同于数据库实际总表数；请避免将其误读为“全库统计”。
 
 ### 使用本项目的最佳实践
 - **推荐首先接入VS Code的GitHub Copilot进行试用。** VS Code中的GitHub Copilot是一个成熟的AI Agent工具，你可以选择免费模型（例如GPT-5 mini）在测试数据库中进行使用，这样安全性较高，同时可以避免额外的AI请求费用消耗。
-- **在GitHub Copilot中使用的另一个好处是：可以使Copilot这种辅助编码AI获得进入数据库的能力，** 使其了解目标数据库的结构和数据分布。这在编写程序时可以提供更好的开发辅助和建议。
+- **在GitHub Copilot中使用的另一个好处是：可以赋予Copilot这种辅助编码AI进入数据库的能力，** 使其了解目标数据库的结构和数据分布。这在编写程序时可以提供更好的开发辅助和建议。
 - **（以GitHub Copilot为例）在使用时，可以在提示中加上类似“为了回答的数据和理由准确充分，你需要一步一步，多次进行查询。”** 的提醒。这会引导AI进行多次逐步求精的，类似ReAct模式的查询，以获得更好的效果。这在解决复杂问题时尤为有用。
 - **（以GitHub Copilot为例）在使用时显式的附加“#sql-safety-executor-mcp”工具，这样可以提醒AI优先使用该工具。** ![tools](readme_pic/tools.png)
 - **（以GitHub Copilot为例）善用Agent提供的“todo”工具**，这样可以让AI帮助计划查询步骤，提升性能和效率。![todo](readme_pic/todo.png)
-- 在最近的几次修改中（截至2026.1.7），进行了多次的安全优化，比如大数据量下的截断，特殊关键词的使用（比如union），表的白名单设置，针对不同配置的动态提示词等。但是 **更高的安全意味着更低的性能、效率和更高的消耗（比如更多的请求参数和token消耗），因此请酌情配置安全性设置。**
-- 实际上，Claude Code、Codex、Gemini CLI这样的AI客户端也与GitHub Copilot类似，但是 **应注意AI调用可能产生大量token的费用问题。** 并且目前的测试（包括能力测试）主要集中在GitHub Copilot上完成。
+- 在最近的几次修改中（截至2026.1.7），进行了多次的安全优化，比如大数据量下的截断，特殊关键词的使用（比如union），表的白名单设置，针对不同配置的动态提示词等。但是 **更高的安全意味着更低的性能、效率和更高的消耗（比如更多的请求参数和Token消耗），因此请酌情配置安全性设置。**
+- 实际上，Claude Code、Codex、Gemini CLI这样的AI客户端也与GitHub Copilot类似，但是 **应注意AI调用可能产生大量Token的费用问题。** 并且目前的测试（包括能力测试）主要集中在GitHub Copilot上完成。
 
 
 ## 快速开始
