@@ -1,60 +1,37 @@
+"""
+SQL Safety Checker Module
+
+Provides SQL query safety validation and execution.
+
+This module is database-agnostic for safety checking, but uses the
+database adapter for execution. The is_sql_safe() function works
+with any SQL dialect (MySQL, SQLite, PostgreSQL).
+
+Backward Compatibility:
+- execute_sql() signature unchanged
+- is_sql_safe() logic unchanged (uses sqlparse)
+- All existing imports continue to work
+
+Changes in v2.0 (SQLite support):
+- Database connection now delegated to db_adapter.py
+- Removed MySQL-specific engine creation
+- execute_sql() now uses adapter.execute()
+"""
 
 import sqlparse
-import os
 import logging
-from dotenv import load_dotenv
-from sqlalchemy import create_engine, text
-from sqlalchemy.exc import SQLAlchemyError
-
-# Load environment variables from .env file
-load_dotenv()
+from db_adapter import get_adapter, QUERY_TIMEOUT_SECONDS
 
 logger = logging.getLogger(__name__)
-
-# =============================================================================
-# Configuration
-# =============================================================================
-
-# Database connection settings
-DB_USER = os.getenv("DB_USER")
-DB_PASSWORD = os.getenv("DB_PASSWORD")
-DB_HOST = os.getenv("DB_HOST")
-DB_NAME = os.getenv("DB_NAME")
-
-# Query timeout in seconds (P0 security: prevent long-running queries)
-# Reference: Microsoft Azure best practices - "Set appropriate timeouts for database operations"
-QUERY_TIMEOUT_SECONDS = int(os.getenv("QUERY_TIMEOUT_SECONDS", "30"))
-
-# Connection timeout in seconds
-CONNECT_TIMEOUT_SECONDS = int(os.getenv("CONNECT_TIMEOUT_SECONDS", "10"))
-
-DATABASE_URL = f"mysql+pymysql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}/{DB_NAME}?charset=utf8mb4"
-
-try:
-    # Best practice: Configure connection with timeouts
-    # Reference: PyMySQL connect_args for timeout settings
-    engine = create_engine(
-        DATABASE_URL,
-        pool_pre_ping=True,
-        pool_size=5,
-        max_overflow=10,
-        pool_timeout=30,
-        connect_args={
-            "connect_timeout": CONNECT_TIMEOUT_SECONDS,
-            "read_timeout": QUERY_TIMEOUT_SECONDS,
-            "write_timeout": QUERY_TIMEOUT_SECONDS,
-        }
-    )
-except ImportError:
-    print("Error: PyMySQL is not installed. Please install it using: pip install PyMySQL")
-    engine = None
 
 
 def execute_sql(sql_query: str, timeout_override: int | None = None) -> list | str:
     """
-    Executes a SQL query after checking if it is safe, using SQLAlchemy for connection pooling.
+    Executes a SQL query after checking if it is safe.
     
+    Uses database adapter for actual execution (MySQL or SQLite).
     Includes query timeout protection (P0 security measure).
+    
     Reference: Microsoft Azure best practices - "Set appropriate timeouts for database operations"
 
     Args:
@@ -63,54 +40,26 @@ def execute_sql(sql_query: str, timeout_override: int | None = None) -> list | s
 
     Returns:
         A list of tuples representing the rows of the result, or an error message string.
+        
+    Backward Compatibility:
+        - Same function signature as before
+        - Same return format (list of tuples or error string)
+        - Safe query types unchanged: SELECT, SHOW, DESCRIBE, EXPLAIN
+        
+    Note on SHOW/DESCRIBE with SQLite:
+        - SQLite does not support SHOW/DESCRIBE commands
+        - These are handled at the MCP tool level via adapter methods
+        - Direct SHOW/DESCRIBE queries will fail on SQLite with syntax error
     """
-    if not engine:
-        return "Error: Database engine could not be initialized. Please check your installation."
-
     if not is_sql_safe(sql_query):
         return "Error: Only read-only queries are allowed (SELECT, SHOW, DESCRIBE, EXPLAIN)."
 
     timeout = timeout_override if timeout_override is not None else QUERY_TIMEOUT_SECONDS
     
     try:
-        with engine.connect() as connection:
-            # Set session-level query timeout for MySQL
-            # MAX_EXECUTION_TIME is in milliseconds
-            # Reference: MySQL 5.7+ supports MAX_EXECUTION_TIME optimizer hint
-            timeout_ms = timeout * 1000
-            try:
-                connection.execute(text(f"SET SESSION MAX_EXECUTION_TIME = {timeout_ms}"))
-            except SQLAlchemyError:
-                # Fallback: Some MySQL versions may not support MAX_EXECUTION_TIME
-                # The connection-level read_timeout will still apply
-                logger.debug("MAX_EXECUTION_TIME not supported, using connection timeout")
-            
-            result = connection.execute(text(sql_query))
-            rows = result.fetchall()
-            return rows
-    except SQLAlchemyError as e:
-        # Security: Sanitize error messages to prevent information disclosure
-        # Log full error internally, return generic message to client
-        error_str = str(e)
-        logger.warning(f"SQL execution error: {error_str[:200]}")  # Log truncated error
-        
-        if "Access denied" in error_str or "permission" in error_str.lower():
-            return "Error: Access denied"
-        elif "doesn't exist" in error_str or "Unknown table" in error_str:
-            return "Error: Table or column not found"
-        elif "syntax" in error_str.lower():
-            return "Error: SQL syntax error"
-        elif "timeout" in error_str.lower() or "max_execution_time" in error_str.lower():
-            return f"Error: Query timeout exceeded ({timeout}s limit)"
-        elif "timed out" in error_str.lower() or "2013" in error_str:
-            # PyMySQL error 2013: Lost connection during query (timeout)
-            return f"Error: Query timeout exceeded ({timeout}s limit)"
-        elif "read timed out" in error_str.lower():
-            return f"Error: Query timeout exceeded ({timeout}s limit)"
-        elif "Lost connection" in error_str:
-            return f"Error: Query timeout exceeded ({timeout}s limit)"
-        else:
-            return "Error: Database query failed"
+        adapter = get_adapter()
+        result = adapter.execute(sql_query, timeout)
+        return result
     except Exception as e:
         logger.exception("Unexpected error during SQL execution")
         return "Error: An unexpected error occurred"
@@ -157,45 +106,90 @@ def is_sql_safe(sql_query: str) -> bool:
 
 # Example usage:
 if __name__ == '__main__':
-    # Note: To run this example, you need to have a MySQL database running
-    # and have the .env file configured with your database credentials.
-    # You also need to install the required libraries:
-    # pip install sqlalchemy PyMySQL python-dotenv
+    """
+    Example demonstrating SQL safety checking and execution.
+    
+    To run this example:
+    1. Set DB_TYPE environment variable ('mysql' or 'sqlite')
+    2. For MySQL: Configure DB_USER, DB_PASSWORD, DB_HOST, DB_NAME in .env
+    3. For SQLite: Set SQLITE_DATABASE_PATH in .env (or use :memory:)
+    4. Install required libraries: pip install -r requirements.txt
+    """
+    from db_adapter import get_adapter, reset_adapter, DB_TYPE
+    import os
+    
+    print(f"Database type: {DB_TYPE}")
+    
+    # Get adapter instance
+    adapter = get_adapter()
+    
+    # Test connection
+    success, message = adapter.check_connection()
+    if not success:
+        print(f"Connection failed: {message}")
+        exit(1)
+    print(f"Connection status: {message}")
 
-    if not engine:
-        exit()
-
-    safe_query = "SELECT * FROM test_users LIMIT 1"
+    safe_query = "SELECT 1 as test_value"
     unsafe_query = "DELETE FROM test_users WHERE id = 1"
 
-    print(f"Is '{safe_query}' safe? {is_sql_safe(safe_query)}")
+    print(f"\nIs '{safe_query}' safe? {is_sql_safe(safe_query)}")
     print(f"Is '{unsafe_query}' safe? {is_sql_safe(unsafe_query)}")
 
     print("\n--- Testing SQL Execution ---")
+    
     # Create a dummy 'test_users' table for testing if it doesn't exist
+    # This requires write access - only works in dev environment
     try:
-        with engine.connect() as connection:
-            with connection.begin(): # Start a single transaction for setup
-                connection.execute(text("""
-                    CREATE TABLE IF NOT EXISTS test_users (
-                        id INT AUTO_INCREMENT PRIMARY KEY,
-                        name VARCHAR(255)
-                    )
-                """))
-                # Check if table is empty before inserting
-                result = connection.execute(text("SELECT COUNT(*) FROM test_users"))
-                if result.scalar_one() == 0:
-                    connection.execute(text("INSERT INTO test_users (name) VALUES ('Alice'), ('Bob')"))
-    except SQLAlchemyError as e:
+        if adapter.db_type == "mysql":
+            # MySQL-specific setup
+            from sqlalchemy import text
+            from db_adapter import MySQLAdapter
+            with adapter._engine.connect() as connection:
+                with connection.begin():
+                    connection.execute(text("""
+                        CREATE TABLE IF NOT EXISTS test_users (
+                            id INT AUTO_INCREMENT PRIMARY KEY,
+                            name VARCHAR(255)
+                        )
+                    """))
+                    result = connection.execute(text("SELECT COUNT(*) FROM test_users"))
+                    if result.scalar_one() == 0:
+                        connection.execute(text("INSERT INTO test_users (name) VALUES ('Alice'), ('Bob')"))
+            test_query = "SELECT * FROM test_users LIMIT 1"
+            
+        elif adapter.db_type == "sqlite":
+            # SQLite-specific setup
+            from sqlalchemy import text
+            with adapter._engine.connect() as connection:
+                with connection.begin():
+                    connection.execute(text("""
+                        CREATE TABLE IF NOT EXISTS test_users (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            name TEXT
+                        )
+                    """))
+                    result = connection.execute(text("SELECT COUNT(*) FROM test_users"))
+                    if result.scalar_one() == 0:
+                        connection.execute(text("INSERT INTO test_users (name) VALUES ('Alice'), ('Bob')"))
+            test_query = "SELECT * FROM test_users LIMIT 1"
+        else:
+            print(f"Unsupported database type: {adapter.db_type}")
+            exit(1)
+            
+    except Exception as e:
         print(f"Database setup for example failed: {e}")
-        print("Please ensure your database is running and .env is configured correctly.")
-        exit()
+        print("Please ensure your database is configured correctly.")
+        exit(1)
 
-    print(f"\nExecuting safe query: '{safe_query}'")
-    result = execute_sql(safe_query)
+    print(f"\nExecuting safe query: '{test_query}'")
+    result = execute_sql(test_query)
     print(f"Result: {result}")
 
     print(f"\nExecuting unsafe query: '{unsafe_query}'")
     result = execute_sql(unsafe_query)
     print(f"Result: {result}")
+    
+    # Cleanup
+    reset_adapter()
 

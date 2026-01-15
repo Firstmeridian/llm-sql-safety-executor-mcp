@@ -1,6 +1,6 @@
 # MCP SQL Server Refactoring Log
 
-**Date:** December 2, 2025 (Updated: January 4, 2026)  
+**Date:** December 2, 2025 (Updated: January 15, 2026)  
 **Author:** Code Refactoring Session  
 
 ## Overview
@@ -30,7 +30,79 @@ git remote -v
 git fetch origin --prune
 ```
 
-## Latest Update v2.1 (January 4, 2026) - Tool Optimization & Field Naming
+---
+
+## Latest Update v2.2 (January 15, 2026) - SQLite Database Support
+
+### Overview
+
+Added SQLite database support while maintaining full backward compatibility with MySQL. This enables the MCP server to work with lightweight SQLite databases for development, testing, and embedded use cases.
+
+### Architecture: Database Adapter Pattern
+
+Introduced `db_adapter.py` implementing the Abstract Base Class (ABC) pattern:
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         DATABASE ADAPTER ARCHITECTURE                       │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│                          ┌─────────────────────┐                            │
+│                          │  DatabaseAdapter    │ (ABC)                      │
+│                          │  ─────────────────  │                            │
+│                          │  + connect()        │                            │
+│                          │  + execute()        │                            │
+│                          │  + get_tables()     │                            │
+│                          │  + get_columns()    │                            │
+│                          │  + get_row_estimate()│                           │
+│                          │  + check_connection()│                           │
+│                          │  + get_database_name()│                          │
+│                          │  + close()          │                            │
+│                          │  + db_type (property)│                           │
+│                          └─────────┬───────────┘                            │
+│                                    │                                        │
+│                    ┌───────────────┴───────────────┐                        │
+│                    │                               │                        │
+│           ┌────────▼────────┐             ┌───────▼────────┐                │
+│           │   MySQLAdapter  │             │  SQLiteAdapter │                │
+│           │  ─────────────  │             │  ────────────  │                │
+│           │  - SQLAlchemy   │             │  - SQLAlchemy  │                │
+│           │  - PyMySQL      │             │  - sqlite3     │                │
+│           │  - QueuePool    │             │  - StaticPool  │                │
+│           │  - MAX_EXEC_TIME│             │  - progress_   │                │
+│           │                 │             │    handler     │                │
+│           └─────────────────┘             └────────────────┘                │
+│                                                                             │
+│                          ┌─────────────────────┐                            │
+│                          │  create_adapter()   │ (Factory)                  │
+│                          │  ─────────────────  │                            │
+│                          │  DB_TYPE → Adapter  │                            │
+│                          └─────────────────────┘                            │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Files Changed
+
+| File | Change Type | Description |
+|------|-------------|-------------|
+| `db_adapter.py` | **NEW** (749 lines) | Database adapter abstraction layer |
+| `sql_safety_checker.py` | Modified | Now uses adapter; removed MySQL-specific code |
+| `mcp_sql_server.py` | Modified | Uses adapter methods; adds `db_type` to responses |
+| `.env.example` | Modified | Added SQLite configuration section |
+| `.env` | Modified | Added SQLite configuration section |
+| `README.md` | Modified | v2.2 changelog, SQLite config docs |
+| `README_ZH.md` | Modified | v2.2 changelog, SQLite config docs |
+| `tests/conftest.py` | **NEW** (318 lines) | Pytest fixtures for SQLite/MySQL tests |
+| `tests/test_db_adapter.py` | **NEW** | Unit tests for adapters |
+| `tests/test_sqlite_integration.py` | **NEW** | SQLite integration tests |
+| `requirements.txt` | Modified | Added `pytest` dependency |
+
+> **Detailed Design Documentation:** See [SQLITE_ADAPTER_DESIGN.md](SQLITE_ADAPTER_DESIGN.md) for design decisions, conventions, compromises, potential issues, and implementation details.
+
+---
+
+## Update v2.1 (January 4, 2026) - Tool Optimization & Field Naming
 
 ### Major Changes
 

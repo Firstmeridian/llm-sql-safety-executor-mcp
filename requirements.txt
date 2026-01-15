@@ -8,3 +8,6 @@ fastmcp
 autogen-agentchat
 autogen-ext[openai]
 autogen-ext[mcp]
+# Testing dependencies
+pytest
+pytest-asyncio

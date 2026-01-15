@@ -1,6 +1,6 @@
 # 面向 AI Agent 的数据库安全访问入口 - MCP 服务
 
-![Version](https://img.shields.io/badge/version-2.1-blue)
+![Version](https://img.shields.io/badge/version-2.2-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Python](https://img.shields.io/badge/python-3.12+-blue?logo=python)
 ![MCP](https://img.shields.io/badge/MCP-Protocol-orange)
@@ -12,13 +12,14 @@
 > [使用本项目的最佳实践](#使用本项目的最佳实践) | 
 > [更新日志](#更新日志) | 
 > [公开的 MCP 工具](#公开的-mcp-工具) | 
+> [使用此 MCP 服务的 AutoGen 多智能体示例](#autogen-多-agent-示例) | 
 > [本项目的其它文档](#本项目的其它文档)  
-> [项目路线图](#项目路线图) · **下一步计划（2026.1）:** 增加对SQLite和NoSQL的支持  
+> [项目路线图](#项目路线图) · **下一步计划（2026.1）:** 增加对NoSQL的支持  
 
 **面向 AI Agent 的数据库安全访问入口：赋予LLM(Agents)进入数据库的能力。**  
 使大模型 (LLM) 通过标准化的 MCP 接口，以经过认证的 SQL 安全获取数据库查询。
 并提供白名单、超时与结果截断等防护。降低误操作风险同时避免 Token 成本失控。  
-除 MySQL、SQLite 外，还提供对 NoSQL 的支持。(in progress)  
+除 MySQL、SQLite 外，还提供对 NoSQL 的支持。(in progress，NoSQL 支持计划在未来版本中提供)    
 本项目解决了 LLM “进入数据库”的需求。并可通过与 AI Agent 的配合，扩展 LLM 的能力边界，延伸大模型在实际业务中的应用范围。
 
 ## 问题陈述
@@ -103,6 +104,7 @@
 |------|------|
 | `mcp_sql_server.py` | MCP 工具定义、安全验证、结果处理 |
 | `sql_safety_checker.py` | SQL 语句解析和安全检查 |
+| `db_adapter.py` | 数据库适配器抽象层（MySQL/SQLite 支持） |
 | `start_server.py` | 服务启动、环境验证 |
 
 ## 设计理念
@@ -154,6 +156,8 @@ LLM(Agents)不能凭空生成SQL，需要有一定的上下文基础。这里的
 > [2]: ["This filesystem-based architecture enables progressive disclosure: Claude loads information in stages as needed, rather than consuming context upfront."](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview#how-skills-work)
 
 **多种类数据库支持（SQLite、NoSQL等）**  
+- **SQLite 支持已在 v2.2 版本中添加**（2026年1月）
+- NoSQL 支持计划在未来版本中提供
 
 **人工定义的对数据库写入过程方法**  
 
@@ -174,10 +178,12 @@ LLM(Agents)不能凭空生成SQL，需要有一定的上下文基础。这里的
 **因此，不要在未经测试的情况下直接接入生产环境或与Agent搭配。这可能会导致意想不到的后果！**
 贸然接入未经测试的Agent可能会导致 **不稳定、死循环、Token爆炸、巨量查询** 或其它未验证的负面影响。  
 在近几次更新中，本项目进行了多次的效率优化，主要聚焦于减少不必要的工具调用次数和提升速度。并已经进行了一定的测试。但因为LLM(Agents)的随机性，在实际使用时，仍可能出现不必要的工具调用情况，尽管概率较小。  
-**目前仅支持MySQL**（但在未来计划提供对更多数据库（如SQLite）和NoSQL的支持）
 
 ### 已知问题和不足
-- **行数相关字段可能不精确**：`list_tables()` / `describe_table()` / `get_full_schema()` 在默认情况下返回的 `row_count` 来自 `INFORMATION_SCHEMA.TABLES.TABLE_ROWS`，属于统计估计值（尤其对 InnoDB 可能有明显偏差或滞后），仅建议用于“量级判断/是否加 LIMIT/是否大表”等策略，不应当作精确计数。
+- **行数相关字段可能不精确**：`list_tables()` / `describe_table()` / `get_full_schema()` 返回的 `row_count` 属于统计估计值：
+  - **MySQL**：来自 `INFORMATION_SCHEMA.TABLES.TABLE_ROWS`（InnoDB 可能有明显偏差或滞后）
+  - **SQLite**：来自 `sqlite_stat1`（如果已运行 ANALYZE）或采样策略
+  - 仅建议用于“量级判断/是否加 LIMIT/是否大表”等策略，不应当作精确计数。
   - 如需精确行数，请使用 `SELECT COUNT(*) ...`，或启用 `ENABLE_TABLE_SUMMARY=1` 后使用 `get_table_summary(exact_count=True)`（注意大表可能较慢）。
 
 - **为避免 Token 爆炸，返回结果可能被截断**：`query()`、`list_tables()`、`get_full_schema()` 会根据 `MAX_RESULT_ROWS` / `MAX_RESULT_CHARS` / `MAX_OVERVIEW_TABLES` / `MAX_SCHEMA_TABLES` 截断输出；因此“返回的数据/表/列”可能不是全量。需要全量时请显式使用更小范围的查询（加 `LIMIT`、按条件分页），或调整相关环境变量（风险自担）。
@@ -189,9 +195,11 @@ LLM(Agents)不能凭空生成SQL，需要有一定的上下文基础。这里的
 - **在GitHub Copilot中使用的另一个好处是：可以赋予Copilot这种辅助编码AI进入数据库的能力，** 使其了解目标数据库的结构和数据分布。这在编写程序时可以提供更好的开发辅助和建议。
 - **（以GitHub Copilot为例）在使用时，可以在提示中加上类似“为了回答的数据和理由准确充分，你需要一步一步，多次进行查询。”** 的提醒。这会引导AI进行多次逐步求精的，类似ReAct模式的查询，以获得更好的效果。这在解决复杂问题时尤为有用。
 - **（以GitHub Copilot为例）在使用时显式的附加“#sql-safety-executor-mcp”工具，这样可以提醒AI优先使用该工具。** 
-  - ![tools](readme_pic/tools.png)
+
+    ![tools](readme_pic/tools.png)
 - **（以GitHub Copilot为例）善用Agent提供的“todo”工具**，这样可以让AI帮助计划查询步骤，提升性能和效率。
-  - ![todo](readme_pic/todo.png)
+
+    ![todo](readme_pic/todo.png)
 - 在最近的几次修改中（截至2026.1.7），进行了多次的安全优化，比如大数据量下的截断，特殊关键词的使用（比如union），表的白名单设置，针对不同配置的动态提示词等。但是 **更高的安全意味着更低的性能、效率和更高的消耗（比如更多的请求参数和Token消耗），因此请酌情配置安全性设置。**
 - 实际上，Claude Code、Codex、Gemini CLI这样的AI客户端也与GitHub Copilot类似，但是 **应注意AI调用可能产生大量Token的费用问题。** 并且目前的测试（包括能力测试）主要集中在GitHub Copilot上完成。
 
@@ -316,12 +324,34 @@ python autogen_sql_agent.py "列出所有表并描述它们的结构"
 
 ## 配置（位于.env文件中。需要先拷贝.env.example，重命名为.env以进行配置）
 
-### 必需的环境变量
+### 数据库类型选择
+```bash
+# 数据库类型：'mysql'（默认）或 'sqlite'
+DB_TYPE=mysql
+```
+
+### MySQL 配置（当 DB_TYPE=mysql 时使用）
 ```bash
 DB_USER=your_database_user
 DB_PASSWORD=your_database_password
 DB_HOST=your_database_host
 DB_NAME=your_database_name
+```
+
+### SQLite 配置（当 DB_TYPE=sqlite 时使用）
+```bash
+# SQLite 数据库文件路径，或使用 ':memory:' 创建内存数据库
+SQLITE_DATABASE_PATH=./sample_data/demo.db
+# SQLITE_DATABASE_PATH=:memory:
+```
+
+> **注意 1：** `./sample_data/demo.db` 为示例数据库，适合测试场景。  
+> **注意 2：** `SQLITE_DATABASE_PATH=:memory:` 会创建临时内存数据库（创建时数据库为空），服务重启后数据丢失，可用于测试和其他特殊用途。
+
+```bash
+# 可选：查询超时进度处理器间隔（默认：100）
+# 较低的值 = 超时响应更快，但 CPU 开销更高
+# SQLITE_PROGRESS_HANDLER_INTERVAL=100
 ```
 
 ### 可选的环境变量
@@ -363,6 +393,30 @@ MAX_OVERVIEW_TABLES=100  # list_tables 返回的最大表数（0=不限制）
 有关完整的客户端配置示例，请参阅 `mcp_config.json`。
 
 ## 更新日志
+
+### v2.2 SQLite 支持（2026年1月）
+
+新增 SQLite 数据库支持，同时保持与 MySQL 的完全向后兼容：
+
+- **新增数据库适配器架构**：引入 `db_adapter.py`，采用抽象基类模式
+  - `DatabaseAdapter` ABC 定义所有数据库后端的统一接口
+  - `MySQLAdapter`：保留所有现有 MySQL 功能
+  - `SQLiteAdapter`：新增 SQLite 支持，带原生超时机制
+  - `create_adapter()` 工厂函数自动选择适配器
+- **SQLite 特定功能**：
+  - 通过 `set_progress_handler()` 实现查询超时（SQLite 原生回调）
+  - `StaticPool` 连接池（单连接，避免文件锁问题）
+  - 使用 `sqlite_master` 和 `PRAGMA table_info()` 进行元数据查询
+  - 行数估计使用 `sqlite_stat1` 或采样策略
+- **新增环境变量**：
+  - `DB_TYPE=mysql|sqlite` - 数据库类型选择（默认：mysql）
+  - `SQLITE_DATABASE_PATH` - SQLite 文件路径或 `:memory:`
+  - `SQLITE_PROGRESS_HANDLER_INTERVAL` - 超时检查频率
+- **向后兼容**：所有现有 MySQL 配置继续正常工作
+- **新增 `db_type` 字段**：工具响应现包含 `db_type` 字段标识当前数据库类型
+- **完整测试套件**：53 个测试覆盖 MySQL 和 SQLite 适配器
+
+详细设计决策、妥协和实现细节请参阅 [SQLITE_ADAPTER_DESIGN.md](SQLITE_ADAPTER_DESIGN.md)。变更日志详情请参阅 [REFACTORING_LOG.md](REFACTORING_LOG.md)。
 
 ### v2.1 工具优化（2026年1月）
 

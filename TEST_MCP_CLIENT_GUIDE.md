@@ -1,8 +1,12 @@
 # MCP Client Test - Usage Guide
 
+**Updated:** January 15, 2026 (v2.2)
+
 ## Purpose
 
 `test_mcp_client.py` tests the SQL Safety Checker MCP server via the MCP protocol using FastMCP's Client API.
+
+**Supported Databases:** MySQL, SQLite (v2.2+)
 
 ## Test Configuration
 
@@ -31,11 +35,22 @@ TEST_SAMPLE_LIMIT = 3  # Sample data row limit
    ```
 
 2. Configure environment variables (`.env` file):
+
+   **For MySQL:**
    ```bash
+   DB_TYPE=mysql
    DB_USER=your_db_user
    DB_PASSWORD=your_db_password
    DB_HOST=your_db_host
    DB_NAME=your_db_name
+   ENABLE_SCHEMA_TOOLS=1
+   ```
+
+   **For SQLite:**
+   ```bash
+   DB_TYPE=sqlite
+   SQLITE_DATABASE_PATH=./my_database.db
+   # or :memory: for in-memory database
    ENABLE_SCHEMA_TOOLS=1
    ```
 
@@ -64,7 +79,8 @@ TEST 1: check_connection
 ----------------------------------------------------------------------
 {
   "connected": true,
-  "message": "Database connection successful"
+  "message": "Database connection successful",
+  "db_type": "mysql"
 }
 
 ----------------------------------------------------------------------
@@ -72,6 +88,7 @@ TEST 2: list_tables
 ----------------------------------------------------------------------
 {
   "success": true,
+  "db_type": "mysql",
   "database_name": "mydb",
   "returned_table_count": 2,
   "total_tables": 2,
@@ -83,7 +100,7 @@ TEST 2: list_tables
   "truncated": false,
   "truncation_note": null
 }
-✓ All new fields present: returned_table_count=2, total_tables=2
+✓ All new fields present: returned_table_count=2, total_tables=2, db_type=mysql
 
 ----------------------------------------------------------------------
 TEST 3: query (Primary Tool)
@@ -91,6 +108,7 @@ TEST 3: query (Primary Tool)
 Query 1: SELECT 1 as test
 {
   "success": true,
+  "db_type": "mysql",
   "data": [{"test": 1}],
   "row_count": 1,
   "query": "SELECT 1 as test"
@@ -102,8 +120,8 @@ Query 1: SELECT 1 as test
 
 The script tests the following tools:
 
-1. ✅ `check_connection` - Database connectivity test
-2. ✅ `list_tables` - Database overview with new fields (`returned_table_count`, `total_tables`, `truncated`)
+1. ✅ `check_connection` - Database connectivity test (includes `db_type` field)
+2. ✅ `list_tables` - Database overview with new fields (`returned_table_count`, `total_tables`, `truncated`, `db_type`)
 3. ✅ `query` - SQL execution (Primary Tool):
    - Simple SELECT query
    - COUNT query
@@ -112,6 +130,8 @@ The script tests the following tools:
 5. ✅ `get_full_schema` - Complete database schema in one call
 6. ✅ `get_table_summary` - Table statistics with optional exact count (requires `ENABLE_TABLE_SUMMARY=1`)
 7. ✅ `sample` - Sample data retrieval (requires `ENABLE_SCHEMA_TOOLS=1`)
+
+**Note**: All tool responses include `db_type` field ("mysql" or "sqlite") since v2.2.
 
 **Note**: SQL validation tests are also covered in `test_mcp_functions.py`.
 

@@ -4,6 +4,19 @@ MCP Server for SQL Safety Checker
 
 Provides safe, read-only SQL query execution through MCP protocol.
 Following FastMCP best practices for tool design and context usage.
+
+Supported Databases:
+- MySQL (default): Full INFORMATION_SCHEMA support
+- SQLite: Uses sqlite_master and PRAGMA for metadata
+
+Configuration:
+- Set DB_TYPE environment variable to 'mysql' or 'sqlite'
+- MySQL: Configure DB_USER, DB_PASSWORD, DB_HOST, DB_NAME
+- SQLite: Configure SQLITE_DATABASE_PATH
+
+Backward Compatibility:
+- Default DB_TYPE=mysql maintains existing behavior
+- All existing environment variables continue to work
 """
 
 import os
@@ -14,6 +27,7 @@ from typing import Any, AsyncIterator
 from mcp.types import ToolAnnotations
 from fastmcp import FastMCP, Context
 from sql_safety_checker import is_sql_safe, execute_sql
+from db_adapter import get_adapter, DB_TYPE
 
 logger = logging.getLogger(__name__)
 
@@ -190,7 +204,8 @@ async def lifespan(mcp_server: FastMCP) -> AsyncIterator[dict[str, Any]]:
 mcp = FastMCP(
     name="sql-safety-executor",
     instructions="""Database query assistant with READ-ONLY access.
-Use query() for all data requests. Use get_full_schema() or describe_table() first if structure unknown.""",
+Use query() for all data requests. Use describe_table() or get_full_schema() first if structure unknown.
+For single-table queries, if schema/columns unknown, call describe_table(table_name) before query().""",
     lifespan=lifespan,
 )
 
@@ -493,29 +508,45 @@ async def check_connection(ctx: Context) -> dict[str, Any]:
     Use this to verify database connectivity before running queries.
 
     Returns:
-        Connection status and configuration check
+        Connection status, database type, and configuration check
     """
     await ctx.info("Checking database connection...")
     
-    result = execute_sql("SELECT 1 as test")
+    adapter = get_adapter()
+    success, message = adapter.check_connection()
     
-    if isinstance(result, str) and result.startswith("Error:"):
-        await ctx.error(f"Connection failed: {result}")
-        return {
-            "connected": False,
-            "error": result,
-            "config": {
-                "DB_USER": "set" if os.getenv("DB_USER") else "missing",
-                "DB_PASSWORD": "set" if os.getenv("DB_PASSWORD") else "missing",
-                "DB_HOST": "set" if os.getenv("DB_HOST") else "missing",
-                "DB_NAME": "set" if os.getenv("DB_NAME") else "missing",
+    if not success:
+        await ctx.error(f"Connection failed: {message}")
+        
+        # Return appropriate config hints based on database type
+        if DB_TYPE == "sqlite":
+            return {
+                "connected": False,
+                "error": message,
+                "db_type": "sqlite",
+                "config": {
+                    "SQLITE_DATABASE_PATH": "set" if os.getenv("SQLITE_DATABASE_PATH") else "missing (using :memory:)",
+                }
             }
-        }
+        else:  # mysql
+            return {
+                "connected": False,
+                "error": message,
+                "db_type": "mysql",
+                "config": {
+                    "DB_USER": "set" if os.getenv("DB_USER") else "missing",
+                    "DB_PASSWORD": "set" if os.getenv("DB_PASSWORD") else "missing",
+                    "DB_HOST": "set" if os.getenv("DB_HOST") else "missing",
+                    "DB_NAME": "set" if os.getenv("DB_NAME") else "missing",
+                }
+            }
     
-    await ctx.info("Database connection successful")
+    await ctx.info(f"Database connection successful ({DB_TYPE})")
     return {
         "connected": True,
-        "message": "Database connection successful"
+        "message": message,
+        "db_type": DB_TYPE,
+        "database_name": adapter.get_database_name()
     }
 
 
@@ -531,8 +562,10 @@ async def list_tables(ctx: Context) -> dict[str, Any]:
     """
     Database overview: list all tables with names and approximate row counts.
     
-    Lightweight initial discovery tool. Row counts are estimates from
-    INFORMATION_SCHEMA (InnoDB may vary ±40%).
+    Lightweight initial discovery tool. Row counts are estimates:
+    - MySQL: from INFORMATION_SCHEMA (InnoDB may vary ±40%)
+    - SQLite: from sqlite_stat1 or sampling
+    
     For column details, use describe_table(name).
 
     Returns:
@@ -540,30 +573,26 @@ async def list_tables(ctx: Context) -> dict[str, Any]:
     """
     await ctx.info("Listing database tables")
     
-    # Get database name and tables in one query
-    sql = """
-        SELECT 
-            DATABASE() as database_name,
-            TABLE_NAME as table_name, 
-            TABLE_ROWS as row_count
-        FROM INFORMATION_SCHEMA.TABLES
-        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_TYPE = 'BASE TABLE'
-        ORDER BY TABLE_NAME
-    """
+    adapter = get_adapter()
+    database_name = adapter.get_database_name()
     
-    result = execute_sql(sql)
+    # Use adapter method for cross-database compatibility
+    tables = adapter.get_tables()
     
-    if isinstance(result, str) and result.startswith("Error:"):
-        await ctx.error(f"Failed to list tables: {result}")
-        return {"success": False, "error": result}
-    
-    data = _serialize_result(result)
-    
-    # Extract database name from first row
-    database_name = data[0]["database_name"] if data else None
-    
-    # Remove database_name from each row (only needed once)
-    tables = [{"table_name": t["table_name"], "row_count": t["row_count"]} for t in data]
+    if not tables:
+        await ctx.info(f"No tables found in {database_name}")
+        return {
+            "success": True,
+            "database_name": database_name,
+            "db_type": DB_TYPE,
+            "returned_table_count": 0,
+            "total_tables": 0,
+            "tables": [],
+            "row_count_approximate": True,
+            "truncated": False,
+            "truncation_note": None,
+            "hint": "No tables found in database."
+        }
     
     # Filter by allowlist if configured (P1 Security)
     # Skip filtering if ALLOWED_TABLES=* (explicit allow all)
@@ -589,6 +618,7 @@ async def list_tables(ctx: Context) -> dict[str, Any]:
     return {
         "success": True,
         "database_name": database_name,
+        "db_type": DB_TYPE,
         "returned_table_count": len(tables),
         "total_tables": total_tables,  # Visible tables (after allowlist, before truncation)
         "tables": tables,
@@ -597,7 +627,7 @@ async def list_tables(ctx: Context) -> dict[str, Any]:
         "truncation_note": (
             f"Showing {len(tables)}/{total_tables} tables. Use describe_table(name) for specific tables."
         ) if truncated else None,
-        "hint": "Row counts are estimates (InnoDB ±40%). total_tables = visible after allowlist."
+        "hint": f"Row counts are estimates. total_tables = visible after allowlist. DB type: {DB_TYPE}"
     }
 
 
@@ -613,8 +643,11 @@ async def describe_table(table_name: str, ctx: Context) -> dict[str, Any]:
     """
     Get table structure: columns, row count estimate, and query hints.
     
-    Returns column details plus approximate row count from INFORMATION_SCHEMA
-    (avoids COUNT(*) full table scan). Includes is_large flag and recommendations.
+    Returns column details plus approximate row count:
+    - MySQL: from INFORMATION_SCHEMA (InnoDB ±40% variance)
+    - SQLite: from sqlite_stat1 or sampling
+    
+    Includes is_large flag and recommendations for large tables.
 
     Args:
         table_name: Name of the table to describe
@@ -640,47 +673,18 @@ async def describe_table(table_name: str, ctx: Context) -> dict[str, Any]:
     
     await ctx.info(f"Describing table: {table_name}")
     
-    # Get columns and row count estimate in parallel-safe queries
-    # Using INFORMATION_SCHEMA.TABLES for row count (O(1), no table scan)
-    columns_sql = f"""
-        SELECT 
-            COLUMN_NAME as column_name,
-            DATA_TYPE as data_type,
-            IS_NULLABLE as nullable,
-            COLUMN_KEY as key_type,
-            COLUMN_DEFAULT as default_value
-        FROM INFORMATION_SCHEMA.COLUMNS
-        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '{table_name}'
-        ORDER BY ORDINAL_POSITION
-    """
+    # Use adapter methods for cross-database compatibility
+    adapter = get_adapter()
     
-    row_count_sql = f"""
-        SELECT TABLE_ROWS as row_count
-        FROM INFORMATION_SCHEMA.TABLES
-        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '{table_name}'
-    """
-    
-    columns_result = execute_sql(columns_sql)
-    row_count_result = execute_sql(row_count_sql)
-    
-    if isinstance(columns_result, str) and columns_result.startswith("Error:"):
-        await ctx.error(f"Failed to describe table: {columns_result}")
-        return {"success": False, "error": columns_result}
-    
-    columns_data = _serialize_result(columns_result)
+    columns_data = adapter.get_columns(table_name)
+    row_count = adapter.get_row_estimate(table_name)
     
     if not columns_data:
+        await ctx.error(f"Table not found: {table_name}")
         return {
             "success": False,
             "error": f"Table '{table_name}' not found"
         }
-    
-    # Extract row count (estimate from INFORMATION_SCHEMA)
-    row_count = 0
-    if not isinstance(row_count_result, str):
-        row_count_data = _serialize_result(row_count_result)
-        if row_count_data:
-            row_count = row_count_data[0].get("row_count", 0) or 0
     
     # Determine if table is large (needs LIMIT)
     is_large = row_count > LARGE_TABLE_THRESHOLD
@@ -691,6 +695,7 @@ async def describe_table(table_name: str, ctx: Context) -> dict[str, Any]:
     result = {
         "success": True,
         "table_name": table_name,
+        "db_type": DB_TYPE,
         "row_count": row_count,
         "row_count_approximate": True,
         "column_count": len(columns_data),
@@ -726,25 +731,32 @@ async def get_full_schema(ctx: Context) -> dict[str, Any]:
     
     Best for: exploring unknown databases, multi-table queries, or complex JOINs.
     
+    Works with both MySQL and SQLite databases.
+
     Returns:
         Complete schema with all tables and their column definitions
     """
     await ctx.info("Fetching complete database schema...")
     
-    # Step 1: Get all tables with row counts
-    tables_sql = """
-        SELECT TABLE_NAME as table_name, TABLE_ROWS as row_count
-        FROM INFORMATION_SCHEMA.TABLES
-        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_TYPE = 'BASE TABLE'
-        ORDER BY TABLE_NAME
-    """
-    tables_result = execute_sql(tables_sql)
+    adapter = get_adapter()
     
-    if isinstance(tables_result, str) and tables_result.startswith("Error:"):
-        await ctx.error(f"Failed to get tables: {tables_result}")
-        return {"success": False, "error": tables_result}
+    # Step 1: Get all tables with row counts using adapter
+    tables_data = adapter.get_tables()
     
-    tables_data = _serialize_result(tables_result)
+    if not tables_data:
+        await ctx.info("No tables found in database")
+        return {
+            "success": True,
+            "schema": {},
+            "db_type": DB_TYPE,
+            "returned_table_count": 0,
+            "total_tables": 0,
+            "total_columns": 0,
+            "row_count_approximate": True,
+            "truncated": False,
+            "truncation_note": None,
+            "hint": "No tables found in database."
+        }
     
     # Filter tables by allowlist if configured (P1 Security)
     # Skip filtering if ALLOWED_TABLES=* (explicit allow all)
@@ -752,27 +764,7 @@ async def get_full_schema(ctx: Context) -> dict[str, Any]:
         tables_data = [t for t in tables_data if t["table_name"].lower() in ALLOWED_TABLES]
         await ctx.info(f"Allowlist active: showing {len(tables_data)} allowed tables")
     
-    # Step 2: Get all columns for all tables in one query
-    columns_sql = """
-        SELECT 
-            TABLE_NAME as table_name,
-            COLUMN_NAME as column_name,
-            DATA_TYPE as data_type,
-            IS_NULLABLE as nullable,
-            COLUMN_KEY as key_type
-        FROM INFORMATION_SCHEMA.COLUMNS
-        WHERE TABLE_SCHEMA = DATABASE()
-        ORDER BY TABLE_NAME, ORDINAL_POSITION
-    """
-    columns_result = execute_sql(columns_sql)
-    
-    if isinstance(columns_result, str) and columns_result.startswith("Error:"):
-        await ctx.error(f"Failed to get columns: {columns_result}")
-        return {"success": False, "error": columns_result}
-    
-    columns_data = _serialize_result(columns_result)
-    
-    # Step 3: Apply truncation to prevent token overflow (P0 security/performance)
+    # Step 2: Apply truncation to prevent token overflow (P0 security/performance)
     # Reference: Google Gemini best practices - token limits
     total_tables = len(tables_data)
     truncated = False
@@ -782,24 +774,24 @@ async def get_full_schema(ctx: Context) -> dict[str, Any]:
         truncated = True
         await ctx.warning(f"Schema truncated: showing {MAX_SCHEMA_TABLES}/{total_tables} tables")
     
-    # Step 4: Organize into structured schema
+    # Step 3: Get columns for each table and organize into structured schema
     schema = {}
     for table in tables_data:
         table_name = table["table_name"]
+        columns_data = adapter.get_columns(table_name)
+        
         schema[table_name] = {
             "row_count": table["row_count"],
-            "columns": []
+            "columns": [
+                {
+                    "name": col["column_name"],
+                    "type": col["data_type"],
+                    "nullable": col["nullable"],
+                    "key": col["key_type"]
+                }
+                for col in columns_data
+            ]
         }
-    
-    for col in columns_data:
-        table_name = col["table_name"]
-        if table_name in schema:
-            schema[table_name]["columns"].append({
-                "name": col["column_name"],
-                "type": col["data_type"],
-                "nullable": col["nullable"],
-                "key": col["key_type"]
-            })
     
     total_columns_shown = sum(len(t["columns"]) for t in schema.values())
     await ctx.info(f"Schema loaded: {len(schema)} tables, {total_columns_shown} columns")
@@ -810,6 +802,7 @@ async def get_full_schema(ctx: Context) -> dict[str, Any]:
     return {
         "success": True,
         "schema": schema,
+        "db_type": DB_TYPE,
         "returned_table_count": len(schema),
         "total_tables": total_tables,  # Visible tables (after allowlist, before truncation)
         "total_columns": total_columns_shown,
@@ -818,7 +811,7 @@ async def get_full_schema(ctx: Context) -> dict[str, Any]:
         "truncation_note": (
             f"Showing {len(schema)}/{total_tables} tables. Use describe_table(name) for specific tables."
         ) if truncated else None,
-        "hint": f"Row counts are estimates (InnoDB ±40%). Use LIMIT for large tables (row_count > {LARGE_TABLE_THRESHOLD}). total_tables = visible after allowlist."
+        "hint": f"Row counts are estimates. Use LIMIT for large tables (row_count > {LARGE_TABLE_THRESHOLD}). total_tables = visible after allowlist. DB type: {DB_TYPE}"
     }
 
 
@@ -1019,6 +1012,7 @@ Tools (choose based on need):
 
 Decision rules:
 - Unknown structure? list_tables() for overview, then describe_table() for details
+- For single-table queries, if schema/columns unknown, call describe_table(table_name) before query().
 - Know the table? Query directly with appropriate LIMIT
 - is_large=true in response? Use LIMIT or aggregation
 - {cross_table}

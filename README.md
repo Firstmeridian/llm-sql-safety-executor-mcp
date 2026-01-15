@@ -1,6 +1,6 @@
 # LLM Database Safety Gateway - MCP Service
 
-![Version](https://img.shields.io/badge/version-2.1-blue)
+![Version](https://img.shields.io/badge/version-2.2-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Python](https://img.shields.io/badge/python-3.12+-blue?logo=python)
 ![MCP](https://img.shields.io/badge/MCP-Protocol-orange)
@@ -12,15 +12,16 @@ English | [中文](README_ZH.md)
 > [Best Practices](#best-practices) | 
 > [Changelog](#changelog) | 
 > [Exposed MCP Tools](#exposed-mcp-tools) | 
+> [AutoGen Multi Agent Example](#autogen-multi-agent-example) | 
 > [Other Documentation](#other-documentation)  
-> [Roadmap](#roadmap) · **Upcoming (2026.1):** Support for SQLite and NoSQL  
+> [Roadmap](#roadmap) · **Upcoming (2026.1):** Support for NoSQL  
 
 > aka: SQL Safety Executor MCP for LLM
 
 **A secure database access gateway for AI Agents: Empowering LLM (Agents) with database access capabilities.**  
 Enables Large Language Models (LLMs) to safely execute database queries via standardized MCP interfaces using authenticated SQL.  
 Provides protections such as allowlists, timeouts, and result truncation. Mitigates operational risks while preventing token cost overruns.  
-In addition to MySQL and SQLite, it also supports NoSQL. (in progress)  
+In addition to MySQL and SQLite, it also supports NoSQL. (in progress, NoSQL support is planned for future releases)  
 This project resolves the LLM database accessibility bottleneck. By coordinating with AI Agents, it expands the capability boundaries of LLMs and extends the application scope of large models in real-world business scenarios.
 
 ## Problem Statement
@@ -105,6 +106,7 @@ Large Table Scenario: Observe is_large=true → Use LIMIT or Aggregation
 |------|----------------|
 | `mcp_sql_server.py` | MCP tool definition, security validation, result processing |
 | `sql_safety_checker.py` | SQL statement parsing and security checking |
+| `db_adapter.py` | Database adapter abstraction (MySQL/SQLite support) |
 | `start_server.py` | Service startup, environment verification |
 
 ## Design Principles
@@ -159,6 +161,8 @@ Therefore, we can envision a scheme where users or developers can write a large 
 > [2]: ["This filesystem-based architecture enables progressive disclosure: Claude loads information in stages as needed, rather than consuming context upfront."](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview#how-skills-work)
 
 **Support for Multiple Database Types (SQLite, NoSQL, etc.)**  
+- **SQLite support added in v2.2** (January 2026)
+- NoSQL support planned for future releases
 
 **Manually Defined Methods for Database Write Processes**  
 
@@ -179,10 +183,12 @@ In the practice of writing this project, a large amount of AI-assisted developme
 **Therefore, do not directly connect to a production environment or pair with an Agent without testing. This may lead to unexpected consequences!**
 Rashly connecting an untested Agent may lead to **instability, infinite loops, Token explosion, massive queries**, or other unverified negative effects.
 In recent updates, multiple efficiency optimizations have been carried out for this project, mainly focusing on reducing unnecessary tool call counts and increasing speed. Certain tests have been performed. However, due to the randomness of LLMs (Agents), unnecessary tool calls may still occur in actual use, although the probability is small.
-**Currently only supports MySQL** (but plan to provide support for more databases such as SQLite and NoSQL in the future).
 
 ### Known Issues and Limitations
-- **Row count fields may be imprecise**: `list_tables()` / `describe_table()` / `get_full_schema()` return `row_count` from `INFORMATION_SCHEMA.TABLES.TABLE_ROWS` by default, which is a statistical estimate (especially for InnoDB, which may have significant deviation or lag). It is only recommended for "order of magnitude judgment/whether to add LIMIT/whether it is a large table" strategies and should not be used as an precise count.
+- **Row count fields may be imprecise**: `list_tables()` / `describe_table()` / `get_full_schema()` return `row_count` as estimates:
+  - **MySQL**: from `INFORMATION_SCHEMA.TABLES.TABLE_ROWS` (InnoDB may have significant deviation or lag)
+  - **SQLite**: from `sqlite_stat1` (if ANALYZE has been run) or sampling strategy
+  - Only recommended for "order of magnitude judgment/whether to add LIMIT/whether it is a large table" strategies.
   - If an exact count is needed, please use `SELECT COUNT(*) ...`, or enable `ENABLE_TABLE_SUMMARY=1` and use `get_table_summary(exact_count=True)` (note that large tables may be slow).
 
 - **Result truncation to avoid Token explosion**: `query()`, `list_tables()`, `get_full_schema()` will truncate output based on `MAX_RESULT_ROWS` / `MAX_RESULT_CHARS` / `MAX_OVERVIEW_TABLES` / `MAX_SCHEMA_TABLES`; therefore, "returned data/tables/columns" may not be the full set. When the full set is needed, please explicitly use smaller scope queries (add `LIMIT`, pagination by condition), or adjust relevant environment variables (at your own risk).
@@ -190,7 +196,7 @@ In recent updates, multiple efficiency optimizations have been carried out for t
 - **Some "Total" fields have "Visible Range" semantics**: For example, `total_tables` in tool output represents "the number of visible tables after allowlist parameter filtering (and considering truncation)", which is not necessarily equal to the actual total number of tables in the database; please avoid misinterpreting it as "whole database statistics".
 
 ### Best Practices
-- **Recommend trying with VS Code's GitHub Copilot first.** GitHub Copilot in VS Code is a mature AI Agent tool. You can choose a free model (e.g., GPT-4o mini) to use in a test database, which offers higher security and avoids extra AI request costs.
+- **Recommend trying with VS Code's GitHub Copilot first.** GitHub Copilot in VS Code is a mature AI Agent tool. You can choose a free model (e.g., GPT-5 mini) to use in a test database, which offers higher security and avoids extra AI request costs.
 - **Another benefit of using GitHub Copilot is:** It allows empowering Copilot, this auxiliary coding AI, with the ability to enter the database, making it understand the structure and data distribution of the target database. This provides better development assistance and suggestions when writing programs.
 - **(Taking GitHub Copilot as an example) When using it, you can add a reminder in the prompt like "To ensure the data and reasoning are accurate and sufficient, you need to query step by step, multiple times."** This guides the AI to perform multiple steps of refinement, similar to a ReAct pattern query, for better results. This is especially useful when solving complex problems.
 - **(Taking GitHub Copilot as an example) Explicitly attach the "#sql-safety-executor-mcp" tool when using it, which reminds the AI to prioritize using this tool.** 
@@ -246,7 +252,7 @@ Copy the following content into `mcp.json` (if `mcp.json` already exists, append
 2. Open VS Code Command Palette (`Ctrl+Shift+P` / `Cmd+Shift+P`).
 3. Type and select `MCP: Add Server`. 
 
-    ![MCP: Add Server](readme_pic/MCP:AddServer.png)
+    ![MCP: Add Server](readme_pic/MCP:AddServer_en.png)
 4. Add the above content step by step following the guide (please modify according to actual path).
 
 Basically, both methods achieve the same goal; they generate the `mcp.json` file in the same location. In any case, you just need to ensure `.vscode/mcp.json` has the above configuration.
@@ -258,9 +264,12 @@ Basically, both methods achieve the same goal; they generate the `mcp.json` file
 4.  You should be able to see `sql-safety-executor` and its provided tools (e.g., `query`, `list_tables`). Ensure they are all checked. 
 
     ![Add tools](readme_pic/Addtools.png)
-5.  Send a question directly in the conversation: "List all tables" or "Query the first 5 rows of the users table". Then you can see the MCP tool being called. 
+5.  Send a question directly in the conversation: "List all tables" or "Query the first 5 rows of the users table".
 
     ![ask](readme_pic/ask.png)
+6.  Then you can see the MCP tool being called.  
+
+    ![answer](readme_pic/answer_en.png)
 
 Note: Although tool usage has been optimized, it is still recommended to use free models (e.g., GPT-5 mini) in GitHub Copilot Chat to avoid extra request consumption.
 
@@ -321,12 +330,34 @@ Add the server to your MCP-compatible client configuration (e.g., VS Code, Claud
 
 ## Configuration (Located in .env file. Copy .env.example to .env to configure)
 
-### Required Environment Variables
+### Database Type Selection
+```bash
+# Database Type: 'mysql' (default) or 'sqlite'
+DB_TYPE=mysql
+```
+
+### MySQL Configuration (used when DB_TYPE=mysql)
 ```bash
 DB_USER=your_database_user
 DB_PASSWORD=your_database_password
 DB_HOST=your_database_host
 DB_NAME=your_database_name
+```
+
+### SQLite Configuration (used when DB_TYPE=sqlite)
+```bash
+# Path to SQLite database file, or ':memory:' for in-memory database
+SQLITE_DATABASE_PATH=./sample_data/demo.db
+# SQLITE_DATABASE_PATH=:memory:
+```
+
+> **Note 1:** `./sample_data/demo.db` is a sample database provided for testing purposes.  
+> **Note 2:** `SQLITE_DATABASE_PATH:memory:` creates a temporary in-memory database (which is empty upon initialization). Data is lost when the server restarts. Suitable for testing and other specialized use cases.
+
+```bash
+# Optional: Query timeout progress handler interval (default: 100)
+# Lower value = more responsive timeout, higher CPU overhead
+# SQLITE_PROGRESS_HANDLER_INTERVAL=100
 ```
 
 ### Optional Environment Variables
@@ -368,6 +399,30 @@ MAX_OVERVIEW_TABLES=100  # Max tables returned by list_tables (0=unlimited)
 For a complete client configuration example, please refer to `mcp_config.json`.
 
 ## Changelog
+
+### v2.2 SQLite Support (January 2026)
+
+Added support for SQLite databases while maintaining full backward compatibility with MySQL:
+
+- **New Database Adapter Architecture**: Introduced `db_adapter.py` with Abstract Base Class pattern
+  - `DatabaseAdapter` ABC defines unified interface for all database backends
+  - `MySQLAdapter`: Preserves all existing MySQL functionality
+  - `SQLiteAdapter`: New SQLite support with native timeout mechanism
+  - `create_adapter()` factory function for automatic adapter selection
+- **SQLite-Specific Features**:
+  - Query timeout via `set_progress_handler()` (native SQLite callback)
+  - `StaticPool` connection pooling (single connection, avoids file lock issues)
+  - `sqlite_master` and `PRAGMA table_info()` for metadata queries
+  - Row count estimation using `sqlite_stat1` or sampling strategy
+- **New Environment Variables**:
+  - `DB_TYPE=mysql|sqlite` - Database type selection (default: mysql)
+  - `SQLITE_DATABASE_PATH` - Path to SQLite file or `:memory:`
+  - `SQLITE_PROGRESS_HANDLER_INTERVAL` - Timeout check frequency
+- **Backward Compatibility**: All existing MySQL configurations continue to work unchanged
+- **New `db_type` Field**: Tool responses now include `db_type` field indicating active database
+- **Comprehensive Test Suite**: 53 tests covering both MySQL and SQLite adapters
+
+For detailed design decisions, compromises, and implementation details, see [SQLITE_ADAPTER_DESIGN.md](SQLITE_ADAPTER_DESIGN.md). For change log details, see [REFACTORING_LOG.md](REFACTORING_LOG.md).
 
 ### v2.1 Tool Optimization (January 2026)
 
