@@ -4,7 +4,37 @@
       "type": "stdio",
       "command": "python",
       "args": ["start_server.py"],
-      "cwd": "/path/to/llm-sql-safety-executor-mcp"
+      "cwd": "/path/to/llm-sql-safety-executor-mcp",
+      "env": {
+        "DB_TYPE": "mysql",
+        "ENABLED_DATASOURCES": "mysql",
+        "_comment": "For NoSQL support, add: mongodb,redis to ENABLED_DATASOURCES"
+      }
+    },
+    "_examples": {
+      "_mysql_only": {
+        "env": {
+          "DB_TYPE": "mysql",
+          "ENABLED_DATASOURCES": "mysql"
+        }
+      },
+      "_mysql_mongodb_redis": {
+        "env": {
+          "DB_TYPE": "mysql",
+          "ENABLED_DATASOURCES": "mysql,mongodb,redis",
+          "MONGODB_URI": "mongodb://localhost:27017",
+          "REDIS_HOST": "localhost",
+          "REDIS_PORT": "6379"
+        }
+      },
+      "_sqlite_mongodb": {
+        "env": {
+          "DB_TYPE": "sqlite",
+          "SQLITE_DATABASE_PATH": "/path/to/database.db",
+          "ENABLED_DATASOURCES": "sqlite,mongodb",
+          "MONGODB_URI": "mongodb://localhost:27017"
+        }
+      }
     }
   }
 }

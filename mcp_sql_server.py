@@ -195,7 +195,52 @@ async def lifespan(mcp_server: FastMCP) -> AsyncIterator[dict[str, Any]]:
     # Future: Initialize database connection pool here
     yield {"initialized": True}
     logger.info("SQL Safety Checker MCP Server shutting down...")
-    # Future: Cleanup database connections here
+    # Cleanup NoSQL adapters
+    try:
+        from adapter_manager import reset_adapter_manager
+        reset_adapter_manager()
+    except ImportError:
+        pass
+
+
+# =============================================================================
+# Build Dynamic Server Instructions
+# =============================================================================
+
+def _build_server_instructions() -> str:
+    """
+    Build dynamic server instructions based on enabled datasources.
+    
+    Instructions describe capabilities (not workflow) to let LLM decide.
+    Reference: Google/Anthropic best practices - model-driven tool selection.
+    """
+    instructions = ["Database query assistant with READ-ONLY access."]
+    
+    # SQL instructions (always present for backward compatibility)
+    instructions.append(
+        "Use query() for SQL data requests. "
+        "Use describe_table() or get_full_schema() first if structure unknown."
+    )
+    
+    # Check for NoSQL datasources
+    try:
+        from adapter_manager import is_datasource_enabled
+        
+        if is_datasource_enabled("mongodb"):
+            instructions.append(
+                "MongoDB: Use mongo_find() for queries, mongo_list_collections() for discovery, "
+                "mongo_get_schema() for field types."
+            )
+        
+        if is_datasource_enabled("redis"):
+            instructions.append(
+                "Redis: Use redis_scan() to find keys, redis_type() to check type, "
+                "then appropriate get command (redis_get, redis_hgetall, etc.)."
+            )
+    except ImportError:
+        pass
+    
+    return " ".join(instructions)
 
 
 # Create MCP server with lifespan
@@ -203,11 +248,21 @@ async def lifespan(mcp_server: FastMCP) -> AsyncIterator[dict[str, Any]]:
 # not prescribe workflow (let LLM decide based on task context)
 mcp = FastMCP(
     name="sql-safety-executor",
-    instructions="""Database query assistant with READ-ONLY access.
-Use query() for all data requests. Use describe_table() or get_full_schema() first if structure unknown.
-For single-table queries, if schema/columns unknown, call describe_table(table_name) before query().""",
+    instructions=_build_server_instructions(),
     lifespan=lifespan,
 )
+
+# =============================================================================
+# Register NoSQL Tools (Dynamic based on ENABLED_DATASOURCES)
+# =============================================================================
+
+try:
+    from nosql_tools import register_nosql_tools
+    register_nosql_tools(mcp)
+except ImportError as e:
+    logger.debug(f"NoSQL tools not available: {e}")
+except Exception as e:
+    logger.warning(f"Failed to register NoSQL tools: {e}")
 
 
 # =============================================================================

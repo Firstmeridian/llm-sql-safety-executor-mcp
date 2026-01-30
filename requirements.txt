@@ -4,6 +4,12 @@ SQLAlchemy
 PyMySQL
 fastmcp
 
+# NoSQL database drivers (optional, install as needed)
+# MongoDB: pip install pymongo
+# Redis: pip install redis
+pymongo>=4.6.0
+redis>=5.0.0
+
 # AutoGen dependencies for SQL Agent
 autogen-agentchat
 autogen-ext[openai]

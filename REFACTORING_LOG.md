@@ -1,11 +1,152 @@
 # MCP SQL Server Refactoring Log
 
-**Date:** December 2, 2025 (Updated: January 15, 2026)  
+**Date:** December 2, 2025 (Updated: January 30, 2026)  
 **Author:** Code Refactoring Session  
 
 ## Overview
 
 This document records the major refactoring changes made to `mcp_sql_server.py` to follow FastMCP best practices and improve the overall design.
+
+---
+
+## Latest Update v2.3 (January 30, 2026) - NoSQL Support (MongoDB & Redis)
+
+### Overview
+
+Added support for NoSQL databases (MongoDB and Redis) with read-only access. This extends the MCP server's capabilities beyond SQL databases while maintaining the same security-first philosophy.
+
+### Architecture
+
+NoSQL adapters are **completely separate** from SQL adapters (no shared inheritance), following the Rule of Three principle - we'll consider abstraction when adding a third database type.
+
+#### Why Separate Hierarchies (No Shared Inheritance)
+
+SQL and NoSQL have fundamentally different concepts:
+
+| SQL Concept | MongoDB | Redis |
+|-------------|---------|-------|
+| Table | Collection | ❌ N/A |
+| Row | Document | ❌ N/A |
+| SQL Query | BSON Query | Commands (GET, HGETALL...) |
+| Schema | Schema-less | Data types |
+
+Forcing NoSQL to inherit `DatabaseAdapter` would violate:
+- **Liskov Substitution Principle**: MongoDB can't execute SQL
+- **Interface Segregation Principle**: Redis doesn't have "tables" or "columns"
+
+#### Complete System Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         COMPLETE ADAPTER ARCHITECTURE                       │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  SQL Adapters                        NoSQL Adapters                         │
+│  ────────────                        ──────────────                         │
+│                                                                             │
+│  DatabaseAdapter (ABC)               DocumentStoreAdapter (ABC)             │
+│       │                                   │                                 │
+│       ├── MySQLAdapter                   MongoDBAdapter                     │
+│       │                                                                     │
+│       └── SQLiteAdapter              KeyValueStoreAdapter (ABC)             │
+│                                           │                                 │
+│                                          RedisAdapter                       │
+│                                                                             │
+│                                      SearchEngineAdapter (ABC)              │
+│                                           │                                 │
+│                                          (future: Elasticsearch)            │
+│                                                                             │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  ┌─────────────────────────────────────────────────────────────────────┐    │
+│  │                        AdapterManager                               │    │
+│  │  - Thread-safe adapter creation (double-checked locking)            │    │
+│  │  - Lazy initialization with singleton pattern                       │    │
+│  │  - Manages: SQL + MongoDB + Redis adapters                          │    │
+│  └─────────────────────────────────────────────────────────────────────┘    │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+#### Rule of Three: Future Evolution
+
+```
+CURRENT (2 SQL adapters):                 FUTURE (3+ SQL adapters):
+                                          
+┌─────────────────┐                       ┌─────────────────┐
+│ DatabaseAdapter │                       │ DatabaseAdapter │
+└────────┬────────┘                       └────────┬────────┘
+         │                                         │
+    ┌────┴────┐                       ┌────────────┴───────────────┐
+    │         │                       │                            │
+  MySQL    SQLite                 SQLAdapter                  NoSQLAdapter
+                                      │                            │
+                              ┌───────┼───────┐                ┌───┴───┐
+                              │       │       │                │       │
+                            MySQL SQLite PostgreSQL ...     MongoDB Redis ...
+```
+
+### New Files
+
+| File | Lines | Description |
+|------|-------|-------------|
+| `nosql_adapter.py` | ~522 | ABC base classes for NoSQL adapters, configuration |
+| `mongodb_adapter.py` | ~521 | MongoDB adapter with PyMongo |
+| `redis_adapter.py` | ~488 | Redis adapter with redis-py |
+| `nosql_safety_checker.py` | ~428 | Security validation for NoSQL operations |
+| `adapter_manager.py` | ~306 | Thread-safe multi-datasource adapter management |
+| `nosql_tools.py` | ~855 | MCP tool definitions (6 MongoDB + 12 Redis tools) |
+| `test_nosql_adapters.py` | ~450 | Unit and integration tests (52 tests) |
+| `NOSQL_ADAPTER_DESIGN.md` | ~320 | Architecture and design documentation |
+
+### Modified Files
+
+| File | Changes |
+|------|---------|
+| `mcp_sql_server.py` | Added dynamic NoSQL tool registration |
+| `.env.example` | Added NoSQL configuration variables |
+| `requirements.txt` | Added `pymongo>=4.6.0`, `redis>=5.0.0` |
+| `README.md` | v2.3 changelog, NoSQL tools documentation, security features |
+| `README_ZH.md` | v2.3 changelog, updated status |
+
+### Security Features
+
+1. **Defense in Depth** - Multiple validation layers:
+   - Input validation (identifier/key validation in nosql_tools.py)
+   - Query/command validation (nosql_safety_checker.py)
+   - Adapter-level security (timeout, result limits)
+
+2. **MongoDB Security:**
+   - Blocks dangerous aggregation stages: `$out`, `$merge`
+   - Blocks server-side JavaScript: `$where`, `$function`, `$accumulator`
+   - Input validation for database/collection names
+
+3. **Redis Security:**
+   - Strict command allowlist (READ-ONLY only)
+   - Blocks: SET, DEL, FLUSHALL, CONFIG, EVAL, SCRIPT
+   - Key validation for all key-accepting operations
+
+4. **Thread Safety:**
+   - Double-checked locking pattern in AdapterManager
+   - Separate locks for each adapter type
+
+### Configuration
+
+```bash
+# Enable NoSQL datasources
+ENABLED_DATASOURCES=mysql,mongodb,redis
+
+# MongoDB
+MONGODB_URI=mongodb://localhost:27017
+MONGODB_TIMEOUT_MS=5000
+
+# Redis
+REDIS_HOST=localhost
+REDIS_PORT=6379
+REDIS_DB=0
+```
+
+> **Detailed Design Documentation:** See [NOSQL_ADAPTER_DESIGN.md](NOSQL_ADAPTER_DESIGN.md) for architecture decisions, security model, and implementation details.
 
 ---
 
@@ -32,7 +173,7 @@ git fetch origin --prune
 
 ---
 
-## Latest Update v2.2 (January 15, 2026) - SQLite Database Support
+## Update v2.2 (January 15, 2026) - SQLite Database Support
 
 ### Overview
 
@@ -50,28 +191,28 @@ Introduced `db_adapter.py` implementing the Abstract Base Class (ABC) pattern:
 │                          ┌─────────────────────┐                            │
 │                          │  DatabaseAdapter    │ (ABC)                      │
 │                          │  ─────────────────  │                            │
-│                          │  + connect()        │                            │
-│                          │  + execute()        │                            │
-│                          │  + get_tables()     │                            │
-│                          │  + get_columns()    │                            │
-│                          │  + get_row_estimate()│                           │
-│                          │  + check_connection()│                           │
-│                          │  + get_database_name()│                          │
-│                          │  + close()          │                            │
-│                          │  + db_type (property)│                           │
+│                          │+ connect()          │                            │
+│                          │+ execute()          │                            │
+│                          │+ get_tables()       │                            │
+│                          │+ get_columns()      │                            │
+│                          │+ get_row_estimate() │                            │
+│                          │+ check_connection() │                            │
+│                          │+ get_database_name()│                            │
+│                          │+ close()            │                            │
+│                          │+ db_type (property) │                            │
 │                          └─────────┬───────────┘                            │
 │                                    │                                        │
 │                    ┌───────────────┴───────────────┐                        │
 │                    │                               │                        │
-│           ┌────────▼────────┐             ┌───────▼────────┐                │
-│           │   MySQLAdapter  │             │  SQLiteAdapter │                │
-│           │  ─────────────  │             │  ────────────  │                │
-│           │  - SQLAlchemy   │             │  - SQLAlchemy  │                │
-│           │  - PyMySQL      │             │  - sqlite3     │                │
-│           │  - QueuePool    │             │  - StaticPool  │                │
-│           │  - MAX_EXEC_TIME│             │  - progress_   │                │
-│           │                 │             │    handler     │                │
-│           └─────────────────┘             └────────────────┘                │
+│           ┌────────▼────────┐              ┌───────▼────────┐               │
+│           │   MySQLAdapter  │              │  SQLiteAdapter │               │
+│           │  ─────────────  │              │  ────────────  │               │
+│           │  - SQLAlchemy   │              │  - SQLAlchemy  │               │
+│           │  - PyMySQL      │              │  - sqlite3     │               │
+│           │  - QueuePool    │              │  - StaticPool  │               │
+│           │  - MAX_EXEC_TIME│              │  - progress_   │               │
+│           │                 │              │    handler     │               │
+│           └─────────────────┘              └────────────────┘               │
 │                                                                             │
 │                          ┌─────────────────────┐                            │
 │                          │  create_adapter()   │ (Factory)                  │

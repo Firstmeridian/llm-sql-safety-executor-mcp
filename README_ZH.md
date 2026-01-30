@@ -1,8 +1,10 @@
 # 面向 AI Agent 的数据库安全访问入口 - MCP 服务
 
-![Version](https://img.shields.io/badge/version-2.2-blue)
+![Version](https://img.shields.io/badge/version-2.3-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Python](https://img.shields.io/badge/python-3.12+-blue?logo=python)
+![MongoDB](https://img.shields.io/badge/MongoDB-8.0+-green?logo=mongodb)
+![Redis](https://img.shields.io/badge/Redis-7.0+-red?logo=redis)
 ![MCP](https://img.shields.io/badge/MCP-Protocol-orange)
 ![AutoGen](https://img.shields.io/badge/Framework-AutoGen-blueviolet?logo=microsoft)
 
@@ -14,12 +16,12 @@
 > [公开的 MCP 工具](#公开的-mcp-工具) | 
 > [使用此 MCP 服务的 AutoGen 多智能体示例](#autogen-多-agent-示例) | 
 > [本项目的其它文档](#本项目的其它文档)  
-> [项目路线图](#项目路线图) · **下一步计划（2026.1）:** 增加对NoSQL的支持  
+> [项目路线图](#项目路线图) · **v2.3 新功能:** MongoDB 和 Redis NoSQL 支持  
 
 **面向 AI Agent 的数据库安全访问入口：赋予LLM(Agents)进入数据库的能力。**  
 使大模型 (LLM) 通过标准化的 MCP 接口，以经过认证的 SQL 安全获取数据库查询。
 并提供白名单、超时与结果截断等防护。降低误操作风险同时避免 Token 成本失控。  
-除 MySQL、SQLite 外，还提供对 NoSQL 的支持。(in progress，NoSQL 支持计划在未来版本中提供)    
+除 MySQL、SQLite 外，还支持 **NoSQL 数据库（MongoDB 和 Redis）**，仅限只读访问。    
 本项目解决了 LLM “进入数据库”的需求。并可通过与 AI Agent 的配合，扩展 LLM 的能力边界，延伸大模型在实际业务中的应用范围。
 
 ## 问题陈述
@@ -53,18 +55,26 @@
                           │ MCP Protocol (stdio)
                           ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                   sql-safety-executor (MCP Server)              │
+│              sql-safety-executor (MCP Server)                   │
 │  ┌────────────────────────────────────────────────────────────┐ │
-│  │ 工具层:   query | list_tables | describe_table | ...       │ │
+│  │ SQL 工具:   query | list_tables | describe_table | ...     │ │
+│  │ NoSQL 工具: mongo_find | redis_get | redis_scan | ...      │ │
 │  ├────────────────────────────────────────────────────────────┤ │
-│  │ 安全层:     SQL 验证 | 表白名单 | 结果截断 | 查询超时         │ │
+│  │ 安全层: sql_safety_checker | nosql_safety_checker (独立)    │ │
 │  └────────────────────────────────────────────────────────────┘ │
-└─────────────────────────┬───────────────────────────────────────┘
-                          │ SQLAlchemy (连接池)
-                          ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                           Database                              │
-└─────────────────────────────────────────────────────────────────┘
+│  ┌────────────────────────────────────────────────────────────┐ │
+│  │           AdapterManager (线程安全)                         │ │
+│  │  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐        │ │
+│  │  │ MySQLAdapter │ │MongoDBAdapter│ │ RedisAdapter │        │ │
+│  │  │ SQLiteAdapter│ │  (PyMongo)   │ │ (redis-py)   │        │ │
+│  │  └──────┬───────┘ └──────┬───────┘ └──────┬───────┘        │ │
+│  └─────────┼────────────────┼────────────────┼────────────────┘ │
+└────────────┼────────────────┼────────────────┼──────────────────┘
+             │                │                │
+             ▼                ▼                ▼
+┌────────────────┐ ┌─────────────────┐ ┌─────────────────┐
+│  MySQL/SQLite  │ │    MongoDB      │ │     Redis       │
+└────────────────┘ └─────────────────┘ └─────────────────┘
 ```
 
 ### 核心设计
@@ -102,9 +112,15 @@
 
 | 文件 | 职责 |
 |------|------|
-| `mcp_sql_server.py` | MCP 工具定义、安全验证、结果处理 |
+| `mcp_sql_server.py` | SQL MCP 工具定义、安全验证、结果处理 |
 | `sql_safety_checker.py` | SQL 语句解析和安全检查 |
-| `db_adapter.py` | 数据库适配器抽象层（MySQL/SQLite 支持） |
+| `db_adapter.py` | SQL 数据库适配器抽象层（MySQL/SQLite 支持） |
+| `nosql_tools.py` | NoSQL MCP 工具定义（MongoDB + Redis） |
+| `nosql_adapter.py` | NoSQL 适配器基类和配置 |
+| `mongodb_adapter.py` | MongoDB 适配器（find、aggregate、count、schema 推断） |
+| `redis_adapter.py` | Redis 适配器（get、scan、hash/list/set/zset 操作） |
+| `nosql_safety_checker.py` | NoSQL 操作验证和命令过滤 |
+| `adapter_manager.py` | 线程安全的多数据源适配器管理 |
 | `start_server.py` | 服务启动、环境验证 |
 
 ## 设计理念
@@ -157,7 +173,7 @@ LLM(Agents)不能凭空生成SQL，需要有一定的上下文基础。这里的
 
 **多种类数据库支持（SQLite、NoSQL等）**  
 - **SQLite 支持已在 v2.2 版本中添加**（2026年1月）
-- NoSQL 支持计划在未来版本中提供
+- **NoSQL 支持：MongoDB 和 Redis 支持已在 v2.3 版本中添加**（2026年1月）
 
 **人工定义的对数据库写入过程方法**  
 
@@ -322,7 +338,8 @@ python autogen_sql_agent.py "列出所有表并描述它们的结构"
 - 服务器从工作目录中的 `.env` 文件加载凭据。
 - 对于虚拟环境，使用 Python 解释器的完整路径。
 
-## 配置（位于.env文件中。需要先拷贝.env.example，重命名为.env以进行配置）
+## 配置
+位于.env文件中。需要先拷贝.env.example，重命名为.env以进行配置
 
 ### 数据库类型选择
 ```bash
@@ -393,6 +410,35 @@ MAX_OVERVIEW_TABLES=100  # list_tables 返回的最大表数（0=不限制）
 有关完整的客户端配置示例，请参阅 `mcp_config.json`。
 
 ## 更新日志
+
+### v2.3 NoSQL 支持（2026年1月）
+
+新增 MongoDB 和 Redis NoSQL 数据库支持，仅限只读访问：
+
+- **新增 NoSQL 适配器架构**：与 SQL 适配器完全分离的独立层次结构
+  - `DocumentStoreAdapter` ABC 用于文档存储（MongoDB）
+  - `KeyValueStoreAdapter` ABC 用于键值存储（Redis）
+  - `AdapterManager` 用于线程安全的多数据源管理
+- **MongoDB 支持**（6 个工具）：
+  - `mongo_find`：使用 BSON 过滤器和投影查询文档
+  - `mongo_aggregate`：运行聚合管道（阻止 `$out`、`$merge`）
+  - `mongo_count`、`mongo_list_databases`、`mongo_list_collections`、`mongo_get_schema`
+- **Redis 支持**（12 个工具）：
+  - 字符串：`redis_get`、`redis_mget`
+  - Hash/List/Set/ZSet：`redis_hgetall`、`redis_lrange`、`redis_smembers`、`redis_zrange`
+  - 发现：`redis_scan`、`redis_type`、`redis_exists`、`redis_ttl`、`redis_dbsize`、`redis_info`
+- **安全特性**：
+  - MongoDB：阻止危险的聚合阶段（`$out`、`$merge`、`$where`、`$function`）
+  - Redis：严格的命令白名单（仅限只读），阻止所有写入/管理命令
+  - 输入验证：数据库/集合名称验证，Redis 键验证
+- **线程安全**：适配器创建使用双重检查锁定模式
+- **新增环境变量**：
+  - `ENABLED_DATASOURCES=mysql,mongodb,redis` - 启用特定数据源
+  - `MONGODB_URI`、`MONGODB_TIMEOUT_MS` - MongoDB 连接配置
+  - `REDIS_HOST`、`REDIS_PORT`、`REDIS_DB` - Redis 连接配置
+- **完整测试套件**：52 个 NoSQL 测试 + 语法验证
+
+详细架构和设计决策请参阅 [NOSQL_ADAPTER_DESIGN.md](NOSQL_ADAPTER_DESIGN.md)。变更日志详情请参阅 [REFACTORING_LOG.md](REFACTORING_LOG.md)。
 
 ### v2.2 SQLite 支持（2026年1月）
 
@@ -477,7 +523,7 @@ MAX_OVERVIEW_TABLES=100  # list_tables 返回的最大表数（0=不限制）
 
 ## 公开的 MCP 工具
 
-该服务公开 5-7 个标准化的 MCP 工具（取决于配置）：
+该服务公开 5-7 个标准化的 MCP 工具（取决于配置），以及6个 MongoDB 工具和12个 Redis 工具（可选择启用）：
 
 ### 1. `query`（主要工具）
 用途：执行带有自动安全验证的只读 SQL 查询
@@ -651,11 +697,131 @@ MAX_OVERVIEW_TABLES=100  # list_tables 返回的最大表数（0=不限制）
 ```
 
 
+## NoSQL 工具 (v2.3+)
+
+NoSQL 工具通过 `ENABLED_DATASOURCES` 环境变量启用。
+
+### NoSQL 与 SQL 的关键区别
+
+| 方面 | SQL (MySQL/SQLite) | MongoDB | Redis |
+|--------|-------------------|---------|-------|
+| 数据模型 | 行/列结构的表 | 文档集合（类 JSON） | 键值对（多种数据类型） |
+| 查询语言 | SQL 语句 | BSON 过滤器/聚合管道 | 命令（GET、HGETALL 等） |
+| Schema | 固定模式 | 无模式（灵活） | 每个键有数据类型 |
+| 使用场景 | 结构化关系数据 | 半结构化文档 | 缓存、会话、实时数据 |
+
+### NoSQL 操作实现方式
+
+**MongoDB 操作：**
+- `mongo_find`：执行 `collection.find()`，使用 BSON 过滤器（如 `{"status": "active"}`）
+- `mongo_aggregate`：运行聚合管道，支持 `$match`、`$group`、`$project` 等阶段
+- `mongo_get_schema`：采样 N 个文档并推断字段类型以生成 schema
+
+**Redis 操作：**
+- 使用原生 Redis 命令映射到 MCP 工具
+- 每种数据类型有专用工具：`redis_hgetall`（Hash）、`redis_lrange`（List）、`redis_smembers`（Set）、`redis_zrange`（Sorted Set）
+- `redis_scan` 提供非阻塞键迭代（比 `KEYS` 命令更适合生产环境）
+
+### MongoDB 工具
+
+启用方式：`ENABLED_DATASOURCES=mysql,mongodb`
+
+| 工具 | 描述 |
+|------|------|
+| `mongo_find` | 使用过滤器和投影查询文档 |
+| `mongo_aggregate` | 运行聚合管道（阻止 $out, $merge） |
+| `mongo_count` | 计算匹配过滤器的文档数量 |
+| `mongo_list_databases` | 列出所有数据库 |
+| `mongo_list_collections` | 列出数据库中的集合 |
+| `mongo_get_schema` | 从样本推断集合 schema |
+
+示例：
+```json
+// mongo_find
+{
+  "database": "mydb",
+  "collection": "users",
+  "filter": {"status": "active"},
+  "projection": {"name": 1, "email": 1},
+  "limit": 10
+}
+```
+
+### Redis 工具
+
+启用方式：`ENABLED_DATASOURCES=mysql,redis`
+
+| 工具 | 描述 |
+|------|------|
+| `redis_get` | 根据键获取字符串值 |
+| `redis_mget` | 获取多个字符串值 |
+| `redis_hgetall` | 获取哈希表的所有字段 |
+| `redis_lrange` | 根据范围获取列表元素 |
+| `redis_smembers` | 获取集合的所有成员 |
+| `redis_zrange` | 根据索引获取有序集合元素 |
+| `redis_scan` | 按模式扫描键（非阻塞） |
+| `redis_type` | 获取键的数据类型 |
+| `redis_exists` | 检查键是否存在 |
+| `redis_ttl` | 获取键的生存时间 |
+| `redis_dbsize` | 获取键总数 |
+| `redis_info` | 获取服务器信息 |
+
+示例：
+```json
+// redis_scan
+{
+  "pattern": "user:*",
+  "count": 100
+}
+```
+
+### NoSQL 配置
+
+```bash
+# 启用 MongoDB 和 Redis
+export ENABLED_DATASOURCES="mysql,mongodb,redis"
+
+# MongoDB 连接
+export MONGODB_URI="mongodb://localhost:27017"
+export MONGODB_TIMEOUT_MS=5000
+
+# Redis 连接
+export REDIS_HOST="localhost"
+export REDIS_PORT=6379
+export REDIS_DB=0
+```
+
+### NoSQL 安全特性
+
+**MongoDB 安全性：**
+- 仅支持只读操作（find、aggregate、count）
+- 阻止危险的聚合阶段：`$out`、`$merge`
+- 阻止服务器端 JavaScript：`$where`、`$function`、`$accumulator`
+- 输入验证：数据库/集合名称验证防止注入攻击
+- 结果大小限制防止 Token 溢出
+
+**Redis 安全性：**
+- 严格的命令白名单（仅限只读操作）
+- 阻止所有写命令：SET、DEL、EXPIRE 等
+- 阻止管理命令：FLUSHALL、CONFIG、DEBUG、EVAL、SCRIPT
+- 输入验证：键验证（空值、长度、控制字符）
+- SCAN 操作的模式验证
+
+**线程安全：**
+- 适配器创建使用双重检查锁定模式
+- 适用于多线程 MCP 服务器环境
+
+详细的安全文档请参阅 [NOSQL_ADAPTER_DESIGN.md](NOSQL_ADAPTER_DESIGN.md#security-model)。
+
+
 ## 依赖要求
 
 - Python 3.12+
-- MySQL 数据库
+- MySQL/SQLite 数据库（SQL 支持）
+- MongoDB 4.4+（可选，用于 NoSQL 文档存储）
+- Redis 6.0+（可选，用于 NoSQL 键值存储）
 - 依赖：`sqlparse`、`SQLAlchemy`、`PyMySQL`、`fastMCP`、`python-dotenv`
+- NoSQL 依赖：`pymongo>=4.6.0`、`redis>=5.0.0`
 
 ## 测试
 

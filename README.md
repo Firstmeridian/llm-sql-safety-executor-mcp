@@ -1,8 +1,10 @@
 # LLM Database Safety Gateway - MCP Service
 
-![Version](https://img.shields.io/badge/version-2.2-blue)
+![Version](https://img.shields.io/badge/version-2.3-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Python](https://img.shields.io/badge/python-3.12+-blue?logo=python)
+![MongoDB](https://img.shields.io/badge/MongoDB-8.0+-green?logo=mongodb)
+![Redis](https://img.shields.io/badge/Redis-7.0+-red?logo=redis)
 ![MCP](https://img.shields.io/badge/MCP-Protocol-orange)
 ![AutoGen](https://img.shields.io/badge/Framework-AutoGen-blueviolet?logo=microsoft)
 
@@ -14,14 +16,14 @@ English | [中文](README_ZH.md)
 > [Exposed MCP Tools](#exposed-mcp-tools) | 
 > [AutoGen Multi Agent Example](#autogen-multi-agent-example) | 
 > [Other Documentation](#other-documentation)  
-> [Roadmap](#roadmap) · **Upcoming (2026.1):** Support for NoSQL  
+> [Roadmap](#roadmap) · **New in v2.3:** MongoDB & Redis NoSQL Support  
 
 > aka: SQL Safety Executor MCP for LLM
 
 **A secure database access gateway for AI Agents: Empowering LLM (Agents) with database access capabilities.**  
 Enables Large Language Models (LLMs) to safely execute database queries via standardized MCP interfaces using authenticated SQL.  
 Provides protections such as allowlists, timeouts, and result truncation. Mitigates operational risks while preventing token cost overruns.  
-In addition to MySQL and SQLite, it also supports NoSQL. (in progress, NoSQL support is planned for future releases)  
+In addition to MySQL and SQLite, it also supports **NoSQL databases (MongoDB and Redis)** with read-only access.  
 This project resolves the LLM database accessibility bottleneck. By coordinating with AI Agents, it expands the capability boundaries of LLMs and extends the application scope of large models in real-world business scenarios.
 
 ## Problem Statement
@@ -55,18 +57,26 @@ This project implements a standard MCP (Model Context Protocol) service to provi
                           │ MCP Protocol (stdio)
                           ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                   sql-safety-executor (MCP Server)              │
+│              sql-safety-executor (MCP Server)                   │
 │  ┌────────────────────────────────────────────────────────────┐ │
-│  │ Tool Layer:   query | list_tables | describe_table | ...   │ │
+│  │ SQL Tools:   query | list_tables | describe_table | ...    │ │
+│  │ NoSQL Tools: mongo_find | redis_get | redis_scan | ...     │ │
 │  ├────────────────────────────────────────────────────────────┤ │
-│  │ Safety Layer: SQL Valid. | Allowlist | Truncation | Timeout│ │
+│  │Safety: sql_safety_checker | nosql_safety_checker (separate)│ │
 │  └────────────────────────────────────────────────────────────┘ │
-└─────────────────────────┬───────────────────────────────────────┘
-                          │ SQLAlchemy (Connection Pool)
-                          ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                           Database                              │
-└─────────────────────────────────────────────────────────────────┘
+│  ┌────────────────────────────────────────────────────────────┐ │
+│  │           AdapterManager (Thread-safe)                     │ │
+│  │  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐        │ │
+│  │  │ MySQLAdapter │ │MongoDBAdapter│ │ RedisAdapter │        │ │
+│  │  │ SQLiteAdapter│ │  (PyMongo)   │ │ (redis-py)   │        │ │
+│  │  └──────┬───────┘ └──────┬───────┘ └──────┬───────┘        │ │
+│  └─────────┼────────────────┼────────────────┼────────────────┘ │
+└────────────┼────────────────┼────────────────┼──────────────────┘
+             │                │                │
+             ▼                ▼                ▼
+┌────────────────┐ ┌─────────────────┐ ┌─────────────────┐
+│  MySQL/SQLite  │ │    MongoDB      │ │     Redis       │
+└────────────────┘ └─────────────────┘ └─────────────────┘
 ```
 
 ### Core Design
@@ -104,9 +114,15 @@ Large Table Scenario: Observe is_large=true → Use LIMIT or Aggregation
 
 | File | Responsibility |
 |------|----------------|
-| `mcp_sql_server.py` | MCP tool definition, security validation, result processing |
+| `mcp_sql_server.py` | SQL MCP tool definitions, security validation, result processing |
 | `sql_safety_checker.py` | SQL statement parsing and security checking |
-| `db_adapter.py` | Database adapter abstraction (MySQL/SQLite support) |
+| `db_adapter.py` | SQL database adapter abstraction (MySQL/SQLite support) |
+| `nosql_tools.py` | NoSQL MCP tool definitions (MongoDB + Redis) |
+| `nosql_adapter.py` | NoSQL adapter base classes and configuration |
+| `mongodb_adapter.py` | MongoDB adapter (find, aggregate, count, schema inference) |
+| `redis_adapter.py` | Redis adapter (get, scan, hash/list/set/zset operations) |
+| `nosql_safety_checker.py` | NoSQL operation validation and command filtering |
+| `adapter_manager.py` | Thread-safe multi-datasource adapter management |
 | `start_server.py` | Service startup, environment verification |
 
 ## Design Principles
@@ -141,8 +157,8 @@ Early on, the goal was to write a simple SQL safety check tool to inspect and fi
 
 - [In version (v2.1)](REFACTORING_LOG.md#latest-update-january-4-2026---tool-optimization--field-naming), the focus was on improving tool design and output consistency. Many tools were optimized and refactored to adhere as closely as possible to industry best practices. The overall design adopts the ReAct paradigm (Thought --> Action --> Observation --> Rethink) loop. This improves query accuracy and multi-step query quality while ensuring query efficiency. The AutoGen-based multi-agent example was also updated synchronously.
 
-Through these iterations, this project evolved from an initial concept of an LLM/Agent-based user interface to an MCP-supported comprehensive SQL query service. It is worth acknowledging that although the starting point was different, the current project actually shares similarities with current Text2SQL solutions.
-In the early conception of this project (March-April 2025), such systems were relatively rare. At that time, similar Text2SQL practices were mainly stuck in the context of receiving prompts from relevant personnel and the LLM generating SQL statements once to assist their queries. Ideally, the core motivation of this project is **to enable LLMs (Agents) to replace traditional frontends and become the new "frontend", capable of dynamic interaction with users regarding both the data in the interface and the interface itself.** Making the entire system fully flexible and dynamic.
+Through these iterations, this project evolved from an initial concept of an LLM/Agent-based user interface to an MCP-supported comprehensive SQL query service. It is worth acknowledging that although the starting point was different, the current project actually shares similarities with current Text2SQL solutions.  
+In the early conception of this project (March-April 2025), such systems were relatively rare. At that time, similar Text2SQL practices were mainly stuck in the context of receiving prompts from relevant personnel and the LLM generating SQL statements once to assist their queries. Ideally, the core motivation of this project is **to enable LLMs (Agents) to replace traditional frontends and become the new "frontend", capable of dynamic interaction with users regarding both the data in the interface and the interface itself.** Making the entire system fully flexible and dynamic.  
 For now, **the core idea of this project is to empower LLMs (Agents) with the ability to enter the database.** Combined with different Agents, different work scenarios can be developed and extended.
 
 ### Roadmap
@@ -162,7 +178,7 @@ Therefore, we can envision a scheme where users or developers can write a large 
 
 **Support for Multiple Database Types (SQLite, NoSQL, etc.)**  
 - **SQLite support added in v2.2** (January 2026)
-- NoSQL support planned for future releases
+- **MongoDB and Redis support added in v2.3** (January 2026)
 
 **Manually Defined Methods for Database Write Processes**  
 
@@ -328,7 +344,8 @@ Add the server to your MCP-compatible client configuration (e.g., VS Code, Claud
 - The server loads credentials from the `.env` file in the working directory.
 - For virtual environments, use the full path to the Python interpreter.
 
-## Configuration (Located in .env file. Copy .env.example to .env to configure)
+## Configuration
+Located in .env file. Copy .env.example to .env to configure
 
 ### Database Type Selection
 ```bash
@@ -399,6 +416,35 @@ MAX_OVERVIEW_TABLES=100  # Max tables returned by list_tables (0=unlimited)
 For a complete client configuration example, please refer to `mcp_config.json`.
 
 ## Changelog
+
+### v2.3 NoSQL Support (January 2026)
+
+Added MongoDB and Redis NoSQL database support with read-only access:
+
+- **New NoSQL Adapter Architecture**: Separate hierarchy from SQL adapters (no shared inheritance)
+  - `DocumentStoreAdapter` ABC for document stores (MongoDB)
+  - `KeyValueStoreAdapter` ABC for key-value stores (Redis)
+  - `AdapterManager` for thread-safe multi-datasource management
+- **MongoDB Support** (6 tools):
+  - `mongo_find`: Query documents with BSON filters and projections
+  - `mongo_aggregate`: Run aggregation pipelines (blocks `$out`, `$merge`)
+  - `mongo_count`, `mongo_list_databases`, `mongo_list_collections`, `mongo_get_schema`
+- **Redis Support** (12 tools):
+  - String: `redis_get`, `redis_mget`
+  - Hash/List/Set/ZSet: `redis_hgetall`, `redis_lrange`, `redis_smembers`, `redis_zrange`
+  - Discovery: `redis_scan`, `redis_type`, `redis_exists`, `redis_ttl`, `redis_dbsize`, `redis_info`
+- **Security Features**:
+  - MongoDB: Blocks dangerous aggregation stages (`$out`, `$merge`, `$where`, `$function`)
+  - Redis: Strict command allowlist (READ-ONLY only), blocks all write/admin commands
+  - Input validation: Database/collection name validation, Redis key validation
+- **Thread Safety**: Double-checked locking pattern for adapter creation
+- **New Environment Variables**:
+  - `ENABLED_DATASOURCES=mysql,mongodb,redis` - Enable specific datasources
+  - `MONGODB_URI`, `MONGODB_TIMEOUT_MS` - MongoDB connection
+  - `REDIS_HOST`, `REDIS_PORT`, `REDIS_DB` - Redis connection
+- **Comprehensive Test Suite**: 52 NoSQL tests + syntax validation
+
+For detailed architecture and design decisions, see [NOSQL_ADAPTER_DESIGN.md](NOSQL_ADAPTER_DESIGN.md). For change log details, see [REFACTORING_LOG.md](REFACTORING_LOG.md).
 
 ### v2.2 SQLite Support (January 2026)
 
@@ -483,7 +529,7 @@ This project has transitioned from direct function calls to a standardized MCP s
 
 ## Exposed MCP Tools
 
-The service exposes 5-7 standardized MCP tools (depending on configuration):
+The service exposes 5-7 SQL tools (depending on configuration), plus 6 MongoDB tools and 12 Redis tools when enabled:
 
 ### 1. `query` (Primary Tool)
 Usage: Execute read-only SQL queries with automatic security validation.
@@ -657,11 +703,131 @@ Output:
 ```
 
 
+## NoSQL Tools (v2.3+)
+
+NoSQL tools are enabled via `ENABLED_DATASOURCES` environment variable.
+
+### NoSQL vs SQL: Key Differences
+
+| Aspect | SQL (MySQL/SQLite) | MongoDB | Redis |
+|--------|-------------------|---------|-------|
+| Data Model | Tables with rows/columns | Document collections (JSON-like) | Key-value pairs (multiple data types) |
+| Query Language | SQL statements | BSON filter/aggregation | Commands (GET, HGETALL, etc.) |
+| Schema | Fixed schema | Schema-less (flexible) | Data type per key |
+| Use Case | Structured relational data | Semi-structured documents | Caching, sessions, real-time data |
+
+### How NoSQL Operations Work
+
+**MongoDB Operations:**
+- `mongo_find`: Executes `collection.find()` with BSON filters (e.g., `{"status": "active"}`)
+- `mongo_aggregate`: Runs aggregation pipelines with stages like `$match`, `$group`, `$project`
+- `mongo_get_schema`: Samples N documents and infers field types to generate schema
+
+**Redis Operations:**
+- Uses native Redis commands mapped to MCP tools
+- Each data type has dedicated tools: `redis_hgetall` (Hash), `redis_lrange` (List), `redis_smembers` (Set), `redis_zrange` (Sorted Set)
+- `redis_scan` provides non-blocking key iteration (safer than `KEYS` for production)
+
+### MongoDB Tools
+
+Enable with: `ENABLED_DATASOURCES=mysql,mongodb`
+
+| Tool | Description |
+|------|-------------|
+| `mongo_find` | Query documents with filter and projection |
+| `mongo_aggregate` | Run aggregation pipeline (blocks $out, $merge) |
+| `mongo_count` | Count documents matching filter |
+| `mongo_list_databases` | List all databases |
+| `mongo_list_collections` | List collections in a database |
+| `mongo_get_schema` | Infer collection schema from samples |
+
+Example:
+```json
+// mongo_find
+{
+  "database": "mydb",
+  "collection": "users",
+  "filter": {"status": "active"},
+  "projection": {"name": 1, "email": 1},
+  "limit": 10
+}
+```
+
+### Redis Tools
+
+Enable with: `ENABLED_DATASOURCES=mysql,redis`
+
+| Tool | Description |
+|------|-------------|
+| `redis_get` | Get string value by key |
+| `redis_mget` | Get multiple string values |
+| `redis_hgetall` | Get all fields from a hash |
+| `redis_lrange` | Get list elements by range |
+| `redis_smembers` | Get all set members |
+| `redis_zrange` | Get sorted set elements by index |
+| `redis_scan` | Scan keys by pattern (non-blocking) |
+| `redis_type` | Get key data type |
+| `redis_exists` | Check if keys exist |
+| `redis_ttl` | Get time-to-live for a key |
+| `redis_dbsize` | Get total key count |
+| `redis_info` | Get server information |
+
+Example:
+```json
+// redis_scan
+{
+  "pattern": "user:*",
+  "count": 100
+}
+```
+
+### NoSQL Configuration
+
+```bash
+# Enable MongoDB and Redis
+export ENABLED_DATASOURCES="mysql,mongodb,redis"
+
+# MongoDB connection
+export MONGODB_URI="mongodb://localhost:27017"
+export MONGODB_TIMEOUT_MS=5000
+
+# Redis connection
+export REDIS_HOST="localhost"
+export REDIS_PORT=6379
+export REDIS_DB=0
+```
+
+### NoSQL Security Features
+
+**MongoDB Security:**
+- READ-ONLY operations only (find, aggregate, count)
+- Blocks dangerous aggregation stages: `$out`, `$merge`
+- Blocks server-side JavaScript: `$where`, `$function`, `$accumulator`
+- Input validation: Database/collection names validated against injection attacks
+- Result size limits to prevent token overflow
+
+**Redis Security:**
+- Strict command allowlist (READ-ONLY operations only)
+- Blocks all write commands: SET, DEL, EXPIRE, etc.
+- Blocks admin commands: FLUSHALL, CONFIG, DEBUG, EVAL, SCRIPT
+- Input validation: Keys validated for security (empty, length, control characters)
+- Pattern validation for SCAN operations
+
+**Thread Safety:**
+- Adapter creation uses double-checked locking pattern
+- Safe for multi-threaded MCP server environments
+
+For detailed security documentation, see [NOSQL_ADAPTER_DESIGN.md](NOSQL_ADAPTER_DESIGN.md#security-model).
+
+
 ## Requirements
 
 - Python 3.12+
-- MySQL Database
+- MySQL/SQLite Database (SQL support)
+- MongoDB 4.4+ (optional, for NoSQL document store)
+- Redis 6.0+ (optional, for NoSQL key-value store)
 - Dependencies: `sqlparse`, `SQLAlchemy`, `PyMySQL`, `fastMCP`, `python-dotenv`
+- NoSQL Dependencies: `pymongo>=4.6.0`, `redis>=5.0.0`
 
 ## Testing
 
