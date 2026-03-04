@@ -1,6 +1,6 @@
 # MCP Client Test - Usage Guide
 
-**Updated:** January 15, 2026 (v2.2)
+**Updated:** March 1, 2026 (v3.0)
 
 ## Purpose
 
@@ -13,6 +13,7 @@
 ```python
 SCHEMA_TOOLS_ENABLED = os.getenv("ENABLE_SCHEMA_TOOLS", "1") == "1"
 TABLE_SUMMARY_ENABLED = os.getenv("ENABLE_TABLE_SUMMARY", "0") == "1"
+SKILLS_ENABLED = os.getenv("ENABLE_SKILLS", "0") == "1"
 TEST_SAMPLE_LIMIT = 3  # Sample data row limit
 ```
 
@@ -54,6 +55,13 @@ TEST_SAMPLE_LIMIT = 3  # Sample data row limit
    ENABLE_SCHEMA_TOOLS=1
    ```
 
+   **Skills Extension (v3.0+):**
+   ```bash
+   ENABLE_SKILLS=1
+   SKILLS_ALLOW_MUTATIONS=1   # Optional: enable mutation skills
+   SKILLS_DIR=skills/          # Default
+   ```
+
 ### Running the Test
 
 ```bash
@@ -72,7 +80,7 @@ Table summary enabled: False
 
 ✓ Successfully connected to MCP server
 
-Available tools: ['query', 'check_connection', 'list_tables', 'describe_table', 'get_full_schema', 'sample']
+Available tools: ['query', 'check_connection', 'list_tables', 'describe_table', 'get_full_schema', 'sample', 'list_skills', 'execute_query_skill', 'execute_mutation_skill']
 
 ----------------------------------------------------------------------
 TEST 1: check_connection
@@ -130,8 +138,13 @@ The script tests the following tools:
 5. ✅ `get_full_schema` - Complete database schema in one call
 6. ✅ `get_table_summary` - Table statistics with optional exact count (requires `ENABLE_TABLE_SUMMARY=1`)
 7. ✅ `sample` - Sample data retrieval (requires `ENABLE_SCHEMA_TOOLS=1`)
+8. ✅ `list_skills` - List available skills with metadata (requires `ENABLE_SKILLS=1`)
+9. ✅ `execute_query_skill` - Execute a parameterized query skill (requires `ENABLE_SKILLS=1`)
+10. ✅ `execute_mutation_skill` - Execute a mutation skill with dry-run/confirm (requires `ENABLE_SKILLS=1` + `SKILLS_ALLOW_MUTATIONS=1`)
 
 **Note**: All tool responses include `db_type` field ("mysql" or "sqlite") since v2.2.
+
+**Note**: Skills tools (8-10) only appear when `ENABLE_SKILLS=1` is set. Mutation skills additionally require `SKILLS_ALLOW_MUTATIONS=1`.
 
 **Note**: SQL validation tests are also covered in `test_mcp_functions.py`.
 
@@ -167,6 +180,13 @@ If `sample` is not available:
 ```bash
 # Set in .env file
 ENABLE_SCHEMA_TOOLS=1
+```
+
+If Skills tools (`list_skills`, etc.) are not available:
+```bash
+# Set in .env file
+ENABLE_SKILLS=1
+SKILLS_ALLOW_MUTATIONS=1  # For mutation skills
 ```
 
 ## Development Workflow

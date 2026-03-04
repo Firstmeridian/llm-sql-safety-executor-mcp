@@ -37,10 +37,22 @@ def validate_environment():
     """
     Validates that all required environment variables are set.
     
+    Checks are DB_TYPE-aware:
+    - mysql: requires DB_USER, DB_PASSWORD, DB_HOST, DB_NAME
+    - sqlite: requires SQLITE_DATABASE_PATH (has default, always passes)
+    
     Returns:
         tuple: (is_valid, missing_vars)
     """
-    required_env_vars = ["DB_USER", "DB_PASSWORD", "DB_HOST", "DB_NAME"]
+    db_type = os.getenv("DB_TYPE", "mysql").lower()
+
+    if db_type == "sqlite":
+        # SQLite only needs a database path; default ':memory:' is always valid
+        required_env_vars = []  # SQLITE_DATABASE_PATH has a default
+    else:
+        # MySQL requires connection credentials
+        required_env_vars = ["DB_USER", "DB_PASSWORD", "DB_HOST", "DB_NAME"]
+
     missing_vars = [var for var in required_env_vars if not os.getenv(var)]
     
     return len(missing_vars) == 0, missing_vars

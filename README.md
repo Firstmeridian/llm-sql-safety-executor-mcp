@@ -1,6 +1,6 @@
 # LLM Database Safety Gateway - MCP Service
 
-![Version](https://img.shields.io/badge/version-2.2-blue)
+![Version](https://img.shields.io/badge/version-3.0-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Python](https://img.shields.io/badge/python-3.12+-blue?logo=python)
 ![MCP](https://img.shields.io/badge/MCP-Protocol-orange)
@@ -108,6 +108,9 @@ Large Table Scenario: Observe is_large=true → Use LIMIT or Aggregation
 | `sql_safety_checker.py` | SQL statement parsing and security checking |
 | `db_adapter.py` | Database adapter abstraction (MySQL/SQLite support) |
 | `start_server.py` | Service startup, environment verification |
+| `skills/_lib/skill_loader.py` | Skill discovery, YAML parsing, parameter validation (v3.0) |
+| `skills/_lib/mutation_base.py` | ABC for write operation skills (v3.0) |
+| `skills/_lib/audit.py` | JSONL audit logger for mutations (v3.0) |
 
 ## Design Principles
 ### Motivation: LLM-Driven Information Retrieval
@@ -141,13 +144,13 @@ Early on, the goal was to write a simple SQL safety check tool to inspect and fi
 
 - [In version (v2.1)](REFACTORING_LOG.md#latest-update-january-4-2026---tool-optimization--field-naming), the focus was on improving tool design and output consistency. Many tools were optimized and refactored to adhere as closely as possible to industry best practices. The overall design adopts the ReAct paradigm (Thought --> Action --> Observation --> Rethink) loop. This improves query accuracy and multi-step query quality while ensuring query efficiency. The AutoGen-based multi-agent example was also updated synchronously.
 
-Through these iterations, this project evolved from an initial concept of an LLM/Agent-based user interface to an MCP-supported comprehensive SQL query service. It is worth acknowledging that although the starting point was different, the current project actually shares similarities with current Text2SQL solutions.
-In the early conception of this project (March-April 2025), such systems were relatively rare. At that time, similar Text2SQL practices were mainly stuck in the context of receiving prompts from relevant personnel and the LLM generating SQL statements once to assist their queries. Ideally, the core motivation of this project is **to enable LLMs (Agents) to replace traditional frontends and become the new "frontend", capable of dynamic interaction with users regarding both the data in the interface and the interface itself.** Making the entire system fully flexible and dynamic.
+Through these iterations, this project evolved from an initial concept of an LLM/Agent-based user interface to an MCP-supported comprehensive SQL query service. It is worth acknowledging that although the starting point was different, the current project actually shares similarities with current Text2SQL solutions.  
+In the early conception of this project (March-April 2025), such systems were relatively rare. At that time, similar Text2SQL practices were mainly stuck in the context of receiving prompts from relevant personnel and the LLM generating SQL statements once to assist their queries. Ideally, the core motivation of this project is **to enable LLMs (Agents) to replace traditional frontends and become the new "frontend", capable of dynamic interaction with users regarding both the data in the interface and the interface itself.** Making the entire system fully flexible and dynamic.  
 For now, **the core idea of this project is to empower LLMs (Agents) with the ability to enter the database.** Combined with different Agents, different work scenarios can be developed and extended.
 
 ### Roadmap
 **Agent Skills and Extensibility**
-In the future, we plan to introduce support for Agent Skills.
+**Skills extension layer added in v3.0** (March 2026). See [MCP_AGENTS_SKILLS_DESIGN.md](MCP_AGENTS_SKILLS_DESIGN.md) for details.
 We also plan to improve the extensibility of this project. In existing practices, we realize the significance of providing (encapsulated) specific semantic tools. The industry also has corresponding best practice discussions:
 > "Offload the burden from the model and use code where possible."  
 > "Don't make the model fill arguments you already know."  
@@ -155,7 +158,7 @@ We also plan to improve the extensibility of this project. In existing practices
 > [— OpenAI, "Best practices for defining functions" (December 2025)](https://platform.openai.com/docs/guides/function-calling#best-practices-for-defining-functions)
 
 This indicates that in reasonable cases, a practical system should include and support adding extra tools tailored for specific scenarios. However, too many tools consume more context, reduce accuracy, and increase costs[1]. Progressive disclosure[2] of Agent Skills can avoid these issues.
-Therefore, we can envision a scheme where users or developers can write a large number of "plugins" (code snippets/tools) dependent on this MCP service, managed via SKILL.md, allowing for dynamic addition and configuration of tools. Agents can then load these "plugins" to flexibly extend their capabilities.
+Therefore, we can envision a scheme where users or developers can write a large number of "plugins" (code snippets/tools) dependent on this MCP service, managed via skill_def.md, allowing for dynamic addition and configuration of tools. Agents can then load these "plugins" to flexibly extend their capabilities.
 
 > [1]: ["Keep the number of functions small for higher accuracy."](https://platform.openai.com/docs/guides/function-calling)  
 > [2]: ["This filesystem-based architecture enables progressive disclosure: Claude loads information in stages as needed, rather than consuming context upfront."](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview#how-skills-work)
@@ -176,7 +179,7 @@ When using AI to assist in developing this project, the following experiences we
 3. Under the premise of satisfying 1 and 2, minimize constraints on the AI. Use the simplest prompts and steps to complete tasks, and let the AI complete the full workflow.
 > Keep context as full and complete as possible; keep prompts and constraints to a minimum.
 
-This is why although the original GEMINI.md is retained, it is only for record-keeping, and AGENTS.md was not added. However, SKILL.md or similar "progressive" documentation is good practice. The project's related documents [REFACTORING_LOG.md](REFACTORING_LOG.md) and [PROMPT_ENGINEERING_BEST_PRACTICES.md](PROMPT_ENGINEERING_BEST_PRACTICES.md) reflect this practice.
+This is why although the original GEMINI.md is retained, it is only for record-keeping, and AGENTS.md was not added. However, skill_def.md or similar "progressive" documentation is good practice. The project's related documents [REFACTORING_LOG.md](REFACTORING_LOG.md) and [PROMPT_ENGINEERING_BEST_PRACTICES.md](PROMPT_ENGINEERING_BEST_PRACTICES.md) reflect this practice.
 
 ### Risks and Limitations
 In the practice of writing this project, a large amount of AI-assisted development was used. Although code reviews and tests have been conducted as much as possible, and a series of security settings have been added, due to the scope and experimental nature of the project, it cannot cover all situations, especially considering the involvement of LLMs.
@@ -328,7 +331,8 @@ Add the server to your MCP-compatible client configuration (e.g., VS Code, Claud
 - The server loads credentials from the `.env` file in the working directory.
 - For virtual environments, use the full path to the Python interpreter.
 
-## Configuration (Located in .env file. Copy .env.example to .env to configure)
+## Configuration 
+Located in .env file. Copy .env.example to .env to configure
 
 ### Database Type Selection
 ```bash
@@ -393,12 +397,81 @@ MAX_RESULT_ROWS=100      # Max rows returned per query (0=unlimited)
 MAX_RESULT_CHARS=16000   # Max characters in response (0=unlimited)
 MAX_SCHEMA_TABLES=50     # Max tables returned by get_full_schema (0=unlimited)
 MAX_OVERVIEW_TABLES=100  # Max tables returned by list_tables (0=unlimited)
+
+# Skills Extension (v3.0)
+ENABLE_SKILLS=0          # Master switch: enable Skills layer (1=enabled, 0=disabled)
+SKILLS_ALLOW_MUTATIONS=0 # Allow mutation (write) skills (requires ENABLE_SKILLS=1)
+# SKILLS_DIR=skills/     # Skills directory path (relative or absolute)
+# SKILLS_AUDIT_LOG=skills/_audit.jsonl  # Audit log for mutations (JSONL)
+# AGENT_ID=my-agent      # Agent identifier for audit logging
 ```
+
+**Skills Configuration Details**:
+
+The Skills layer lets you package common SQL queries and data mutations as reusable "skills". Disabled by default — zero impact on existing functionality.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `ENABLE_SKILLS` | `0` | Master switch. When `1`, registers `list_skills` and `execute_query_skill` tools |
+| `SKILLS_ALLOW_MUTATIONS` | `0` | Write switch. When `1`, additionally registers `execute_mutation_skill` (requires `ENABLE_SKILLS=1`) |
+| `SKILLS_DIR` | `skills/` | Skills directory path. Must be within the project root (security constraint) |
+| `SKILLS_AUDIT_LOG` | `skills/_audit.jsonl` | Audit log path. Every mutation operation is automatically recorded |
+| `AGENT_ID` | `unknown` | Identifies the calling agent in audit logs |
+
+**Typical configuration scenarios**:
+
+```bash
+# Scenario 1: Read-only query skills only (e.g. monthly-sales-report)
+ENABLE_SKILLS=1
+SKILLS_ALLOW_MUTATIONS=0
+
+# Scenario 2: Both query and mutation skills (e.g. update-order-status)
+ENABLE_SKILLS=1
+SKILLS_ALLOW_MUTATIONS=1
+
+# Scenario 3: Custom skills directory and audit log path
+ENABLE_SKILLS=1
+SKILLS_ALLOW_MUTATIONS=1
+SKILLS_DIR=my_custom_skills/
+SKILLS_AUDIT_LOG=logs/skills_audit.jsonl
+AGENT_ID=copilot-agent-1
+```
+
+> **Security note**: `SKILLS_ALLOW_MUTATIONS` is a second-layer switch independent of `ENABLE_SKILLS`. Even with `ENABLE_SKILLS=1`, write operations remain disabled by default and must be explicitly enabled. This follows the principle of least privilege.
 
 ### MCP Client Integration
 For a complete client configuration example, please refer to `mcp_config.json`.
 
 ## Changelog
+
+### v3.0 Skills Extension (March 2026)
+
+Added the Skills extension layer — pre-defined, parameterized SQL operations for structured agent interactions:
+
+- **Skills Infrastructure** (`skills/_lib/`):
+  - `skill_loader.py`: Skill discovery, YAML frontmatter parsing, parameter validation, SQL safety checks at startup
+  - `mutation_base.py`: Abstract base class implementing validate/preview/execute pattern for write operations
+  - `audit.py`: JSONL audit trail for all mutation operations with thread-safe logging
+- **New MCP Tools** (conditionally registered via `ENABLE_SKILLS`):
+  - `list_skills()`: Progressive disclosure — returns skill metadata (name, type, risk, triggers)
+  - `execute_query_skill(name, params)`: Execute pre-audited SQL templates with parameterized binding
+  - `execute_mutation_skill(name, params, confirm)`: Two-phase write operations (preview → confirm)
+- **Security Model** (16 items in `skills/SAFETY.md`):
+  - Template-as-whitelist: Only pre-defined SQL/Python executed
+  - Parameterized queries via SQLAlchemy `text()` (SQL injection prevention)
+  - Dual-layer switches: `ENABLE_SKILLS` + `SKILLS_ALLOW_MUTATIONS`
+  - Error sanitization through `ToolError` (no internal detail leaks)
+  - SKILLS_DIR path constraint (prevents `.env` poisoning)
+- **Database Adapter Extensions**:
+  - `execute()` now accepts optional `params` parameter (fully backward compatible)
+  - New `execute_write()` method for transactional write operations
+  - Unified `_handle_error()` signatures across adapters
+- **Example Skills**: `monthly-sales-report` (query) and `update-order-status` (mutation with optimistic locking)
+- **58 New Tests**: Covering skill loader, query skills, mutation skills, and audit logging
+- **New Dependencies**: `pyyaml` for skill_def.md frontmatter parsing; `SQLAlchemy>=2.0` version constraint added
+- **Full Backward Compatibility**: `ENABLE_SKILLS=0` (default) — zero overhead, no tools registered
+
+For design details, see [MCP_AGENTS_SKILLS_DESIGN.md](MCP_AGENTS_SKILLS_DESIGN.md).
 
 ### v2.2 SQLite Support (January 2026)
 
@@ -483,7 +556,7 @@ This project has transitioned from direct function calls to a standardized MCP s
 
 ## Exposed MCP Tools
 
-The service exposes 5-7 standardized MCP tools (depending on configuration):
+The service exposes 5-10 standardized MCP tools (depending on configuration):
 
 ### 1. `query` (Primary Tool)
 Usage: Execute read-only SQL queries with automatic security validation.
@@ -656,12 +729,194 @@ Output:
 }
 ```
 
+### 8. `list_skills` (Skills Extension, Optional)
+Usage: List all available pre-defined skills (query and mutation).
+
+**Note**: Requires `ENABLE_SKILLS=1`. Returns skill metadata for progressive disclosure.
+
+Output:
+```json
+{
+  "success": true,
+  "skills": [
+    {
+      "name": "monthly-sales-report",
+      "type": "query",
+      "risk": "low",
+      "description": "Generate a monthly sales summary report...",
+      "triggers": ["monthly sales", "revenue report"]
+    }
+  ],
+  "count": 1
+}
+```
+
+### 9. `execute_query_skill` (Skills Extension, Optional)
+Usage: Execute a pre-defined query skill with parameterized SQL.
+
+**Note**: Requires `ENABLE_SKILLS=1`. Skills are pre-audited SQL templates — bypasses runtime `is_sql_safe()` checks.
+
+Input:
+```json
+{
+  "skill_name": "monthly-sales-report",
+  "params": {"year": 2026, "month": 1}
+}
+```
+
+### 10. `execute_mutation_skill` (Skills Extension, Optional)
+Usage: Execute a pre-defined mutation (write) skill with two-phase confirmation.
+
+**Note**: Requires `ENABLE_SKILLS=1` and `SKILLS_ALLOW_MUTATIONS=1`. Follows validate → preview → execute pattern.
+
+Input:
+```json
+{
+  "skill_name": "update-order-status",
+  "params": {"order_id": 42, "new_status": "shipped"},
+  "confirm": false
+}
+```
+
+`confirm=false` (default) returns a preview. `confirm=true` executes the mutation.
+
+### Skills Extension Details (v3.0)
+
+Skills are pre-defined, parameterized SQL operations that encapsulate common business queries and data mutations. Unlike the core `query()` tool where the Agent writes free-form SQL, Skills provide code-reviewed SQL templates — the Agent only needs to pass parameters.
+
+**Why Skills?**
+- **Fewer errors**: Complex multi-table JOINs and aggregations are error-prone; pre-defined templates ensure SQL correctness
+- **Safe writes**: Core tools only support read-only queries (SELECT); Skills enable write operations with strict audit and confirmation
+- **Efficiency**: Agent skips multi-round schema exploration and SQL authoring — one call does the job
+- **Extensible**: Developers can add custom Skills for their specific business needs
+
+#### Example 1: `monthly-sales-report` (Query Skill)
+
+**Goal**: Generate a daily sales summary for a specified month, including revenue, order count, and average order value.
+
+**Directory structure**:
+```
+skills/monthly-sales-report/
+├── skill_def.md    # Skill definition (YAML metadata + usage docs)
+└── query.sql       # SQL template
+```
+
+**Metadata** (YAML frontmatter in `skill_def.md`):
+```yaml
+name: monthly-sales-report
+type: query              # Read-only, no data modification
+risk: low
+params:
+  year: {type: int, required: true, description: "Year (e.g. 2026)"}
+  month: {type: int, required: true, min: 1, max: 12, description: "Month (1-12)"}
+triggers:                # Keyword hints to help agents match this skill
+  - monthly sales
+  - revenue report
+  - sales summary
+```
+
+**`query.sql`**:
+```sql
+SELECT
+    DATE(order_date) AS date,
+    COUNT(*) AS order_count,
+    SUM(amount) AS revenue,
+    ROUND(AVG(amount), 2) AS avg_order_value
+FROM orders
+WHERE YEAR(order_date) = :year
+  AND MONTH(order_date) = :month
+GROUP BY DATE(order_date)
+ORDER BY date ASC
+```
+
+**Invocation**: Agent calls via `execute_query_skill`:
+```json
+{"skill_name": "monthly-sales-report", "params": "{\"year\": 2026, \"month\": 1}"}
+```
+
+**How it works**: On server startup, `skill_loader.py` scans the `skills/` directory, parses the YAML frontmatter from `skill_def.md`, and validates `query.sql` via `is_sql_safe()`. At runtime, the Agent passes `year` and `month` parameters, and the server executes the query safely using SQLAlchemy's parameterized binding (`:year`, `:month`), preventing SQL injection.
+
+#### Example 2: `update-order-status` (Mutation Skill)
+
+**Goal**: Safely update an order's status using state machine constraints to prevent illegal transitions (e.g., cannot jump from "pending" to "delivered").
+
+**Directory structure**:
+```
+skills/update-order-status/
+├── skill_def.md                  # Skill definition
+├── mutation.py                   # Python logic (validate + preview + execute)
+└── references/
+    └── status-transitions.md     # State machine documentation
+```
+
+**Metadata**:
+```yaml
+name: update-order-status
+type: mutation                     # Write operation
+risk: medium
+requires_confirmation: true        # Two-phase confirmation required
+params:
+  order_id: {type: int, required: true, description: "Order ID"}
+  new_status: {type: str, required: true, 
+    enum: [pending, confirmed, shipped, delivered, cancelled, returned],
+    description: "Target status"}
+```
+
+**State transition rules** (built into `mutation.py`):
+```
+pending    → confirmed, cancelled
+confirmed  → shipped, cancelled
+shipped    → delivered, returned
+delivered  → returned
+cancelled  → (terminal state)
+returned   → (terminal state)
+```
+
+**Two-phase invocation**:
+
+1. **Preview** (`confirm=false`, default) — look before you leap:
+```json
+{"skill_name": "update-order-status", 
+ "params": "{\"order_id\": 42, \"new_status\": \"shipped\"}",
+ "confirm": false}
+```
+Returns the SQL that would be executed and its expected impact, without modifying data.
+
+2. **Execute** (`confirm=true`) — write after confirmation:
+```json
+{"skill_name": "update-order-status",
+ "params": "{\"order_id\": 42, \"new_status\": \"shipped\"}",
+ "confirm": true}
+```
+
+**Safety mechanisms**:
+- **State machine validation**: `validate()` checks if current status allows transition to target status
+- **Optimistic locking**: Uses `WHERE status = :expected_status` at execution time; if the status was modified between preview and execute, the update fails (rowcount=0)
+- **Transaction protection**: Write operations run inside a database transaction; automatic rollback on failure
+- **Audit logging**: Every operation (success or failure) is automatically logged to the JSONL audit file
+
+#### Adding Custom Skills
+
+**Query skills** (read-only):
+1. Create a directory under `skills/`, e.g. `skills/my-report/`
+2. Write `skill_def.md` (YAML frontmatter + documentation)
+3. Write `query.sql` (use `:param_name` as parameter placeholders)
+4. Restart the server — the skill is auto-discovered and registered
+
+**Mutation skills** (write):
+1. Create the directory and `skill_def.md` as above (`type: mutation`)
+2. Write `mutation.py` defining a `Mutation` class (inheriting from `MutationBase`)
+3. Implement `validate()`, `preview()`, and `execute()` methods
+4. Set `SKILLS_ALLOW_MUTATIONS=1` and restart the server
+
+For full specifications, see [MCP_AGENTS_SKILLS_DESIGN.md](MCP_AGENTS_SKILLS_DESIGN.md) and [skills/SAFETY.md](skills/SAFETY.md).
+
 
 ## Requirements
 
 - Python 3.12+
-- MySQL Database
-- Dependencies: `sqlparse`, `SQLAlchemy`, `PyMySQL`, `fastMCP`, `python-dotenv`
+- MySQL or SQLite Database
+- Dependencies: `sqlparse`, `SQLAlchemy>=2.0`, `PyMySQL`, `fastMCP`, `python-dotenv`, `pyyaml`
 
 ## Testing
 
@@ -697,9 +952,11 @@ This script:
 
 ## Other Documentation
 
+- [Skills Design](MCP_AGENTS_SKILLS_DESIGN.md): v3.0 Skills extension layer architecture and design decisions
+- [Skills Security Policy](skills/SAFETY.md): 16-item security governance for skill authors
 - [Feasibility Analysis](LLM_TO_MCP_FEASIBILITY_ANALYSIS.md): Detailed analysis of LLM to MCP conversion
 - [Original Context](GEMINI.md): Project background and development guide
-- [Refactoring Log](REFACTORING_LOG.md): Dec 2025 Refactoring change documentation
+- [Refactoring Log](REFACTORING_LOG.md): Refactoring change documentation (v2.0 — v3.0)
 - [MCP Client Test Guide](TEST_MCP_CLIENT_GUIDE.md): Guide for testing MCP Server via client
 - [Prompt Engineering Best Practices](PROMPT_ENGINEERING_BEST_PRACTICES.md): Guide for MCP tool descriptions and prompts
 

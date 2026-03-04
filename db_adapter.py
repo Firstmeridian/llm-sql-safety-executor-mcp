@@ -91,16 +91,43 @@ class DatabaseAdapter(ABC):
         pass
     
     @abstractmethod
-    def execute(self, sql: str, timeout: int | None = None) -> list | str:
+    def execute(self, sql: str, timeout: int | None = None, params: dict | None = None) -> list | str:
         """
         Execute a SQL query with timeout protection.
         
         Args:
             sql: SQL query to execute
             timeout: Optional timeout in seconds (overrides default)
+            params: Optional parameter dict for named-parameter binding
+                    (e.g., {"year": 2026} for ":year" in SQL template).
+                    Uses SQLAlchemy text() parameterized execution.
             
         Returns:
             List of row tuples on success, error string on failure
+        """
+        pass
+
+    @abstractmethod
+    def execute_write(self, sql: str, params: dict, timeout: int | None = None) -> dict:
+        """
+        Execute a parameterized write SQL statement within a transaction.
+
+        Uses SQLAlchemy text() + connection.execute(text_obj, params) for
+        parameterized queries (SQL injection prevention).
+        Runs inside connection.begin() block: auto-commit on success,
+        auto-rollback on exception.
+
+        Args:
+            sql: SQL with named parameters (e.g., "UPDATE t SET col=:val WHERE id=:id")
+            params: Parameter dict for binding
+            timeout: Optional timeout override in seconds
+
+        Returns:
+            {"success": True, "rowcount": N} on success
+
+        Raises:
+            SQLAlchemyError (or subclass) on failure — not caught here,
+            propagates to caller (MutationBase) for error sanitization.
         """
         pass
     
@@ -168,7 +195,24 @@ class DatabaseAdapter(ABC):
     def close(self) -> None:
         """Close database connection and cleanup resources."""
         pass
-    
+
+    def _handle_error(self, e: Exception, timeout: int | None = None) -> str:
+        """
+        Sanitize error messages for security.
+
+        Subclasses should override with DB-specific patterns.
+        Default: generic safe message.
+
+        Args:
+            e: The exception that occurred
+            timeout: Optional timeout value for error message context
+
+        Returns:
+            Sanitized error string safe for client display
+        """
+        logger.warning(f"Database error: {str(e)[:200]}")
+        return "Error: Database query failed"
+
     @property
     @abstractmethod
     def db_type(self) -> str:
@@ -239,12 +283,17 @@ class MySQLAdapter(DatabaseAdapter):
             logger.error(f"MySQL connection failed: {e}")
             return False
     
-    def execute(self, sql: str, timeout: int | None = None) -> list | str:
+    def execute(self, sql: str, timeout: int | None = None, params: dict | None = None) -> list | str:
         """
         Execute SQL query with timeout protection.
         
         Uses MySQL MAX_EXECUTION_TIME optimizer hint for query-level timeout.
         Falls back to connection-level read_timeout if not supported.
+
+        Args:
+            sql: SQL query to execute
+            timeout: Optional timeout in seconds (overrides default)
+            params: Optional parameter dict for named-parameter binding
         """
         if not self._engine:
             if not self.connect():
@@ -266,21 +315,57 @@ class MySQLAdapter(DatabaseAdapter):
                     # Fallback: Some MySQL versions may not support MAX_EXECUTION_TIME
                     logger.debug("MAX_EXECUTION_TIME not supported, using connection timeout")
                 
-                result = connection.execute(text(sql))
+                if params:
+                    result = connection.execute(text(sql), params)
+                else:
+                    result = connection.execute(text(sql))
                 rows = result.fetchall()
                 return rows
                 
         except Exception as e:
             return self._handle_error(e, timeout)
-    
-    def _handle_error(self, e: Exception, timeout: int) -> str:
+
+    def execute_write(self, sql: str, params: dict, timeout: int | None = None) -> dict:
+        """
+        Execute a parameterized write SQL within a MySQL transaction.
+
+        Uses MAX_EXECUTION_TIME for timeout, connection.begin() for explicit
+        transaction (auto-commit on success, auto-rollback on exception).
+        Exceptions propagate to caller (MutationBase) for error sanitization.
+        """
+        if not self._engine:
+            if not self.connect():
+                raise RuntimeError("Database engine could not be initialized.")
+
+        timeout = timeout if timeout is not None else QUERY_TIMEOUT_SECONDS
+
+        from sqlalchemy import text
+        from sqlalchemy.exc import SQLAlchemyError
+
+        with self._engine.begin() as connection:
+            timeout_ms = timeout * 1000
+            try:
+                connection.execute(text(f"SET SESSION MAX_EXECUTION_TIME = {timeout_ms}"))
+            except SQLAlchemyError:
+                logger.debug("MAX_EXECUTION_TIME not supported, using connection timeout")
+
+            result = connection.execute(text(sql), params)
+            return {"success": True, "rowcount": result.rowcount}
+
+    def _handle_error(self, e: Exception, timeout: int | None = None) -> str:
         """
         Sanitize error messages for security.
         
         Preserves original error handling logic from sql_safety_checker.py.
+
+        Args:
+            e: The exception that occurred
+            timeout: Optional timeout value for error message context
         """
         error_str = str(e)
         logger.warning(f"SQL execution error: {error_str[:200]}")
+
+        timeout_suffix = f" ({timeout}s limit)" if timeout is not None else ""
         
         if "Access denied" in error_str or "permission" in error_str.lower():
             return "Error: Access denied"
@@ -289,13 +374,13 @@ class MySQLAdapter(DatabaseAdapter):
         elif "syntax" in error_str.lower():
             return "Error: SQL syntax error"
         elif "timeout" in error_str.lower() or "max_execution_time" in error_str.lower():
-            return f"Error: Query timeout exceeded ({timeout}s limit)"
+            return f"Error: Query timeout exceeded{timeout_suffix}"
         elif "timed out" in error_str.lower() or "2013" in error_str:
-            return f"Error: Query timeout exceeded ({timeout}s limit)"
+            return f"Error: Query timeout exceeded{timeout_suffix}"
         elif "read timed out" in error_str.lower():
-            return f"Error: Query timeout exceeded ({timeout}s limit)"
+            return f"Error: Query timeout exceeded{timeout_suffix}"
         elif "Lost connection" in error_str:
-            return f"Error: Query timeout exceeded ({timeout}s limit)"
+            return f"Error: Query timeout exceeded{timeout_suffix}"
         else:
             return "Error: Database query failed"
     
@@ -460,7 +545,7 @@ class SQLiteAdapter(DatabaseAdapter):
             logger.error(f"SQLite connection failed: {e}")
             return False
     
-    def execute(self, sql: str, timeout: int | None = None) -> list | str:
+    def execute(self, sql: str, timeout: int | None = None, params: dict | None = None) -> list | str:
         """
         Execute SQL query with timeout protection via set_progress_handler.
         
@@ -470,6 +555,11 @@ class SQLiteAdapter(DatabaseAdapter):
         - This provides query-level timeout without external threads
         
         Note: set_progress_handler is thread-safe and works with SQLAlchemy
+
+        Args:
+            sql: SQL query to execute
+            timeout: Optional timeout in seconds (overrides default)
+            params: Optional parameter dict for named-parameter binding
         """
         if not self._engine:
             if not self.connect():
@@ -499,7 +589,10 @@ class SQLiteAdapter(DatabaseAdapter):
                 raw_conn.set_progress_handler(timeout_handler, SQLITE_PROGRESS_HANDLER_INTERVAL)
                 
                 try:
-                    result = connection.execute(text(sql))
+                    if params:
+                        result = connection.execute(text(sql), params)
+                    else:
+                        result = connection.execute(text(sql))
                     rows = result.fetchall()
                     return rows
                 finally:
@@ -513,9 +606,48 @@ class SQLiteAdapter(DatabaseAdapter):
             return self._handle_error(e)
         except Exception as e:
             return self._handle_error(e)
-    
-    def _handle_error(self, e: Exception) -> str:
-        """Sanitize error messages for security."""
+
+    def execute_write(self, sql: str, params: dict, timeout: int | None = None) -> dict:
+        """
+        Execute a parameterized write SQL within a SQLite transaction.
+
+        Uses set_progress_handler for timeout, connection.begin() for explicit
+        transaction (auto-commit on success, auto-rollback on exception).
+        Exceptions propagate to caller (MutationBase) for error sanitization.
+        """
+        if not self._engine:
+            if not self.connect():
+                raise RuntimeError("Database engine could not be initialized.")
+
+        timeout = timeout if timeout is not None else QUERY_TIMEOUT_SECONDS
+
+        from sqlalchemy import text
+
+        with self._engine.begin() as connection:
+            raw_conn = connection.connection.dbapi_connection
+            start_time = time.time()
+
+            def timeout_handler():
+                if time.time() - start_time > timeout:
+                    return 1
+                return 0
+
+            raw_conn.set_progress_handler(timeout_handler, SQLITE_PROGRESS_HANDLER_INTERVAL)
+            try:
+                result = connection.execute(text(sql), params)
+                return {"success": True, "rowcount": result.rowcount}
+            finally:
+                raw_conn.set_progress_handler(None, 0)
+
+    def _handle_error(self, e: Exception, timeout: int | None = None) -> str:
+        """
+        Sanitize error messages for security.
+
+        Args:
+            e: The exception that occurred
+            timeout: Optional timeout value (ignored for SQLite, kept for
+                     signature consistency with MySQLAdapter)
+        """
         error_str = str(e)
         logger.warning(f"SQLite execution error: {error_str[:200]}")
         

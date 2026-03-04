@@ -1,0 +1,6 @@
+{
+  "extraPaths": [
+    "skills/_lib"
+  ],
+  "reportMissingImports": "warning"
+}

@@ -27,6 +27,7 @@ load_dotenv()
 # Check if optional tools are enabled
 SCHEMA_TOOLS_ENABLED = os.getenv("ENABLE_SCHEMA_TOOLS", "1") == "1"
 TABLE_SUMMARY_ENABLED = os.getenv("ENABLE_TABLE_SUMMARY", "0") == "1"
+SKILLS_ENABLED = os.getenv("ENABLE_SKILLS", "0") == "1"
 
 # Test configuration
 TEST_SAMPLE_LIMIT = 3  # Number of sample rows to retrieve
@@ -68,6 +69,7 @@ async def test_mcp_server():
     print(f"Server script: {server_script}")
     print(f"Schema tools enabled: {SCHEMA_TOOLS_ENABLED}")
     print(f"Table summary enabled: {TABLE_SUMMARY_ENABLED}")
+    print(f"Skills enabled: {SKILLS_ENABLED}")
     print()
     
     try:
@@ -163,6 +165,60 @@ async def test_mcp_server():
             else:
                 print("-" * 70)
                 print("TEST 5: sample (skipped - disabled or no tables)")
+                print("-" * 70)
+                print()
+            
+            # Test 6: List Skills (if enabled)
+            if SKILLS_ENABLED and "list_skills" in tool_names:
+                result = await client.call_tool("list_skills", {})
+                content = parse_result(result)
+                print_result("TEST 6: list_skills", content)
+                
+                # Get first skill name for later tests
+                first_skill = None
+                skills_list = content.get("skills", [])
+                if skills_list:
+                    first_skill = skills_list[0].get("name") if isinstance(skills_list[0], dict) else None
+                
+                # Test 7: Execute Query Skill (if a query skill exists)
+                if first_skill:
+                    print("-" * 70)
+                    print(f"TEST 7: execute_query_skill('{first_skill}')")
+                    print("-" * 70)
+                    result = await client.call_tool("execute_query_skill", {
+                        "skill_name": first_skill,
+                        "params": "{}"
+                    })
+                    content = parse_result(result)
+                    print(json.dumps(content, indent=2, ensure_ascii=False))
+                    print()
+                else:
+                    print("-" * 70)
+                    print("TEST 7: execute_query_skill (skipped - no skills found)")
+                    print("-" * 70)
+                    print()
+                
+                # Test 8: Execute Mutation Skill (dry-run, if enabled)
+                if "execute_mutation_skill" in tool_names:
+                    print("-" * 70)
+                    print("TEST 8: execute_mutation_skill (dry-run with invalid skill)")
+                    print("-" * 70)
+                    result = await client.call_tool("execute_mutation_skill", {
+                        "skill_name": "nonexistent-skill",
+                        "params": "{}",
+                        "confirm": False
+                    })
+                    content = parse_result(result)
+                    print(json.dumps(content, indent=2, ensure_ascii=False))
+                    print("📝 Verify: Should return error for nonexistent skill\n")
+                else:
+                    print("-" * 70)
+                    print("TEST 8: execute_mutation_skill (skipped - SKILLS_ALLOW_MUTATIONS=0)")
+                    print("-" * 70)
+                    print()
+            else:
+                print("-" * 70)
+                print("TEST 6-8: Skills tools (skipped - ENABLE_SKILLS=0)")
                 print("-" * 70)
                 print()
             

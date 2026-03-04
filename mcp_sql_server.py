@@ -1,9 +1,15 @@
 #!/usr/bin/env python3
 """
-MCP Server for SQL Safety Checker
+MCP Server for SQL Safety Checker (v3.0)
 
-Provides safe, read-only SQL query execution through MCP protocol.
+Provides safe SQL query execution through MCP protocol.
 Following FastMCP best practices for tool design and context usage.
+
+v3.0 — Skills Extension Layer:
+- Optional Skills system (ENABLE_SKILLS=1) for pre-defined query/mutation operations
+- Query skills: parameterized SQL templates via skill_def.md + query.sql
+- Mutation skills: validate→preview→execute pattern via mutation.py
+- Backward compatible: ENABLE_SKILLS=0 (default) = zero code path changes
 
 Supported Databases:
 - MySQL (default): Full INFORMATION_SCHEMA support
@@ -13,19 +19,26 @@ Configuration:
 - Set DB_TYPE environment variable to 'mysql' or 'sqlite'
 - MySQL: Configure DB_USER, DB_PASSWORD, DB_HOST, DB_NAME
 - SQLite: Configure SQLITE_DATABASE_PATH
+- Skills: Set ENABLE_SKILLS=1 to activate (SKILLS_ALLOW_MUTATIONS=1 for writes)
 
 Backward Compatibility:
 - Default DB_TYPE=mysql maintains existing behavior
 - All existing environment variables continue to work
+- ENABLE_SKILLS=0 (default) means zero impact on existing tools
 """
 
 import os
 import re
+import sys
+import json
 import logging
 from contextlib import asynccontextmanager
-from typing import Any, AsyncIterator
+from pathlib import Path
+from typing import Annotated, Any, AsyncIterator
+from pydantic import Field
 from mcp.types import ToolAnnotations
 from fastmcp import FastMCP, Context
+from fastmcp.exceptions import ToolError
 from sql_safety_checker import is_sql_safe, execute_sql
 from db_adapter import get_adapter, DB_TYPE
 
@@ -61,6 +74,22 @@ MAX_OVERVIEW_TABLES = int(os.getenv("MAX_OVERVIEW_TABLES", "100"))  # Max tables
 # When disabled (default): LLM uses multiple queries (safer, more calls)
 # When enabled: UNION allowed but requires table allowlist for validation
 ALLOW_UNION = os.getenv("ALLOW_UNION", "0") == "1"
+
+# =============================================================================
+# Skills Extension Layer Configuration (v3.0)
+# =============================================================================
+
+# Master switch: enable/disable the entire Skills extension
+# Default: disabled — existing tools are completely unaffected
+SKILLS_ENABLED = os.getenv("ENABLE_SKILLS", "0") == "1"
+
+# Second switch: allow mutation (write) skills
+# Only effective when ENABLE_SKILLS=1
+# Default: disabled — only query skills are available
+SKILLS_ALLOW_MUTATIONS = os.getenv("SKILLS_ALLOW_MUTATIONS", "0") == "1"
+
+# Skills directory path (relative to project root or absolute)
+SKILLS_DIR = os.getenv("SKILLS_DIR", "skills/")
 
 # =============================================================================
 # Table Allowlist Configuration (P1 Security: Restrict table access)
@@ -245,7 +274,8 @@ def _is_valid_identifier(name: str) -> bool:
     if not re.match(r'^[a-zA-Z_\u4e00-\u9fff][a-zA-Z0-9_\u4e00-\u9fff]*$', name):
         return False
     
-    # Block dangerous patterns
+    # Defense-in-depth: secondary check for dangerous patterns
+    # (already blocked by the strict regex above, kept as safety net)
     dangerous_patterns = [
         r'[\'\"`;\\]',  # Quotes and escape chars
         r'--',          # SQL comment
@@ -259,16 +289,6 @@ def _is_valid_identifier(name: str) -> bool:
     
     return True
 
-
-# Allowlist for SHOW commands (restrict information disclosure)
-ALLOWED_SHOW_COMMANDS = {
-    'SHOW TABLES',
-    'SHOW COLUMNS',
-    'SHOW INDEX',
-    'SHOW CREATE TABLE',
-    'SHOW TABLE STATUS',
-    'SHOW DATABASES',
-}
 
 # Blocked SHOW commands that leak sensitive info
 BLOCKED_SHOW_PATTERNS = [
@@ -297,12 +317,14 @@ def _is_query_safe_extended(sql: str) -> tuple[bool, str | None]:
     # Check blocked SHOW commands
     for pattern in BLOCKED_SHOW_PATTERNS:
         if re.match(pattern, sql_upper, re.IGNORECASE):
-            return False, f"SHOW command not allowed for security: {pattern}"
+            return False, "This SHOW command is not allowed for security reasons"
     
-    # Block access to mysql/information_schema system tables in SELECT
-    system_table_pattern = r'\b(mysql|performance_schema)\s*\.'
+    # Block access to system databases in SELECT
+    # Includes INFORMATION_SCHEMA to prevent ALLOWED_TABLES bypass
+    # (users could query INFORMATION_SCHEMA.TABLES to see all table names)
+    system_table_pattern = r'\b(mysql|performance_schema|information_schema)\s*\.'
     if re.search(system_table_pattern, sql, re.IGNORECASE):
-        return False, "Access to system databases not allowed"
+        return False, "Access to system databases not allowed. Use list_tables() or describe_table() instead."
     
     # UNION handling: Configurable based on ALLOW_UNION setting
     # Reference: OWASP - UNION is common SQL injection vector
@@ -340,7 +362,6 @@ def _truncate_result(data: list, total_rows: int) -> dict[str, Any]:
     Returns:
         Dict with truncated data and metadata
     """
-    import json
     
     truncated = False
     truncation_reason = None
@@ -859,43 +880,29 @@ if TABLE_SUMMARY_ENABLED:
         
         await ctx.info(f"Getting summary for table: {table_name} (exact_count={exact_count})")
         
-        # Get row count - choose method based on exact_count flag
+        adapter = get_adapter()
+        
+        # Get row count — use adapter for cross-database compatibility
         row_count_approximate = True
         if exact_count:
             # WARNING: COUNT(*) can be slow on large InnoDB tables
-            count_sql = f"SELECT COUNT(*) as total_rows FROM `{table_name}`"
             row_count_approximate = False
             await ctx.warning(f"Running COUNT(*) on {table_name} - may be slow on large tables")
+            quote = '`' if adapter.db_type == 'mysql' else '"'
+            count_sql = f"SELECT COUNT(*) as total_rows FROM {quote}{table_name}{quote}"
+            count_result = execute_sql(count_sql)
+            if isinstance(count_result, str) and count_result.startswith("Error:"):
+                await ctx.error(f"Failed to count rows: {count_result}")
+                return {"success": False, "error": count_result}
+            count_data = _serialize_result(count_result)
+            total_rows = count_data[0]["total_rows"] if count_data else 0
+            total_rows = total_rows or 0
         else:
-            # Fast estimate from INFORMATION_SCHEMA (no table scan)
-            count_sql = f"""
-                SELECT TABLE_ROWS as total_rows
-                FROM INFORMATION_SCHEMA.TABLES
-                WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '{table_name}'
-            """
+            # Fast estimate via adapter (uses INFORMATION_SCHEMA or sqlite_stat1)
+            total_rows = adapter.get_row_estimate(table_name)
         
-        count_result = execute_sql(count_sql)
-        
-        if isinstance(count_result, str) and count_result.startswith("Error:"):
-            await ctx.error(f"Failed to count rows: {count_result}")
-            return {"success": False, "error": count_result}
-        
-        count_data = _serialize_result(count_result)
-        total_rows = count_data[0]["total_rows"] if count_data else 0
-        total_rows = total_rows or 0  # Handle None
-        
-        # Get column info
-        columns_sql = f"""
-            SELECT 
-                COLUMN_NAME as name,
-                DATA_TYPE as type,
-                IS_NULLABLE as nullable
-            FROM INFORMATION_SCHEMA.COLUMNS
-            WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '{table_name}'
-            ORDER BY ORDINAL_POSITION
-        """
-        columns_result = execute_sql(columns_sql)
-        columns_data = _serialize_result(columns_result) if not isinstance(columns_result, str) else []
+        # Get column info via adapter (cross-database)
+        columns_data = adapter.get_columns(table_name)
         
         # Determine if table is large
         is_large = total_rows > LARGE_TABLE_THRESHOLD
@@ -962,7 +969,10 @@ if SCHEMA_TOOLS_ENABLED:
         
         await ctx.info(f"Sampling {limit} rows from: {table_name}")
         
-        sql = f"SELECT * FROM `{table_name}` LIMIT {limit}"
+        # Use adapter-compatible quoting (backticks for MySQL, double-quotes for SQLite)
+        adapter = get_adapter()
+        quote = '`' if adapter.db_type == 'mysql' else '"'
+        sql = f"SELECT * FROM {quote}{table_name}{quote} LIMIT {limit}"
         result = execute_sql(sql)
         
         if isinstance(result, str) and result.startswith("Error:"):
@@ -978,6 +988,348 @@ if SCHEMA_TOOLS_ENABLED:
             "row_count": len(data),
             "query": sql
         }
+
+
+# =============================================================================
+# Skills Extension Layer (v3.0) — Conditional registration
+# Reference: FastMCP Component Visibility — disabled tools don't appear in list_tools
+# Reference: Google Gemini — keep effective tool set within 10-20
+# =============================================================================
+
+# Pre-initialize path variables so Pylance sees them as always-bound.
+# Values are only meaningful when SKILLS_ENABLED=True.
+_project_root = Path(__file__).parent.resolve()
+_skills_dir = _project_root / SKILLS_DIR
+
+if SKILLS_ENABLED:
+    # Resolve skills directory with path safety check
+    _skills_dir = Path(SKILLS_DIR)
+    if not _skills_dir.is_absolute():
+        _skills_dir = _project_root / _skills_dir
+    _skills_dir = _skills_dir.resolve()
+
+    # Security: SKILLS_DIR must be within project root (prevent .env poisoning)
+    # Reference: SAFETY.md #15
+    if not str(_skills_dir).startswith(str(_project_root)):
+        logger.error(
+            f"SKILLS_DIR '{_skills_dir}' is outside project root '{_project_root}'. "
+            "Refusing to load skills for security (SAFETY.md #15)."
+        )
+        SKILLS_ENABLED = False
+
+if SKILLS_ENABLED:
+    # Import skills infrastructure (only when enabled to avoid import errors
+    # if skills/ directory doesn't exist yet)
+    sys.path.insert(0, str(_project_root / "skills" / "_lib"))
+    from skill_loader import (
+        discover,
+        generate_skills_md,
+        validate_name,
+        load_query,
+        load_mutation,
+        validate_params,
+        get_skills_cache,
+        SkillMetadata,
+    )
+    from audit import AuditLogger
+
+    # Discover skills at module load time (synchronous, consistent with
+    # existing ENABLE_SCHEMA_TOOLS conditional registration pattern)
+    _discovered_skills = discover(_skills_dir)
+    _audit_logger = AuditLogger()
+
+    # Generate SKILLS.md overview for human review
+    if _discovered_skills:
+        generate_skills_md(_discovered_skills, _skills_dir / "SKILLS.md")
+
+    logger.info(
+        f"Skills extension enabled: {len(_discovered_skills)} skill(s) discovered"
+    )
+
+    # ── list_skills ──
+    @mcp.tool(
+        annotations=ToolAnnotations(
+            title="List Available Skills",
+            readOnlyHint=True,
+            destructiveHint=False,
+            idempotentHint=True,
+        )
+    )
+    async def list_skills(ctx: Context) -> dict[str, Any]:
+        """
+        List all available pre-defined skills (query and mutation).
+
+        Returns skill metadata for progressive disclosure:
+        Level 1 (this tool) — name, type, risk, description, triggers.
+        Level 2 — Read skill's skill_def.md for full documentation.
+        Level 3 — query.sql / mutation.py source (code review).
+
+        Returns:
+            Dict with skills list and count
+        """
+        await ctx.info("Listing available skills")
+
+        skills = get_skills_cache()
+        skills_list = []
+        for name in sorted(skills.keys()):
+            meta = skills[name]
+            skill_info = {
+                "name": meta.name,
+                "type": meta.type,
+                "risk": meta.risk,
+                "description": meta.description,
+                "triggers": meta.triggers,
+                "category": meta.category,
+                "idempotent": meta.idempotent,
+            }
+            if meta.related_skills:
+                skill_info["related_skills"] = meta.related_skills
+            skills_list.append(skill_info)
+
+        query_count = sum(1 for s in skills.values() if s.type == "query")
+        mutation_count = sum(1 for s in skills.values() if s.type == "mutation")
+
+        await ctx.info(
+            f"Found {len(skills_list)} skill(s): "
+            f"{query_count} query, {mutation_count} mutation"
+        )
+
+        return {
+            "success": True,
+            "skills": skills_list,
+            "total_skills": len(skills_list),
+            "query_skills": query_count,
+            "mutation_skills": mutation_count,
+            "mutations_enabled": SKILLS_ALLOW_MUTATIONS,
+        }
+
+    # ── execute_query_skill ──
+    @mcp.tool(
+        annotations=ToolAnnotations(
+            title="Execute Query Skill",
+            readOnlyHint=True,
+            destructiveHint=False,
+            idempotentHint=True,
+        )
+    )
+    async def execute_query_skill(
+        skill_name: Annotated[str, Field(description="Name of the query skill to execute")],
+        params: Annotated[dict[str, Any], Field(description="Parameters for the skill (must match skill_def.md schema)")],
+        ctx: Context,
+    ) -> dict[str, Any]:
+        """
+        Execute a pre-defined query skill with parameterized SQL.
+
+        Skills are pre-audited SQL templates — bypasses runtime is_sql_safe() and
+        ALLOWED_TABLES checks (security comes from code review, see SAFETY.md #1 & #14).
+
+        Uses named parameters (:param_name) via SQLAlchemy text() for SQL injection prevention.
+
+        Args:
+            skill_name: The skill name (e.g., "monthly-sales-report")
+            params: Parameter dict matching the skill's frontmatter schema
+
+        Returns:
+            Query results (same format as query() tool, plus skill_name)
+        """
+        await ctx.info(f"Executing query skill: {skill_name}")
+
+        try:
+            validate_name(skill_name)
+            sql_template, param_schema = load_query(skill_name)
+            validated_params = validate_params(params, param_schema)
+        except (ValueError, TypeError, FileNotFoundError) as e:
+            await ctx.warning(f"Query skill error: {e}")
+            raise ToolError(str(e)) from e
+
+        # Execute parameterized query via adapter (Step 3a: params support)
+        adapter = get_adapter()
+        result = adapter.execute(sql_template, params=validated_params)
+
+        # Handle error (adapter returns error string on failure)
+        if isinstance(result, str) and result.startswith("Error:"):
+            await ctx.error(f"Query skill failed: {result}")
+            raise ToolError(result)
+
+        # Success — serialize and truncate (reuse existing helpers)
+        data = _serialize_result(result)
+        total_rows = len(result) if isinstance(result, list) else 0
+
+        truncation_result = _truncate_result(data, total_rows)
+
+        if truncation_result["truncated"]:
+            await ctx.warning(
+                f"Truncated: {truncation_result['returned_rows']}/{total_rows} rows."
+            )
+        else:
+            await ctx.info(f"Query skill returned {total_rows} rows")
+
+        return {
+            "success": True,
+            "skill_name": skill_name,
+            "data": truncation_result["data"],
+            "row_count": truncation_result["returned_rows"],
+            "total_rows": total_rows,
+            "truncated": truncation_result["truncated"],
+            "truncation_note": (
+                f"Showing {truncation_result['returned_rows']}/{total_rows} rows. "
+                f"Use LIMIT clause for full control."
+            ) if truncation_result["truncated"] else None,
+        }
+
+    # ── execute_mutation_skill (second switch) ──
+    if SKILLS_ALLOW_MUTATIONS:
+        @mcp.tool(
+            annotations=ToolAnnotations(
+                title="Execute Mutation Skill",
+                readOnlyHint=False,
+                destructiveHint=True,
+                idempotentHint=False,  # Conservative default; per-skill idempotent
+                                       # info is conveyed via list_skills() and result dict
+            )
+        )
+        async def execute_mutation_skill(
+            skill_name: Annotated[str, Field(description="Name of the mutation skill to execute")],
+            params: Annotated[dict[str, Any], Field(description="Parameters for the skill (must match skill_def.md schema)")],
+            ctx: Context,
+            confirm: Annotated[bool, Field(description="False=preview (default), True=execute")] = False,
+        ) -> dict[str, Any]:
+            """
+            Execute a pre-defined mutation (write) skill.
+
+            Two-phase workflow (Anthropic plan-validate-execute pattern):
+            1. confirm=false (default) — validate + preview, no database changes
+            2. confirm=true — validate + execute, commits changes in a transaction
+
+            Args:
+                skill_name: The mutation skill name (e.g., "update-order-status")
+                params: Parameter dict matching the skill's frontmatter schema
+                confirm: False=dry-run preview (default), True=actual execution
+
+            Returns:
+                Preview result (confirm=false) or execution result (confirm=true)
+            """
+            mode = "execute" if confirm else "preview"
+            await ctx.info(f"Mutation skill '{skill_name}' mode={mode}")
+
+            # Get client_id for audit logging (FastMCP Context provides this)
+            client_id = None
+            try:
+                client_id = ctx.client_id
+            except Exception:
+                pass  # client_id is optional, fall back to env var in AuditLogger
+
+            try:
+                validate_name(skill_name)
+
+                # Load + validate params against frontmatter schema
+                skills = get_skills_cache()
+                if skill_name not in skills:
+                    raise FileNotFoundError(f"Skill '{skill_name}' not found")
+                meta = skills[skill_name]
+                if meta.type != "mutation":
+                    raise TypeError(
+                        f"Skill '{skill_name}' is type '{meta.type}', expected 'mutation'"
+                    )
+                validated_params = validate_params(params, meta.params)
+
+                # Load mutation module
+                adapter = get_adapter()
+                mutation = load_mutation(skill_name, adapter, _audit_logger)
+
+            except (ValueError, TypeError, FileNotFoundError, AttributeError,
+                    ImportError, SyntaxError) as e:
+                await ctx.warning(f"Mutation skill setup error: {e}")
+                raise ToolError(str(e)) from e
+
+            if not confirm:
+                # Phase 1: validate + preview (no writes)
+                try:
+                    validation = mutation.validate(validated_params)
+                    if not validation.get("valid", False):
+                        errors = validation.get("errors", ["Validation failed"])
+                        await ctx.warning(f"Validation failed: {errors}")
+                        return {
+                            "success": False,
+                            "skill_name": skill_name,
+                            "mode": "preview",
+                            "validation": validation,
+                        }
+
+                    preview_result = mutation.preview(validated_params)
+
+                    # Audit the preview
+                    _audit_logger.log(
+                        skill_name=skill_name,
+                        params=validated_params,
+                        mode="preview",
+                        result={"success": True, "preview": True},
+                        client_id=client_id,
+                    )
+
+                    await ctx.info(f"Preview completed for '{skill_name}'")
+                    return {
+                        "success": True,
+                        "skill_name": skill_name,
+                        "mode": "preview",
+                        "preview": preview_result,
+                        "idempotent": meta.idempotent,
+                        "hint": "Set confirm=true to execute this operation.",
+                    }
+                except ToolError:
+                    raise
+                except Exception as e:
+                    sanitized = adapter._handle_error(e)
+                    raise ToolError(sanitized) from e
+            else:
+                # Phase 2: validate + execute (commits to database)
+                try:
+                    validation = mutation.validate(validated_params)
+                    if not validation.get("valid", False):
+                        errors = validation.get("errors", ["Validation failed"])
+                        await ctx.warning(f"Validation failed: {errors}")
+                        return {
+                            "success": False,
+                            "skill_name": skill_name,
+                            "mode": "execute",
+                            "validation": validation,
+                        }
+
+                    result = mutation.run_execute(
+                        validated_params,
+                        skill_name=skill_name,
+                        mode="execute",
+                    )
+
+                    await ctx.info(
+                        f"Mutation '{skill_name}' executed: rowcount={result.get('rowcount')}"
+                    )
+                    return {
+                        "success": True,
+                        "skill_name": skill_name,
+                        "mode": "execute",
+                        "result": result,
+                        "idempotent": meta.idempotent,
+                    }
+                except ToolError:
+                    raise
+                except Exception as e:
+                    sanitized = adapter._handle_error(e)
+                    _audit_logger.log(
+                        skill_name=skill_name,
+                        params=validated_params,
+                        mode="execute",
+                        result={"success": False, "error": sanitized},
+                        client_id=client_id,
+                    )
+                    raise ToolError(sanitized) from e
+
+        logger.info("Mutation skills enabled (SKILLS_ALLOW_MUTATIONS=1)")
+    else:
+        logger.info("Mutation skills disabled (SKILLS_ALLOW_MUTATIONS=0)")
+
+else:
+    logger.info("Skills extension disabled (ENABLE_SKILLS=0)")
 
 
 # =============================================================================
@@ -998,10 +1350,20 @@ def sql_assistant() -> str:
             cross_table = f"UNION allowed for: {tables_desc}."
     else:
         cross_table = "Query tables separately."
-    
+
+    # Skills extension info for prompt
+    skills_info = ""
+    if SKILLS_ENABLED:
+        skills_info = """
+- list_skills(): List pre-defined query/mutation skills
+- execute_query_skill(name, params): Execute a query skill with parameters
+"""
+        if SKILLS_ALLOW_MUTATIONS:
+            skills_info += "- execute_mutation_skill(name, params, confirm): Execute a mutation skill (confirm=false for preview)\n"
+
     # Conditional heuristic prompt - let LLM decide based on context
     # Reference: "Model-driven tool selection" - provide rules, not fixed chains
-    return f"""READ-ONLY SQL query executor.
+    return f"""Database query assistant.
 
 Tools (choose based on need):
 - query(sql): Execute SELECT/SHOW/DESCRIBE/EXPLAIN
@@ -1009,7 +1371,7 @@ Tools (choose based on need):
 - describe_table(name): Single table columns + row estimate + is_large hint
 - get_full_schema(): All tables with columns (use for multi-table JOINs)
 - check_connection(): Verify database connectivity (use only on connection errors)
-
+{skills_info}
 Decision rules:
 - Unknown structure? list_tables() for overview, then describe_table() for details
 - For single-table queries, if schema/columns unknown, call describe_table(table_name) before query().

@@ -1,6 +1,6 @@
 # 面向 AI Agent 的数据库安全访问入口 - MCP 服务
 
-![Version](https://img.shields.io/badge/version-2.2-blue)
+![Version](https://img.shields.io/badge/version-3.0-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Python](https://img.shields.io/badge/python-3.12+-blue?logo=python)
 ![MCP](https://img.shields.io/badge/MCP-Protocol-orange)
@@ -106,6 +106,9 @@
 | `sql_safety_checker.py` | SQL 语句解析和安全检查 |
 | `db_adapter.py` | 数据库适配器抽象层（MySQL/SQLite 支持） |
 | `start_server.py` | 服务启动、环境验证 |
+| `skills/_lib/skill_loader.py` | 技能发现、YAML 解析、参数校验 (v3.0) |
+| `skills/_lib/mutation_base.py` | 写操作技能抽象基类 (v3.0) |
+| `skills/_lib/audit.py` | 写操作 JSONL 审计日志 (v3.0) |
 
 ## 设计理念
 ### 启发：基于LLM/Agents的用户界面
@@ -142,7 +145,7 @@ LLM(Agents)不能凭空生成SQL，需要有一定的上下文基础。这里的
 
 ### 项目路线图
 **Agent Skills和扩展性**  
-在未来，计划引入对Agent Skills的支持。
+**Skills 扩展层已在 v3.0 版本中添加**（2026年3月）。详见 [MCP_AGENTS_SKILLS_DESIGN.md](MCP_AGENTS_SKILLS_DESIGN.md)。
 同时计划对于本项目进行扩展性的提升。在现有的实践中我们认识到提供（封装成）具体的语义化工具的意义。业界也有对应的最佳实践论述：
 > "Offload the burden from the model and use code where possible."  
 > "Don't make the model fill arguments you already know."  
@@ -150,7 +153,7 @@ LLM(Agents)不能凭空生成SQL，需要有一定的上下文基础。这里的
 > [— OpenAI, "Best practices for defining functions" (December 2025)](https://platform.openai.com/docs/guides/function-calling#best-practices-for-defining-functions)
 
 这说明在合理的情况下，一个实用的系统应该加入、并支持添加针对特定场景的额外工具。但是，过多的工具会占用更多上下文，并且会降低准确率/增加成本[1]。而Agent Skills的渐进式披露(progressive disclosure)[2]则可以避免这些问题。
-因此，我们可以设想这样一个方案：用户或开发人员可以编写大量依赖于本MCP服务之上的“插件”（代码段/工具），通过SKILL.md管理，可以动态的增加与配置工具。而Agent则可以加载这些“插件”，灵活扩展其能力。
+因此，我们可以设想这样一个方案：用户或开发人员可以编写大量依赖于本MCP服务之上的"插件"（代码段/工具），通过skill_def.md管理，可以动态的增加与配置工具。而Agent则可以加载这些"插件"，灵活扩展其能力。
 
 > [1]: ["Keep the number of functions small for higher accuracy."](https://platform.openai.com/docs/guides/function-calling)  
 > [2]: ["This filesystem-based architecture enables progressive disclosure: Claude loads information in stages as needed, rather than consuming context upfront."](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview#how-skills-work)
@@ -171,7 +174,7 @@ LLM(Agents)不能凭空生成SQL，需要有一定的上下文基础。这里的
 3. 在满足1，2的前提下，尽可能减少对AI的约束。用最简洁的提示和步骤完成任务，并使AI完成完整的工作流。
 > 对于上下文，要尽可能的保留充分完整；对于提示和约束，要尽量减少。
 
-这就是本项目虽然保留了最初的GEMINI.md，但仅作为记录使用，并且也未增加AGENTS.md的原因。但SKILL.md或类似的“渐进式”文档是良好的实践。本项目的相关文档 [REFACTORING_LOG.md](REFACTORING_LOG.md) 和 [PROMPT_ENGINEERING_BEST_PRACTICES.md](PROMPT_ENGINEERING_BEST_PRACTICES.md) 体现了这一实践。
+这就是本项目虽然保留了最初的GEMINI.md，但仅作为记录使用，并且也未增加AGENTS.md的原因。但skill_def.md或类似的"渐进式"文档是良好的实践。本项目的相关文档 [REFACTORING_LOG.md](REFACTORING_LOG.md) 和 [PROMPT_ENGINEERING_BEST_PRACTICES.md](PROMPT_ENGINEERING_BEST_PRACTICES.md) 体现了这一实践。
 
 ### 风险和局限
 在编写本项目的实践中，使用了大量的AI辅助开发。尽管已经尽可能的review代码和进行测试，并添加了一系列安全设置。但精力有限，无法覆盖全部情况，尤其是考虑到有LLM参与其中的情况。  
@@ -322,7 +325,8 @@ python autogen_sql_agent.py "列出所有表并描述它们的结构"
 - 服务器从工作目录中的 `.env` 文件加载凭据。
 - 对于虚拟环境，使用 Python 解释器的完整路径。
 
-## 配置（位于.env文件中。需要先拷贝.env.example，重命名为.env以进行配置）
+## 配置
+位于.env文件中。需要先拷贝.env.example，重命名为.env以进行配置
 
 ### 数据库类型选择
 ```bash
@@ -387,12 +391,72 @@ MAX_RESULT_ROWS=100      # 每次查询返回的最大行数（0=不限制）
 MAX_RESULT_CHARS=16000   # 响应中的最大字符数（0=不限制）
 MAX_SCHEMA_TABLES=50     # get_full_schema 返回的最大表数（0=不限制）
 MAX_OVERVIEW_TABLES=100  # list_tables 返回的最大表数（0=不限制）
+
+# Skills 扩展 (v3.0)
+ENABLE_SKILLS=0          # 主开关：启用 Skills 层（1=启用，0=禁用）
+SKILLS_ALLOW_MUTATIONS=0 # 允许写操作技能（需要 ENABLE_SKILLS=1）
+# SKILLS_DIR=skills/     # Skills 目录路径（相对或绝对）
+# SKILLS_AUDIT_LOG=skills/_audit.jsonl  # 写操作审计日志（JSONL 格式）
+# AGENT_ID=my-agent      # 审计日志中的 Agent 标识
 ```
+
+**Skills 配置说明**：
+
+Skills 层允许你将常用的 SQL 查询和数据变更操作封装为可复用的"技能"。默认关闭，不影响已有功能。
+
+| 变量 | 默认值 | 说明 |
+|------|--------|------|
+| `ENABLE_SKILLS` | `0` | 主开关。设为 `1` 后注册 `list_skills` 和 `execute_query_skill` 工具 |
+| `SKILLS_ALLOW_MUTATIONS` | `0` | 写操作开关。设为 `1` 后额外注册 `execute_mutation_skill` 工具，需要 `ENABLE_SKILLS=1` |
+| `SKILLS_DIR` | `skills/` | 技能目录路径。必须位于项目根目录下（安全约束） |
+| `SKILLS_AUDIT_LOG` | `skills/_audit.jsonl` | 写操作审计日志路径。每次 mutation 操作自动记录 |
+| `AGENT_ID` | `unknown` | 审计日志中标识调用者的 Agent ID |
+
+**典型配置场景**：
+
+```bash
+# 场景 1：仅启用只读查询技能（如 monthly-sales-report）
+ENABLE_SKILLS=1
+SKILLS_ALLOW_MUTATIONS=0
+
+# 场景 2：同时启用查询和写操作技能（如 update-order-status）
+ENABLE_SKILLS=1
+SKILLS_ALLOW_MUTATIONS=1
+
+# 场景 3：自定义技能目录和审计日志路径
+ENABLE_SKILLS=1
+SKILLS_ALLOW_MUTATIONS=1
+SKILLS_DIR=my_custom_skills/
+SKILLS_AUDIT_LOG=logs/skills_audit.jsonl
+AGENT_ID=copilot-agent-1
+```
+
+> **安全提示**：`SKILLS_ALLOW_MUTATIONS` 是独立于 `ENABLE_SKILLS` 的第二层开关。即使 `ENABLE_SKILLS=1`，写操作默认仍然禁用，需要显式开启。这遵循最小权限原则。
 
 ### MCP 客户端集成
 有关完整的客户端配置示例，请参阅 `mcp_config.json`。
 
 ## 更新日志
+
+### v3.0 Skills 扩展层（2026年3月）
+
+新增 Skills 扩展层 —— 预定义、参数化的 SQL 操作，用于结构化的 Agent 交互：
+
+- **Skills 基础设施** (`skills/_lib/`)：
+  - `skill_loader.py`：技能发现、YAML frontmatter 解析、参数校验、启动时 SQL 安全检查
+  - `mutation_base.py`：实现 validate/preview/execute 模式的写操作抽象基类
+  - `audit.py`：线程安全的 JSONL 审计日志，记录所有 mutation 操作
+- **新增 MCP 工具**（通过 `ENABLE_SKILLS` 条件注册）：
+  - `list_skills()`：渐进式披露 —— 返回技能元数据（名称、类型、风险、触发词）
+  - `execute_query_skill(name, params)`：执行预审计的 SQL 模板，支持参数化绑定
+  - `execute_mutation_skill(name, params, confirm)`：两阶段写操作（预览 → 确认）
+- **安全模型**（`skills/SAFETY.md` 中 16 项）：模板即白名单、参数化查询、双层开关、错误脱敏
+- **数据库适配器扩展**：`execute()` 新增可选 `params`、新增 `execute_write()` 方法
+- **示例技能**：`monthly-sales-report`（查询）和 `update-order-status`（乐观锁写操作）
+- **58 个新测试**：覆盖技能加载器、查询技能、写操作技能、审计日志
+- **完全向后兼容**：`ENABLE_SKILLS=0`（默认）时零开销，不注册任何工具
+
+设计详情参见 [MCP_AGENTS_SKILLS_DESIGN.md](MCP_AGENTS_SKILLS_DESIGN.md)。
 
 ### v2.2 SQLite 支持（2026年1月）
 
@@ -477,7 +541,7 @@ MAX_OVERVIEW_TABLES=100  # list_tables 返回的最大表数（0=不限制）
 
 ## 公开的 MCP 工具
 
-该服务公开 5-7 个标准化的 MCP 工具（取决于配置）：
+该服务公开 5-10 个标准化的 MCP 工具（取决于配置）：
 
 ### 1. `query`（主要工具）
 用途：执行带有自动安全验证的只读 SQL 查询
@@ -650,12 +714,177 @@ MAX_OVERVIEW_TABLES=100  # list_tables 返回的最大表数（0=不限制）
 }
 ```
 
+### 8. `list_skills`（Skills 扩展，可选）
+用途：列出所有可用的预定义技能（查询和写操作）。
+
+**注意：** 需要 `ENABLE_SKILLS=1`。返回技能元数据，用于渐进式披露。
+
+### 9. `execute_query_skill`（Skills 扩展，可选）
+用途：执行预定义的查询技能，支持参数化 SQL。
+
+**注意：** 需要 `ENABLE_SKILLS=1`。技能是预审计的 SQL 模板，绕过运行时 `is_sql_safe()` 检查。
+
+输入：
+```json
+{
+  "skill_name": "monthly-sales-report",
+  "params": {"year": 2026, "month": 1}
+}
+```
+
+### 10. `execute_mutation_skill`（Skills 扩展，可选）
+用途：执行预定义的写操作技能，支持两阶段确认。
+
+**注意：** 需要 `ENABLE_SKILLS=1` 和 `SKILLS_ALLOW_MUTATIONS=1`。遵循 validate → preview → execute 模式。
+
+输入：
+```json
+{
+  "skill_name": "update-order-status",
+  "params": {"order_id": 42, "new_status": "shipped"},
+  "confirm": false
+}
+```
+
+`confirm=false`（默认）返回预览。`confirm=true` 执行写操作。
+
+### Skills 扩展详解（v3.0）
+
+Skills（技能）是预定义的、参数化的 SQL 操作，封装了常见的业务查询和数据变更逻辑。与核心工具 `query()` 允许 Agent 自由编写 SQL 不同，Skills 提供经过代码审查的 SQL 模板，Agent 只需传入参数即可执行，无需（也无法）自行编写 SQL。
+
+**为什么需要 Skills？**
+- **降低出错概率**：复杂的多表 JOIN、聚合查询容易出错，预定义模板确保 SQL 正确性
+- **安全写操作**：核心工具仅支持只读查询（SELECT），Skills 通过严格的审计和确认机制支持写操作
+- **效率提升**：Agent 无需多轮探索表结构再编写 SQL，一步调用即可完成
+- **可扩展**：开发者可以根据业务需求自行添加新的 Skill
+
+#### 示例 1：`monthly-sales-report`（查询技能）
+
+**目标**：生成指定月份的每日销售汇总报告，包含日收入、订单数量和平均订单金额。
+
+**目录结构**：
+```
+skills/monthly-sales-report/
+├── skill_def.md    # 技能定义（YAML 元数据 + 使用说明）
+└── query.sql       # SQL 模板
+```
+
+**`skill_def.md` 中的元数据**（YAML frontmatter）：
+```yaml
+name: monthly-sales-report
+type: query              # 只读查询，不修改数据
+risk: low                # 低风险
+params:
+  year: {type: int, required: true, description: "年份，如 2026"}
+  month: {type: int, required: true, min: 1, max: 12, description: "月份 (1-12)"}
+triggers:                # 关键词提示，帮助 Agent 匹配到此技能
+  - monthly sales
+  - revenue report
+  - sales summary
+```
+
+**`query.sql` 内容**：
+```sql
+SELECT
+    DATE(order_date) AS date,
+    COUNT(*) AS order_count,
+    SUM(amount) AS revenue,
+    ROUND(AVG(amount), 2) AS avg_order_value
+FROM orders
+WHERE YEAR(order_date) = :year
+  AND MONTH(order_date) = :month
+GROUP BY DATE(order_date)
+ORDER BY date ASC
+```
+
+**调用方式**：Agent 通过 `execute_query_skill` 工具调用：
+```json
+{"skill_name": "monthly-sales-report", "params": "{\"year\": 2026, \"month\": 1}"}
+```
+
+**工作原理**：服务器启动时，`skill_loader.py` 扫描 `skills/` 目录，解析 `skill_def.md` 的 YAML frontmatter，并对 `query.sql` 进行安全检查（通过 `is_sql_safe()`）。运行时，Agent 传入参数 `year` 和 `month`，服务器通过 SQLAlchemy 的参数化绑定（`:year`、`:month`）安全地执行查询，防止 SQL 注入。
+
+#### 示例 2：`update-order-status`（写操作技能）
+
+**目标**：安全地更新订单状态，使用状态机约束防止非法转换（例如不能直接从 "pending" 跳到 "delivered"）。
+
+**目录结构**：
+```
+skills/update-order-status/
+├── skill_def.md                  # 技能定义
+├── mutation.py                   # Python 逻辑（验证 + 预览 + 执行）
+└── references/
+    └── status-transitions.md     # 状态转换规则文档
+```
+
+**元数据**：
+```yaml
+name: update-order-status
+type: mutation                     # 写操作
+risk: medium                       # 中等风险
+requires_confirmation: true        # 需要两阶段确认
+params:
+  order_id: {type: int, required: true, description: "订单 ID"}
+  new_status: {type: str, required: true, 
+    enum: [pending, confirmed, shipped, delivered, cancelled, returned],
+    description: "目标状态"}
+```
+
+**状态转换规则**（内置于 `mutation.py`）：
+```
+pending    → confirmed, cancelled
+confirmed  → shipped, cancelled
+shipped    → delivered, returned
+delivered  → returned
+cancelled  → (终态，不可转换)
+returned   → (终态，不可转换)
+```
+
+**两阶段调用流程**：
+
+1. **预览**（`confirm=false`，默认）—— 只看不做：
+```json
+{"skill_name": "update-order-status", 
+ "params": "{\"order_id\": 42, \"new_status\": \"shipped\"}",
+ "confirm": false}
+```
+返回将要执行的 SQL 和预期影响，不实际修改数据。
+
+2. **执行**（`confirm=true`）—— 确认后写入：
+```json
+{"skill_name": "update-order-status",
+ "params": "{\"order_id\": 42, \"new_status\": \"shipped\"}",
+ "confirm": true}
+```
+
+**安全机制**：
+- **状态机验证**：`validate()` 检查当前状态是否允许转换到目标状态
+- **乐观锁**：执行时使用 `WHERE status = :expected_status`，如果在预览和执行之间状态被其他人修改，则更新失败（返回 rowcount=0）
+- **事务保护**：写操作在数据库事务中执行，失败时自动回滚
+- **审计日志**：每次操作（无论成功失败）自动记录到 JSONL 审计文件
+
+#### 如何添加自定义 Skill
+
+**查询技能**（只读）：
+1. 在 `skills/` 下创建目录，如 `skills/my-report/`
+2. 编写 `skill_def.md`（YAML frontmatter + 说明文档）
+3. 编写 `query.sql`（使用 `:param_name` 作为参数占位符）
+4. 重启服务即可自动发现和注册
+
+**写操作技能**（mutation）：
+1. 同上创建目录和 `skill_def.md`（`type: mutation`）
+2. 编写 `mutation.py`，定义 `Mutation` 类（继承 `MutationBase`）
+3. 实现 `validate()`、`preview()`、`execute()` 三个方法
+4. 设置 `SKILLS_ALLOW_MUTATIONS=1` 并重启服务
+
+详细规范请参阅 [MCP_AGENTS_SKILLS_DESIGN.md](MCP_AGENTS_SKILLS_DESIGN.md) 和 [skills/SAFETY.md](skills/SAFETY.md)。
+
 
 ## 依赖要求
 
 - Python 3.12+
-- MySQL 数据库
-- 依赖：`sqlparse`、`SQLAlchemy`、`PyMySQL`、`fastMCP`、`python-dotenv`
+- MySQL 或 SQLite 数据库
+- 依赖：`sqlparse`、`SQLAlchemy>=2.0`、`PyMySQL`、`fastMCP`、`python-dotenv`、`pyyaml`
 
 ## 测试
 
@@ -691,9 +920,11 @@ python test_mcp_client.py
 
 ## 本项目的其它文档
 
+- [Skills 设计文档](MCP_AGENTS_SKILLS_DESIGN.md)：v3.0 Skills 扩展层架构和设计决策
+- [Skills 安全策略](skills/SAFETY.md)：面向技能作者的 16 项安全治理
 - [可行性分析](LLM_TO_MCP_FEASIBILITY_ANALYSIS.md)：LLM 到 MCP 转换的详细分析
 - [原始上下文](GEMINI.md)：项目背景和开发指南
-- [重构日志](REFACTORING_LOG.md)：2025年12月重构变更文档
+- [重构日志](REFACTORING_LOG.md)：重构变更文档（v2.0 — v3.0）
 - [MCP 客户端测试指南](TEST_MCP_CLIENT_GUIDE.md)：通过客户端测试 MCP 服务器的指南
 - [提示工程最佳实践](PROMPT_ENGINEERING_BEST_PRACTICES.md)：MCP 工具描述和提示的指南
 
