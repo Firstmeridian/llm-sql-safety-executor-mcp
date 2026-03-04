@@ -104,3 +104,6 @@ local_archive/
 
 # logs directory
 logs/
+
+# Markdown files starting with DRAFTPLAN
+DRAFTPLAN*.md
