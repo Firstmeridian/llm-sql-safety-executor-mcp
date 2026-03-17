@@ -68,6 +68,143 @@ Agent → execute_mutation_skill(confirm=true)
                                                                      → audit.log()
 ```
 
+### Skill Lifecycle
+
+The following diagram illustrates the complete lifecycle of a skill, from
+authoring to runtime execution. The key architectural decision is the
+**separation of startup-time validation from runtime execution** — all
+security checks happen before the server accepts any requests.
+
+```mermaid
+flowchart LR
+    subgraph Author["Phase 1: Authoring"]
+        D1["skill_def.md\nYAML metadata\n+ documentation"]
+        D2["query.sql\nSQL template"]
+        D3["mutation.py\nPython logic"]
+    end
+
+    subgraph Startup["Phase 2: Server Startup — discover()"]
+        S1["Scan skills/ directory"]
+        S2["Parse YAML frontmatter"]
+        S3["Validate SQL safety\nis_sql_safe()"]
+        S4["Import Mutation class\nimportlib.util"]
+        S5["Cache to _skills_cache"]
+        S6["Generate SKILLS.md"]
+    end
+
+    subgraph Runtime["Phase 3: Runtime — Agent Interaction"]
+        R1["list_skills()\nmetadata only"]
+        R2["execute_query_skill()\ncached SQL + params"]
+        R3["execute_mutation_skill()\ncached class + params"]
+    end
+
+    D1 --> S1
+    D2 --> S1
+    D3 --> S1
+    S1 --> S2 --> S3 & S4
+    S3 --> S5
+    S4 --> S5
+    S5 --> S6
+    S5 -.->|"in-memory cache"| R1 & R2 & R3
+```
+
+> **Design reference**: The eager startup validation follows the "fail-fast"
+> principle — if a skill has unsafe SQL or a malformed `mutation.py`, the server
+> refuses to register it at startup, not at the first runtime invocation. This
+> eliminates an entire class of runtime errors and is consistent with
+> [MCP Specification §7 — Security](https://modelcontextprotocol.io/specification/2025-03-26/basic/security):
+> *"Validate all inputs"* and *"Implement proper access controls."*
+
+### Query Skill Execution Flow
+
+```mermaid
+sequenceDiagram
+    participant Agent
+    participant MCP as MCP Server
+    participant Loader as skill_loader
+    participant Adapter as db_adapter
+    participant DB as Database
+
+    Agent->>MCP: execute_query_skill(name, params)
+    MCP->>Loader: validate_name(name)
+    Loader-->>MCP: ✓ name valid
+    MCP->>Loader: load_query(name)
+    Loader-->>MCP: cached {sql_template, metadata}
+    MCP->>Loader: validate_params(params, metadata)
+    Loader-->>MCP: ✓ params coerced & validated
+    MCP->>Adapter: execute(sql_template, params=params)
+    Adapter->>DB: Parameterized query (SQLAlchemy text())
+    DB-->>Adapter: result rows
+    Adapter-->>MCP: formatted result
+    MCP-->>Agent: {success, data, row_count}
+```
+
+> **Design reference**: Parameters are bound via SQLAlchemy `text()` +
+> parameter dict, never via string concatenation. This follows the
+> industry-standard parameterized query pattern recommended by
+> [OWASP — SQL Injection Prevention Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/SQL_Injection_Prevention_Cheat_Sheet.html).
+
+### Mutation Skill Two-Phase Execution Flow
+
+The two-phase execution pattern implements Anthropic's
+["verifiable intermediate outputs"](https://docs.anthropic.com/en/docs/build-with-claude/agentic-systems#practices-for-effective-agentic-systems)
+principle — the agent (and user) can review planned changes before committing.
+
+```mermaid
+sequenceDiagram
+    participant Agent
+    participant MCP as MCP Server
+    participant Loader as skill_loader
+    participant Mutation as MutationBase
+    participant Adapter as db_adapter
+    participant Audit as AuditLogger
+    participant DB as Database
+
+    Note over Agent,DB: Phase 1: Preview (confirm=false)
+    Agent->>MCP: execute_mutation_skill(name, params, confirm=false)
+    MCP->>Loader: validate_name(name) + validate_params(params)
+    MCP->>Loader: load_mutation(name, adapter, audit_logger)
+    Loader-->>MCP: Mutation instance (from cached class)
+    MCP->>Mutation: validate(params)
+    Mutation->>Adapter: execute(SELECT ... WHERE id=:id)
+    Adapter->>DB: query current state
+    DB-->>Adapter: current record
+    Adapter-->>Mutation: current data
+    Mutation-->>MCP: validation result (state check passed)
+    MCP->>Mutation: preview(params)
+    Mutation-->>MCP: {preview_sql, current_status, new_status}
+    MCP-->>Agent: {preview, requires_confirmation: true}
+
+    Note over Agent,DB: Phase 2: Execute (confirm=true)
+    Agent->>MCP: execute_mutation_skill(name, params, confirm=true)
+    MCP->>Loader: validate_name + validate_params (re-validate)
+    MCP->>Loader: load_mutation(name, adapter, audit_logger)
+    MCP->>Mutation: run_execute(params)
+    Mutation->>Mutation: validate(params) — re-verify (TOCTOU defense)
+    Mutation->>Adapter: execute_write(UPDATE ... WHERE status=:expected)
+    Adapter->>DB: BEGIN → UPDATE → COMMIT
+    DB-->>Adapter: rowcount
+    Adapter-->>Mutation: {success: true, rowcount: N}
+    Mutation->>Audit: log(skill, params, result, agent_id)
+    Mutation-->>MCP: {success, rowcount, message}
+    MCP-->>Agent: execution result
+
+    Note over Agent,DB: Error path
+    Adapter--xMutation: SQLAlchemyError
+    Mutation->>Adapter: _handle_error(e) → sanitized message
+    Mutation--xMCP: raise ToolError(sanitized)
+    MCP--xAgent: error (no sensitive details leaked)
+```
+
+> **Design references**:
+> - *"Give models less freedom for higher-stakes operations."* — Anthropic,
+>   ["Building effective agents" (2024)](https://docs.anthropic.com/en/docs/build-with-claude/agentic-systems#practices-for-effective-agentic-systems).
+>   Mutation operations use constrained code paths, not free-form agent code.
+> - *"Verifiable intermediate outputs"* — ibid.
+>   The preview phase allows the agent (and user) to verify planned changes.
+> - The `validate()` call in Phase 2 is **intentionally duplicated** to defend
+>   against TOCTOU: the data state may have changed between preview and confirm.
+
 ## 3. Directory Structure
 
 ```
@@ -123,9 +260,147 @@ related_skills:               # Optional, discovery hints
 Markdown body with usage instructions (< 500 lines recommended).
 ```
 
+### Design Rationale
+
+The `skill_def.md` format is designed around four principles:
+
+**1. Self-contained definition** — Each skill carries its own metadata,
+parameter schema, and documentation in a single file. This follows Google's
+["use clear and descriptive function/parameter names and descriptions"](https://ai.google.dev/gemini-api/docs/function-calling#best_practices)
+principle for function calling: define parameters with precise types,
+constraints, and descriptions to reduce ambiguity and hallucination.
+
+**2. Declarative parameter validation** — Parameter constraints (`type`,
+`min`, `max`, `enum`) are declared in YAML rather than implemented in code.
+The server's `validate_params()` enforces these constraints uniformly for
+all skills. This follows
+[MCP Specification §7](https://modelcontextprotocol.io/specification/2025-03-26/basic/security):
+*"Validate all inputs"* — validation is defined once in the schema and
+enforced automatically by the infrastructure, not by each individual skill.
+
+**3. Information layering** — `skill_def.md` serves two audiences:
+
+| Audience | Reads | Purpose |
+|----------|-------|---------|
+| **Server** (`skill_loader.py`) | YAML frontmatter | Registration, validation, parameter schema |
+| **Developers** | Markdown body | Context, workflow, maintenance notes |
+| **Agent** | Neither directly | Receives structured metadata via `list_skills()` |
+
+This separation means the Agent never sees the markdown body or the raw SQL
+template — it only receives the structured metadata via `list_skills()`.
+In contrast, standard Agent Skills expect the Agent to read the full SKILL.md
+content as executable instructions.
+
+**4. Anthropic-compatible naming** — The choice of YAML frontmatter and the
+`name` field regex (`^[a-z0-9][a-z0-9-]*$`) deliberately align with the
+[Anthropic Agent Skills spec](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices).
+Developers familiar with the standard format will find `skill_def.md`
+immediately readable, even though the execution model is fundamentally
+different (see Section 11).
+
+```mermaid
+flowchart TB
+    subgraph SD["skill_def.md"]
+        direction TB
+        Y["YAML Frontmatter\n─────────────────\nname, type, risk\nparams (type/min/max/enum)\ntriggers, related_skills"]
+        M["Markdown Body\n─────────────────\nUsage instructions\nWorkflow notes\nCaveats"]
+    end
+
+    subgraph Consumers["Consumers"]
+        SL["skill_loader.py\n(Server startup)"]
+        DEV["Developer\n(Code review)"]
+        AG["Agent\n(Runtime)"]
+    end
+
+    Y -->|"parsed by discover()"| SL
+    Y -.->|"also readable by"| DEV
+    M -->|"read by"| DEV
+    M -.->|"NOT sent to"| AG
+    SL -->|"list_skills() metadata"| AG
+
+    style SD fill:#f9f9f9,stroke:#999
+    style Y fill:#ffe,stroke:#aa3
+    style M fill:#eef,stroke:#33c
+```
+
 ## 5. Security Model
 
 See [skills/SAFETY.md](skills/SAFETY.md) for the full 16-item security policy.
+
+### Security Model Overview
+
+The following diagram shows the four security layers that every request passes through, from the untrusted Agent to the database:
+
+```mermaid
+flowchart TB
+    subgraph Agent["Agent Side (Untrusted)"]
+        A1["LLM Agent<br/>(Claude / GPT / etc.)"]
+    end
+
+    subgraph MCP["MCP Protocol Boundary"]
+        direction TB
+        T1["query(sql)"]
+        T2["execute_query_skill(name, params)"]
+        T3["execute_mutation_skill(name, params, confirm)"]
+        T4["list_skills() / describe_table() / ..."]
+    end
+
+    subgraph Server["MCP Server Security Layer (Trusted)"]
+        direction TB
+
+        subgraph S1["Layer 1: Input Validation"]
+            V1["is_sql_safe()<br/>Allow only SELECT/SHOW/DESCRIBE/EXPLAIN"]
+            V2["_is_query_safe_extended()<br/>Block system tables/UNION/subqueries"]
+            V3["_check_table_allowlist()<br/>Table-level access control"]
+            V4["validate_name()<br/>^a-z0-9- prevent path traversal"]
+            V5["validate_params()<br/>Type/range/enum constraints"]
+        end
+
+        subgraph S2["Layer 2: Execution Control"]
+            E1["query.sql template<br/>Startup is_sql_safe() pre-validation"]
+            E2["Parameterized binding<br/>SQLAlchemy text() + params"]
+            E3["mutation: validate()<br/>Business rule validation"]
+            E4["mutation: preview()<br/>Dry-run preview"]
+            E5["mutation: execute()<br/>Execute in transaction"]
+        end
+
+        subgraph S3["Layer 3: Runtime Protection"]
+            R1["QUERY_TIMEOUT<br/>Timeout interrupt"]
+            R2["MAX_RESULT_ROWS/CHARS<br/>Result truncation"]
+            R3["_handle_error()<br/>Error message sanitization"]
+            R4["SKILLS_DIR path constraint<br/>Must be within project root"]
+        end
+
+        subgraph S4["Layer 4: Audit & Visibility"]
+            AU1["AuditLogger<br/>JSONL audit log"]
+            AU2["SKILLS.md<br/>Auto-generated overview"]
+            AU3["ctx.info() / ctx.warning()<br/>MCP progress notifications"]
+        end
+    end
+
+    subgraph DB["Database"]
+        DB1["MySQL / SQLite"]
+    end
+
+    A1 -->|"MCP tool call"| T1 & T2 & T3 & T4
+
+    T1 -->|"Raw SQL"| V1 --> V2 --> V3 --> E2 --> R1 --> R2
+    T2 -->|"skill_name + params"| V4 --> V5 --> E2 --> R1 --> R2
+    E1 -.->|"Startup pre-validation<br/>Ensures template safety"| E2
+    T3 -->|"skill_name + params + confirm"| V4 --> V5 --> E3 --> E4 & E5
+
+    E2 --> DB1
+    E5 -->|"Transaction"| DB1
+    E5 --> AU1
+
+    DB1 -.->|"On exception"| R3 -.->|"Sanitized error"| A1
+    R2 -->|"Truncated result"| A1
+
+    style Agent fill:#fee,stroke:#c33
+    style Server fill:#efe,stroke:#3a3
+    style DB fill:#eef,stroke:#33c
+    style MCP fill:#ffd,stroke:#aa3
+```
 
 ### Key Principles
 
@@ -255,8 +530,245 @@ Three levels of information, following Anthropic best practices:
 | Mutation error contract | `execute()` raises `ToolError` on failure | Return `{"success": False}` dict | Exceptions follow `run_execute()` error handling chain; return-dict failures bypass audit logging and cause semantic contradiction in MCP tool response |
 | Mutation read-write gap | Separate `execute()` + `execute_write()` calls | Single SQL merging SELECT+UPDATE | Optimistic locking `WHERE status = :expected` + `rowcount == 0` is the effective safety net; merging adds complexity with minimal gain |
 | `_coerce_type()` bool | `bool(value)` (Python built-in) | Explicit `"true"/"false"` mapping | No bool params in current skills; acceptable for MVP, should be revisited when bool params are added |
+| Annotation evaluation | `from __future__ import annotations` (PEP 563) in `skill_loader.py` | Runtime annotation evaluation (default) | Python 3.12 `type` soft keyword conflicts with `SkillMetadata.type` field annotation; PEP 563 deferred evaluation resolves Pylance parsing ambiguity |
 
-## 11. Testing
+## 11. Relationship to Standard Agent Skills (Anthropic Agent Skills)
+
+This section documents **why this project does not adopt the standard
+[Anthropic Agent Skills](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview)
+format**, and what elements were selectively borrowed. For user-facing
+
+### 11.1 Architectural Divergence
+
+Standard Agent Skills assume the agent operates inside a **VM / sandbox with
+filesystem access and code execution capabilities**. The agent reads `SKILL.md`
+via `bash`, writes its own code, and executes it locally. This enables the
+three-level progressive disclosure model:
+
+| Level | Standard Agent Skills | This Project |
+|-------|----------------------|--------------|
+| **L1: Metadata** | YAML frontmatter loaded into system prompt at startup (~100 tokens/skill) | `list_skills()` returns metadata from in-memory cache |
+| **L2: Instructions** | Agent reads SKILL.md body via `bash: cat SKILL.md` when triggered | N/A — skill_def.md body is for human developers, not consumed by agent at runtime |
+| **L3: Resources** | Agent reads bundled files (scripts, references) on demand via bash | SQL templates and mutation classes are **pre-loaded at startup** into `_skills_cache`, never read from disk at runtime |
+
+In MCP architecture, the agent communicates with the server via JSON-RPC
+over stdio/SSE ([MCP Spec — Transports](https://modelcontextprotocol.io/specification/2025-03-26/basic/transports)).
+The agent **cannot access the server's filesystem** — `bash: cat skill_def.md` is
+not possible. Standard Skills' filesystem-based progressive disclosure is
+therefore architecturally incompatible with MCP.
+
+This project implements **MCP-level progressive disclosure** instead:
+`list_skills()` (discovery) → `execute_*_skill()` (execution). From the
+agent's perspective, this achieves the same two-phase interaction pattern
+without requiring filesystem access.
+
+#### Visual Comparison: Loading Flow
+
+```mermaid
+flowchart LR
+  subgraph A[This Project's Skills Extension Layer]
+    A1[Server startup] --> A2[Read ENABLE_SKILLS and SKILLS_DIR]
+    A2 --> A3[discover scans skills directory]
+    A3 --> A4[Parse skill_def.md]
+    A4 --> A5{Skill type}
+    A5 -->|query| A6[Read and validate query.sql]
+    A5 -->|mutation| A7[Import and cache Mutation class]
+    A6 --> A8[Write to in-memory cache]
+    A7 --> A8
+    A8 --> A9[Register MCP tools list_skills execute_query_skill execute_mutation_skill]
+    A9 --> A10[At runtime the Agent calls tools on demand]
+    A10 --> A11[Server executes from cached template or class]
+  end
+
+  subgraph B[Standard Agent Skills]
+    B1[Agent startup] --> B2[Load skill metadata name and description]
+    B2 --> B3[User request arrives]
+    B3 --> B4{Does a skill match}
+    B4 -->|yes| B5[Read SKILL.md body]
+    B5 --> B6{Need more resources}
+    B6 -->|yes| B7[Read extra docs or run bundled scripts]
+    B6 -->|no| B8[Complete task using loaded instructions]
+    B7 --> B8
+    B4 -->|no| B9[Do not load that skill body]
+  end
+
+  A11 -. key distinction .-> C1[Eager startup discovery and caching]
+  B5 -. key distinction .-> C2[Lazy load of instructions when triggered]
+  C1 --- C2
+```
+
+### 11.2 Trust Model and Threat Boundary
+
+Standard Agent Skills operate under a **"sandbox isolation + trust the agent"**
+security model:
+
+```
+User request → Agent reads SKILL.md → Agent writes code → Agent executes in VM
+```
+
+The agent is **both decision-maker and executor**. Safety relies on VM sandbox
+restrictions (limited network/filesystem) and the assumption that the agent
+will faithfully follow instructions. This is appropriate for document
+processing tasks (PDF/Excel) where the worst case is generating an incorrect
+file inside a sandbox.
+
+This project operates under a fundamentally different threat model — **"do not
+trust the agent; server enforces all constraints"**:
+
+```
+User request → Agent calls MCP tool → MCP Server executes pre-built SQL → Production database
+```
+
+Attack surfaces specific to this architecture:
+
+| Threat | Description | Mitigation |
+|--------|-------------|------------|
+| **Prompt injection** | Malicious user input induces agent to pass dangerous parameters | `validate_params()` enforces type/min/max/enum constraints at server side |
+| **Agent hallucination** | Agent invents non-existent skills or passes out-of-range parameters | `validate_name()` + cache lookup + schema-level rejection of unexpected params |
+| **TOCTOU** | If SQL were read from disk at runtime, file tampering = arbitrary SQL injection | `discover()` pre-loads and caches at startup; zero disk I/O at runtime (see [CWE-367](https://cwe.mitre.org/data/definitions/367.html)) |
+| **SQL injection via params** | Agent-supplied parameters could be concatenated unsafely | SQLAlchemy `text()` + parameterized binding; no string concatenation |
+
+Adopting the standard Agent Skills model would mean letting the agent read SQL
+templates, assemble parameters, and decide when to execute — **every security
+checkpoint listed above would be bypassed**.
+
+### 11.3 "Teaching the Agent" vs "Acting for the Agent"
+
+This is the most fundamental conceptual difference:
+
+- **Standard Agent Skills**: SKILL.md is an **instruction document** (knowledge
+  pack). It tells the agent *how* to accomplish a task — "use pdfplumber to
+  extract text", "run this script to fill forms". The agent then writes and
+  executes its own code.
+
+- **This project's Skills**: `query.sql` and `mutation.py` are **executable
+  artifacts** (action templates). They are not instructions for the agent to
+  interpret — they are pre-built operations that the server executes on behalf
+  of the agent. The agent only provides parameters.
+
+Converting to the standard format would mean turning SQL templates into
+"instruction documents" that tell the agent to write its own SQL — which is
+precisely **the scenario this project exists to prevent**.
+
+### 11.4 Borrowed Elements
+
+The following elements from the standard Agent Skills spec are applicable to
+MCP and have been adopted:
+
+**Directory structure**: Each skill is a folder with an entry file
+(`skill_def.md`) plus optional bundled resources (e.g., `references/`).
+This mirrors the standard `SKILL.md` + bundled files pattern.
+
+**YAML frontmatter**: The `name` field follows the same regex constraint as
+the standard spec (`^[a-z0-9][a-z0-9-]*$`, max 64 characters). The
+`description` field serves the same purpose — providing discovery metadata
+for the agent.
+
+**Progressive interaction**: While the *mechanism* differs (MCP tool calls
+vs bash file reads), the *pattern* is the same — the agent first discovers
+what skills are available (low token cost), then selects and executes
+specific skills (higher token cost only when needed).
+
+**Composability via `related_skills`**: The `related_skills` field in
+`skill_def.md` allows skills to declare associations with other skills.
+For example, `update-order-status` declares:
+
+```yaml
+related_skills:
+  - monthly-sales-report
+```
+
+This indicates a business-level association — after updating order status,
+the agent may want to generate a sales report. When the agent calls
+`list_skills()`, returned metadata includes `related_skills`, enabling
+the agent to **discover workflow chains organically** rather than following a
+hardcoded pipeline. This is analogous to "customers who bought X also
+bought Y" — loose coupling between independently defined skills, with the
+agent deciding whether and when to compose them. At startup, `discover()`
+validates that all `related_skills` references point to existing skills
+(warning-only, does not block registration).
+
+#### Visual Comparison: Directory Structure
+
+```mermaid
+flowchart TB
+  subgraph P[This Project's skills directory]
+    P0[skills]
+    P0 --> P1[_lib]
+    P1 --> P11[skill_loader.py]
+    P1 --> P12[mutation_base.py]
+    P1 --> P13[audit.py]
+    P0 --> P2[monthly-sales-report]
+    P2 --> P21[skill_def.md]
+    P2 --> P22[query.sql]
+    P0 --> P3[update-order-status]
+    P3 --> P31[skill_def.md]
+    P3 --> P32[mutation.py]
+    P3 --> P33[references]
+    P33 --> P331[status-transitions.md]
+  end
+
+  subgraph S[Standard Agent Skills directory]
+    S0[.claude/skills or platform-managed skill bundle]
+    S0 --> S1[pdf-skill]
+    S1 --> S11[SKILL.md]
+    S1 --> S12[FORMS.md]
+    S1 --> S13[REFERENCE.md]
+    S1 --> S14[scripts]
+    S14 --> S141[fill_form.py]
+    S0 --> S2[another-skill]
+    S2 --> S21[SKILL.md]
+    S2 --> S22[other docs and resources]
+  end
+
+  P21 -. metadata and schema .-> X1[Parsed by discover on the server]
+  P22 -. executable SQL template .-> X2[Executed through MCP tools]
+  P32 -. executable Python mutation logic .-> X3[Executed through MCP tools]
+  S11 -. metadata plus instructions .-> Y1[Read by the agent to decide how to act]
+  S12 -. extra guidance .-> Y2[Loaded on demand]
+  S141 -. bundled utility script .-> Y3[Run on demand by the agent]
+```
+
+**Elements NOT adopted** (inapplicable to MCP):
+
+| Standard Element | Why Not Adopted |
+|-----------------|-----------------|
+| SKILL.md body as agent instructions | Agent has no filesystem access via MCP; skill_def.md body is for human developers |
+| Agent reads files via bash | MCP protocol boundary prevents server filesystem access |
+| Agent executes bundled scripts | Server-side execution model — agent only passes parameters |
+| On-demand lazy loading | Conflicts with TOCTOU security requirement (Section 11.2) |
+
+### 11.5 Security Depth Comparison
+
+| Security Mechanism | This Project | Under Standard Agent Skills |
+|----|----|----|
+| **SQL whitelist** | `is_sql_safe()` validates at startup; unsafe skills rejected before registration | Agent reads SQL file at runtime and executes — bypasses validation |
+| **Parameter validation** | `validate_params()` enforces type/min/max/enum constraints at server side; rejects parameters not defined in schema | Agent interprets parameters from natural language — no hard constraints; agent decides what values to pass |
+| **TOCTOU prevention** | `discover()` reads all files into memory at startup; runtime = zero disk I/O | Agent reads files via bash on every invocation; files may have been tampered with between reads |
+| **Mutation transaction safety** | `MutationBase` enforces BEGIN → UPDATE → verify rowcount → COMMIT/ROLLBACK | Agent writes its own transaction code; may omit rollback or error handling |
+| **Audit logging** | Every mutation operation automatically recorded to `_audit.jsonl` by server infrastructure | Depends on agent voluntarily calling logging — unreliable |
+| **Confirmation mechanism** | `requires_confirmation: true` + two-phase execution (preview → confirm) enforced by server | Agent decides whether to confirm — can be bypassed by prompt injection |
+
+### 11.6 Summary
+
+| Dimension | Standard Agent Skills | This Project's Skills |
+|-----------|----------------------|----------------------|
+| **Purpose** | Give a general-purpose agent domain expertise | Give an untrusted agent safe, pre-built database operations |
+| **Skill content** | Instructions + scripts + references (knowledge) | SQL templates + Python mutation classes (executable artifacts) |
+| **Executor** | Agent itself (in VM/sandbox) | MCP Server (on behalf of agent) |
+| **Trust model** | Sandbox isolation + trust the agent | Do not trust the agent; server enforces all constraints |
+| **Loading** | Lazy, on-demand via bash | Eager, all-at-startup via `discover()` |
+| **Security responsibility** | Agent + sandbox | Server infrastructure |
+
+The standard Agent Skills format solves: *"How to give a general-purpose agent
+domain expertise."* This project solves: *"How to let an untrusted agent safely
+operate on a database."* The threat models, trust boundaries, and execution
+architectures are fundamentally different. Forcing the standard format would
+sacrifice core security properties (startup validation, typed parameters,
+server-side enforcement) without gaining any benefit — since the agent cannot
+access the server filesystem through MCP anyway.
+
+## 12. Testing
 
 64 new tests across 4 files:
 
@@ -269,7 +781,7 @@ Three levels of information, following Anthropic best practices:
 
 All tests use SQLite in-memory databases for speed and isolation.
 
-## 12. Future Extensions
+## 13. Future Extensions
 
 - **Per-operation independent tools**: High-frequency skills as dedicated MCP tools
 - **Confirmation tokens**: Server-side anti-replay for untrusted callers
@@ -278,3 +790,49 @@ All tests use SQLite in-memory databases for speed and isolation.
 - **mutation.sql**: SQL-only mutations for simple INSERT/UPDATE operations
 - **`adapter.transaction()`**: Multi-statement atomic transactions
 - **`ToolResult.meta`**: Per-invocation runtime metadata via FastMCP v2.11.0+
+
+## 14. Industry Best Practices Alignment
+
+This section documents how the Skills extension aligns with industry best
+practices from major AI platform providers and security standards.
+
+### Tool Design Principles
+
+| Principle | Source | How Applied |
+|-----------|--------|-------------|
+| *"Offload the burden from the model and use code where possible."* | [OpenAI — Function Calling Best Practices (2025)](https://platform.openai.com/docs/guides/function-calling#best-practices-for-defining-functions) | Skills pre-build SQL/Python logic; Agent only passes parameters |
+| *"Don't make the model fill arguments you already know."* | OpenAI, ibid. | Skill metadata and SQL templates encode business knowledge |
+| *"Keep the number of tools small for higher accuracy."* | [OpenAI — Function Calling](https://platform.openai.com/docs/guides/function-calling) | Unified `execute_*_skill()` tools instead of per-skill tool registration |
+| *"Use clear and descriptive function/parameter names and descriptions."* | [Google Gemini — Function Calling Best Practices](https://ai.google.dev/gemini-api/docs/function-calling#best_practices) | `skill_def.md` YAML frontmatter provides structured name, description, and parameter schemas |
+| *"Use strong schema: specify types, limits, enums, and valid patterns."* | Google Gemini, ibid. | `validate_params()` enforces `type`, `min`, `max`, `enum` constraints declared in YAML |
+| 10-20 tools recommended range | [Google Gemini — Function Calling Limits](https://ai.google.dev/gemini-api/docs/function-calling) | Maximum 10 tools with full Skills enabled (within range) |
+
+### Agent Architecture Principles
+
+| Principle | Source | How Applied |
+|-----------|--------|-------------|
+| *"Give models less freedom for higher-stakes operations."* | [Anthropic — Building Effective Agents (2024)](https://docs.anthropic.com/en/docs/build-with-claude/agentic-systems) | Mutation skills use constrained `MutationBase` ABC; no free-form code execution |
+| *"Verifiable intermediate outputs"* | Anthropic, ibid. | Two-phase execution: `confirm=false` returns preview for verification |
+| *"Plan-validate-execute"* pattern | Anthropic, ibid. | `MutationBase` enforces `validate()` → `preview()` → `execute()` stages |
+| Progressive disclosure | [Anthropic — Agent Skills Overview](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview) | `list_skills()` returns ~100 tokens/skill; full execution only on demand |
+| Metadata naming convention | [Anthropic — Agent Skills Best Practices](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices) | `name` regex `^[a-z0-9][a-z0-9-]*$` (max 64 chars), aligned with standard |
+
+### Security Standards
+
+| Principle | Source | How Applied |
+|-----------|--------|-------------|
+| *"Validate all inputs"* | [MCP Specification §7 — Security](https://modelcontextprotocol.io/specification/2025-03-26/basic/security) | `validate_name()` + `validate_params()` at every tool call |
+| *"Implement proper access controls"* | MCP Spec §7, ibid. | Dual-layer switches + ALLOWED_TABLES + path constraints |
+| Parameterized queries | [OWASP — SQL Injection Prevention](https://cheatsheetseries.owasp.org/cheatsheets/SQL_Injection_Prevention_Cheat_Sheet.html) | SQLAlchemy `text()` + parameter binding; zero string concatenation |
+| TOCTOU prevention | [MITRE CWE-367](https://cwe.mitre.org/data/definitions/367.html) | Startup-time caching eliminates runtime file reads |
+| Least privilege | OWASP, general | `ENABLE_SKILLS=0` by default; `SKILLS_ALLOW_MUTATIONS=0` by default |
+| Error sanitization | [FastMCP — ToolError](https://gofastmcp.com/servers/tools#errors) | `_handle_error()` strips sensitive details; `ToolError` bypasses `mask_error_details` |
+
+### Framework Integration
+
+| Pattern | Source | How Applied |
+|---------|--------|-------------|
+| `ToolError` for expected failures | [FastMCP — Error Handling](https://gofastmcp.com/servers/tools#errors) | Mutation failures raise `ToolError` (passed to client) vs generic exceptions (masked) |
+| `ToolAnnotations` metadata | [FastMCP — Tool Annotations](https://gofastmcp.com/servers/tools#tool-annotations) | `readOnlyHint`, `destructiveHint`, `idempotentHint` for each Skills tool |
+| Explicit transaction via `engine.begin()` | [SQLAlchemy 2.0 — Transactions](https://docs.sqlalchemy.org/en/20/core/connections.html#using-transactions) | `execute_write()` uses `engine.begin()` context manager (auto-commit/auto-rollback) |
+| Identifier quoting | [SQLAlchemy — `quoted_name()`](https://docs.sqlalchemy.org/en/20/core/sqlelement.html#sqlalchemy.sql.expression.quoted_name) | Table names quoted to prevent SQL injection in dynamic identifiers |

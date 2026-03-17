@@ -14,12 +14,15 @@
 > [公开的 MCP 工具](#公开的-mcp-工具) | 
 > [使用此 MCP 服务的 AutoGen 多智能体示例](#autogen-多-agent-示例) | 
 > [本项目的其它文档](#本项目的其它文档)  
-> [项目路线图](#项目路线图) · **下一步计划（2026.1）:** 增加对NoSQL的支持  
+> [项目路线图](#项目路线图) · **v3.0 新功能:** 增加 Skills 扩展层支持  
+
+## 介绍
 
 **面向 AI Agent 的数据库安全访问入口：赋予LLM(Agents)进入数据库的能力。**  
-使大模型 (LLM) 通过标准化的 MCP 接口，以经过认证的 SQL 安全获取数据库查询。
-并提供白名单、超时与结果截断等防护。降低误操作风险同时避免 Token 成本失控。  
-除 MySQL、SQLite 外，还提供对 NoSQL 的支持。(in progress，NoSQL 支持计划在未来版本中提供)    
+- 使大模型 (LLM) 通过标准化的 MCP 接口，以经过认证的 SQL 安全获取数据库查询。并提供白名单、超时与结果截断等防护。降低误操作风险同时避免 Token 成本失控。  
+- 除 MySQL、SQLite 外，还提供对 NoSQL 的支持。(in progress，NoSQL 支持计划在未来版本中提供)    
+- 另外，本项目还支持基于 Agent Skills 的服务侧插件式动作扩展。用户或开发者可以编写可复用的预定义参数化操作（查询与受控写入）扩展能力，并通过 `skill_def.md` 统一管理。Agent 可按需发现并调用，以扩展复杂查询、敏感变更和特定业务流程的处理能力。  
+
 本项目解决了 LLM “进入数据库”的需求。并可通过与 AI Agent 的配合，扩展 LLM 的能力边界，延伸大模型在实际业务中的应用范围。
 
 ## 问题陈述
@@ -38,6 +41,7 @@
 - 提供跨不同 AI 平台的标准化 MCP 接口
 - 支持 ReAct 模式：提供表结构信息供 LLM 决策
 - 可配置的安全策略：白名单、超时、UNION 控制
+- 可扩展的动作能力：通过 skills 支持复杂/敏感变更场景的操作扩展
 
 ## 解决方案
 
@@ -56,6 +60,9 @@
 │                   sql-safety-executor (MCP Server)              │
 │  ┌────────────────────────────────────────────────────────────┐ │
 │  │ 工具层:   query | list_tables | describe_table | ...       │ │
+│  ├────────────────────────────────────────────────────────────┤ │
+│  │ Skills 层 (可选):  list_skills | execute_query/mutation    │ │
+│  │    skill_def.md → 参数校验 → 预制 SQL/Mutation → 审计日志   │ │
 │  ├────────────────────────────────────────────────────────────┤ │
 │  │ 安全层:     SQL 验证 | 表白名单 | 结果截断 | 查询超时         │ │
 │  └────────────────────────────────────────────────────────────┘ │
@@ -80,11 +87,19 @@
 - 错误反馈面向 LLM 优化：明确失败原因（安全拦截/表未允许/语法/超时/截断等）并给出修正建议，减少反复试错与无效调用，同时避免泄露敏感信息（凭据、系统表细节等）
 - 适配 ReAct 模式：推理 → 行动 → 观察 → 再思考
 
-**4. 典型工作流**：
+**4. Skills 扩展层**（可选，`ENABLE_SKILLS=1` 启用）：
+- 预定义参数化操作：将复杂查询和敏感写入封装为可复用的 skill，Agent 只需传参数，无需自行编写 SQL
+- 服务端强制约束：启动时 SQL 安全校验 + 参数强类型验证（type/min/max/enum）+ 写操作审计日志
+- 两阶段写操作：mutation skill 需经预览（`confirm=false`）→ 确认（`confirm=true`），防止误操作
+- 渐进式发现：Agent 通过 `list_skills()` 获取元数据，按需选择调用
+
+**5. 典型工作流**：
 ```
 结构未知：list_tables() → describe_table(target) → query(sql)
 结构已知：query(sql) 直接执行
 大表场景：观察 is_large=true → 使用 LIMIT 或聚合
+Skills 场景：list_skills() → execute_query_skill(name, params)
+             或 execute_mutation_skill(name, params, confirm=false) → 预览 → confirm=true
 ```
 
 ### 安全功能
@@ -97,6 +112,12 @@
 - **结果截断**：`MAX_RESULT_ROWS` / `MAX_RESULT_CHARS` 防止 Token 溢出
 - **查询超时**：`QUERY_TIMEOUT_SECONDS` 防止慢查询
 - **UNION 控制**：默认禁用，需配合白名单启用
+#### Skills 相关
+- **Skills 模板即白名单**：SQL 模板启动时经 `is_sql_safe()` 校验并缓存，运行时零磁盘 I/O（防 TOCTOU）
+- **Skills 参数强类型验证**：type/min/max/enum 约束 + 拒绝 schema 之外的参数（防 injection/hallucination）
+- **Skills 双层开关**：`ENABLE_SKILLS` + `SKILLS_ALLOW_MUTATIONS` 最小权限控制
+- **Skills 两阶段确认**：写操作需 preview → confirm，防止误操作
+- **Skills 审计日志**：每次 mutation 操作自动记录到 JSONL（不依赖 Agent 自觉）
 
 ### 关键组件
 
@@ -146,14 +167,15 @@ LLM(Agents)不能凭空生成SQL，需要有一定的上下文基础。这里的
 ### 项目路线图
 **Agent Skills和扩展性**  
 **Skills 扩展层已在 v3.0 版本中添加**（2026年3月）。详见 [MCP_AGENTS_SKILLS_DESIGN.md](MCP_AGENTS_SKILLS_DESIGN.md)。
-同时计划对于本项目进行扩展性的提升。在现有的实践中我们认识到提供（封装成）具体的语义化工具的意义。业界也有对应的最佳实践论述：
+在现有的实践中，我们认识到提供（封装成）具体的语义化工具的意义。业界也有对应的最佳实践论述：
 > "Offload the burden from the model and use code where possible."  
 > "Don't make the model fill arguments you already know."  
 > "Combine functions that are always called in sequence."
 > [— OpenAI, "Best practices for defining functions" (December 2025)](https://platform.openai.com/docs/guides/function-calling#best-practices-for-defining-functions)
 
 这说明在合理的情况下，一个实用的系统应该加入、并支持添加针对特定场景的额外工具。但是，过多的工具会占用更多上下文，并且会降低准确率/增加成本[1]。而Agent Skills的渐进式披露(progressive disclosure)[2]则可以避免这些问题。
-因此，我们可以设想这样一个方案：用户或开发人员可以编写大量依赖于本MCP服务之上的"插件"（代码段/工具），通过skill_def.md管理，可以动态的增加与配置工具。而Agent则可以加载这些"插件"，灵活扩展其能力。
+因此，我们可以设想这样一个方案：用户或开发人员可以编写大量依赖于本MCP服务之上的"插件"（代码段/工具），通过`skill_def.md`管理，可以动态的增加与配置工具。而Agent则可以加载这些"插件"，灵活扩展其能力。
+当然，与标准Agent Skills不同的是，该项目的Skills是给Agent提供预制的安全操作，位于服务端侧（Server代为执行）。这种差异是合理且有意为之的，主要是[安全考虑](README_ZH.md#关于Skills层的设计考虑)。
 
 > [1]: ["Keep the number of functions small for higher accuracy."](https://platform.openai.com/docs/guides/function-calling)  
 > [2]: ["This filesystem-based architecture enables progressive disclosure: Claude loads information in stages as needed, rather than consuming context upfront."](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview#how-skills-work)
@@ -166,6 +188,177 @@ LLM(Agents)不能凭空生成SQL，需要有一定的上下文基础。这里的
 
 **基于MCP协议细化权限管理**  
 
+### 关于Skills层的设计考虑
+
+本项目的 Skills 层借鉴了 [Anthropic Agent Skills](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview) 的部分设计元素（目录结构、YAML frontmatter、name 规范），但**并未采用标准 Agent Skills 格式。这是有意为之的设计决策，原因如下：**
+
+**1. 执行模型根本不同**
+
+标准 Agent Skills 的前提是 Agent 拥有代码执行环境和文件系统访问权（VM / sandbox），Agent 自己读取 SKILL.md 指令，自己编写并执行代码 [1], [2]。而本项目是 MCP Server：Agent 通过 JSON-RPC 调用远程 tool，无法 `bash: cat skill_def.md` [5]。标准 Skills 的三级渐进式披露（Agent 用 bash 按需读文件）在 MCP 架构下无法实现，也没有意义 [1]。
+
+**2. 信任边界不同**
+
+标准 Agent Skills 信任 Agent 会正确遵循指令 [1]——例如：SKILL.md 写着"用 pdfplumber 打开文件"，Agent 就自行编写 Python 代码去做 [2]。而本项目面对的是数据库写操作，不能信任 Agent 自由发挥：
+
+- SQL 必须经过 `is_sql_safe()` 校验
+- 参数必须强类型验证（type/min/max/enum），而非自然语言理解
+- Mutation（变更数据操作，INSERT/UPDATE/DELETE）必须走预制的 `MutationBase` 子类（事务、乐观锁、回滚）
+- 每个操作必须写审计日志
+
+标准 Agent Skills 没有这些机制，因为其设计假设是"Agent 在受控 VM 里自由操作"，而本项目的假设是"**Agent 不受信任，Server 强制执行所有安全约束**"。
+
+**3. TOCTOU 安全要求与 lazy loading 矛盾**
+
+标准 Agent Skills 采用按需加载（Agent 运行时用 bash 读文件） [1], [2]，意味着文件随时可能被篡改。对于文档处理类 Skill 这无关紧要，但对于 SQL 模板和 mutation 代码，运行时从磁盘读取会引入 TOCTOU（Time-of-Check-Time-of-Use）风险 [4]。本项目的全量预加载（`discover()` 启动时校验 + 缓存到内存，运行时零磁盘 I/O）是刻意的安全设计，与标准 Skills 的 lazy 模型直接冲突。
+
+**4. 标准 Skills 是"教 Agent 怎么做"，本项目是"替 Agent 做"**
+
+| 标准 Agent Skills | 本项目 Skills |
+|---|---|
+| SKILL.md 告诉 Agent "用这个库、按这个步骤处理 PDF" | `query.sql` / `mutation.py` 是 **可执行制品**，不是指令 |
+| Agent 自己生成代码并执行 | Server 执行预制的 SQL/Python，Agent 只传参数 |
+| Skill 是知识包（knowledge） | Skill 是操作模板（action template） |
+
+转为标准格式意味着把 SQL 模板变成"指令文档"让 Agent 自己写 SQL——这正是本项目要防止的事情。
+
+**5. 借鉴标准 Skills 的有价值部分**
+
+本项目已经吸收了标准 Agent Skills 中适用于 MCP 场景的设计元素：
+- 目录结构：每个 skill 一个文件夹 + 入口文件的目录结构；
+- YAML frontmatter： `name`（同正则约束 `^[a-z0-9][a-z0-9-]*$`）和 `description` [3]；
+- 渐进式交互：MCP 层面的渐进式交互（`list_skills()` → 选择 → `execute_*_skill()`）；
+- 可组合性：`related_skills` 字段可组合性。
+不适用的部分（SKILL.md 正文作为 Agent 指令、bash 文件系统访问、Agent 自行执行脚本）则未采用。
+
+> **参考来源**  
+> [1] [Anthropic, "Agent Skills — Overview", 2025. 描述了标准 Agent Skills 的三级渐进式披露、VM 执行环境和文件系统架构。](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview)  
+> [2] [Anthropic, "Equipping agents for the real world with Agent Skills", 2025. 详述了 SKILL.md 格式、Agent 通过 bash 读取文件的加载机制、以及 Skills 作为"知识包"的定位。](https://claude.com/blog/equipping-agents-for-the-real-world-with-agent-skills)  
+> [3] [Anthropic, "Agent Skills — Best Practices", 2025. 包含 name 字段约束（≤64字符、`^[a-z0-9-]+$`）和 description 规范。](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices)  
+> [4] [MITRE CWE-367: "Time-of-check Time-of-use (TOCTOU) Race Condition". 本项目第 3 点引用的 TOCTOU 安全风险的标准定义。](https://cwe.mitre.org/data/definitions/367.html)  
+> [5] [Model Context Protocol Specification, "Architecture — Transports". MCP 采用 JSON-RPC 2.0 over stdio/SSE，Agent 通过 tool 调用与 Server 交互，无文件系统访问。](https://modelcontextprotocol.io/specification/2025-03-26/basic/transports)
+
+#### Skills层的安全考虑
+
+**安全模型概览**
+
+下图展示了请求从 Agent 到数据库所经过的四层安全检查：
+
+```mermaid
+flowchart TB
+    subgraph Agent["Agent 侧 (不可信)"]
+        A1["LLM Agent<br/>(Claude / GPT / etc.)"]
+    end
+
+    subgraph MCP["MCP 协议边界"]
+        direction TB
+        T1["query(sql)"]
+        T2["execute_query_skill(name, params)"]
+        T3["execute_mutation_skill(name, params, confirm)"]
+        T4["list_skills() / describe_table() / ..."]
+    end
+
+    subgraph Server["MCP Server 安全层 (可信)"]
+        direction TB
+
+        subgraph S1["Layer 1: 输入验证"]
+            V1["is_sql_safe()<br/>仅允许 SELECT/SHOW/DESCRIBE/EXPLAIN"]
+            V2["_is_query_safe_extended()<br/>阻止系统表/UNION/子查询"]
+            V3["_check_table_allowlist()<br/>表级访问控制"]
+            V4["validate_name()<br/>^a-z0-9- 防路径遍历"]
+            V5["validate_params()<br/>类型/范围/枚举约束"]
+        end
+
+        subgraph S2["Layer 2: 执行控制"]
+            E1["query.sql 模板<br/>启动时 is_sql_safe() 预校验"]
+            E2["参数化绑定<br/>SQLAlchemy text() + params"]
+            E3["mutation: validate()<br/>业务规则校验"]
+            E4["mutation: preview()<br/>干跑预览"]
+            E5["mutation: execute()<br/>事务内执行"]
+        end
+
+        subgraph S3["Layer 3: 运行时保护"]
+            R1["QUERY_TIMEOUT<br/>超时中断"]
+            R2["MAX_RESULT_ROWS/CHARS<br/>结果截断"]
+            R3["_handle_error()<br/>错误消息脱敏"]
+            R4["SKILLS_DIR 路径约束<br/>必须在项目根目录内"]
+        end
+
+        subgraph S4["Layer 4: 审计与可见性"]
+            AU1["AuditLogger<br/>JSONL 审计日志"]
+            AU2["SKILLS.md<br/>自动生成总览"]
+            AU3["ctx.info() / ctx.warning()<br/>MCP 进度通知"]
+        end
+    end
+
+    subgraph DB["数据库"]
+        DB1["MySQL / SQLite"]
+    end
+
+    A1 -->|"MCP tool call"| T1 & T2 & T3 & T4
+
+    T1 -->|"原始 SQL"| V1 --> V2 --> V3 --> E2 --> R1 --> R2
+    T2 -->|"skill_name + params"| V4 --> V5 --> E2 --> R1 --> R2
+    E1 -.->|"启动时预校验<br/>保障模板安全"| E2
+    T3 -->|"skill_name + params + confirm"| V4 --> V5 --> E3 --> E4 & E5
+
+    E2 --> DB1
+    E5 -->|"事务"| DB1
+    E5 --> AU1
+
+    DB1 -.->|"异常时"| R3 -.->|"脱敏错误"| A1
+    R2 -->|"截断后结果"| A1
+
+    style Agent fill:#fee,stroke:#c33
+    style Server fill:#efe,stroke:#3a3
+    style DB fill:#eef,stroke:#33c
+    style MCP fill:#ffd,stroke:#aa3
+```
+
+**1. 标准 Agent Skills 的隐含信任模型**
+
+标准 Agent Skills 的执行流是：
+
+```
+用户请求 → Agent 读 SKILL.md → Agent 自己写代码 → Agent 在 VM 中执行
+```
+
+Agent **既是决策者又是执行者**，安全保障依赖于：
+- VM sandbox 的隔离性（网络、文件系统受限）
+- Agent 会"遵循指令"按指令要求操作
+- Skills 来源可信（官方推荐只用受信源）
+
+这对文档处理（PDF/Excel）足够——最坏情况是在 sandbox 里生成了错误文件。
+
+**2. 本项目的威胁模型完全不同**
+
+本项目的执行流是：
+
+```
+用户请求 → Agent 调用 MCP tool → MCP Server 执行预制 SQL → 生产数据库
+```
+
+**攻击面包括：**
+- **Prompt injection**：恶意用户输入可能诱导 Agent 传递危险参数
+- **Agent hallucination**：Agent 可能“创造性地”调用不存在的 skill 或传递越界参数
+- **TOCTOU**：如果运行时从磁盘读 SQL，攻击者篡改文件即可注入任意 SQL
+- **SQL injection**：Agent 参数拼接不当直接威胁生产数据
+
+如果套用标准 Agent Skills 的模式，意味着让 Agent 自己读 SQL 模板、自己拼参数、自己决定执行，上述**每一个安全检查点都会消失**。
+
+**3. 本项目的安全纵深与标准 Skills 不兼容**
+
+| 安全机制 | 本项目如何实现 | 标准 Skills 下 |
+|---|---|---|
+| **SQL 白名单校验** | 启动时 `is_sql_safe()` 验证，不安全的 skill 直接拒绝注册 | Agent 运行时自己读 SQL 文件再执行，绕过校验 |
+| **参数强类型验证** | `validate_params()` 强制 type/min/max/enum | Agent 从自然语言理解参数，无硬约束 |
+| **防参数注入** | 拒绝 schema 之外的参数 (`unexpected` check) | Agent 自己决定传什么参数 |
+| **TOCTOU 防护** | 启动时读入内存，运行时零磁盘 I/O | Agent 每次用 bash 读文件，文件可能已被篡改 |
+| **Mutation 事务安全** | `MutationBase` 强制 BEGIN→UPDATE→verify→COMMIT/ROLLBACK | Agent 自己写事务代码，可能遗漏回滚 |
+| **审计日志** | 每个操作自动记录到 `_audit.jsonl` | 依赖 Agent 自觉调logging（不可靠） |
+| **确认机制** | `requires_confirmation: true` + 两阶段执行 | Agent 自行决定是否确认（可被 prompt injection 绕过） |
+
+标准 Agent Skills 的安全模型是 **"sandbox 隔离 + 信任 Agent"**。本项目的安全模型是 **"不信任 Agent，Server 强制执行所有安全约束"**。转为标准 Agent Skills 等于把安全控制权从 Server 交还给 Agent——在面向生产数据库的场景下，这是一个降级，不是升级。
+
 ### 关于AI辅助开发(copilot, vibe-coding)的实践经验
 本项目最初由Gemini CLI创建，在v1.0之后主要使用GitHub copilot进行开发。  
 在使用AI辅助开发本项目的时候，基本遵循以下经验。
@@ -174,7 +367,7 @@ LLM(Agents)不能凭空生成SQL，需要有一定的上下文基础。这里的
 3. 在满足1，2的前提下，尽可能减少对AI的约束。用最简洁的提示和步骤完成任务，并使AI完成完整的工作流。
 > 对于上下文，要尽可能的保留充分完整；对于提示和约束，要尽量减少。
 
-这就是本项目虽然保留了最初的GEMINI.md，但仅作为记录使用，并且也未增加AGENTS.md的原因。但skill_def.md或类似的"渐进式"文档是良好的实践。本项目的相关文档 [REFACTORING_LOG.md](REFACTORING_LOG.md) 和 [PROMPT_ENGINEERING_BEST_PRACTICES.md](PROMPT_ENGINEERING_BEST_PRACTICES.md) 体现了这一实践。
+这就是本项目虽然保留了最初的GEMINI.md，但仅作为记录使用，并且也未增加AGENTS.md的原因。但SKILL.md或类似的"渐进式"文档是良好的实践。本项目的相关文档 [REFACTORING_LOG.md](REFACTORING_LOG.md) 和 [PROMPT_ENGINEERING_BEST_PRACTICES.md](PROMPT_ENGINEERING_BEST_PRACTICES.md) 体现了这一实践。
 
 ### 风险和局限
 在编写本项目的实践中，使用了大量的AI辅助开发。尽管已经尽可能的review代码和进行测试，并添加了一系列安全设置。但精力有限，无法覆盖全部情况，尤其是考虑到有LLM参与其中的情况。  
@@ -454,6 +647,7 @@ AGENT_ID=copilot-agent-1
 - **数据库适配器扩展**：`execute()` 新增可选 `params`、新增 `execute_write()` 方法
 - **示例技能**：`monthly-sales-report`（查询）和 `update-order-status`（乐观锁写操作）
 - **58 个新测试**：覆盖技能加载器、查询技能、写操作技能、审计日志
+- **新增依赖**：`pyyaml` 用于 skill_def.md 的 frontmatter 解析；新增 `SQLAlchemy>=2.0` 版本约束
 - **完全向后兼容**：`ENABLE_SKILLS=0`（默认）时零开销，不注册任何工具
 
 设计详情参见 [MCP_AGENTS_SKILLS_DESIGN.md](MCP_AGENTS_SKILLS_DESIGN.md)。
@@ -719,6 +913,23 @@ AGENT_ID=copilot-agent-1
 
 **注意：** 需要 `ENABLE_SKILLS=1`。返回技能元数据，用于渐进式披露。
 
+输出：
+```json
+{
+  "success": true,
+  "skills": [
+    {
+      "name": "monthly-sales-report",
+      "type": "query",
+      "risk": "low",
+      "description": "Generate a monthly sales summary report...",
+      "triggers": ["monthly sales", "revenue report"]
+    }
+  ],
+  "count": 1
+}
+```
+
 ### 9. `execute_query_skill`（Skills 扩展，可选）
 用途：执行预定义的查询技能，支持参数化 SQL。
 
@@ -878,6 +1089,137 @@ returned   → (终态，不可转换)
 4. 设置 `SKILLS_ALLOW_MUTATIONS=1` 并重启服务
 
 详细规范请参阅 [MCP_AGENTS_SKILLS_DESIGN.md](MCP_AGENTS_SKILLS_DESIGN.md) 和 [skills/SAFETY.md](skills/SAFETY.md)。
+
+#### Skills 设计架构
+
+**Skill 生命周期**
+
+每个 Skill 从编写到运行经过三个阶段。核心设计决策是**将启动时的安全校验与运行时执行分离**——所有安全检查在服务器接受请求之前完成。
+
+```mermaid
+flowchart LR
+    subgraph Author["阶段 1: 编写"]
+        D1["skill_def.md\nYAML 元数据\n+ 文档"]
+        D2["query.sql\nSQL 模板"]
+        D3["mutation.py\nPython 逻辑"]
+    end
+
+    subgraph Startup["阶段 2: 服务启动 — discover()"]
+        S1["扫描 skills/ 目录"]
+        S2["解析 YAML frontmatter"]
+        S3["SQL 安全校验\nis_sql_safe()"]
+        S4["导入 Mutation 类\nimportlib.util"]
+        S5["写入内存缓存\n_skills_cache"]
+        S6["生成 SKILLS.md"]
+    end
+
+    subgraph Runtime["阶段 3: 运行时 — Agent 交互"]
+        R1["list_skills()\n仅元数据"]
+        R2["execute_query_skill()\n缓存 SQL + 参数"]
+        R3["execute_mutation_skill()\n缓存类 + 参数"]
+    end
+
+    D1 --> S1
+    D2 --> S1
+    D3 --> S1
+    S1 --> S2 --> S3 & S4
+    S3 --> S5
+    S4 --> S5
+    S5 --> S6
+    S5 -.->|"内存缓存"| R1 & R2 & R3
+```
+
+> 启动时校验遵循 **fail-fast 原则**——如果 Skill 的 SQL 不安全或 `mutation.py` 格式错误，
+> 服务器在启动时拒绝注册，而不是在首次运行时才报错。
+> 这与 [MCP 规范 §7 — 安全](https://modelcontextprotocol.io/specification/2025-03-26/basic/security) 一致：
+> *"Validate all inputs"* 和 *"Implement proper access controls."*
+
+**Mutation 两阶段执行流程**
+
+写操作 Skill 实现了 Anthropic 的 ["可验证的中间输出"](https://docs.anthropic.com/en/docs/build-with-claude/agentic-systems#practices-for-effective-agentic-systems) 模式——Agent（和用户）可以在提交前审查计划的变更。
+
+```mermaid
+sequenceDiagram
+    participant Agent
+    participant MCP as MCP Server
+    participant Mutation as MutationBase
+    participant Adapter as db_adapter
+    participant Audit as AuditLogger
+    participant DB as Database
+
+    Note over Agent,DB: 阶段 1: 预览 (confirm=false)
+    Agent->>MCP: execute_mutation_skill(name, params, false)
+    MCP->>MCP: validate_name() + validate_params()
+    MCP->>Mutation: validate(params)
+    Mutation->>DB: SELECT 查询当前状态
+    DB-->>Mutation: 当前记录
+    MCP->>Mutation: preview(params)
+    Mutation-->>Agent: 预览（计划变更，不实际执行）
+
+    Note over Agent,DB: 阶段 2: 确认执行 (confirm=true)
+    Agent->>MCP: execute_mutation_skill(name, params, true)
+    MCP->>MCP: validate_name + validate_params（重新校验）
+    MCP->>Mutation: run_execute(params)
+    Mutation->>Mutation: validate(params) — 重新验证（TOCTOU 防护）
+    Mutation->>Adapter: execute_write(UPDATE ... WHERE status=:expected)
+    Adapter->>DB: BEGIN → UPDATE → COMMIT
+    DB-->>Adapter: rowcount
+    Mutation->>Audit: log(操作详情)
+    Mutation-->>Agent: 执行结果
+```
+
+> **设计参考**：
+> - *"Give models less freedom for higher-stakes operations."* — [Anthropic, "Building effective agents" (2024)](https://docs.anthropic.com/en/docs/build-with-claude/agentic-systems)
+> - Phase 2 中 `validate()` 的重复调用是**有意为之**的 TOCTOU 防护：预览和确认之间数据状态可能已改变
+> - 参数绑定使用 SQLAlchemy `text()` + 参数字典，遵循 [OWASP SQL 注入防护](https://cheatsheetseries.owasp.org/cheatsheets/SQL_Injection_Prevention_Cheat_Sheet.html) 规范
+
+**skill_def.md 格式设计**
+
+`skill_def.md` 采用 YAML frontmatter + Markdown body 的分层设计，服务于不同的受众：
+
+- **YAML frontmatter**（上半部分）：由 `skill_loader.py` 在服务启动时机器解析，提取 `name`、`type`、`params` 等结构化字段用于注册和校验。Agent 通过 `list_skills()` 获取这些元数据（经过格式化），而非直接读取文件。
+- **Markdown body**（下半部分）：面向开发者的自然语言文档（使用说明、工作流提示、注意事项等）。**不会发送给 Agent**——这是与标准 Agent Skills 的关键差异：标准 SKILL.md 的 body 是给 Agent 读的指令，而本项目的 body 是给人读的文档。
+- **参数约束声明**：`type`/`min`/`max`/`enum` 在 YAML 中声明，由 `validate_params()` 统一执行。Skill 作者无需在代码中重复实现验证逻辑。
+
+**示例**——以 `monthly-sales-report` 的 `skill_def.md` 为例：
+
+```yaml
+---
+name: monthly-sales-report          # 名称约束：^[a-z0-9][a-z0-9-]*$
+type: query                         # query | mutation
+risk: low                           # low | medium | high
+params:                             # 参数 schema（Server 侧强制校验）
+  year: {type: int, required: true} #   → validate_params() 检查类型
+  month: {type: int, required: true,
+          min: 1, max: 12}          #   → 范围约束，阻止越界
+triggers:                           # 关键词提示（Agent 匹配用）
+  - monthly sales
+  - revenue report
+---
+## Usage                            ← Markdown body：仅开发者可见
+execute_query_skill("monthly-sales-report", {"year": 2026, "month": 1})
+
+## Notes
+- 使用 MySQL YEAR()/MONTH() 函数，SQLite 需替换
+```
+
+上例中，Server 从 YAML 提取参数 schema 后：
+1. Agent 调用时传入 `{"year": 2026, "month": 13}` → Server 拒绝（`month` 超出 `max: 12`）
+2. Agent 传入未定义参数 `{"year": 2026, "month": 1, "limit": 10}` → Server 拒绝（`unexpected` 参数）
+3. Agent 传入 `{"year": "2026", "month": "1"}` → Server 自动类型转换（`_coerce_type()` → `int`）
+
+这遵循 Google 的 [Function Calling 最佳实践](https://ai.google.dev/gemini-api/docs/function-calling#best_practices)：*"Use strong schema: specify types, limits, enums, and valid patterns"* ——在 schema 层面约束参数，而非依赖 Agent 的自然语言理解。
+
+**行业最佳实践对齐**：
+| 最佳实践 | 来源 | 本项目实现 |
+|----------|------|-------------|
+| *"Offload the burden from the model and use code where possible."* | [OpenAI — Function Calling (2025)](https://platform.openai.com/docs/guides/function-calling#best-practices-for-defining-functions) | Skills 预制 SQL/Python 逻辑，Agent 只传参数 |
+| *"Use clear and descriptive function/parameter names and descriptions."* | [Google Gemini — Function Calling](https://ai.google.dev/gemini-api/docs/function-calling#best_practices) | YAML frontmatter 提供结构化的名称、描述和参数约束 |
+| *"Give models less freedom for higher-stakes operations."* | [Anthropic — Building Effective Agents](https://docs.anthropic.com/en/docs/build-with-claude/agentic-systems) | Mutation 操作走受约束的 `MutationBase`，非自由代码 |
+| *"Validate all inputs"* | [MCP 规范 §7 — 安全](https://modelcontextprotocol.io/specification/2025-03-26/basic/security) | 每次调用经 `validate_name()` + `validate_params()` |
+| 参数化查询 | [OWASP — SQL 注入防护](https://cheatsheetseries.owasp.org/cheatsheets/SQL_Injection_Prevention_Cheat_Sheet.html) | SQLAlchemy `text()` + 参数绑定，零字符串拼接 |
+
+完整设计详情、执行流程图和行业最佳实践对齐分析，请参阅 [MCP_AGENTS_SKILLS_DESIGN.md](MCP_AGENTS_SKILLS_DESIGN.md)。
 
 
 ## 依赖要求

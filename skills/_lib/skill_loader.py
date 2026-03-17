@@ -24,6 +24,8 @@ Security:
 - SKILLS_DIR path constrained to project root (prevents .env poisoning)
 """
 
+from __future__ import annotations
+
 import re
 import logging
 import importlib.util
