@@ -109,7 +109,7 @@ flowchart LR
 ```
 
 > **Design reference**: The eager startup validation follows the "fail-fast"
-> principle — if a skill has unsafe SQL or a malformed `mutation.py`, the server
+> principle — if a skill has unsafe SQL or a malformed source module, the server
 > refuses to register it at startup, not at the first runtime invocation. This
 > eliminates an entire class of runtime errors and is consistent with
 > [MCP Specification §7 — Security](https://modelcontextprotocol.io/specification/2025-03-26/basic/security):
@@ -240,6 +240,7 @@ triggers:                     # Optional, keyword hints for agent matching
   - keyword1
   - keyword2
 type: query                   # query | mutation
+source: query.sql             # Required: execution file (validated filename)
 risk: low                     # low | medium | high
 enabled: true                 # Optional, default true
 idempotent: false             # Optional, default false
@@ -297,6 +298,29 @@ content as executable instructions.
 Developers familiar with the standard format will find `skill_def.md`
 immediately readable, even though the execution model is fundamentally
 different (see Section 11).
+
+**5. Explicit source declaration** — The `source` field is **mandatory** and
+explicitly declares the execution file associated with the skill (e.g.
+`source: query.sql`, `source: mutation.py`). This follows the
+**Explicit Configuration** principle used by industry-standard tools:
+
+| Tool | Manifest | Field | Purpose |
+|------|----------|-------|---------|
+| GitHub Actions | `action.yml` | `main` | Entry point JS file |
+| npm | `package.json` | `main` | Package entry point |
+| Python | `pyproject.toml` | `[project.scripts]` | Console entry points |
+| Google Gemini | Function declarations | `name`, `parameters` | Explicit schema |
+| MCP Specification | Tool registration | `inputSchema` | Explicit schema |
+
+The `source` filename is validated by `_validate_source_filename()` for:
+- **Path traversal prevention**: no `/` or `\`, no leading `.`
+- **Suffix enforcement**: `query` → `.sql`, `mutation` → `.py`
+- **Safe character set**: `^[a-zA-Z0-9][a-zA-Z0-9._-]*$`
+- **Length limit**: max 128 characters
+
+This replaces the previous convention-based approach (hardcoded `query.sql`
+and `mutation.py`) with explicit declaration, enabling custom filenames
+like `daily-revenue.sql` while maintaining security through validation.
 
 ```mermaid
 flowchart TB
@@ -498,7 +522,7 @@ Three levels of information, following Anthropic best practices:
 |-------|--------|-----------|---------|
 | 1 | `list_skills()` | ~100/skill | name, type, risk, triggers, description |
 | 2 | skill_def.md body | < 500 lines | Usage, workflow, notes |
-| 3 | query.sql / mutation.py | Varies | Actual SQL/Python source |
+| 3 | source file (declared in skill_def.md) | Varies | Actual SQL/Python source |
 
 ## 9. Configuration
 
@@ -518,6 +542,7 @@ Three levels of information, following Anthropic best practices:
 | Params validation | Inline in frontmatter | JSON Schema file | Single-file self-description |
 | Write safety | 3-stage (validate/preview/execute) | Simple confirm flag | Anthropic "verifiable intermediate outputs" |
 | Audit storage | JSONL file | Database table | Minimal dependency for MVP |
+| Source declaration | Mandatory `source` field | Convention-based (hardcoded filenames) | Explicit Configuration principle: GitHub Actions, npm, Python all use explicit entry points; enables custom filenames while `_validate_source_filename()` enforces path safety and suffix matching |
 | Write interface | Separate `execute_write()` | Reuse `execute()` | Read/write separation, clear responsibilities |
 | SQL caching | discover() caches at startup | Runtime disk reads | Eliminates TOCTOU risk |
 | Mutation caching | discover() pre-loads mutation classes | Per-call `exec_module()` | Eliminates runtime disk I/O + module compilation |
@@ -571,7 +596,7 @@ flowchart LR
     A2 --> A3[discover scans skills directory]
     A3 --> A4[Parse skill_def.md]
     A4 --> A5{Skill type}
-    A5 -->|query| A6[Read and validate query.sql]
+    A5 -->|query| A6[Read and validate source SQL file]
     A5 -->|mutation| A7[Import and cache Mutation class]
     A6 --> A8[Write to in-memory cache]
     A7 --> A8

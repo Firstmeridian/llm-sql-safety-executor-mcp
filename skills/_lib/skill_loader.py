@@ -3,12 +3,22 @@ Skill Loader Module — Discovery, Loading, and Validation for SQL Skills
 
 Provides the core infrastructure for the Skills extension layer:
 - discover(): Scans skills/ directory, parses skill_def.md YAML frontmatter,
-  validates query.sql safety at startup (defense-in-depth), caches
+  validates query SQL safety at startup (defense-in-depth), caches
   SQL templates, and pre-loads mutation module classes to eliminate
   TOCTOU risks and runtime disk I/O.
 - load_query() / load_mutation(): Runtime loaders that return cached data.
 - validate_name() / validate_params(): Input validation functions.
 - generate_skills_md(): Generates a static SKILLS.md overview file.
+
+Explicit Source Declaration:
+  Each skill_def.md must include a mandatory 'source' field that explicitly
+  declares the execution file (e.g. source: query.sql, source: mutation.py).
+  This follows the Explicit Configuration principle — the same approach used
+  by GitHub Actions (action.yml 'main'), npm (package.json 'main'), and
+  Python (pyproject.toml entry points). The source filename is validated for:
+  - Path traversal prevention (no / or \\, no leading .)
+  - Suffix enforcement (query → .sql, mutation → .py)
+  - Safe character set (^[a-zA-Z0-9][a-zA-Z0-9._-]*$)
 
 Design References:
 - Anthropic Agent Skills spec: skill_def.md format with YAML frontmatter
@@ -18,6 +28,8 @@ Design References:
 
 Security:
 - Skill names validated via ^[a-z0-9][a-z0-9-]*$ regex (path traversal prevention)
+- Source filenames validated via _validate_source_filename() (traversal, suffix, charset)
+- Resolved path containment: symlinks cannot escape skill directory (_is_path_within)
 - Query SQL templates pre-validated with is_sql_safe() at startup (fail-fast)
 - SQL and mutation classes cached in memory — runtime never touches disk
 - validate_params() rejects extra parameters not defined in schema
@@ -47,6 +59,27 @@ logger = logging.getLogger(__name__)
 _SKILL_NAME_PATTERN = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 _SKILL_NAME_MAX_LENGTH = 64  # Consistent with _is_valid_identifier() limit
 
+# Regex for valid source filenames: alnum start, allows alnum + dot + hyphen + underscore
+# No path separators, no leading dot (prevents traversal and hidden files)
+_SOURCE_FILENAME_PATTERN = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9._-]*$")
+_SOURCE_FILENAME_MAX_LENGTH = 128
+
+# Enforced suffix mapping: skill type -> required file extension
+# query skills must use .sql files; mutation skills must use .py files
+_SOURCE_SUFFIX_MAP: dict[str, str] = {
+    "query": ".sql",
+    "mutation": ".py",
+}
+
+
+def _is_path_within(target: Path, parent: Path) -> bool:
+    """Check that resolved target path is inside resolved parent directory."""
+    try:
+        target.resolve().relative_to(parent.resolve())
+        return True
+    except ValueError:
+        return False
+
 
 # =============================================================================
 # Data Classes
@@ -62,6 +95,7 @@ class SkillMetadata:
     """
     name: str
     type: Literal["query", "mutation"]
+    source: str  # Explicit execution file reference (e.g. "query.sql", "mutation.py")
     risk: Literal["low", "medium", "high"]
     description: str
     params: dict[str, dict] = field(default_factory=dict)
@@ -95,7 +129,11 @@ def discover(skills_dir: Path) -> dict[str, SkillMetadata]:
     Scan skills/ directory, parse all skill_def.md frontmatter, and return
     metadata for enabled skills.
 
-    For type: query skills, also reads query.sql and runs is_sql_safe()
+    Each skill_def.md must declare a 'source' field pointing to the execution
+    file (e.g. source: query.sql). The source filename is validated for
+    security (no path traversal, suffix must match type).
+
+    For type: query skills, reads the source SQL file and runs is_sql_safe()
     validation at startup (defense-in-depth). Unsafe SQL causes the skill
     to be skipped with an error log — ensuring only safe templates register.
 
@@ -137,24 +175,34 @@ def discover(skills_dir: Path) -> dict[str, SkillMetadata]:
             logger.info(f"Skill '{metadata.name}' is disabled, skipping")
             continue
 
-        # For query skills: read and validate query.sql at startup
+        # For query skills: read and validate source SQL file at startup
         if metadata.type == "query":
-            query_sql_path = entry / "query.sql"
+            query_sql_path = entry / metadata.source
             if not query_sql_path.is_file():
                 logger.error(
-                    f"Skill '{metadata.name}': type is 'query' but query.sql not found"
+                    f"Skill '{metadata.name}': source file '{metadata.source}' not found"
+                )
+                continue
+
+            # Symlink escape prevention: resolved path must stay within skill dir
+            if not _is_path_within(query_sql_path, entry):
+                logger.error(
+                    f"Skill '{metadata.name}': source file '{metadata.source}' "
+                    "resolves outside skill directory (symlink escape blocked)"
                 )
                 continue
 
             sql_template = query_sql_path.read_text(encoding="utf-8").strip()
             if not sql_template:
-                logger.error(f"Skill '{metadata.name}': query.sql is empty")
+                logger.error(
+                    f"Skill '{metadata.name}': source file '{metadata.source}' is empty"
+                )
                 continue
 
             # Defense-in-depth: validate SQL safety at startup (fail-fast)
             if not is_sql_safe(sql_template):
                 logger.error(
-                    f"Skill '{metadata.name}': query.sql failed is_sql_safe() check, "
+                    f"Skill '{metadata.name}': '{metadata.source}' failed is_sql_safe() check, "
                     "skipping (only SELECT/SHOW/DESCRIBE/EXPLAIN allowed)"
                 )
                 continue
@@ -165,10 +213,18 @@ def discover(skills_dir: Path) -> dict[str, SkillMetadata]:
             metadata.tables = _extract_table_names(sql_template)
 
         elif metadata.type == "mutation":
-            mutation_py_path = entry / "mutation.py"
+            mutation_py_path = entry / metadata.source
             if not mutation_py_path.is_file():
                 logger.error(
-                    f"Skill '{metadata.name}': type is 'mutation' but mutation.py not found"
+                    f"Skill '{metadata.name}': source file '{metadata.source}' not found"
+                )
+                continue
+
+            # Symlink escape prevention: resolved path must stay within skill dir
+            if not _is_path_within(mutation_py_path, entry):
+                logger.error(
+                    f"Skill '{metadata.name}': source file '{metadata.source}' "
+                    "resolves outside skill directory (symlink escape blocked)"
                 )
                 continue
 
@@ -180,7 +236,7 @@ def discover(skills_dir: Path) -> dict[str, SkillMetadata]:
                 metadata._mutation_class = mutation_class
             except Exception as e:
                 logger.error(
-                    f"Skill '{metadata.name}': failed to load mutation.py: {e}"
+                    f"Skill '{metadata.name}': failed to load '{metadata.source}': {e}"
                 )
                 continue
 
@@ -207,7 +263,7 @@ def generate_skills_md(skills: dict[str, SkillMetadata], output_path: Path) -> N
     """
     Generate a static skills/SKILLS.md overview file for human review.
 
-    Lists all enabled skills with name, type, risk, description, and tables.
+    Lists all enabled skills with name, type, source, risk, description, and tables.
     Disabled skills are excluded.
 
     Args:
@@ -219,8 +275,8 @@ def generate_skills_md(skills: dict[str, SkillMetadata], output_path: Path) -> N
         "",
         "> Auto-generated by skill_loader.py — do not edit manually.",
         "",
-        "| Name | Type | Risk | Tables | Description |",
-        "|------|------|------|--------|-------------|",
+        "| Name | Type | Source | Risk | Tables | Description |",
+        "|------|------|--------|------|--------|-------------|",
     ]
 
     for name in sorted(skills.keys()):
@@ -230,7 +286,7 @@ def generate_skills_md(skills: dict[str, SkillMetadata], output_path: Path) -> N
         if len(desc) > 100:
             desc = desc[:97] + "..."
         lines.append(
-            f"| {name} | {meta.type} | {meta.risk} | {tables_str} | {desc} |"
+            f"| {name} | {meta.type} | {meta.source} | {meta.risk} | {tables_str} | {desc} |"
         )
 
     lines.append("")
@@ -338,7 +394,7 @@ def load_mutation(skill_name: str, adapter, audit_logger) -> "MutationBase":
     if metadata._mutation_class is None:
         raise RuntimeError(
             f"Skill '{skill_name}': mutation class not cached "
-            "(discover() may have failed to load mutation.py)"
+            "(discover() may have failed to load source module)"
         )
 
     return metadata._mutation_class(adapter, audit_logger)
@@ -424,6 +480,73 @@ def get_skills_cache() -> dict[str, SkillMetadata]:
 # Internal Helpers
 # =============================================================================
 
+def _validate_source_filename(source: str, skill_type: str, path: Path) -> None:
+    """
+    Validate the 'source' field from skill_def.md YAML frontmatter.
+
+    Security checks:
+    - Must not contain path separators (/ or \\) — prevents directory traversal
+    - Must not start with '.' — prevents hidden files and '..' traversal
+    - Must match safe filename regex: ^[a-zA-Z0-9][a-zA-Z0-9._-]*$
+    - Must not exceed 128 characters
+    - Must have the correct suffix for the skill type (.sql for query, .py for mutation)
+
+    Design decision: Explicit source declaration follows industry best practices:
+    - GitHub Actions action.yml: explicit 'main' field
+    - npm package.json: explicit 'main' field
+    - Python pyproject.toml: explicit entry points
+    - Google Gemini: "strong schema" principle
+    - MCP Specification: explicit schema declarations
+
+    Args:
+        source: The source filename to validate
+        skill_type: The skill type ('query' or 'mutation')
+        path: Path to skill_def.md (for error messages)
+
+    Raises:
+        ValueError: If source filename is invalid or suffix mismatches type
+    """
+    if not source or not isinstance(source, str):
+        raise ValueError(
+            f"Missing or empty 'source' field in {path}. "
+            f"Each skill_def.md must explicitly declare its execution file "
+            f"(e.g. source: query.sql)"
+        )
+
+    if len(source) > _SOURCE_FILENAME_MAX_LENGTH:
+        raise ValueError(
+            f"'source' filename too long in {path}: "
+            f"max {_SOURCE_FILENAME_MAX_LENGTH} characters"
+        )
+
+    # Path traversal and hidden file prevention
+    if "/" in source or "\\" in source:
+        raise ValueError(
+            f"'source' must be a filename, not a path (no / or \\) in {path}: "
+            f"got '{source}'"
+        )
+
+    if source.startswith("."):
+        raise ValueError(
+            f"'source' must not start with '.' (no hidden files) in {path}: "
+            f"got '{source}'"
+        )
+
+    if not _SOURCE_FILENAME_PATTERN.match(source):
+        raise ValueError(
+            f"'source' filename contains invalid characters in {path}: "
+            f"'{source}' — must match {_SOURCE_FILENAME_PATTERN.pattern}"
+        )
+
+    # Enforce suffix matching based on skill type
+    expected_suffix = _SOURCE_SUFFIX_MAP.get(skill_type)
+    if expected_suffix and not source.endswith(expected_suffix):
+        raise ValueError(
+            f"'source' suffix mismatch in {path}: type '{skill_type}' "
+            f"requires '{expected_suffix}' suffix, got '{source}'"
+        )
+
+
 def _parse_skill_md(path: Path, dir_name: str) -> SkillMetadata:
     """
     Parse a skill_def.md file and return SkillMetadata.
@@ -459,7 +582,7 @@ def _parse_skill_md(path: Path, dir_name: str) -> SkillMetadata:
         raise ValueError(f"YAML frontmatter must be a mapping in {path}")
 
     # Validate required fields
-    for required_field in ("type", "risk"):
+    for required_field in ("type", "risk", "source"):
         if required_field not in front:
             raise ValueError(
                 f"Missing required field '{required_field}' in {path}"
@@ -477,9 +600,14 @@ def _parse_skill_md(path: Path, dir_name: str) -> SkillMetadata:
             f"Invalid risk '{risk}' in {path}: must be 'low', 'medium', or 'high'"
         )
 
+    # Validate source filename (security: path traversal, hidden files, suffix)
+    source = front["source"]
+    _validate_source_filename(source, skill_type, path)
+
     return SkillMetadata(
         name=front.get("name", dir_name),
         type=skill_type,
+        source=source,
         risk=risk,
         description=front.get("description", "").strip(),
         params=front.get("params", {}),
@@ -495,21 +623,21 @@ def _parse_skill_md(path: Path, dir_name: str) -> SkillMetadata:
 
 def _load_mutation_class(skill_name: str, mutation_path: Path) -> type:
     """
-    Dynamically import mutation.py and return the Mutation class (not an instance).
+    Dynamically import a mutation source module and return the Mutation class.
 
     Called by discover() at startup to pre-load and cache mutation classes.
     This eliminates per-invocation disk I/O and module compilation.
 
     Args:
         skill_name: Name of the mutation skill (for error messages)
-        mutation_path: Path to the mutation.py file
+        mutation_path: Path to the mutation source file
 
     Returns:
         The Mutation class (subclass of MutationBase)
 
     Raises:
-        ImportError: If mutation.py cannot be imported
-        AttributeError: If mutation.py doesn't export 'Mutation' class
+        ImportError: If the source module cannot be imported
+        AttributeError: If the source module doesn't export 'Mutation' class
     """
     spec = importlib.util.spec_from_file_location(
         f"skills.{skill_name}.mutation",
@@ -524,7 +652,7 @@ def _load_mutation_class(skill_name: str, mutation_path: Path) -> type:
 
     if not hasattr(module, "Mutation"):
         raise AttributeError(
-            f"Skill '{skill_name}': mutation.py must export a class named "
+            f"Skill '{skill_name}': source module must export a class named "
             "'Mutation' (subclass of MutationBase)"
         )
 

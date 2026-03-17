@@ -1,6 +1,6 @@
 # MCP SQL Server Refactoring Log
 
-**Date:** December 2, 2025 (Updated: March 1, 2026)  
+**Date:** December 2, 2025 (Updated: March 17, 2026)  
 **Author:** Code Refactoring Session  
 
 ## Overview
@@ -9,7 +9,58 @@ This document records the major refactoring changes made to `mcp_sql_server.py` 
 
 ---
 
-## Latest Update v3.0 (March 1, 2026) - Skills Extension Layer
+## Latest Update v3.1 (March 17, 2026) - Explicit Source Declaration
+
+### Overview
+
+Added a mandatory `source` field to `skill_def.md` YAML frontmatter. Each skill must now explicitly declare its execution file (e.g. `source: query.sql`, `source: mutation.py`), replacing the previous convention-based implicit file association (hardcoded `query.sql` and `mutation.py` filenames).
+
+This follows the **Explicit Configuration** principle — the same approach used by GitHub Actions (`action.yml` `main` field), npm (`package.json` `main` field), and Python (`pyproject.toml` entry points).
+
+### Changes
+
+| File | Change Type | Description |
+|------|-------------|-------------|
+| `skills/_lib/skill_loader.py` | Modified | Added `source: str` field to `SkillMetadata`; new `_validate_source_filename()` function with security checks (path traversal, hidden files, suffix enforcement); `_parse_skill_md()` extracts and validates `source`; `discover()` uses `metadata.source` instead of hardcoded filenames |
+| `skills/monthly-sales-report/skill_def.md` | Modified | Added `source: query.sql` to YAML frontmatter |
+| `skills/update-order-status/skill_def.md` | Modified | Added `source: mutation.py` to YAML frontmatter |
+| `tests/test_skill_loader.py` | Modified | All fixtures updated with `source` field; 9 new tests added (TestSourceField class): missing source, path traversal, backslash traversal, wrong suffix, mutation wrong suffix, hidden file, custom filename, source stored in metadata |
+| `MCP_AGENTS_SKILLS_DESIGN.md` | Modified | Section 4: added `source` to YAML schema example; added 5th design rationale (Explicit Configuration principle with industry comparison table); Section 10: added design decision entry |
+| `README.md` | Modified | Updated skill_def.md examples and "Adding Custom Skills" section |
+| `README_ZH.md` | Modified | Updated skill_def.md examples and "如何添加自定义 Skill" section |
+| `REFACTORING_LOG.md` | Modified | This entry |
+| `skills/SAFETY.md` | Modified | Updated item #1 to reference explicit `source` field |
+
+### Key Design Decisions
+
+| Decision | Choice | Alternative | Rationale |
+|----------|--------|-------------|-----------|
+| Field name | `source` | `main`, `entry_point`, `file` | Consistent with web conventions; short and descriptive |
+| Mandatory | Required, no default | Optional with convention fallback | User's explicit requirement; prevents ambiguity about file association |
+| Suffix enforcement | query→.sql, mutation→.py | No enforcement | Prevents misconfiguration; catches type/file mismatch early |
+| Filename validation | Regex + path traversal + hidden file checks | Path-only check | Defense-in-depth: `_validate_source_filename()` enforces safe character set, no path separators, no leading dots |
+| Custom filenames | Allowed (e.g. `daily-revenue.sql`) | Fixed names only | Enables descriptive naming while maintaining security through validation |
+
+### Source Filename Validation (`_validate_source_filename()`)
+
+Security checks performed on the `source` field value:
+1. Must not be empty
+2. Max 128 characters
+3. No path separators (`/` or `\\`) — prevents directory traversal
+4. Must not start with `.` — prevents hidden files and `..` traversal
+5. Must match regex `^[a-zA-Z0-9][a-zA-Z0-9._-]*$` — safe character set
+6. Suffix must match skill type: `query` → `.sql`, `mutation` → `.py`
+7. Resolved path must stay within skill directory — prevents symlink escape
+
+### Testing
+
+- **125 total tests, 0 failures** — all internal examples and tests migrated; external custom skills require adding `source` field (schema-breaking change)
+- 9 new tests in `TestSourceField` class covering all validation paths
+- All existing 38 skill_loader tests updated with `source` field and passing
+
+---
+
+## Update v3.0 (March 1, 2026) - Skills Extension Layer
 
 ### Overview
 

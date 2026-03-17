@@ -7,8 +7,8 @@ Following FastMCP best practices for tool design and context usage.
 
 v3.0 — Skills Extension Layer:
 - Optional Skills system (ENABLE_SKILLS=1) for pre-defined query/mutation operations
-- Query skills: parameterized SQL templates via skill_def.md + query.sql
-- Mutation skills: validate→preview→execute pattern via mutation.py
+- Query skills: parameterized SQL templates via skill_def.md + source SQL file
+- Mutation skills: validate→preview→execute pattern via source Python module
 - Backward compatible: ENABLE_SKILLS=0 (default) = zero code path changes
 
 Supported Databases:
@@ -1062,7 +1062,7 @@ if SKILLS_ENABLED:
         Returns skill metadata for progressive disclosure:
         Level 1 (this tool) — name, type, risk, description, triggers.
         Level 2 — Read skill's skill_def.md for full documentation.
-        Level 3 — query.sql / mutation.py source (code review).
+        Level 3 — skill source file (code review, declared in skill_def.md 'source' field).
 
         Returns:
             Dict with skills list and count
@@ -1076,6 +1076,7 @@ if SKILLS_ENABLED:
             skill_info = {
                 "name": meta.name,
                 "type": meta.type,
+                "source": meta.source,
                 "risk": meta.risk,
                 "description": meta.description,
                 "triggers": meta.triggers,

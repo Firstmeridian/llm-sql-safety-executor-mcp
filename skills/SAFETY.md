@@ -6,9 +6,12 @@ read this before creating or approving skills.
 
 ## 1. Template/Script as Whitelist
 
-Only pre-defined `query.sql` / `mutation.py` files under `skills/` are
-executed. There is no free-form SQL input path — the skill template IS
-the whitelist.
+Only execution files explicitly declared via the `source` field in
+`skill_def.md` are loaded and executed. There is no free-form SQL input
+path — the skill template IS the whitelist. The `source` filename is
+validated by `_validate_source_filename()` for path traversal prevention,
+hidden file rejection, safe character set, and suffix enforcement
+(query → `.sql`, mutation → `.py`).
 
 ## 2. Parameterized Queries
 

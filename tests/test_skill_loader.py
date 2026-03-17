@@ -55,6 +55,7 @@ def skills_dir(tmp_path):
         "---\n"
         "name: test-query\n"
         "type: query\n"
+        "source: query.sql\n"
         "risk: low\n"
         "description: A test query skill\n"
         "triggers:\n"
@@ -80,6 +81,7 @@ def skills_dir(tmp_path):
         "---\n"
         "name: test-mutation\n"
         "type: mutation\n"
+        "source: mutation.py\n"
         "risk: medium\n"
         "description: A test mutation skill\n"
         "requires_confirmation: true\n"
@@ -396,6 +398,7 @@ class TestDiscover:
             "---\n"
             "name: disabled-skill\n"
             "type: query\n"
+            "source: query.sql\n"
             "risk: low\n"
             "description: Disabled\n"
             "enabled: false\n"
@@ -458,6 +461,7 @@ class TestDiscover:
             "---\n"
             "name: bad-query\n"
             "type: query\n"
+            "source: query.sql\n"
             "risk: low\n"
             "description: Unsafe SQL\n"
             "---\n\nBad.\n",
@@ -490,6 +494,7 @@ class TestDiscover:
             "---\n"
             "name: lonely-skill\n"
             "type: query\n"
+            "source: query.sql\n"
             "risk: low\n"
             "description: Has dangling reference\n"
             "related_skills:\n"
@@ -552,6 +557,7 @@ class TestLoadMutation:
             "---\n"
             "name: no-class\n"
             "type: mutation\n"
+            "source: mutation.py\n"
             "risk: low\n"
             "description: No Mutation class\n"
             "---\n\nBad.\n",
@@ -578,6 +584,7 @@ class TestLoadMutation:
             "---\n"
             "name: bad-import\n"
             "type: mutation\n"
+            "source: mutation.py\n"
             "risk: low\n"
             "description: Bad import\n"
             "---\n\nBroken.\n",
@@ -619,3 +626,209 @@ class TestLoadMutation:
         mutation = load_mutation("test-mutation", mock_adapter, mock_logger)
         assert mutation.adapter is mock_adapter
         assert mutation.logger is mock_logger
+
+
+# =============================================================================
+# TestSourceField — Explicit source declaration validation
+# =============================================================================
+
+class TestSourceField:
+    """Tests for the mandatory 'source' field in skill_def.md.
+
+    The 'source' field explicitly declares the execution file associated
+    with a skill, following the Explicit Configuration principle.
+    """
+
+    def test_source_missing_rejected(self, tmp_path):
+        """skill_def.md without 'source' field is rejected."""
+        from skill_loader import discover
+
+        sd = tmp_path / "skills"
+        sd.mkdir()
+        q = sd / "no-source"
+        q.mkdir()
+        (q / "skill_def.md").write_text(
+            "---\n"
+            "name: no-source\n"
+            "type: query\n"
+            "risk: low\n"
+            "description: Missing source field\n"
+            "---\n\nNo source.\n",
+            encoding="utf-8",
+        )
+        (q / "query.sql").write_text("SELECT 1", encoding="utf-8")
+
+        skills = discover(sd)
+        assert "no-source" not in skills
+
+    def test_source_path_traversal_rejected(self, tmp_path):
+        """source: ../etc/passwd is rejected (path traversal prevention)."""
+        from skill_loader import discover
+
+        sd = tmp_path / "skills"
+        sd.mkdir()
+        q = sd / "traversal"
+        q.mkdir()
+        (q / "skill_def.md").write_text(
+            "---\n"
+            "name: traversal\n"
+            "type: query\n"
+            "source: ../etc/passwd\n"
+            "risk: low\n"
+            "description: Path traversal attempt\n"
+            "---\n\nBad.\n",
+            encoding="utf-8",
+        )
+
+        skills = discover(sd)
+        assert "traversal" not in skills
+
+    def test_source_backslash_traversal_rejected(self, tmp_path):
+        """source with backslash path separator is rejected."""
+        from skill_loader import discover
+
+        sd = tmp_path / "skills"
+        sd.mkdir()
+        q = sd / "backslash"
+        q.mkdir()
+        (q / "skill_def.md").write_text(
+            "---\n"
+            "name: backslash\n"
+            "type: query\n"
+            "source: '..\\\\secret.sql'\n"
+            "risk: low\n"
+            "description: Backslash traversal attempt\n"
+            "---\n\nBad.\n",
+            encoding="utf-8",
+        )
+
+        skills = discover(sd)
+        assert "backslash" not in skills
+
+    def test_source_wrong_suffix_rejected(self, tmp_path):
+        """query type with .py suffix is rejected (suffix enforcement)."""
+        from skill_loader import discover
+
+        sd = tmp_path / "skills"
+        sd.mkdir()
+        q = sd / "wrong-suffix"
+        q.mkdir()
+        (q / "skill_def.md").write_text(
+            "---\n"
+            "name: wrong-suffix\n"
+            "type: query\n"
+            "source: wrong.py\n"
+            "risk: low\n"
+            "description: Wrong suffix\n"
+            "---\n\nBad.\n",
+            encoding="utf-8",
+        )
+
+        skills = discover(sd)
+        assert "wrong-suffix" not in skills
+
+    def test_source_mutation_wrong_suffix_rejected(self, tmp_path):
+        """mutation type with .sql suffix is rejected."""
+        from skill_loader import discover
+
+        sd = tmp_path / "skills"
+        sd.mkdir()
+        m = sd / "mut-wrong-suffix"
+        m.mkdir()
+        (m / "skill_def.md").write_text(
+            "---\n"
+            "name: mut-wrong-suffix\n"
+            "type: mutation\n"
+            "source: query.sql\n"
+            "risk: low\n"
+            "description: Mutation with SQL suffix\n"
+            "---\n\nBad.\n",
+            encoding="utf-8",
+        )
+
+        skills = discover(sd)
+        assert "mut-wrong-suffix" not in skills
+
+    def test_source_hidden_file_rejected(self, tmp_path):
+        """source: .secret.sql is rejected (hidden file prevention)."""
+        from skill_loader import discover
+
+        sd = tmp_path / "skills"
+        sd.mkdir()
+        q = sd / "hidden-source"
+        q.mkdir()
+        (q / "skill_def.md").write_text(
+            "---\n"
+            "name: hidden-source\n"
+            "type: query\n"
+            "source: .secret.sql\n"
+            "risk: low\n"
+            "description: Hidden file source\n"
+            "---\n\nBad.\n",
+            encoding="utf-8",
+        )
+
+        skills = discover(sd)
+        assert "hidden-source" not in skills
+
+    def test_source_custom_name(self, tmp_path):
+        """Custom source filename (e.g. daily-revenue.sql) works correctly."""
+        from skill_loader import discover
+
+        sd = tmp_path / "skills"
+        sd.mkdir()
+        q = sd / "custom-name"
+        q.mkdir()
+        (q / "skill_def.md").write_text(
+            "---\n"
+            "name: custom-name\n"
+            "type: query\n"
+            "source: daily-revenue.sql\n"
+            "risk: low\n"
+            "description: Custom source filename\n"
+            "---\n\nCustom.\n",
+            encoding="utf-8",
+        )
+        (q / "daily-revenue.sql").write_text("SELECT 1", encoding="utf-8")
+
+        skills = discover(sd)
+        assert "custom-name" in skills
+
+    def test_source_stored_in_metadata(self, discovered_skills):
+        """source field is accessible on SkillMetadata after discover()."""
+        meta_q = discovered_skills["test-query"]
+        assert meta_q.source == "query.sql"
+
+        meta_m = discovered_skills["test-mutation"]
+        assert meta_m.source == "mutation.py"
+
+    def test_source_symlink_escape_rejected(self, tmp_path):
+        """Symlink in skill dir pointing outside is rejected (resolved path check)."""
+        import os
+        from skill_loader import discover
+
+        sd = tmp_path / "skills"
+        sd.mkdir()
+
+        # Create external SQL file outside skills directory
+        external_dir = tmp_path / "external"
+        external_dir.mkdir()
+        (external_dir / "secret.sql").write_text("SELECT secret FROM passwords", encoding="utf-8")
+
+        # Create skill with symlink pointing to external file
+        q = sd / "symlink-escape"
+        q.mkdir()
+        (q / "skill_def.md").write_text(
+            "---\n"
+            "name: symlink-escape\n"
+            "type: query\n"
+            "source: query.sql\n"
+            "risk: low\n"
+            "description: Symlink escape attempt\n"
+            "---\n\nBad.\n",
+            encoding="utf-8",
+        )
+        os.symlink(external_dir / "secret.sql", q / "query.sql")
+
+        skills = discover(sd)
+        assert "symlink-escape" not in skills

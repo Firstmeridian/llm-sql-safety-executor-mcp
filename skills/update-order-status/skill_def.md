@@ -11,6 +11,7 @@ triggers:
   - cancel order
   - deliver order
 type: mutation
+source: mutation.py
 risk: medium
 requires_confirmation: true
 idempotent: false

@@ -984,6 +984,7 @@ skills/monthly-sales-report/
 ```yaml
 name: monthly-sales-report
 type: query              # 只读查询，不修改数据
+source: query.sql        # 显式声明关联的执行文件（必填）
 risk: low                # 低风险
 params:
   year: {type: int, required: true, description: "年份，如 2026"}
@@ -1013,7 +1014,7 @@ ORDER BY date ASC
 {"skill_name": "monthly-sales-report", "params": "{\"year\": 2026, \"month\": 1}"}
 ```
 
-**工作原理**：服务器启动时，`skill_loader.py` 扫描 `skills/` 目录，解析 `skill_def.md` 的 YAML frontmatter，并对 `query.sql` 进行安全检查（通过 `is_sql_safe()`）。运行时，Agent 传入参数 `year` 和 `month`，服务器通过 SQLAlchemy 的参数化绑定（`:year`、`:month`）安全地执行查询，防止 SQL 注入。
+**工作原理**：服务器启动时，`skill_loader.py` 扫描 `skills/` 目录，解析 `skill_def.md` 的 YAML frontmatter，读取 `source` 字段声明的源文件，并通过 `is_sql_safe()` 进行安全检查。运行时，Agent 传入参数 `year` 和 `month`，服务器通过 SQLAlchemy 的参数化绑定（`:year`、`:month`）安全地执行查询，防止 SQL 注入。
 
 #### 示例 2：`update-order-status`（写操作技能）
 
@@ -1078,15 +1079,20 @@ returned   → (终态，不可转换)
 
 **查询技能**（只读）：
 1. 在 `skills/` 下创建目录，如 `skills/my-report/`
-2. 编写 `skill_def.md`（YAML frontmatter + 说明文档）
-3. 编写 `query.sql`（使用 `:param_name` 作为参数占位符）
+2. 编写 `skill_def.md`（YAML frontmatter + 说明文档），须包含 `source` 字段指向 SQL 文件（如 `source: my-report.sql`）
+3. 编写对应的 `.sql` 文件（使用 `:param_name` 作为参数占位符），文件名须与 `source` 字段一致
 4. 重启服务即可自动发现和注册
 
 **写操作技能**（mutation）：
-1. 同上创建目录和 `skill_def.md`（`type: mutation`）
-2. 编写 `mutation.py`，定义 `Mutation` 类（继承 `MutationBase`）
+1. 同上创建目录和 `skill_def.md`（`type: mutation`），须包含 `source` 字段指向 Python 文件（如 `source: mutation.py`）
+2. 编写对应的 `.py` 文件，定义 `Mutation` 类（继承 `MutationBase`），文件名须与 `source` 字段一致
 3. 实现 `validate()`、`preview()`、`execute()` 三个方法
 4. 设置 `SKILLS_ALLOW_MUTATIONS=1` 并重启服务
+
+> **关于 `source` 字段**：`source` 是必填字段，显式声明技能定义文件（`skill_def.md`）与执行文件的关联。
+> 这遵循**显式配置原则**（Explicit Configuration），与 GitHub Actions（`action.yml` 的 `main` 字段）、
+> npm（`package.json` 的 `main` 字段）等行业标准一致。
+> `source` 文件名会经过安全校验：禁止路径遍历、后缀须匹配 `type`（query→`.sql`, mutation→`.py`）。
 
 详细规范请参阅 [MCP_AGENTS_SKILLS_DESIGN.md](MCP_AGENTS_SKILLS_DESIGN.md) 和 [skills/SAFETY.md](skills/SAFETY.md)。
 
@@ -1129,7 +1135,7 @@ flowchart LR
     S5 -.->|"内存缓存"| R1 & R2 & R3
 ```
 
-> 启动时校验遵循 **fail-fast 原则**——如果 Skill 的 SQL 不安全或 `mutation.py` 格式错误，
+> 启动时校验遵循 **fail-fast 原则**——如果 Skill 的 SQL 不安全或其源模块格式错误，
 > 服务器在启动时拒绝注册，而不是在首次运行时才报错。
 > 这与 [MCP 规范 §7 — 安全](https://modelcontextprotocol.io/specification/2025-03-26/basic/security) 一致：
 > *"Validate all inputs"* 和 *"Implement proper access controls."*
@@ -1187,6 +1193,7 @@ sequenceDiagram
 ---
 name: monthly-sales-report          # 名称约束：^[a-z0-9][a-z0-9-]*$
 type: query                         # query | mutation
+source: query.sql                   # 显式声明执行文件（必填，后缀须匹配 type）
 risk: low                           # low | medium | high
 params:                             # 参数 schema（Server 侧强制校验）
   year: {type: int, required: true} #   → validate_params() 检查类型

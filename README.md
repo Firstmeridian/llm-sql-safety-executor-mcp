@@ -989,6 +989,7 @@ skills/monthly-sales-report/
 ```yaml
 name: monthly-sales-report
 type: query              # Read-only, no data modification
+source: query.sql        # Explicit execution file declaration (required)
 risk: low
 params:
   year: {type: int, required: true, description: "Year (e.g. 2026)"}
@@ -1018,7 +1019,7 @@ ORDER BY date ASC
 {"skill_name": "monthly-sales-report", "params": "{\"year\": 2026, \"month\": 1}"}
 ```
 
-**How it works**: On server startup, `skill_loader.py` scans the `skills/` directory, parses the YAML frontmatter from `skill_def.md`, and validates `query.sql` via `is_sql_safe()`. At runtime, the Agent passes `year` and `month` parameters, and the server executes the query safely using SQLAlchemy's parameterized binding (`:year`, `:month`), preventing SQL injection.
+**How it works**: On server startup, `skill_loader.py` scans the `skills/` directory, parses the YAML frontmatter from `skill_def.md`, reads the source file declared by the `source` field, and validates it via `is_sql_safe()`. At runtime, the Agent passes `year` and `month` parameters, and the server executes the query safely using SQLAlchemy's parameterized binding (`:year`, `:month`), preventing SQL injection.
 
 #### Example 2: `update-order-status` (Mutation Skill)
 
@@ -1083,15 +1084,22 @@ Returns the SQL that would be executed and its expected impact, without modifyin
 
 **Query skills** (read-only):
 1. Create a directory under `skills/`, e.g. `skills/my-report/`
-2. Write `skill_def.md` (YAML frontmatter + documentation)
-3. Write `query.sql` (use `:param_name` as parameter placeholders)
+2. Write `skill_def.md` (YAML frontmatter + documentation), must include `source` field pointing to the SQL file (e.g. `source: my-report.sql`)
+3. Write the corresponding `.sql` file (use `:param_name` as parameter placeholders), filename must match the `source` field
 4. Restart the server — the skill is auto-discovered and registered
 
 **Mutation skills** (write):
-1. Create the directory and `skill_def.md` as above (`type: mutation`)
-2. Write `mutation.py` defining a `Mutation` class (inheriting from `MutationBase`)
+1. Create the directory and `skill_def.md` as above (`type: mutation`), must include `source` field pointing to the Python file (e.g. `source: mutation.py`)
+2. Write the corresponding `.py` file defining a `Mutation` class (inheriting from `MutationBase`), filename must match the `source` field
 3. Implement `validate()`, `preview()`, and `execute()` methods
 4. Set `SKILLS_ALLOW_MUTATIONS=1` and restart the server
+
+> **About the `source` field**: `source` is a mandatory field that explicitly declares the association
+> between the skill definition file (`skill_def.md`) and its execution file. This follows the
+> **Explicit Configuration** principle, consistent with industry standards like GitHub Actions
+> (`action.yml`'s `main` field) and npm (`package.json`'s `main` field).
+> The `source` filename is validated for security: no path traversal allowed, suffix must match
+> `type` (query→`.sql`, mutation→`.py`).
 
 For full specifications, see [MCP_AGENTS_SKILLS_DESIGN.md](MCP_AGENTS_SKILLS_DESIGN.md) and [skills/SAFETY.md](skills/SAFETY.md).
 
@@ -1134,7 +1142,7 @@ flowchart LR
     S5 -.->|"Memory cache"| R1 & R2 & R3
 ```
 
-> Startup validation follows the **fail-fast principle** — if a Skill's SQL is unsafe or `mutation.py` is malformed,
+> Startup validation follows the **fail-fast principle** — if a Skill's SQL is unsafe or its source module is malformed,
 > the server rejects registration at startup rather than failing on first invocation.
 > This aligns with [MCP Specification §7 — Security](https://modelcontextprotocol.io/specification/2025-03-26/basic/security):
 > *"Validate all inputs"* and *"Implement proper access controls."*
@@ -1192,6 +1200,7 @@ sequenceDiagram
 ---
 name: monthly-sales-report          # Name constraint: ^[a-z0-9][a-z0-9-]*$
 type: query                         # query | mutation
+source: query.sql                   # Explicit execution file (required, suffix must match type)
 risk: low                           # low | medium | high
 params:                             # Parameter schema (Server-side enforced)
   year: {type: int, required: true} #   → validate_params() checks type

@@ -10,6 +10,7 @@ triggers:
   - sales summary
   - monthly revenue
 type: query
+source: query.sql
 risk: low
 params:
   year: {type: int, required: true, description: "Year (e.g. 2026)"}
