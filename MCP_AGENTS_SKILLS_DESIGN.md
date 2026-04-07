@@ -434,6 +434,15 @@ flowchart TB
 | 2 | Parameterized queries | SQLAlchemy `text()` + params binding |
 | 3 | Dry-run default | `confirm=False` returns preview only |
 | 4 | Dual-layer switches | `ENABLE_SKILLS` + `SKILLS_ALLOW_MUTATIONS` |
+
+**Three-Level Permission Progression:**
+
+| Level | Configuration | `ENABLE_SKILLS` | `SKILLS_ALLOW_MUTATIONS` | Available Tools | Permission |
+|:---:|------|:---:|:---:|------|------|
+| L0 | Default | `0` | — | Base tools (query, list_tables, etc.) | Read-only queries |
+| L1 | Skills enabled | `1` | `0` | + list_skills, execute_query_skill | + Pre-defined read-only skills |
+| L2 | Mutations enabled | `1` | `1` | + execute_mutation_skill | + Controlled writes (two-phase confirm) |
+
 | 7 | Trust boundary | skills/ = source code, changes via code review |
 | 12 | Error sanitization | `_handle_error()` → `ToolError` (no leaks) |
 | 14 | ALLOWED_TABLES bypass | Skill SQL pre-audited, review-based trust |

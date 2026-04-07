@@ -116,6 +116,13 @@ Skills 场景：list_skills() → execute_query_skill(name, params)
 - **Skills 模板即白名单**：SQL 模板启动时经 `is_sql_safe()` 校验并缓存，运行时零磁盘 I/O（防 TOCTOU）
 - **Skills 参数强类型验证**：type/min/max/enum 约束 + 拒绝 schema 之外的参数（防 injection/hallucination）
 - **Skills 双层开关**：`ENABLE_SKILLS` + `SKILLS_ALLOW_MUTATIONS` 最小权限控制
+
+  | 级别 | 配置 | `ENABLE_SKILLS` | `SKILLS_ALLOW_MUTATIONS` | 可用工具 | 权限层级 |
+  |:---:|------|:---:|:---:|------|------|
+  | L0 | 默认 | `0` | — | 基础工具（query, list_tables 等） | 仅只读查询 |
+  | L1 | 启用 Skills | `1` | `0` | + list_skills, execute_query_skill | + 预定义只读 Skill |
+  | L2 | 启用 Mutations | `1` | `1` | + execute_mutation_skill | + 受控写操作（需两阶段确认） |
+
 - **Skills 两阶段确认**：写操作需 preview → confirm，防止误操作
 - **Skills 审计日志**：每次 mutation 操作自动记录到 JSONL（不依赖 Agent 自觉）
 
@@ -1276,6 +1283,7 @@ python test_mcp_client.py
 - [重构日志](REFACTORING_LOG.md)：重构变更文档（v2.0 — v3.0）
 - [MCP 客户端测试指南](TEST_MCP_CLIENT_GUIDE.md)：通过客户端测试 MCP 服务器的指南
 - [提示工程最佳实践](PROMPT_ENGINEERING_BEST_PRACTICES.md)：MCP 工具描述和提示的指南
+- [Agent 示例开发日志](agent_examples/AGENT_DEVELOPMENT.md)：AutoGen 多智能体示例的设计与决策
 
 ## 贡献
 

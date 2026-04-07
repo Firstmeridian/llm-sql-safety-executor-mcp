@@ -33,6 +33,39 @@ from autogen_core.models import ModelInfo
 from autogen_core.model_context import BufferedChatCompletionContext, TokenLimitedChatCompletionContext
 from autogen_core import CancellationToken
 
+# =============================================================================
+# Gemini Thinking Model Compatibility Patch
+# =============================================================================
+# Gemini 3 (and 2.5) thinking models return a `thought_signature` in function call
+# responses that MUST be echoed back in subsequent requests (400 error otherwise).
+# AutoGen's FunctionCall dataclass only has (id, arguments, name) — no extra_content
+# field — so the signature is silently dropped during message round-tripping.
+#
+# Google's official workaround (https://ai.google.dev/gemini-api/docs/thought-signatures):
+# Use a dummy value "skip_thought_signature_validator" to bypass validation.
+#
+# This monkey-patch injects the dummy signature into every tool_call sent to the API,
+# so Gemini thinking models work transparently with AutoGen.
+# =============================================================================
+_GEMINI_THINKING_PATCH_ENABLED = False
+
+def _apply_gemini_thinking_patch() -> None:
+    """Monkey-patch AutoGen's func_call_to_oai to inject dummy thought_signature."""
+    import autogen_ext.models.openai._message_transform as _mt
+    _original = _mt.func_call_to_oai
+
+    def _patched(message):  # type: ignore[no-untyped-def]
+        result = _original(message)
+        if _GEMINI_THINKING_PATCH_ENABLED:
+            result["extra_content"] = {  # type: ignore[typeddict-unknown-key]
+                "google": {"thought_signature": "skip_thought_signature_validator"}
+            }
+        return result
+
+    _mt.func_call_to_oai = _patched
+
+_apply_gemini_thinking_patch()
+
 # Configure logging
 logging.basicConfig(
     # level=logging.INFO,
@@ -59,7 +92,13 @@ def get_model_client() -> tuple[OpenAIChatCompletionClient, str]:
     # Check for Gemini API key first
     gemini_api_key = os.environ.get("GEMINI_API_KEY")
     if gemini_api_key:
-        model_name = "gemini-2.5-flash-lite-preview-09-2025"
+        # model_name = "gemini-2.5-flash-lite-preview-09-2025"
+        model_name = "gemini-3.1-flash-lite-preview"
+
+        # Enable thought_signature patch for Gemini thinking models (3.x and 2.5.x)
+        global _GEMINI_THINKING_PATCH_ENABLED
+        _GEMINI_THINKING_PATCH_ENABLED = True
+
         return OpenAIChatCompletionClient(
             model=model_name,
             api_key=gemini_api_key,
@@ -329,7 +368,8 @@ async def main() -> None:
             description="An agent that executes SQL queries using database tools. Can list tables, describe schemas, and run SELECT queries.",
             model_client=model_client,
             workbench=mcp_workbench,  # Connect MCP tools
-            reflect_on_tool_use=True,  # Reflect on tool results
+            reflect_on_tool_use=False,  # Disabled: Gemini thinking models intermittently fail tool_choice="none" constraint
+            max_tool_iterations=5,  # Allow multi-step tool use; model returns text naturally after execution
             system_message=SQL_EXECUTOR_AGENT_PROMPT,
             model_context=sql_agent_context,  # Limit context size
         )
@@ -402,6 +442,11 @@ async def main() -> None:
         print("\nEnter a task number (1-5) or type a custom query:")
         print("Type 'q' to quit\n")
         
+        # Flush any leftover stdin input to avoid ghost commands
+        import select
+        while select.select([sys.stdin], [], [], 0.0)[0]:
+            sys.stdin.readline()
+        
         while True:
             try:
                 user_input = input(">>> ").strip()
@@ -447,7 +492,13 @@ async def main() -> None:
                 print("\n\nOperation interrupted. Goodbye!")
                 logger.info("User interrupted the operation")
                 break
+            except (asyncio.CancelledError, GeneratorExit):
+                print("\n\nOperation cancelled. Goodbye!")
+                break
             except Exception as e:
+                if "interrupt" in str(e).lower() or "cancel" in str(e).lower():
+                    print("\n\nOperation interrupted. Goodbye!")
+                    break
                 print(f"\n❌ Error: {e}")
                 logger.exception("Error during task execution")
                 continue
@@ -485,7 +536,8 @@ async def run_single_task(task: str) -> None:
             description="An agent that executes SQL queries using database tools.",
             model_client=model_client,
             workbench=mcp_workbench,
-            reflect_on_tool_use=True,
+            reflect_on_tool_use=False,
+            max_tool_iterations=5,
             system_message=SQL_EXECUTOR_AGENT_PROMPT,
             model_context=TokenLimitedChatCompletionContext(model_client=model_client, token_limit=16000),
         )

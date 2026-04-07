@@ -118,6 +118,13 @@ Skills Scenario: list_skills() → execute_query_skill(name, params)
 - **Skills Template-as-Allowlist**: SQL templates are validated via `is_sql_safe()` at startup and cached in memory — zero disk I/O at runtime (prevents TOCTOU)
 - **Skills Strong Parameter Validation**: type/min/max/enum constraints + rejection of parameters outside schema (prevents injection/hallucination)
 - **Skills Dual-Layer Switches**: `ENABLE_SKILLS` + `SKILLS_ALLOW_MUTATIONS` for least-privilege control
+
+  | Level | Configuration | `ENABLE_SKILLS` | `SKILLS_ALLOW_MUTATIONS` | Available Tools | Permission |
+  |:---:|------|:---:|:---:|------|------|
+  | L0 | Default | `0` | — | Base tools (query, list_tables, etc.) | Read-only queries |
+  | L1 | Skills enabled | `1` | `0` | + list_skills, execute_query_skill | + Pre-defined read-only skills |
+  | L2 | Mutations enabled | `1` | `1` | + execute_mutation_skill | + Controlled writes (two-phase confirm) |
+
 - **Skills Two-Phase Confirmation**: Write operations require preview → confirm to prevent accidental operations
 - **Skills Audit Logging**: Every mutation operation is automatically logged to JSONL (not dependent on Agent compliance)
 
@@ -1283,6 +1290,7 @@ This script:
 - [Refactoring Log](REFACTORING_LOG.md): Refactoring change documentation (v2.0 — v3.0)
 - [MCP Client Test Guide](TEST_MCP_CLIENT_GUIDE.md): Guide for testing MCP Server via client
 - [Prompt Engineering Best Practices](PROMPT_ENGINEERING_BEST_PRACTICES.md): Guide for MCP tool descriptions and prompts
+- [Agent Examples Development Log](agent_examples/AGENT_DEVELOPMENT.md): AutoGen multi-agent example design and decisions
 
 ## Contribution
 
