@@ -1,10 +1,10 @@
 """
-Audit Logger Module — JSONL Audit Trail for Mutation Operations
+Audit Logger Module — JSONL Audit Trail for Skill Operations
 
-Records all mutation skill operations (preview and execute) to a JSONL file.
+Records mutation skill operations and optional query skill executions to a JSONL file.
 Each line is a self-contained JSON object with:
 - who: Agent identity (ctx.client_id or AGENT_ID env var)
-- what: skill_name + params + mode (preview/execute)
+- what: skill_name + params + mode (query/preview/execute)
 - when: ISO 8601 timestamp
 - result: success/failure + rowcount
 
@@ -33,7 +33,7 @@ _write_lock = threading.Lock()
 
 class AuditLogger:
     """
-    Append-only JSONL audit logger for mutation operations.
+    Append-only JSONL audit logger for skill operations.
 
     Attributes:
         log_path: Path to the JSONL audit log file.
@@ -74,9 +74,9 @@ class AuditLogger:
         Append an audit entry to the JSONL log file.
 
         Args:
-            skill_name: Name of the mutation skill
+            skill_name: Name of the skill
             params: Parameters passed to the skill
-            mode: "preview" or "execute"
+            mode: "query", "preview", or "execute"
             result: Result dict from the operation
             client_id: MCP client identity (from ctx.client_id if available)
         """
@@ -90,6 +90,10 @@ class AuditLogger:
             "rowcount": result.get("rowcount"),
             "error": result.get("error"),
         }
+        if "total_rows" in result:
+            entry["total_rows"] = result.get("total_rows")
+        if "truncated" in result:
+            entry["truncated"] = result.get("truncated")
 
         try:
             line = json.dumps(entry, ensure_ascii=False, default=str) + "\n"

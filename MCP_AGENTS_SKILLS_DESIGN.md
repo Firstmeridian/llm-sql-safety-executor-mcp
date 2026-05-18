@@ -1,8 +1,8 @@
 # MCP Agents Skills Design Document
 
-> **Version**: 3.0  
-> **Status**: Implemented  
-> **Date**: 2026-03  
+> **Version**: 3.4
+> **Status**: Implemented
+> **Date**: 2026-05
 > **Reference**: DRAFTPLAN_final.md, DRAFTPLAN_final_addendum.md
 
 ## 1. Overview
@@ -14,7 +14,7 @@ Skills are discoverable, auditable, and controlled by environment variables.
 ### Goals
 
 - **Structured database operations** — Replace free-form SQL with reviewed templates
-- **Progressive disclosure** — Three-level information architecture for token efficiency
+- **Progressive disclosure** — MCP-level catalog/detail/execute workflow for token efficiency
 - **Write operation safety** — Plan-validate-execute pattern with dry-run default
 - **Full backward compatibility** — Zero impact when disabled (`ENABLE_SKILLS=0`)
 - **Minimal dependency footprint** — Only adds `pyyaml` to requirements
@@ -33,11 +33,11 @@ Skills are discoverable, auditable, and controlled by environment variables.
 ┌─────────────────────────────────────────────────────────────┐
 │                    mcp_sql_server.py                        │
 │  ┌─────────────┐  ┌──────────────────┐  ┌───────────────┐  │
-│  │ list_skills  │  │execute_query_skill│  │execute_mutation│  │
-│  │  (readOnly)  │  │  (readOnly)      │  │  _skill       │  │
-│  └──────┬───────┘  └────────┬─────────┘  └───────┬───────┘  │
-│         │                   │                     │          │
-│  ┌──────┴───────────────────┴─────────────────────┴───────┐  │
+│  │ list_skills │  │ get_skill_detail │  │ execute_*     │  │
+│  │  read-only  │  │    read-only     │  │ _skill tools  │  │
+│  └──────┬──────┘  └────────┬─────────┘  └───────┬───────┘  │
+│         │                  │                    │          │
+│  ┌──────┴──────────────────┴────────────────────┴────────┐  │
 │  │                   skills/_lib/                          │  │
 │  │  ┌──────────────┐ ┌──────────────┐ ┌────────────────┐  │  │
 │  │  │ skill_loader  │ │mutation_base │ │    audit       │  │  │
@@ -59,7 +59,9 @@ Skills are discoverable, auditable, and controlled by environment variables.
 ### Information Flow
 
 ```
-Agent → list_skills()          → Skill metadata (name, type, risk, triggers)
+Agent → list_skills(search/category/detail_level/available_only)
+                               → Searchable skill catalog (compact/summary/full)
+Agent → get_skill_detail(name) → Full cached parameter schema for one skill
 Agent → execute_query_skill()  → skill_loader → adapter.execute(sql, params)
 Agent → execute_mutation_skill(confirm=false)
                                → mutation.validate() + preview()
@@ -67,6 +69,125 @@ Agent → execute_mutation_skill(confirm=true)
                                → mutation.validate() + run_execute() → adapter.execute_write()
                                                                      → audit.log()
 ```
+
+### Shared Infrastructure and Skill Structure
+
+The following diagram shows the relationship between the shared
+infrastructure under `skills/_lib/`, the concrete skill folders, and the
+MCP tool entry points. The key idea is that `_lib` is not a skill by itself
+— it is the common execution framework used by all skills.
+
+```mermaid
+flowchart TD
+    A[skills directory] --> B[_lib shared infrastructure]
+    A --> C[Concrete skill folders]
+
+    B --> B1[__init__.py<br/>Package marker]
+    B --> B2[skill_loader.py<br/>Discover load validate cache]
+    B --> B3[mutation_base.py<br/>Base class for write skills]
+    B --> B4[audit.py<br/>JSONL audit logging]
+
+    C --> C1[monthly-sales-report<br/>skill_def.md + query.sql]
+    C --> C2[monthly-sales-report-sqlite<br/>skill_def.md + query.sql]
+    C --> C3[update-order-status<br/>skill_def.md + mutation.py]
+
+    B2 --> D[mcp_sql_server.py startup discover]
+    D --> E[In-memory skill cache]
+
+    E --> F[get_skill_detail]
+    E --> G[execute_query_skill]
+    E --> H[execute_mutation_skill]
+
+    G --> I[load_query]
+    I --> J[Cached SQL template]
+    J --> K[Read-only execution]
+
+    H --> L[load_mutation]
+    L --> M[Instantiate Mutation class]
+    M --> N1[validate]
+    N1 --> N2[preview]
+    N2 --> O[execute]
+    O --> P[run_execute wrapper]
+    P --> Q[audit log write]
+```
+
+This diagram emphasizes two architectural boundaries:
+
+- `_lib` contains reusable infrastructure, not business-specific skills.
+- Concrete skills provide only metadata plus executable artifacts; the server
+  handles loading, validation, execution, and audit centrally.
+
+### Runtime Call Flow
+
+The following diagram focuses on the actual runtime interactions after the
+server has already completed startup discovery and cached all valid skills.
+
+```mermaid
+sequenceDiagram
+    participant Server as mcp_sql_server.py
+    participant Loader as skill_loader.py
+    participant Cache as In-memory cache
+    participant Skill as Skill files
+    participant Base as mutation_base.py
+    participant Audit as audit.py
+    participant DB as DatabaseAdapter
+
+    Note over Server,DB: Startup phase
+    Server->>Loader: discover(skills_dir)
+    Loader->>Skill: Read skill_def.md
+    Loader->>Loader: Validate name source params databases
+    alt Query skill
+        Loader->>Skill: Read query.sql
+        Loader->>Loader: is_sql_safe check
+        Loader->>Cache: Cache SQL template and metadata
+    else Mutation skill
+        Loader->>Skill: Import Mutation class from mutation.py
+        Loader->>Cache: Cache Mutation class and metadata
+    end
+
+    Note over Server,DB: Query skill execution
+    Server->>Loader: load_query(skill_name)
+    Loader->>Cache: Fetch cached SQL and schema
+    Loader-->>Server: sql_template, param_schema
+    Server->>Loader: validate_params(params, schema)
+    Server->>DB: execute(sql_template, validated_params)
+    DB-->>Server: Query result
+
+    Note over Server,DB: Mutation preview flow
+    Server->>Loader: load_mutation(skill_name, adapter, audit_logger)
+    Loader->>Cache: Fetch cached Mutation class
+    Loader-->>Server: Mutation instance
+    Server->>Base: mutation.validate(params)
+    Base->>DB: execute(read-only validation query)
+    DB-->>Base: Current state
+    Server->>Base: mutation.preview(params)
+    Base->>DB: execute(read-only preview query)
+    DB-->>Base: Preview context
+    Server->>Audit: log(mode=preview)
+
+    Note over Server,DB: Mutation execute flow
+    Server->>Base: mutation.run_execute(params, skill_name)
+    Base->>Base: Call execute(params)
+    Base->>DB: execute_write(sql, params)
+    DB-->>Base: rowcount or exception
+    alt Success
+        Base->>Audit: log(mode=execute, success)
+        Base-->>Server: Result dict
+    else Failure
+        Base->>DB: _handle_error(e)
+        Base->>Audit: log(mode=execute, error)
+        Base-->>Server: ToolError(sanitized)
+    end
+```
+
+This runtime view shows an important distinction from standard Agent Skills:
+
+- Skill files are loaded eagerly at startup, not lazily at first use.
+- Runtime tool calls operate on cached SQL templates and cached Mutation
+  classes.
+- Progressive disclosure exists at the MCP interaction layer
+  (`list_skills()` → `get_skill_detail()` → `execute_*_skill()`), not as
+  runtime filesystem reads by the Agent.
 
 ### Skill Lifecycle
 
@@ -93,9 +214,10 @@ flowchart LR
     end
 
     subgraph Runtime["Phase 3: Runtime — Agent Interaction"]
-        R1["list_skills()\nmetadata only"]
-        R2["execute_query_skill()\ncached SQL + params"]
-        R3["execute_mutation_skill()\ncached class + params"]
+        R1["list_skills()\nsearchable metadata catalog"]
+        R2["get_skill_detail()\nfull cached params schema"]
+        R3["execute_query_skill()\ncached SQL + params"]
+        R4["execute_mutation_skill()\ncached class + params"]
     end
 
     D1 --> S1
@@ -105,7 +227,7 @@ flowchart LR
     S3 --> S5
     S4 --> S5
     S5 --> S6
-    S5 -.->|"in-memory cache"| R1 & R2 & R3
+    S5 -.->|"in-memory cache"| R1 & R2 & R3 & R4
 ```
 
 > **Design reference**: The eager startup validation follows the "fail-fast"
@@ -216,7 +338,10 @@ skills/
 │   ├── skill_loader.py                # Discovery, loading, validation
 │   ├── mutation_base.py               # ABC for write operations
 │   └── audit.py                       # JSONL audit logger
-├── monthly-sales-report/              # Example query skill
+├── monthly-sales-report/              # Example MySQL query skill
+│   ├── skill_def.md                   # YAML frontmatter + documentation
+│   └── query.sql                      # Parameterized SQL template
+├── monthly-sales-report-sqlite/       # Example SQLite query skill
 │   ├── skill_def.md                   # YAML frontmatter + documentation
 │   └── query.sql                      # Parameterized SQL template
 └── update-order-status/               # Example mutation skill
@@ -242,6 +367,7 @@ triggers:                     # Optional, keyword hints for agent matching
 type: query                   # query | mutation
 source: query.sql             # Required: execution file (validated filename)
 risk: low                     # low | medium | high
+databases: [mysql, sqlite]    # Optional: supported DB types (default: all)
 enabled: true                 # Optional, default true
 idempotent: false             # Optional, default false
 requires_confirmation: true   # Optional, for mutations
@@ -285,10 +411,11 @@ enforced automatically by the infrastructure, not by each individual skill.
 |----------|-------|---------|
 | **Server** (`skill_loader.py`) | YAML frontmatter | Registration, validation, parameter schema |
 | **Developers** | Markdown body | Context, workflow, maintenance notes |
-| **Agent** | Neither directly | Receives structured metadata via `list_skills()` |
+| **Agent** | Neither directly | Receives structured metadata via `list_skills()` and `get_skill_detail()` |
 
 This separation means the Agent never sees the markdown body or the raw SQL
-template — it only receives the structured metadata via `list_skills()`.
+template — it only receives structured metadata via `list_skills()` and
+`get_skill_detail()`.
 In contrast, standard Agent Skills expect the Agent to read the full SKILL.md
 content as executable instructions.
 
@@ -440,7 +567,7 @@ flowchart TB
 | Level | Configuration | `ENABLE_SKILLS` | `SKILLS_ALLOW_MUTATIONS` | Available Tools | Permission |
 |:---:|------|:---:|:---:|------|------|
 | L0 | Default | `0` | — | Base tools (query, list_tables, etc.) | Read-only queries |
-| L1 | Skills enabled | `1` | `0` | + list_skills, execute_query_skill | + Pre-defined read-only skills |
+| L1 | Skills enabled | `1` | `0` | + list_skills, get_skill_detail, execute_query_skill | + Pre-defined read-only skills |
 | L2 | Mutations enabled | `1` | `1` | + execute_mutation_skill | + Controlled writes (two-phase confirm) |
 
 | 7 | Trust boundary | skills/ = source code, changes via code review |
@@ -468,7 +595,7 @@ if SKILLS_ENABLED:
     # resolve + validate SKILLS_DIR
     # import skills infrastructure
     # discover() at module load time
-    # register: list_skills(), execute_query_skill()
+    # register: list_skills(), get_skill_detail(), execute_query_skill()
     
     if SKILLS_ALLOW_MUTATIONS:
         # register: execute_mutation_skill()
@@ -479,6 +606,7 @@ if SKILLS_ENABLED:
 | Tool | readOnlyHint | destructiveHint | idempotentHint |
 |------|-------------|-----------------|----------------|
 | `list_skills` | true | false | true |
+| `get_skill_detail` | true | false | true |
 | `execute_query_skill` | true | false | true |
 | `execute_mutation_skill` | false | true | false |
 
@@ -490,8 +618,8 @@ idempotency info is conveyed via `list_skills()` and execution result dicts.
 | Configuration | Tool Count |
 |--------------|------------|
 | ENABLE_SKILLS=0 | 5-7 (unchanged) |
-| ENABLE_SKILLS=1, MUTATIONS=0 | 7-9 |
-| ENABLE_SKILLS=1, MUTATIONS=1 | 8-10 |
+| ENABLE_SKILLS=1, MUTATIONS=0 | 8-10 |
+| ENABLE_SKILLS=1, MUTATIONS=1 | 9-11 |
 
 Within Google Gemini's recommended 10-20 tools range.
 
@@ -525,13 +653,44 @@ def execute_write(self, sql, params, timeout=None) -> dict:
 
 ## 8. Progressive Disclosure
 
-Three levels of information, following Anthropic best practices:
+MCP-level metadata disclosure is separated from executable artifact loading.
+The Agent sees only the amount of skill metadata needed for the current step;
+the server still validates and caches SQL templates and mutation classes at
+startup.
 
-| Level | Source | Token Cost | Content |
-|-------|--------|-----------|---------|
-| 1 | `list_skills()` | ~100/skill | name, type, risk, triggers, description |
-| 2 | skill_def.md body | < 500 lines | Usage, workflow, notes |
-| 3 | source file (declared in skill_def.md) | Varies | Actual SQL/Python source |
+| Level | Source | Content | Runtime disk I/O |
+|-------|--------|---------|------------------|
+| Catalog | `list_skills(detail_level="compact")` | name, type, description, risk, category, executability, schema readiness | No |
+| Summary | `list_skills()` or `detail_level="summary"` | compact fields plus triggers, databases, profiles, source filename, idempotency, related skills | No |
+| Detail | `get_skill_detail(name)` or `list_skills(detail_level="full")` | full cached frontmatter metadata plus params schema, version, requires_confirmation, tables | No |
+| Source review | Developer reads files in `skills/` | raw SQL/Python source for code review | Outside MCP runtime |
+
+`list_skills()` also supports deterministic substring search and exact category
+filtering. Skills without a category are grouped under `uncategorized`. Regex
+search is intentionally not supported in the first implementation to avoid ReDoS
+risks and brittle model-generated regular expressions.
+
+`available_only` filters the catalog to skills that can execute in the current
+server state. By default it follows `SKILLS_LIST_AVAILABLE_ONLY_DEFAULT=1`, so
+Agent-facing discovery hides database-incompatible skills, mutation skills when
+`SKILLS_ALLOW_MUTATIONS=0`, and schema-unready skills when
+`SKILLS_CHECK_SCHEMA_ON_LIST=1`. Developers can pass `available_only=false` to
+inspect the full discovered catalog. This filter is a discovery optimization,
+not an authorization boundary; execution-time checks remain mandatory.
+
+Schema readiness is intentionally table-level in this implementation. Query
+skills derive `tables` from the reviewed SQL template, and mutation skills can
+declare `tables` in frontmatter. The server checks whether those tables exist in
+the current database and exposes `schema_ready` plus `missing_tables`. It does
+not validate every column shape during discovery, because that would increase
+metadata complexity and risk false negatives for reviewed templates.
+
+Bundled example skills use `profiles: [demo]` because they target the demo
+`orders` schema. Profiles remain descriptive metadata by default, but deployments
+can set `SKILLS_EXCLUDE_PROFILES=demo` to mark matching skills non-executable,
+hide them from default Agent discovery, and reject direct execution attempts.
+This keeps examples in the repository while giving production deployments a
+clear policy switch.
 
 ## 9. Configuration
 
@@ -539,14 +698,32 @@ Three levels of information, following Anthropic best practices:
 |----------|---------|-------------|
 | `ENABLE_SKILLS` | `0` | Master switch for skills extension |
 | `SKILLS_ALLOW_MUTATIONS` | `0` | Enable mutation skills (second switch) |
+| `SKILLS_LIST_DEFAULT_DETAIL` | `summary` | Default `list_skills()` metadata projection: `compact`, `summary`, or `full` |
+| `SKILLS_LIST_AVAILABLE_ONLY_DEFAULT` | `1` | Default `list_skills()` availability filter; `1` hides currently non-executable skills from Agent discovery, while `available_only=false` exposes the full developer catalog |
+| `SKILLS_CHECK_SCHEMA_ON_LIST` | `1` | Include live table-existence checks in Skills readiness metadata; missing tables set `schema_ready=false` and are hidden by `available_only=true` |
+| `SKILLS_EXCLUDE_PROFILES` | empty | Comma-separated profile policy; matching skills are non-executable, hidden by default discovery, and rejected at execution time |
 | `SKILLS_DIR` | `skills/` | Skills directory path |
 | `SKILLS_AUDIT_LOG` | `skills/_audit.jsonl` | Audit log file path |
+| `SKILLS_AUDIT_QUERIES` | `0` | Optional query skill audit; records metadata and row counts, never returned data |
+| `MAX_SQL_LENGTH` | `20000` | Maximum raw `query(sql)` input length exposed in the MCP schema and enforced before execution; `0` disables the length cap |
+| `MCP_TOOL_TIMEOUT_SECONDS` | `120` | FastMCP foreground tool timeout for registered tools; `0` disables the FastMCP timeout |
 
 ## 10. Design Decisions
 
 | Decision | Choice | Alternative | Rationale |
 |----------|--------|-------------|-----------|
 | Architecture | Unified registration (2-3 tools) | Per-skill tools / FastMCP mount() | Prevents tool explosion; Google Gemini 10-20 rule |
+| On-demand metadata disclosure | `list_skills()` projections + `get_skill_detail()` | Runtime source-file lazy loading | Reduces Agent-facing metadata while preserving startup validation and TOCTOU protection |
+| Skill search | Case-insensitive substring + exact category filter | Regex/BM25 search | Deterministic, dependency-free, and avoids ReDoS from model-generated regex |
+| Availability filtering | `available_only` filters by current `DB_TYPE`, mutation switch, and schema readiness | Always return full discovered catalog | Aligns with conditional tool enabling and reduces Agent selection errors; developers retain full catalog access with `available_only=false` |
+| Schema readiness scope | Table existence only | Full column/type compatibility check | Catches the common wrong-schema case with low overhead; reviewed SQL/mutation code still provides the precise execution-time validation |
+| Demo skills | `profiles: [demo]` plus optional `SKILLS_EXCLUDE_PROFILES=demo` | Delete or disable bundled examples by default | Keeps examples usable for local demos while allowing production deployments to hide and block them explicitly |
+| Query skill audit | Optional `SKILLS_AUDIT_QUERIES=1` | Audit every read skill by default | Avoids surprising sensitive parameter logs while providing an opt-in compliance trail; returned data is never logged |
+| Raw SQL length | `MAX_SQL_LENGTH` for `query(sql)` | Apply the same cap to reviewed skill templates | Free-form SQL is agent-provided input and needs schema/runtime bounds; reviewed skill SQL is startup-validated code and should not be constrained by the user-input cap |
+| Tool timeout | FastMCP `timeout=MCP_TOOL_TIMEOUT_SECONDS` | Rely only on DB query timeout | Protects the MCP foreground request from non-DB stalls while keeping the DB timeout as the lower-level query guard |
+| v3.4.B3 ToolResult metadata | Deferred decision | Return `ToolResult.meta` from tools now | Current dict returns already provide structured content; switching return wrappers would be a client-contract change without an immediate blocker |
+| v3.4.B4 Schema state cache | Deferred decision | Cache schema table names in FastMCP session state | Reduces repeated metadata calls but risks stale readiness after DDL; current table checks are simple and execution guards remain authoritative |
+| v3.4.C1 Schema resource | Deferred decision | Add `db://schema` MCP resource now | Existing `get_full_schema` tool is explicit and already supported by clients; resource support varies and would add a second schema access path |
 | Metadata | skill_def.md YAML frontmatter | JSON manifest | Anthropic Agent Skills spec alignment |
 | Params validation | Inline in frontmatter | JSON Schema file | Single-file self-description |
 | Write safety | 3-stage (validate/preview/execute) | Simple confirm flag | Anthropic "verifiable intermediate outputs" |
@@ -558,13 +735,14 @@ Three levels of information, following Anthropic best practices:
 | Error handling | Exceptions propagate + ToolError | Error dict returns | FastMCP ToolError bypasses mask_error_details |
 | ALLOWED_TABLES | Skills bypass at runtime | Runtime table check | Template = whitelist (code review trust) |
 | SQLAlchemy version | `>=2.0` explicit | No constraint | 2.0 implicit transactions prevent accidental writes |
-| Example skill SQL | MySQL-only `YEAR()`/`MONTH()` | Cross-DB functions | Example skill for MySQL-primary project; `skill_def.md` Notes marks MySQL-only; cross-DB compatibility is skill author's responsibility |
+| Example skill SQL | Separate MySQL and SQLite examples | One cross-DB SQL template with runtime branching | Keeps templates clear, keeps startup validation deterministic, and lets availability filtering hide incompatible dialects before execution planning |
 | Table name extraction | `_extract_table_names()` ignores `schema.table` | Full `schema.table` regex | Function only used for `SKILLS.md` generation (non-security); core path `_extract_tables_from_sql()` handles `schema.table` correctly |
 | Mutation duplicate SELECT | `execute()` re-runs `validate()` SELECT | Single SELECT in `validate()` only | Intentional TOCTOU prevention — user review gap between preview and confirm requires re-verification of data state |
 | Mutation error contract | `execute()` raises `ToolError` on failure | Return `{"success": False}` dict | Exceptions follow `run_execute()` error handling chain; return-dict failures bypass audit logging and cause semantic contradiction in MCP tool response |
 | Mutation read-write gap | Separate `execute()` + `execute_write()` calls | Single SQL merging SELECT+UPDATE | Optimistic locking `WHERE status = :expected` + `rowcount == 0` is the effective safety net; merging adds complexity with minimal gain |
 | `_coerce_type()` bool | `bool(value)` (Python built-in) | Explicit `"true"/"false"` mapping | No bool params in current skills; acceptable for MVP, should be revisited when bool params are added |
 | Annotation evaluation | `from __future__ import annotations` (PEP 563) in `skill_loader.py` | Runtime annotation evaluation (default) | Python 3.12 `type` soft keyword conflicts with `SkillMetadata.type` field annotation; PEP 563 deferred evaluation resolves Pylance parsing ambiguity |
+| Database compatibility | Optional `databases` field | No DB type declaration | Follows npm `engines`, Python `requires-python`, Terraform `required_providers` pattern; runtime `DB_TYPE` check prevents incompatible skill execution; `None` = all databases (zero overhead for cross-DB skills) |
 
 ## 11. Relationship to Standard Agent Skills (Anthropic Agent Skills)
 
@@ -581,9 +759,9 @@ three-level progressive disclosure model:
 
 | Level | Standard Agent Skills | This Project |
 |-------|----------------------|--------------|
-| **L1: Metadata** | YAML frontmatter loaded into system prompt at startup (~100 tokens/skill) | `list_skills()` returns metadata from in-memory cache |
+| **L1: Metadata** | YAML frontmatter loaded into system prompt at startup (~100 tokens/skill) | `list_skills()` returns projected metadata from in-memory cache |
 | **L2: Instructions** | Agent reads SKILL.md body via `bash: cat SKILL.md` when triggered | N/A — skill_def.md body is for human developers, not consumed by agent at runtime |
-| **L3: Resources** | Agent reads bundled files (scripts, references) on demand via bash | SQL templates and mutation classes are **pre-loaded at startup** into `_skills_cache`, never read from disk at runtime |
+| **L3: Resources** | Agent reads bundled files (scripts, references) on demand via bash | `get_skill_detail()` returns cached params/schema metadata; SQL templates and mutation classes are **pre-loaded at startup** into `_skills_cache`, never read from disk at runtime |
 
 In MCP architecture, the agent communicates with the server via JSON-RPC
 over stdio/SSE ([MCP Spec — Transports](https://modelcontextprotocol.io/specification/2025-03-26/basic/transports)).
@@ -592,9 +770,9 @@ not possible. Standard Skills' filesystem-based progressive disclosure is
 therefore architecturally incompatible with MCP.
 
 This project implements **MCP-level progressive disclosure** instead:
-`list_skills()` (discovery) → `execute_*_skill()` (execution). From the
-agent's perspective, this achieves the same two-phase interaction pattern
-without requiring filesystem access.
+`list_skills()` (catalog) → `get_skill_detail()` (one skill's cached schema)
+→ `execute_*_skill()` (execution). From the agent's perspective, this achieves
+the same staged interaction pattern without requiring filesystem access.
 
 #### Visual Comparison: Loading Flow
 
@@ -609,7 +787,7 @@ flowchart LR
     A5 -->|mutation| A7[Import and cache Mutation class]
     A6 --> A8[Write to in-memory cache]
     A7 --> A8
-    A8 --> A9[Register MCP tools list_skills execute_query_skill execute_mutation_skill]
+    A8 --> A9[Register MCP tools list_skills get_skill_detail execute_query_skill execute_mutation_skill]
     A9 --> A10[At runtime the Agent calls tools on demand]
     A10 --> A11[Server executes from cached template or class]
   end
@@ -710,6 +888,7 @@ For example, `update-order-status` declares:
 ```yaml
 related_skills:
   - monthly-sales-report
+  - monthly-sales-report-sqlite
 ```
 
 This indicates a business-level association — after updating order status,
@@ -735,11 +914,14 @@ flowchart TB
     P0 --> P2[monthly-sales-report]
     P2 --> P21[skill_def.md]
     P2 --> P22[query.sql]
-    P0 --> P3[update-order-status]
+    P0 --> P3[monthly-sales-report-sqlite]
     P3 --> P31[skill_def.md]
-    P3 --> P32[mutation.py]
-    P3 --> P33[references]
-    P33 --> P331[status-transitions.md]
+    P3 --> P32[query.sql]
+    P0 --> P4[update-order-status]
+    P4 --> P41[skill_def.md]
+    P4 --> P42[mutation.py]
+    P4 --> P43[references]
+    P43 --> P431[status-transitions.md]
   end
 
   subgraph S[Standard Agent Skills directory]
@@ -848,7 +1030,9 @@ practices from major AI platform providers and security standards.
 | *"Give models less freedom for higher-stakes operations."* | [Anthropic — Building Effective Agents (2024)](https://docs.anthropic.com/en/docs/build-with-claude/agentic-systems) | Mutation skills use constrained `MutationBase` ABC; no free-form code execution |
 | *"Verifiable intermediate outputs"* | Anthropic, ibid. | Two-phase execution: `confirm=false` returns preview for verification |
 | *"Plan-validate-execute"* pattern | Anthropic, ibid. | `MutationBase` enforces `validate()` → `preview()` → `execute()` stages |
-| Progressive disclosure | [Anthropic — Agent Skills Overview](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview) | `list_skills()` returns ~100 tokens/skill; full execution only on demand |
+| Progressive disclosure | [Anthropic — Agent Skills Overview](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview) | `list_skills()` returns compact/summary/full projected metadata; `get_skill_detail()` retrieves one cached params schema on demand |
+| Conditional tool discovery | [OpenAI — Tool Search](https://developers.openai.com/api/docs/guides/tools-tool-search) | `available_only` filters skills according to current project/server state, including DB type, mutation switch, and schema readiness, before the Agent plans execution |
+| Dynamic relevant tool set | [Google Gemini — Function Calling Best Practices](https://ai.google.dev/gemini-api/docs/function-calling) | Default Agent-facing skill discovery hides incompatible skills to reduce tool-selection errors |
 | Metadata naming convention | [Anthropic — Agent Skills Best Practices](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices) | `name` regex `^[a-z0-9][a-z0-9-]*$` (max 64 chars), aligned with standard |
 
 ### Security Standards
@@ -860,6 +1044,7 @@ practices from major AI platform providers and security standards.
 | Parameterized queries | [OWASP — SQL Injection Prevention](https://cheatsheetseries.owasp.org/cheatsheets/SQL_Injection_Prevention_Cheat_Sheet.html) | SQLAlchemy `text()` + parameter binding; zero string concatenation |
 | TOCTOU prevention | [MITRE CWE-367](https://cwe.mitre.org/data/definitions/367.html) | Startup-time caching eliminates runtime file reads |
 | Least privilege | OWASP, general | `ENABLE_SKILLS=0` by default; `SKILLS_ALLOW_MUTATIONS=0` by default |
+| Tool filtering is not authorization | [Microsoft — Function Calling Responsibly](https://learn.microsoft.com/en-us/azure/foundry/openai/how-to/function-calling) | `available_only` is only a discovery filter; execution still validates skill name, params, mutation switch, `DB_TYPE`, and required-table readiness |
 | Error sanitization | [FastMCP — ToolError](https://gofastmcp.com/servers/tools#errors) | `_handle_error()` strips sensitive details; `ToolError` bypasses `mask_error_details` |
 
 ### Framework Integration

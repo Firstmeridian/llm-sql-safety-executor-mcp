@@ -15,12 +15,15 @@ source: mutation.py
 risk: medium
 requires_confirmation: true
 idempotent: false
+profiles: [demo]
+tables: [orders]
 params:
   order_id: {type: int, required: true, description: "Order ID to update"}
   new_status: {type: str, required: true, enum: [pending, confirmed, shipped, delivered, cancelled, returned], description: "Target status"}
 category: order-management
 related_skills:
   - monthly-sales-report
+  - monthly-sales-report-sqlite
 ---
 
 ## Workflow

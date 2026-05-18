@@ -1,6 +1,6 @@
 # 面向 AI Agent 的数据库安全访问入口 - MCP 服务
 
-![Version](https://img.shields.io/badge/version-3.0-blue)
+![Version](https://img.shields.io/badge/version-3.4-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Python](https://img.shields.io/badge/python-3.12+-blue?logo=python)
 ![MCP](https://img.shields.io/badge/MCP-Protocol-orange)
@@ -61,7 +61,8 @@
 │  ┌────────────────────────────────────────────────────────────┐ │
 │  │ 工具层:   query | list_tables | describe_table | ...       │ │
 │  ├────────────────────────────────────────────────────────────┤ │
-│  │ Skills 层 (可选):  list_skills | execute_query/mutation    │ │
+│  │ Skills 层 (可选):  list_skills | get_skill_detail          │ │
+│  │                   | execute_query/mutation                 │ │
 │  │    skill_def.md → 参数校验 → 预制 SQL/Mutation → 审计日志   │ │
 │  ├────────────────────────────────────────────────────────────┤ │
 │  │ 安全层:     SQL 验证 | 表白名单 | 结果截断 | 查询超时         │ │
@@ -91,14 +92,15 @@
 - 预定义参数化操作：将复杂查询和敏感写入封装为可复用的 skill，Agent 只需传参数，无需自行编写 SQL
 - 服务端强制约束：启动时 SQL 安全校验 + 参数强类型验证（type/min/max/enum）+ 写操作审计日志
 - 两阶段写操作：mutation skill 需经预览（`confirm=false`）→ 确认（`confirm=true`），防止误操作
-- 渐进式发现：Agent 通过 `list_skills()` 获取元数据，按需选择调用
+- 渐进式发现：Agent 通过 `list_skills()` 获取可搜索目录，通过 `get_skill_detail()` 按需获取单个 Skill 的参数 schema，再选择调用
 
 **5. 典型工作流**：
 ```
 结构未知：list_tables() → describe_table(target) → query(sql)
 结构已知：query(sql) 直接执行
 大表场景：观察 is_large=true → 使用 LIMIT 或聚合
-Skills 场景：list_skills() → execute_query_skill(name, params)
+Skills 场景：list_skills(search/category/detail_level/available_only) → get_skill_detail(name)
+             → execute_query_skill(name, params)
              或 execute_mutation_skill(name, params, confirm=false) → 预览 → confirm=true
 ```
 
@@ -120,7 +122,7 @@ Skills 场景：list_skills() → execute_query_skill(name, params)
   | 级别 | 配置 | `ENABLE_SKILLS` | `SKILLS_ALLOW_MUTATIONS` | 可用工具 | 权限层级 |
   |:---:|------|:---:|:---:|------|------|
   | L0 | 默认 | `0` | — | 基础工具（query, list_tables 等） | 仅只读查询 |
-  | L1 | 启用 Skills | `1` | `0` | + list_skills, execute_query_skill | + 预定义只读 Skill |
+  | L1 | 启用 Skills | `1` | `0` | + list_skills, get_skill_detail, execute_query_skill | + 预定义只读 Skill |
   | L2 | 启用 Mutations | `1` | `1` | + execute_mutation_skill | + 受控写操作（需两阶段确认） |
 
 - **Skills 两阶段确认**：写操作需 preview → confirm，防止误操作
@@ -233,7 +235,7 @@ LLM(Agents)不能凭空生成SQL，需要有一定的上下文基础。这里的
 本项目已经吸收了标准 Agent Skills 中适用于 MCP 场景的设计元素：
 - 目录结构：每个 skill 一个文件夹 + 入口文件的目录结构；
 - YAML frontmatter： `name`（同正则约束 `^[a-z0-9][a-z0-9-]*$`）和 `description` [3]；
-- 渐进式交互：MCP 层面的渐进式交互（`list_skills()` → 选择 → `execute_*_skill()`）；
+- 渐进式交互：MCP 层面的渐进式交互（`list_skills()` → `get_skill_detail()` → `execute_*_skill()`）；
 - 可组合性：`related_skills` 字段可组合性。
 不适用的部分（SKILL.md 正文作为 Agent 指令、bash 文件系统访问、Agent 自行执行脚本）则未采用。
 
@@ -261,7 +263,7 @@ flowchart TB
         T1["query(sql)"]
         T2["execute_query_skill(name, params)"]
         T3["execute_mutation_skill(name, params, confirm)"]
-        T4["list_skills() / describe_table() / ..."]
+        T4["list_skills() / get_skill_detail() / describe_table() / ..."]
     end
 
     subgraph Server["MCP Server 安全层 (可信)"]
@@ -572,6 +574,7 @@ LARGE_TABLE_THRESHOLD=1000
 # 安全配置（生产环境推荐）
 QUERY_TIMEOUT_SECONDS=30   # 查询超时秒数（P0 安全）
 CONNECT_TIMEOUT_SECONDS=10 # 连接超时秒数
+MCP_TOOL_TIMEOUT_SECONDS=120 # FastMCP 前台工具超时（0=禁用）
 
 # 表白名单（逗号分隔，不区分大小写）
 # 仅允许访问特定表 - 留空则允许所有
@@ -589,14 +592,20 @@ ALLOW_UNION=0
 # 设为 0 可禁用截断（用于数据导出场景）
 MAX_RESULT_ROWS=100      # 每次查询返回的最大行数（0=不限制）
 MAX_RESULT_CHARS=16000   # 响应中的最大字符数（0=不限制）
+MAX_SQL_LENGTH=20000     # query(sql) 接受的最大字符数（0=不限制）
 MAX_SCHEMA_TABLES=50     # get_full_schema 返回的最大表数（0=不限制）
 MAX_OVERVIEW_TABLES=100  # list_tables 返回的最大表数（0=不限制）
 
 # Skills 扩展 (v3.0)
 ENABLE_SKILLS=0          # 主开关：启用 Skills 层（1=启用，0=禁用）
 SKILLS_ALLOW_MUTATIONS=0 # 允许写操作技能（需要 ENABLE_SKILLS=1）
+SKILLS_LIST_DEFAULT_DETAIL=summary # list_skills 默认元数据粒度：compact、summary 或 full
+SKILLS_LIST_AVAILABLE_ONLY_DEFAULT=1 # list_skills 默认仅展示当前可执行 Skill
+SKILLS_CHECK_SCHEMA_ON_LIST=1 # list_skills 默认隐藏缺少所需表的 Skill
+# SKILLS_EXCLUDE_PROFILES=demo # 隐藏并阻止匹配 profile 的 Skill
 # SKILLS_DIR=skills/     # Skills 目录路径（相对或绝对）
-# SKILLS_AUDIT_LOG=skills/_audit.jsonl  # 写操作审计日志（JSONL 格式）
+# SKILLS_AUDIT_LOG=skills/_audit.jsonl  # 审计日志路径（JSONL 格式）
+SKILLS_AUDIT_QUERIES=0   # 可选查询 Skill 审计；mutation 审计仍自动开启
 # AGENT_ID=my-agent      # 审计日志中的 Agent 标识
 ```
 
@@ -606,10 +615,15 @@ Skills 层允许你将常用的 SQL 查询和数据变更操作封装为可复�
 
 | 变量 | 默认值 | 说明 |
 |------|--------|------|
-| `ENABLE_SKILLS` | `0` | 主开关。设为 `1` 后注册 `list_skills` 和 `execute_query_skill` 工具 |
+| `ENABLE_SKILLS` | `0` | 主开关。设为 `1` 后注册 `list_skills`、`get_skill_detail` 和 `execute_query_skill` 工具 |
 | `SKILLS_ALLOW_MUTATIONS` | `0` | 写操作开关。设为 `1` 后额外注册 `execute_mutation_skill` 工具，需要 `ENABLE_SKILLS=1` |
+| `SKILLS_LIST_DEFAULT_DETAIL` | `summary` | `list_skills` 默认元数据粒度：`compact`、`summary` 或 `full`。单次调用的 `detail_level` 会覆盖该值 |
+| `SKILLS_LIST_AVAILABLE_ONLY_DEFAULT` | `1` | `list_skills` 默认可用性过滤。设为 `1` 时，Agent 发现面会隐藏当前 `DB_TYPE`、mutation 开关或 schema readiness 下不可执行的 Skill；开发者可传 `available_only=false` 查看完整目录 |
+| `SKILLS_CHECK_SCHEMA_ON_LIST` | `1` | 在 Skills 可用性元数据中加入实时表存在性检查。开启后，缺少所需表的 Skill 会显示 `schema_ready=false`，并被 `available_only=true` 隐藏 |
+| `SKILLS_EXCLUDE_PROFILES` | 空 | 逗号分隔的 profile 策略。匹配的 Skill 会被标记为不可执行，默认发现面隐藏，并在直接执行时被拒绝。生产环境可用 `demo` 隐藏仓库内置示例 |
 | `SKILLS_DIR` | `skills/` | 技能目录路径。必须位于项目根目录下（安全约束） |
-| `SKILLS_AUDIT_LOG` | `skills/_audit.jsonl` | 写操作审计日志路径。每次 mutation 操作自动记录 |
+| `SKILLS_AUDIT_LOG` | `skills/_audit.jsonl` | 审计日志路径。mutation 操作自动记录；启用查询 Skill 审计时也使用该路径 |
+| `SKILLS_AUDIT_QUERIES` | `0` | 可选查询 Skill 审计。记录 Skill 名、参数、行数、状态和错误，不记录返回数据 |
 | `AGENT_ID` | `unknown` | 审计日志中标识调用者的 Agent ID |
 
 **典型配置场景**：
@@ -629,14 +643,69 @@ SKILLS_ALLOW_MUTATIONS=1
 SKILLS_DIR=my_custom_skills/
 SKILLS_AUDIT_LOG=logs/skills_audit.jsonl
 AGENT_ID=copilot-agent-1
+
+# 场景 4：开发者审查完整目录，包括当前不可执行的 Skill
+ENABLE_SKILLS=1
+SKILLS_LIST_AVAILABLE_ONLY_DEFAULT=0
+
+# 场景 5：离线审查目录，不做实时 schema readiness 过滤
+ENABLE_SKILLS=1
+SKILLS_CHECK_SCHEMA_ON_LIST=0
+
+# 场景 6：生产环境隐藏仓库内置 demo 示例
+ENABLE_SKILLS=1
+SKILLS_EXCLUDE_PROFILES=demo
+
+# 场景 7：审计只读查询 Skill，但不记录返回行数据
+ENABLE_SKILLS=1
+SKILLS_AUDIT_QUERIES=1
 ```
 
+**Demo Skills schema**：
+
+仓库内置的 `monthly-sales-report` 和 `update-order-status` 是 demo profile 示例，依赖 `orders` 表。MySQL 演示环境可用以下脚本创建兼容表并写入示例行：
+
+```bash
+.venv/bin/python scripts/setup_demo_db.py
+```
+
+该脚本使用 `.env` 中的 MySQL 连接配置；如果 `orders` 表已存在，会默认拒绝修改，除非显式传入 `--drop-existing` 或 `--seed-existing`。修改 `SKILLS_LIST_AVAILABLE_ONLY_DEFAULT` 等环境变量后，需要重启 MCP server，运行中的进程才会读取新配置。
+
 > **安全提示**：`SKILLS_ALLOW_MUTATIONS` 是独立于 `ENABLE_SKILLS` 的第二层开关。即使 `ENABLE_SKILLS=1`，写操作默认仍然禁用，需要显式开启。这遵循最小权限原则。
+
+额外的服务端保护默认开启：FastMCP 会遮蔽未预期异常细节（`mask_error_details=True`），所有 MCP 工具有可配置前台超时（`MCP_TOOL_TIMEOUT_SECONDS`），自由 SQL 工具 `query(sql)` 会受 `MAX_SQL_LENGTH` 限制。显式 `ToolError` 消息仍会保留，用于向 Agent 返回安全的校验失败原因。
 
 ### MCP 客户端集成
 有关完整的客户端配置示例，请参阅 `mcp_config.json`。
 
 ## 更新日志
+
+### v3.4 MCP 加固和 Skills Profile 策略（2026年5月）
+
+实施了一轮保守的安全强化措施：
+
+- 启用 FastMCP `mask_error_details=True`，保留显式 `ToolError` 的安全错误提示
+- 增加 `MCP_TOOL_TIMEOUT_SECONDS`，为已注册 MCP 工具配置前台执行超时
+- 增加 `MAX_SQL_LENGTH`，并在 MCP schema 中暴露 `query(sql)` 的长度约束
+- 增加 `SKILLS_EXCLUDE_PROFILES`，生产环境可隐藏并阻止 `demo` profile 的示例 Skill
+- 增加可选 `SKILLS_AUDIT_QUERIES=1` 查询 Skill 审计；不会记录返回数据
+- 修复 `test_bug_fixes.py` 中 pytest 测试返回布尔值导致的 warning
+- 明确暂缓（`ToolResult.meta`）、（session schema cache）和（`db://schema` Resource），避免过早改变客户端契约或引入缓存陈旧风险
+
+### v3.3 Skills 可用性和元数据按需披露（2026年5月）
+
+新增 Skills 层的按需元数据披露，同时保留启动期校验和缓存语义：
+
+- `list_skills(search, category, detail_level, available_only)`：可搜索目录，支持 `compact`、`summary`、`full` 三档投影和可用性过滤
+- `get_skill_detail(skill_name)`：按需获取单个 Skill 的缓存参数 schema 和执行元数据
+- `SKILLS_LIST_DEFAULT_DETAIL`：通过环境变量控制默认投影，默认 `summary`
+- `SKILLS_LIST_AVAILABLE_ONLY_DEFAULT`：默认隐藏当前不可执行的 Skill；开发者可用 `available_only=false` 查看完整目录
+- `SKILLS_CHECK_SCHEMA_ON_LIST`：可选实时表存在性 readiness 检查；默认发现面会隐藏缺少所需表的 Skill
+- 安全边界保持不变：运行时不读取 SQL/Python 源文件，也不向 Agent 暴露原始源码
+- 新增 category 聚合；缺失 category 的 Skill 归入 `uncategorized`
+- 可选 `databases` Skill 元数据用于防止数据库特定 Skill 在不兼容适配器上执行
+- 可选 `profiles` Skill 元数据用于将仓库内置示例标记为 `demo`
+- 新增 `monthly-sales-report-sqlite`，作为 MySQL 月报示例的 SQLite 对应版本
 
 ### v3.0 Skills 扩展层（2026年3月）
 
@@ -652,7 +721,7 @@ AGENT_ID=copilot-agent-1
   - `execute_mutation_skill(name, params, confirm)`：两阶段写操作（预览 → 确认）
 - **安全模型**（`skills/SAFETY.md` 中 16 项）：模板即白名单、参数化查询、双层开关、错误脱敏
 - **数据库适配器扩展**：`execute()` 新增可选 `params`、新增 `execute_write()` 方法
-- **示例技能**：`monthly-sales-report`（查询）和 `update-order-status`（乐观锁写操作）
+- **示例技能**：`monthly-sales-report`（MySQL 查询）、`monthly-sales-report-sqlite`（SQLite 查询）和 `update-order-status`（乐观锁写操作）
 - **58 个新测试**：覆盖技能加载器、查询技能、写操作技能、审计日志
 - **新增依赖**：`pyyaml` 用于 skill_def.md 的 frontmatter 解析；新增 `SQLAlchemy>=2.0` 版本约束
 - **完全向后兼容**：`ENABLE_SKILLS=0`（默认）时零开销，不注册任何工具
@@ -916,9 +985,19 @@ AGENT_ID=copilot-agent-1
 ```
 
 ### 8. `list_skills`（Skills 扩展，可选）
-用途：列出所有可用的预定义技能（查询和写操作）。
+用途：列出预定义技能（查询和写操作），支持搜索、category 过滤、元数据粒度选择和可用性过滤。
 
-**注意：** 需要 `ENABLE_SKILLS=1`。返回技能元数据，用于渐进式披露。
+**注意：** 需要 `ENABLE_SKILLS=1`。`detail_level` 可取 `compact`、`summary` 或 `full`。默认值由 `SKILLS_LIST_DEFAULT_DETAIL` 控制（默认 `summary`）。`available_only` 默认由 `SKILLS_LIST_AVAILABLE_ONLY_DEFAULT` 控制（默认 `1`），因此 Agent 发现面会隐藏当前 `DB_TYPE`、mutation 开关或 schema readiness 下不可执行的 Skill。传 `available_only=false` 可查看完整目录。这只影响 Agent 看到的元数据；SQL 模板和 mutation 类仍会在启动期校验并缓存。
+
+输入：
+```json
+{
+  "search": "revenue",
+  "category": "reporting",
+  "detail_level": "summary",
+  "available_only": true
+}
+```
 
 输出：
 ```json
@@ -926,18 +1005,70 @@ AGENT_ID=copilot-agent-1
   "success": true,
   "skills": [
     {
-      "name": "monthly-sales-report",
+      "name": "monthly-sales-report-sqlite",
       "type": "query",
       "risk": "low",
-      "description": "Generate a monthly sales summary report...",
-      "triggers": ["monthly sales", "revenue report"]
+      "description": "Generate a SQLite monthly sales summary report...",
+      "category": "reporting",
+      "executable": true,
+      "schema_ready": true,
+      "source": "query.sql",
+      "triggers": ["monthly sales", "revenue report"],
+      "idempotent": false,
+      "databases": ["sqlite"],
+      "profiles": ["demo"]
     }
   ],
-  "count": 1
+  "total_skills": 3,
+  "matched_skills": 1,
+  "matched_catalog_skills": 2,
+  "available_skills": 1,
+  "unavailable_skills": 1,
+  "filtered_unavailable_skills": 1,
+  "schema_unready_skills": 0,
+  "query_skills": 1,
+  "mutation_skills": 0,
+  "mutations_enabled": false,
+  "schema_check_enabled": true,
+  "schema_check_available": true,
+  "detail_level": "summary",
+  "available_only": true,
+  "current_database_type": "sqlite",
+  "search": "revenue",
+  "category": "reporting",
+  "categories": [{"category": "reporting", "count": 1}],
+  "hint": "Call get_skill_detail(skill_name) to retrieve params before calling execute_query_skill or execute_mutation_skill."
 }
 ```
 
-### 9. `execute_query_skill`（Skills 扩展，可选）
+### 9. `get_skill_detail`（Skills 扩展，可选）
+用途：获取单个 Skill 的完整缓存元数据和参数 schema。
+
+**注意：** 需要 `ENABLE_SKILLS=1`。该工具不会在运行时读取 Skill 文件，也不会暴露原始 SQL 或 mutation Python 源码。
+
+输入：
+```json
+{"skill_name": "monthly-sales-report"}
+```
+
+输出：
+```json
+{
+  "success": true,
+  "skill": {
+    "name": "monthly-sales-report",
+    "type": "query",
+    "params": {
+      "year": {"type": "int", "required": true},
+      "month": {"type": "int", "required": true, "min": 1, "max": 12}
+    },
+    "tables": ["orders"]
+  },
+  "usage_hint": "Call execute_query_skill(skill_name, params) with params matching this schema."
+}
+```
+
+### 10. `execute_query_skill`（Skills 扩展，可选）
 用途：执行预定义的查询技能，支持参数化 SQL。
 
 **注意：** 需要 `ENABLE_SKILLS=1`。技能是预审计的 SQL 模板，绕过运行时 `is_sql_safe()` 检查。
@@ -950,7 +1081,7 @@ AGENT_ID=copilot-agent-1
 }
 ```
 
-### 10. `execute_mutation_skill`（Skills 扩展，可选）
+### 11. `execute_mutation_skill`（Skills 扩展，可选）
 用途：执行预定义的写操作技能，支持两阶段确认。
 
 **注意：** 需要 `ENABLE_SKILLS=1` 和 `SKILLS_ALLOW_MUTATIONS=1`。遵循 validate → preview → execute 模式。
@@ -993,6 +1124,7 @@ name: monthly-sales-report
 type: query              # 只读查询，不修改数据
 source: query.sql        # 显式声明关联的执行文件（必填）
 risk: low                # 低风险
+databases: [mysql]       # 可选：支持的数据库类型（省略 = 全部）
 params:
   year: {type: int, required: true, description: "年份，如 2026"}
   month: {type: int, required: true, min: 1, max: 12, description: "月份 (1-12)"}
@@ -1018,10 +1150,46 @@ ORDER BY date ASC
 
 **调用方式**：Agent 通过 `execute_query_skill` 工具调用：
 ```json
-{"skill_name": "monthly-sales-report", "params": "{\"year\": 2026, \"month\": 1}"}
+{"skill_name": "monthly-sales-report", "params": {"year": 2026, "month": 1}}
 ```
 
 **工作原理**：服务器启动时，`skill_loader.py` 扫描 `skills/` 目录，解析 `skill_def.md` 的 YAML frontmatter，读取 `source` 字段声明的源文件，并通过 `is_sql_safe()` 进行安全检查。运行时，Agent 传入参数 `year` 和 `month`，服务器通过 SQLAlchemy 的参数化绑定（`:year`、`:month`）安全地执行查询，防止 SQL 注入。
+
+#### SQLite 对应版本：`monthly-sales-report-sqlite`
+
+仓库同时提供 `monthly-sales-report-sqlite`，用于示例 SQLite 数据库。它刻意做成独立 Skill，而不是在 MySQL Skill 里写方言分支：
+
+```yaml
+name: monthly-sales-report-sqlite
+type: query
+source: query.sql
+risk: low
+databases: [sqlite]
+profiles: [demo]
+params:
+  year: {type: int, required: true, description: "Year (e.g. 2026)"}
+  month: {type: int, required: true, min: 1, max: 12, description: "Month (1-12)"}
+category: reporting
+related_skills:
+  - monthly-sales-report
+```
+
+SQLite 查询使用 demo schema 中的 `orders.total_amount` 字段和 ISO-8601 文本日期：
+
+```sql
+SELECT
+    date(order_date) AS date,
+    COUNT(*) AS order_count,
+    COALESCE(SUM(total_amount), 0) AS revenue,
+    ROUND(AVG(total_amount), 2) AS avg_order_value
+FROM orders
+WHERE order_date >= printf('%04d-%02d-01', :year, :month)
+  AND order_date < date(printf('%04d-%02d-01', :year, :month), '+1 month')
+GROUP BY date(order_date)
+ORDER BY date ASC
+```
+
+仓库内置的 `monthly-sales-report`、`monthly-sales-report-sqlite` 和 `update-order-status` 都标记为 `profiles: [demo]`，因为它们依赖 demo `orders` schema。开启 `SKILLS_CHECK_SCHEMA_ON_LIST=1` 时，如果当前数据库没有所需表，`available_only=true` 会默认隐藏这些 Skill。方言相关 SQL 拆成独立 Skill，可以保持启动期校验简单、避免运行时隐藏分支，并让 `available_only` 对 Agent 的过滤结果更加确定。
 
 #### 示例 2：`update-order-status`（写操作技能）
 
@@ -1127,9 +1295,10 @@ flowchart LR
     end
 
     subgraph Runtime["阶段 3: 运行时 — Agent 交互"]
-        R1["list_skills()\n仅元数据"]
-        R2["execute_query_skill()\n缓存 SQL + 参数"]
-        R3["execute_mutation_skill()\n缓存类 + 参数"]
+        R1["list_skills()\n元数据目录"]
+        R2["get_skill_detail()\n缓存参数 schema"]
+        R3["execute_query_skill()\n缓存 SQL + 参数"]
+        R4["execute_mutation_skill()\n缓存类 + 参数"]
     end
 
     D1 --> S1
@@ -1139,7 +1308,7 @@ flowchart LR
     S3 --> S5
     S4 --> S5
     S5 --> S6
-    S5 -.->|"内存缓存"| R1 & R2 & R3
+    S5 -.->|"内存缓存"| R1 & R2 & R3 & R4
 ```
 
 > 启动时校验遵循 **fail-fast 原则**——如果 Skill 的 SQL 不安全或其源模块格式错误，
@@ -1190,7 +1359,7 @@ sequenceDiagram
 
 `skill_def.md` 采用 YAML frontmatter + Markdown body 的分层设计，服务于不同的受众：
 
-- **YAML frontmatter**（上半部分）：由 `skill_loader.py` 在服务启动时机器解析，提取 `name`、`type`、`params` 等结构化字段用于注册和校验。Agent 通过 `list_skills()` 获取这些元数据（经过格式化），而非直接读取文件。
+- **YAML frontmatter**（上半部分）：由 `skill_loader.py` 在服务启动时机器解析，提取 `name`、`type`、`params` 等结构化字段用于注册和校验。Agent 通过 `list_skills()` 和 `get_skill_detail()` 获取这些元数据（经过格式化），而非直接读取文件。
 - **Markdown body**（下半部分）：面向开发者的自然语言文档（使用说明、工作流提示、注意事项等）。**不会发送给 Agent**——这是与标准 Agent Skills 的关键差异：标准 SKILL.md 的 body 是给 Agent 读的指令，而本项目的 body 是给人读的文档。
 - **参数约束声明**：`type`/`min`/`max`/`enum` 在 YAML 中声明，由 `validate_params()` 统一执行。Skill 作者无需在代码中重复实现验证逻辑。
 
@@ -1202,6 +1371,7 @@ name: monthly-sales-report          # 名称约束：^[a-z0-9][a-z0-9-]*$
 type: query                         # query | mutation
 source: query.sql                   # 显式声明执行文件（必填，后缀须匹配 type）
 risk: low                           # low | medium | high
+databases: [mysql]                  # 可选：支持的数据库类型（省略 = 全部）
 params:                             # 参数 schema（Server 侧强制校验）
   year: {type: int, required: true} #   → validate_params() 检查类型
   month: {type: int, required: true,

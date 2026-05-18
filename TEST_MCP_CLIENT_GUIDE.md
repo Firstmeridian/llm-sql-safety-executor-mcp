@@ -1,6 +1,6 @@
 # MCP Client Test - Usage Guide
 
-**Updated:** March 1, 2026 (v3.0)
+**Updated:** May 14, 2026 (v3.4)
 
 ## Purpose
 
@@ -55,12 +55,21 @@ TEST_SAMPLE_LIMIT = 3  # Sample data row limit
    ENABLE_SCHEMA_TOOLS=1
    ```
 
-   **Skills Extension (v3.0+):**
-   ```bash
-   ENABLE_SKILLS=1
-   SKILLS_ALLOW_MUTATIONS=1   # Optional: enable mutation skills
-   SKILLS_DIR=skills/          # Default
-   ```
+    **Skills Extension (v3.0+):**
+    ```bash
+    ENABLE_SKILLS=1
+    SKILLS_ALLOW_MUTATIONS=1   # Optional: enable mutation skills
+    SKILLS_LIST_DEFAULT_DETAIL=summary
+    SKILLS_LIST_AVAILABLE_ONLY_DEFAULT=1
+    SKILLS_CHECK_SCHEMA_ON_LIST=1
+    # SKILLS_EXCLUDE_PROFILES=demo  # Optional: hide bundled demo skills in production
+    SKILLS_AUDIT_QUERIES=0          # Optional query skill audit
+    SKILLS_DIR=skills/              # Default
+    ```
+
+    Restart the MCP server after changing environment variables. Live schema
+    changes such as creating the demo `orders` table are picked up by the next
+    schema-readiness check, but process-level settings are read at startup.
 
 ### Running the Test
 
@@ -80,7 +89,7 @@ Table summary enabled: False
 
 ✓ Successfully connected to MCP server
 
-Available tools: ['query', 'check_connection', 'list_tables', 'describe_table', 'get_full_schema', 'sample', 'list_skills', 'execute_query_skill', 'execute_mutation_skill']
+Available tools: ['query', 'check_connection', 'list_tables', 'describe_table', 'get_full_schema', 'sample', 'list_skills', 'get_skill_detail', 'execute_query_skill', 'execute_mutation_skill']
 
 ----------------------------------------------------------------------
 TEST 1: check_connection
@@ -138,15 +147,39 @@ The script tests the following tools:
 5. ✅ `get_full_schema` - Complete database schema in one call
 6. ✅ `get_table_summary` - Table statistics with optional exact count (requires `ENABLE_TABLE_SUMMARY=1`)
 7. ✅ `sample` - Sample data retrieval (requires `ENABLE_SCHEMA_TOOLS=1`)
-8. ✅ `list_skills` - List available skills with metadata (requires `ENABLE_SKILLS=1`)
-9. ✅ `execute_query_skill` - Execute a parameterized query skill (requires `ENABLE_SKILLS=1`)
-10. ✅ `execute_mutation_skill` - Execute a mutation skill with dry-run/confirm (requires `ENABLE_SKILLS=1` + `SKILLS_ALLOW_MUTATIONS=1`)
+8. ✅ `list_skills` - List/search skills with `compact`/`summary`/`full` metadata, optional `available_only` filtering, and schema readiness fields (requires `ENABLE_SKILLS=1`)
+9. ✅ `get_skill_detail` - Fetch one skill's cached parameter schema (requires `ENABLE_SKILLS=1`)
+10. ✅ `execute_query_skill` - Execute a parameterized query skill (requires `ENABLE_SKILLS=1`)
+11. ✅ `execute_mutation_skill` - Execute a mutation skill with dry-run/confirm (requires `ENABLE_SKILLS=1` + `SKILLS_ALLOW_MUTATIONS=1`)
 
 **Note**: All tool responses include `db_type` field ("mysql" or "sqlite") since v2.2.
 
-**Note**: Skills tools (8-10) only appear when `ENABLE_SKILLS=1` is set. Mutation skills additionally require `SKILLS_ALLOW_MUTATIONS=1`.
+**Note**: Skills tools (8-11) only appear when `ENABLE_SKILLS=1` is set. Mutation skills additionally require `SKILLS_ALLOW_MUTATIONS=1`.
 
 **Note**: SQL validation tests are also covered in `test_mcp_functions.py`.
+
+### Skills Smoke Example
+
+When Skills are enabled, a minimal progressive-disclosure check should follow this order. The bundled monthly report examples are demo-profile skills and require an `orders` table; with `SKILLS_CHECK_SCHEMA_ON_LIST=1`, `available_only=true` hides them when the current database does not have the demo schema.
+
+To create the demo MySQL table used by `monthly-sales-report` and `update-order-status`, run:
+
+```bash
+.venv/bin/python scripts/setup_demo_db.py
+```
+
+The script refuses to modify an existing `orders` table unless `--drop-existing` or `--seed-existing` is passed explicitly.
+
+```python
+skills = await client.call_tool("list_skills", {"detail_level": "compact"})
+detail = await client.call_tool("get_skill_detail", {"skill_name": "monthly-sales-report-sqlite"})
+result = await client.call_tool(
+  "execute_query_skill",
+  {"skill_name": "monthly-sales-report-sqlite", "params": {"year": 2026, "month": 1}},
+)
+```
+
+Use `list_skills(search=..., category=..., available_only=true)` for Agent-facing discovery and `get_skill_detail()` for params before execution when the list response is not `full`. Use `available_only=false` for developer catalog review, including skills that are currently incompatible with `DB_TYPE`, disabled by mutation switches, or marked `schema_ready=false` because required tables are missing.
 
 ## Key Validation Points
 
@@ -182,7 +215,7 @@ If `sample` is not available:
 ENABLE_SCHEMA_TOOLS=1
 ```
 
-If Skills tools (`list_skills`, etc.) are not available:
+If Skills tools (`list_skills`, `get_skill_detail`, etc.) are not available:
 ```bash
 # Set in .env file
 ENABLE_SKILLS=1

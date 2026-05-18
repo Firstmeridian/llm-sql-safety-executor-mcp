@@ -1,7 +1,7 @@
 # MCP SQL Server Refactoring Log
 
-**Date:** December 2, 2025 (Updated: March 17, 2026)  
-**Author:** Code Refactoring Session  
+**Date:** December 2, 2025 (Updated: May 14, 2026)
+**Author:** Code Refactoring Session
 
 ## Overview
 
@@ -9,7 +9,173 @@ This document records the major refactoring changes made to `mcp_sql_server.py` 
 
 ---
 
-## Latest Update v3.1 (March 17, 2026) - Explicit Source Declaration
+## Latest Update v3.4 (May 14, 2026) - MCP Hardening and Skills Profile Policy
+
+### Overview
+
+Reviewed ten proposed hardening items and implemented the
+low-risk changes that improve security or test signal without changing the
+default Skills execution model. Runtime SQL/Python source loading remains
+unchanged: executable skill artifacts are still validated and cached at startup.
+
+### Changes
+
+| File | Change Type | Description |
+|------|-------------|-------------|
+| `mcp_sql_server.py` | Modified | Enabled FastMCP `mask_error_details=True`; added configurable MCP tool timeouts; added `MAX_SQL_LENGTH` schema/runtime guard for raw `query(sql)`; added `SKILLS_EXCLUDE_PROFILES`; added optional query skill audit logging |
+| `skills/_lib/audit.py` | Modified | Generalized audit wording from mutation-only to skill operations and records optional query metadata such as `total_rows` and `truncated` without logging returned data |
+| `test_bug_fixes.py` | Modified | Refactored source-based checks so pytest tests assert instead of returning booleans |
+| `tests/test_skills_disclosure.py` | Modified | Added coverage for profile exclusion, direct execution blocking, query skill audit, raw query MCP schema length metadata, and runtime raw SQL length rejection |
+| `.env.example` | Modified | Documented `MCP_TOOL_TIMEOUT_SECONDS`, `MAX_SQL_LENGTH`, `SKILLS_EXCLUDE_PROFILES`, and `SKILLS_AUDIT_QUERIES` |
+| `README.md` | Modified | Documented the new hardening controls and deferred decisions |
+| `MCP_AGENTS_SKILLS_DESIGN.md` | Modified | Recorded the profile policy, optional query audit, tool timeout, raw SQL length decision, and deferred v3.4.B3/v3.4.B4/v3.4.C1 choices |
+
+### Design Decisions
+
+| Decision | Choice | Alternative | Rationale |
+|----------|--------|-------------|-----------|
+| Pytest warnings | Convert boolean-returning tests to assert wrappers | Leave source-verification script unchanged | Removes noisy pytest warnings while preserving direct script execution |
+| Error masking | `mask_error_details=True` | Depend only on local sanitization | Masks unexpected exceptions while explicit `ToolError` messages continue to expose sanitized guidance |
+| Raw SQL length | `MAX_SQL_LENGTH=20000` for `query(sql)` | Apply length caps to skill SQL templates | Free-form Agent SQL is untrusted input; reviewed skill templates are code artifacts validated at startup |
+| Profile policy | `SKILLS_EXCLUDE_PROFILES` marks matching skills non-executable | Delete bundled demo skills from production branches | Keeps examples useful but gives production deployments an explicit guardrail |
+| Query audit | `SKILLS_AUDIT_QUERIES=0` opt-in | Audit all query skills by default | Avoids surprising parameter logs; compliance-oriented deployments can enable it |
+| Tool timeout | FastMCP `timeout` via `MCP_TOOL_TIMEOUT_SECONDS` | Only DB-level timeout | Covers non-DB stalls and foreground request hangs; default is conservative for schema tools |
+| v3.4.B3 ToolResult metadata | Deferred decision | Wrap current dict returns in `ToolResult` | Would alter client-facing response contracts without a current need |
+| v3.4.B4 Session schema cache | Deferred decision | Cache table names in `ctx.set_state()` | Reduces repeated metadata reads but can stale after DDL; table-readiness checks are lightweight |
+| v3.4.C1 Schema resource | Deferred decision | Add `db://schema` MCP resource | Existing schema tool is explicit and broadly supported; resource path can be added later without blocking current workflows |
+
+### Compatibility Notes
+
+- All new runtime behavior is controlled by environment variables or preserves old defaults.
+- `SKILLS_EXCLUDE_PROFILES` defaults to empty, so existing Skills catalogs are unchanged unless explicitly configured.
+- `SKILLS_AUDIT_QUERIES` defaults to `0`; mutation auditing behavior is unchanged.
+- `MAX_SQL_LENGTH` affects only raw `query(sql)` input, not reviewed query skill templates.
+- `ToolError` messages remain visible by design under FastMCP error masking.
+
+### Testing
+
+- `.venv/bin/python -m pytest test_bug_fixes.py tests/test_skills_disclosure.py tests/test_skill_loader.py tests/test_query_skills.py tests/test_mutation_skills.py -q` - 99 passed
+- `.venv/bin/python -m pytest -q -k 'not test_mcp_server'` - 160 passed, 1 deselected
+
+---
+
+## Update v3.3 (May 14, 2026) - Skills Availability Filtering and SQLite Example
+
+### Overview
+
+Added Agent-facing availability filtering for Skills discovery and introduced a
+SQLite-specific monthly sales report example. The availability check now includes
+DB compatibility, mutation switch state, and optional table-level schema
+readiness. This change keeps startup discovery, SQL validation, mutation class
+loading, and execution-time checks eager and unchanged as the security boundary.
+`available_only` only changes which cached skill metadata is returned by
+`list_skills()`.
+
+### Changes
+
+| File | Change Type | Description |
+|------|-------------|-------------|
+| `mcp_sql_server.py` | Modified | Added `SKILLS_LIST_AVAILABLE_ONLY_DEFAULT` and `SKILLS_CHECK_SCHEMA_ON_LIST`; added `list_skills(..., available_only)`; included current `DB_TYPE`, mutation switch, and schema readiness in skill executability metadata; default Agent-facing catalog hides currently non-executable skills |
+| `skills/monthly-sales-report-sqlite/` | Added | Added SQLite query skill using the sample SQLite schema (`orders.order_date`, `orders.total_amount`) |
+| `skills/_lib/skill_loader.py` | Modified | Added `profiles` and declarative `tables` frontmatter support; query tables are merged from reviewed SQL extraction and declared tables |
+| `skills/monthly-sales-report/skill_def.md` | Modified | Linked to the SQLite counterpart via `related_skills`, kept `databases: [mysql]`, and marked the bundled example as `profiles: [demo]` |
+| `skills/update-order-status/skill_def.md` | Modified | Linked to both monthly report examples, marked the skill as `profiles: [demo]`, and declared `tables: [orders]` |
+| `skills/SKILLS.md` | Modified | Regenerated/updated catalog to include databases, profiles, and table dependencies |
+| `tests/test_skills_disclosure.py` | Modified | Added coverage for default availability filtering, schema readiness, explicit full catalog listing, env default override, DB-specific visibility, and MCP `list_tools()` schemas |
+| `.env.example` | Modified | Documented `SKILLS_LIST_AVAILABLE_ONLY_DEFAULT=1` and `SKILLS_CHECK_SCHEMA_ON_LIST=1` |
+| `README.md` / `README_ZH.md` | Modified | Documented `available_only`, schema readiness, demo profiles, the new default behavior, full catalog override, and SQLite skill example |
+| `MCP_AGENTS_SKILLS_DESIGN.md` | Modified | Documented conditional availability filtering, related design decisions, and external practice references |
+| `TEST_MCP_CLIENT_GUIDE.md` | Modified | Updated Skills smoke examples and config hints |
+
+### Design Decisions
+
+| Decision | Choice | Alternative | Rationale |
+|----------|--------|-------------|-----------|
+| Availability filtering | `available_only` on `list_skills()` | Separate developer/admin listing tool | Keeps the MCP surface small and matches existing discovery workflow; developers can pass `available_only=false` |
+| Default availability | `SKILLS_LIST_AVAILABLE_ONLY_DEFAULT=1` | Preserve full catalog as no-arg default | The tool is Agent-facing, so default discovery should not suggest skills that will fail under the current `DB_TYPE` or mutation switch |
+| Schema readiness | `SKILLS_CHECK_SCHEMA_ON_LIST=1` table-existence check | Do no live schema check, or validate every column/type | Catches wrong-schema demo/production mismatches with low overhead while leaving precise validation to execution |
+| Security boundary | Keep execution-time compatibility checks | Treat filtering as enforcement | Tool filtering is advisory/ergonomic; callers can still name hidden skills, so execution must remain authoritative |
+| SQLite example | Separate `monthly-sales-report-sqlite` skill | One SQL template with dialect branches | Separate skills keep SQL review, startup validation, and Agent selection deterministic |
+| Demo profiles | Mark bundled examples with `profiles: [demo]` | Disable examples by default | Keeps examples discoverable for sample databases while making their intended schema explicit |
+| Missing `databases` | Keep meaning as all supported DBs | Require every skill to declare databases | Preserves compatibility for portable skills such as `update-order-status` |
+
+### Compatibility Notes
+
+- `ENABLE_SKILLS=0` still registers no Skills tools.
+- `list_skills(available_only=false)` restores the full discovered catalog.
+- `get_skill_detail(skill_name)` remains available for hidden incompatible or schema-unready skills and includes `executable=false` plus a `disabled_reason`.
+- Execution checks still reject database-incompatible or schema-unready skills even if a caller bypasses discovery and directly calls an execution tool.
+
+### External Practice Review
+
+- OpenAI Tool Search supports deferred/client-executed discovery when available tools depend on project or system state; `available_only` is this project's in-MCP analog.
+- Anthropic Agent Skills and MCP code-execution guidance emphasize progressive disclosure and loading only relevant definitions.
+- Google Gemini function calling best practices recommend keeping the provided tool set relevant and small to reduce selection errors.
+- FastMCP annotations and visibility features are useful for presentation and tool surfaces, but annotations are advisory.
+- Microsoft function calling guidance emphasizes validating function calls and not relying only on omitted tool definitions as a security control.
+
+### Testing
+
+- `.venv/bin/python -m pytest tests/test_skills_disclosure.py -q` - 19 passed
+- `.venv/bin/python -m pytest tests/test_skill_loader.py tests/test_query_skills.py tests/test_mutation_skills.py tests/test_skills_disclosure.py -q` - 92 passed
+- `.venv/bin/python -m pytest tests/test_skills_disclosure.py tests/test_skill_loader.py -q` - 74 passed
+- `.venv/bin/python -m pytest -q -k 'not test_mcp_server'` - 156 passed, 1 deselected; warning cleanup was completed in v3.4
+
+---
+
+## Update v3.2 (May 12, 2026) - Skills Metadata On-Demand Disclosure
+
+### Overview
+
+Added MCP-level on-demand metadata disclosure for the Skills layer. This change
+does **not** lazy-load executable artifacts: `discover()` still validates SQL and
+pre-loads mutation classes at startup, and runtime execution still uses the
+in-memory cache. Only the Agent-facing metadata projection changed.
+
+### Changes
+
+| File | Change Type | Description |
+|------|-------------|-------------|
+| `mcp_sql_server.py` | Modified | Added `SKILLS_LIST_DEFAULT_DETAIL`; extended `list_skills(search, category, detail_level)`; added `get_skill_detail(skill_name)`; added compact/summary/full metadata projections and category aggregation |
+| `skills/_lib/skill_loader.py` | Modified | Added optional `databases` metadata parsing/validation and included supported database types in generated `SKILLS.md` |
+| `skills/monthly-sales-report/skill_def.md` | Modified | Declared `databases: [mysql]` because the example SQL uses MySQL-specific date functions |
+| `tests/test_skills_disclosure.py` | Added | Tests for default summary disclosure, compact/full projections, search, category filtering, categories aggregation, overlong search rejection, and `get_skill_detail` errors |
+| `tests/test_skill_loader.py` | Modified | Added coverage for omitted, scalar, multiple, case-insensitive, empty, and invalid `databases` values |
+| `tests/conftest.py` | Modified | Added an engine assertion for SQLite fixture typing/analysis safety |
+| `.env.example` | Modified | Added `SKILLS_LIST_DEFAULT_DETAIL=summary` documentation |
+| `README.md` / `README_ZH.md` | Modified | Documented `get_skill_detail`, list projection levels, search/category filters, and the new workflow |
+| `MCP_AGENTS_SKILLS_DESIGN.md` | Modified | Documented metadata disclosure levels and clarified that executable artifacts remain eager-loaded for TOCTOU protection |
+| `agent_examples/autogen_sql_agent_new.py` | Modified | Added `get_skill_detail` capability detection and prompt guidance |
+| `TEST_MCP_CLIENT_GUIDE.md` | Modified | Updated Skills tool list and configuration example |
+
+### Design Decisions
+
+| Decision | Choice | Alternative | Rationale |
+|----------|--------|-------------|-----------|
+| Disclosure levels | `compact`, `summary`, `full` | `names` alias or custom field lists | Three stable levels cover discovery, compatibility-oriented metadata, and execution planning without exposing raw source |
+| Default detail | `summary` via `SKILLS_LIST_DEFAULT_DETAIL` | Default `full` | Keeps the default useful while reducing unnecessary parameter-schema disclosure; per-call `detail_level` can override |
+| Search | Case-insensitive substring | Regex/BM25 | Deterministic, dependency-free, avoids ReDoS and model-generated regex fragility |
+| Category handling | Missing category maps to `uncategorized` | Omit category | Gives Agents a stable grouping key and supports category aggregation |
+| Detail tool | Add `get_skill_detail(skill_name)` | Add `search_skills` or per-skill tools | One extra read-only tool enables on-demand params without tool explosion |
+| Artifact loading | Keep startup eager validation/cache | Runtime disk reads | Preserves TOCTOU protection and existing security model |
+| Database compatibility | Optional `databases` field | No DB type declaration | Prevents execution of DB-specific skills on incompatible adapters; omitted field means all supported DB types |
+
+### Compatibility Notes
+
+- `ENABLE_SKILLS=0` remains zero-overhead: no Skills tools are registered.
+- Existing execution tools are unchanged.
+- `list_skills()` now returns additive metadata fields such as `detail_level`,
+  `matched_skills`, `categories`, and `hint`. Clients that need maximum detail
+  can call `list_skills(detail_level="full")` or `get_skill_detail(skill_name)`.
+
+### Testing
+
+- `pytest tests/test_skills_disclosure.py -q` - 13 passed
+- `pytest tests/test_skill_loader.py tests/test_query_skills.py tests/test_mutation_skills.py tests/test_skills_disclosure.py -q` - 85 passed
+
+---
+
+## Update v3.1 (March 17, 2026) - Explicit Source Declaration
 
 ### Overview
 

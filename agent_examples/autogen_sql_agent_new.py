@@ -10,7 +10,7 @@ to interact with the SQL Safety Checker MCP server using stdio transport.
 
 v3.0 Updates (from autogen_sql_agent.py):
 - Dynamic tool discovery: detects server capabilities at startup via list_tools()
-- Skills extension support: list_skills, execute_query_skill, execute_mutation_skill
+- Skills extension support: list_skills, get_skill_detail, execute_query_skill, execute_mutation_skill
 - SQLite compatibility: prompts no longer assume MySQL-only syntax
 - Optional tools: sample(), get_table_summary() detected and included in prompts
 - MCP server prompt fusion: fetches sql_assistant prompt as supplementary context
@@ -25,7 +25,7 @@ Based on Microsoft AutoGen best practices:
 
 v3.0 更新内容（相对于旧版 autogen_sql_agent.py）:
 - 动态工具发现：启动时通过 list_tools() 检测服务器已注册的工具
-- Skills 扩展支持：list_skills, execute_query_skill, execute_mutation_skill
+- Skills 扩展支持：list_skills, get_skill_detail, execute_query_skill, execute_mutation_skill
 - SQLite 兼容：提示词不再假设仅支持 MySQL 语法
 - 可选工具：sample()、get_table_summary() 根据服务器配置自动检测
 - MCP 服务器提示词融合：获取 sql_assistant 提示词作为补充上下文
@@ -44,13 +44,13 @@ v3.0 更新内容（相对于旧版 autogen_sql_agent.py）:
 MCP Server compatibility:
 - Core tools: query, list_tables, describe_table, get_full_schema, check_connection
 - Optional tools: sample (ENABLE_SCHEMA_TOOLS=1), get_table_summary (ENABLE_TABLE_SUMMARY=1)
-- Skills tools: list_skills, execute_query_skill (ENABLE_SKILLS=1),
+- Skills tools: list_skills, get_skill_detail, execute_query_skill (ENABLE_SKILLS=1),
   execute_mutation_skill (SKILLS_ALLOW_MUTATIONS=1)
 
 MCP 服务器工具兼容性:
 - 核心工具（始终可用）: query, list_tables, describe_table, get_full_schema, check_connection
 - 可选工具: sample (需 ENABLE_SCHEMA_TOOLS=1), get_table_summary (需 ENABLE_TABLE_SUMMARY=1)
-- Skills 工具: list_skills, execute_query_skill (需 ENABLE_SKILLS=1),
+- Skills 工具: list_skills, get_skill_detail, execute_query_skill (需 ENABLE_SKILLS=1),
   execute_mutation_skill (需 SKILLS_ALLOW_MUTATIONS=1)
 """
 
@@ -299,6 +299,7 @@ class ServerCapabilities:
     """
     tool_names: set[str] = field(default_factory=set)  # All registered tool names / 服务器上所有已注册工具的名称集合
     has_skills: bool = False              # list_skills exists / 是否有 list_skills 工具（ENABLE_SKILLS=1）
+    has_skill_detail: bool = False        # get_skill_detail exists
     has_mutation_skills: bool = False      # execute_mutation_skill exists / 是否有 execute_mutation_skill 工具（SKILLS_ALLOW_MUTATIONS=1）
     has_sample: bool = False              # sample tool exists / 是否有 sample 工具（ENABLE_SCHEMA_TOOLS=1）
     has_table_summary: bool = False       # get_table_summary exists / 是否有 get_table_summary 工具（ENABLE_TABLE_SUMMARY=1）
@@ -333,6 +334,7 @@ async def detect_server_capabilities(workbench: McpWorkbench) -> ServerCapabilit
     
     # Determine capabilities from tool names / 根据工具名称判断各项能力
     caps.has_skills = "list_skills" in caps.tool_names
+    caps.has_skill_detail = "get_skill_detail" in caps.tool_names
     caps.has_mutation_skills = "execute_mutation_skill" in caps.tool_names
     caps.has_sample = "sample" in caps.tool_names
     caps.has_table_summary = "get_table_summary" in caps.tool_names
@@ -407,7 +409,10 @@ def build_planning_prompt(caps: ServerCapabilities) -> str:
 SKILLS WORKFLOW:
 - The server provides pre-defined skills (parameterized operations) that are safer and more efficient than raw SQL.
 - When a user request matches a known skill, prefer using skills over writing raw SQL.
-- First call list_skills() to discover available operations and their triggers.
+- First call list_skills(search/category/detail_level/available_only) to discover available operations.
+- The default catalog hides skills that cannot execute in the current DB, mutation configuration, or schema readiness state; use available_only=false only for developer catalog review.
+- If a full catalog entry has schema_ready=false or missing_tables, do not execute it unless the database/schema has been prepared.
+- If list_skills returns a hint or omits params, call get_skill_detail(skill_name) before execution.
 - For query skills: use execute_query_skill(name, params) — pre-audited SQL templates.
 - Skills accept structured parameters — pass a params dict, not raw SQL.
 """
@@ -507,7 +512,7 @@ def build_sql_executor_prompt(caps: ServerCapabilities) -> str:
     Dynamic sections / 动态片段：
     - Core tools list (always 5) / 核心工具列表（始终 5 个）
     - Optional tools: sample, get_table_summary / 可选工具
-    - Skills tools: list_skills, execute_query_skill, execute_mutation_skill
+    - Skills tools: list_skills, get_skill_detail, execute_query_skill, execute_mutation_skill
     - Skills usage guide (including two-phase mutation workflow) / Skills 使用指南
     - Server prompt supplement (sql_assistant as extra context) / 服务器提示词补充
     
@@ -545,12 +550,16 @@ Core tools (always available):
         skills_tools = f"""
 
 Skills tools (pre-defined parameterized operations):
-{tool_num}. list_skills() - List available pre-defined skills with metadata (name, type, triggers, params)"""
+{tool_num}. list_skills(search, category, detail_level, available_only) - List/search skills with compact, summary, or full metadata"""
         tool_num += 1
+        if caps.has_skill_detail:
+            skills_tools += f"""
+{tool_num}. get_skill_detail(skill_name) - Get one skill's parameter schema before execution"""
+            tool_num += 1
         skills_tools += f"""
 {tool_num}. execute_query_skill(skill_name, params) - Execute a query skill with structured parameters"""
         tool_num += 1
-        
+
         # Mutation tool: supports two-phase workflow (confirm=false preview, confirm=true execute)
         # 变更工具：支持两阶段工作流（confirm=false 预览, confirm=true 执行）
         if caps.has_mutation_skills:
@@ -567,7 +576,9 @@ Skills tools (pre-defined parameterized operations):
         skills_guide = """
 SKILLS USAGE:
 - Skills are pre-audited, parameterized operations — safer and more token-efficient than raw SQL.
-- Use list_skills() to discover available skills and their trigger keywords.
+- Use list_skills() to discover currently executable skills. Use search/category filters when the intent is clear.
+- Use available_only=false only when explicitly auditing the full developer catalog.
+- If list_skills() does not include params, call get_skill_detail(skill_name) before execute_query_skill or execute_mutation_skill.
 - For query skills: call execute_query_skill(skill_name, params) with required parameters.
 - Skill results have the same format as query() results (data, row_count, truncated).
 """
@@ -940,6 +951,8 @@ def _print_capabilities(caps: ServerCapabilities) -> None:
     
     if caps.has_skills:
         skills_tools = ["list_skills", "execute_query_skill"]
+        if caps.has_skill_detail:
+            skills_tools.insert(1, "get_skill_detail")
         if caps.has_mutation_skills:
             skills_tools.append("execute_mutation_skill")
         print(f"     Skills: {', '.join(skills_tools)}")

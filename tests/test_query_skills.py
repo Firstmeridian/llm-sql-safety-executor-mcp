@@ -17,8 +17,9 @@ import pytest
 from pathlib import Path
 
 # Add project root and _lib to path
-sys.path.insert(0, str(Path(__file__).parent.parent))
-sys.path.insert(0, str(Path(__file__).parent.parent / "skills" / "_lib"))
+PROJECT_ROOT = Path(__file__).parent.parent
+sys.path.insert(0, str(PROJECT_ROOT))
+sys.path.insert(0, str(PROJECT_ROOT / "skills" / "_lib"))
 
 
 # =============================================================================
@@ -69,6 +70,51 @@ def adapter_with_orders():
 
 class TestExecuteWithParams:
     """Tests for adapter.execute() with the new params parameter."""
+
+    def test_monthly_sales_report_sqlite_template_executes(self):
+        """The SQLite example skill query runs against the demo-style schema."""
+        from db_adapter import SQLiteAdapter
+        from sqlalchemy import text
+        from skill_loader import discover, load_query, validate_params
+
+        discover(PROJECT_ROOT / "skills")
+        sql_template, param_schema = load_query("monthly-sales-report-sqlite")
+        params = validate_params({"year": 2024, "month": 1}, param_schema)
+
+        adapter = SQLiteAdapter(":memory:")
+        adapter.connect()
+        assert adapter._engine is not None
+
+        try:
+            with adapter._engine.connect() as conn:
+                with conn.begin():
+                    conn.execute(text("""
+                        CREATE TABLE orders (
+                            id INTEGER PRIMARY KEY,
+                            order_date TEXT NOT NULL,
+                            total_amount REAL
+                        )
+                    """))
+                    conn.execute(text("""
+                        INSERT INTO orders (id, order_date, total_amount) VALUES
+                        (1, '2024-01-15 10:00:00', 100.00),
+                        (2, '2024-01-15 14:00:00', 250.00),
+                        (3, '2024-01-20 09:00:00', 300.00),
+                        (4, '2024-02-01 09:00:00', 999.00)
+                    """))
+
+            result = adapter.execute(sql_template, params=params)
+        finally:
+            adapter.close()
+
+        assert not isinstance(result, str)
+        assert len(result) == 2
+        assert result[0].date == "2024-01-15"
+        assert result[0].order_count == 2
+        assert result[0].revenue == pytest.approx(350.0)
+        assert result[0].avg_order_value == pytest.approx(175.0)
+        assert result[1].date == "2024-01-20"
+        assert result[1].order_count == 1
 
     def test_execute_with_params_readonly(self, adapter_with_orders):
         """#18: Parameterized read-only query returns correct results."""

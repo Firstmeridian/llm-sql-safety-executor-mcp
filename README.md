@@ -1,6 +1,6 @@
 # LLM Database Safety Gateway - MCP Service
 
-![Version](https://img.shields.io/badge/version-3.0-blue)
+![Version](https://img.shields.io/badge/version-3.4-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Python](https://img.shields.io/badge/python-3.12+-blue?logo=python)
 ![MCP](https://img.shields.io/badge/MCP-Protocol-orange)
@@ -61,8 +61,8 @@ This project implements a standard MCP (Model Context Protocol) service to provi
 │  ┌─────────────────────────────────────────────────────────────────────────┐ │
 │  │ Tool Layer:   query | list_tables | describe_table | ...                │ │
 │  ├─────────────────────────────────────────────────────────────────────────┤ │
-│  │ Skills Layer (Optional): list_skills | execute_query_skill              │ │
-│  │                         | execute_mutation_skill                        │ │
+│  │ Skills Layer (Optional): list_skills | get_skill_detail                 │ │
+│  │                         | execute_query_skill | execute_mutation_skill  │ │
 │  │    skill_def.md → Param Validation → Pre-built SQL/Mutation → Audit Log │ │
 │  ├─────────────────────────────────────────────────────────────────────────┤ │
 │  │ Safety Layer: SQL Validation | Allowlist | Truncation | Timeout         │ │
@@ -92,14 +92,15 @@ This project implements a standard MCP (Model Context Protocol) service to provi
 - Pre-defined parameterized operations: Encapsulate complex queries and sensitive writes as reusable skills — Agents only need to pass parameters, no need to write SQL
 - Server-side enforcement: SQL safety checks at startup + strong parameter type validation (type/min/max/enum) + audit logging for write operations
 - Two-phase write operations: Mutation skills require preview (`confirm=false`) → confirmation (`confirm=true`) to prevent accidental operations
-- Progressive disclosure: Agents discover metadata via `list_skills()` and invoke skills on demand
+- Progressive disclosure: Agents discover a searchable skill catalog via `list_skills()`, fetch one skill's parameter schema via `get_skill_detail()`, then invoke skills on demand
 
 **5. Typical Workflow**:
 ```
 Structure Unknown: list_tables() → describe_table(target) → query(sql)
 Structure Known: query(sql) directly
 Large Table Scenario: Observe is_large=true → Use LIMIT or Aggregation
-Skills Scenario: list_skills() → execute_query_skill(name, params)
+Skills Scenario: list_skills(search/category/detail_level/available_only) → get_skill_detail(name)
+                 → execute_query_skill(name, params)
                  or execute_mutation_skill(name, params, confirm=false) → preview → confirm=true
 ```
 
@@ -122,7 +123,7 @@ Skills Scenario: list_skills() → execute_query_skill(name, params)
   | Level | Configuration | `ENABLE_SKILLS` | `SKILLS_ALLOW_MUTATIONS` | Available Tools | Permission |
   |:---:|------|:---:|:---:|------|------|
   | L0 | Default | `0` | — | Base tools (query, list_tables, etc.) | Read-only queries |
-  | L1 | Skills enabled | `1` | `0` | + list_skills, execute_query_skill | + Pre-defined read-only skills |
+  | L1 | Skills enabled | `1` | `0` | + list_skills, get_skill_detail, execute_query_skill | + Pre-defined read-only skills |
   | L2 | Mutations enabled | `1` | `1` | + execute_mutation_skill | + Controlled writes (two-phase confirm) |
 
 - **Skills Two-Phase Confirmation**: Write operations require preview → confirm to prevent accidental operations
@@ -237,7 +238,7 @@ Converting to the standard format would mean turning SQL templates into "instruc
 This project has already incorporated design elements from standard Agent Skills that are applicable to MCP scenarios:
 - Directory structure: one folder per skill + entry file;
 - YAML frontmatter: `name` (with regex constraint `^[a-z0-9][a-z0-9-]*$`) and `description` [3];
-- Progressive interaction: MCP-level progressive interaction (`list_skills()` → select → `execute_*_skill()`);
+- Progressive interaction: MCP-level progressive interaction (`list_skills()` → `get_skill_detail()` → `execute_*_skill()`);
 - Composability: `related_skills` field for composability.
 Elements that don't apply (SKILL.md body as Agent instructions, bash file system access, Agent self-executing scripts) were not adopted.
 
@@ -265,7 +266,7 @@ flowchart TB
         T1["query(sql)"]
         T2["execute_query_skill(name, params)"]
         T3["execute_mutation_skill(name, params, confirm)"]
-        T4["list_skills() / describe_table() / ..."]
+        T4["list_skills() / get_skill_detail() / describe_table() / ..."]
     end
 
     subgraph Server["MCP Server Safety Layer (Trusted)"]
@@ -577,6 +578,7 @@ LARGE_TABLE_THRESHOLD=1000
 # Security Configuration (Recommended for Production)
 QUERY_TIMEOUT_SECONDS=30   # Query timeout in seconds (P0 Safety)
 CONNECT_TIMEOUT_SECONDS=10 # Connection timeout in seconds
+MCP_TOOL_TIMEOUT_SECONDS=120 # FastMCP foreground tool timeout (0=disabled)
 
 # Table Allowlist (Comma separated, case insensitive)
 # Only allow access to specific tables - Leave empty to allow all
@@ -594,14 +596,20 @@ ALLOW_UNION=0
 # Set to 0 to disable truncation (for data export scenarios)
 MAX_RESULT_ROWS=100      # Max rows returned per query (0=unlimited)
 MAX_RESULT_CHARS=16000   # Max characters in response (0=unlimited)
+MAX_SQL_LENGTH=20000     # Max characters accepted by raw query(sql) (0=unlimited)
 MAX_SCHEMA_TABLES=50     # Max tables returned by get_full_schema (0=unlimited)
 MAX_OVERVIEW_TABLES=100  # Max tables returned by list_tables (0=unlimited)
 
 # Skills Extension (v3.0)
 ENABLE_SKILLS=0          # Master switch: enable Skills layer (1=enabled, 0=disabled)
 SKILLS_ALLOW_MUTATIONS=0 # Allow mutation (write) skills (requires ENABLE_SKILLS=1)
+SKILLS_LIST_DEFAULT_DETAIL=summary  # list_skills default: compact, summary, or full
+SKILLS_LIST_AVAILABLE_ONLY_DEFAULT=1  # list_skills default availability filter
+SKILLS_CHECK_SCHEMA_ON_LIST=1  # hide schema-unready skills from default discovery
+# SKILLS_EXCLUDE_PROFILES=demo  # hide matching profiles from default discovery and execution
 # SKILLS_DIR=skills/     # Skills directory path (relative or absolute)
-# SKILLS_AUDIT_LOG=skills/_audit.jsonl  # Audit log for mutations (JSONL)
+# SKILLS_AUDIT_LOG=skills/_audit.jsonl  # Audit log path (JSONL)
+SKILLS_AUDIT_QUERIES=0   # Optional query skill audit; mutation audit remains automatic
 # AGENT_ID=my-agent      # Agent identifier for audit logging
 ```
 
@@ -611,10 +619,15 @@ The Skills layer lets you package common SQL queries and data mutations as reusa
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `ENABLE_SKILLS` | `0` | Master switch. When `1`, registers `list_skills` and `execute_query_skill` tools |
+| `ENABLE_SKILLS` | `0` | Master switch. When `1`, registers `list_skills`, `get_skill_detail`, and `execute_query_skill` tools |
 | `SKILLS_ALLOW_MUTATIONS` | `0` | Write switch. When `1`, additionally registers `execute_mutation_skill` (requires `ENABLE_SKILLS=1`) |
+| `SKILLS_LIST_DEFAULT_DETAIL` | `summary` | Default metadata projection for `list_skills`: `compact`, `summary`, or `full`. Per-call `detail_level` overrides this value |
+| `SKILLS_LIST_AVAILABLE_ONLY_DEFAULT` | `1` | Default availability filter for `list_skills`. When `1`, Agent-facing discovery hides skills that cannot execute under the current `DB_TYPE`, mutation switch, or schema readiness check. Pass `available_only=false` for the full developer catalog |
+| `SKILLS_CHECK_SCHEMA_ON_LIST` | `1` | Include live table-existence checks in Skills availability metadata. When enabled, skills with missing required tables get `schema_ready=false` and are hidden by `available_only=true` |
+| `SKILLS_EXCLUDE_PROFILES` | empty | Comma-separated profile policy. Matching skills are marked non-executable, hidden by default discovery, and rejected at execution time. Use `demo` in production to hide bundled examples |
 | `SKILLS_DIR` | `skills/` | Skills directory path. Must be within the project root (security constraint) |
-| `SKILLS_AUDIT_LOG` | `skills/_audit.jsonl` | Audit log path. Every mutation operation is automatically recorded |
+| `SKILLS_AUDIT_LOG` | `skills/_audit.jsonl` | Audit log path. Every mutation operation is recorded; query skill audit uses the same path when enabled |
+| `SKILLS_AUDIT_QUERIES` | `0` | Optional query skill audit. Records skill name, params, row counts, status, and errors, but not returned data |
 | `AGENT_ID` | `unknown` | Identifies the calling agent in audit logs |
 
 **Typical configuration scenarios**:
@@ -634,14 +647,69 @@ SKILLS_ALLOW_MUTATIONS=1
 SKILLS_DIR=my_custom_skills/
 SKILLS_AUDIT_LOG=logs/skills_audit.jsonl
 AGENT_ID=copilot-agent-1
+
+# Scenario 4: Developer catalog review, including currently unavailable skills
+ENABLE_SKILLS=1
+SKILLS_LIST_AVAILABLE_ONLY_DEFAULT=0
+
+# Scenario 5: Disable live schema-readiness filtering for offline catalog review
+ENABLE_SKILLS=1
+SKILLS_CHECK_SCHEMA_ON_LIST=0
+
+# Scenario 6: Production Skills catalog without bundled demo examples
+ENABLE_SKILLS=1
+SKILLS_EXCLUDE_PROFILES=demo
+
+# Scenario 7: Audit read-only query skill executions without logging returned rows
+ENABLE_SKILLS=1
+SKILLS_AUDIT_QUERIES=1
 ```
 
+**Demo Skills schema**:
+
+The bundled `monthly-sales-report` and `update-order-status` Skills are demo-profile examples that require an `orders` table. For MySQL demos, create the compatible table and seed rows with:
+
+```bash
+.venv/bin/python scripts/setup_demo_db.py
+```
+
+The script uses the normal `.env` MySQL settings and refuses to modify an existing `orders` table unless `--drop-existing` or `--seed-existing` is passed explicitly. After changing environment variables such as `SKILLS_LIST_AVAILABLE_ONLY_DEFAULT`, restart the MCP server so the running process uses the new settings.
+
 > **Security note**: `SKILLS_ALLOW_MUTATIONS` is a second-layer switch independent of `ENABLE_SKILLS`. Even with `ENABLE_SKILLS=1`, write operations remain disabled by default and must be explicitly enabled. This follows the principle of least privilege.
+
+Additional server-side protections are enabled by default: FastMCP masks unexpected exception details (`mask_error_details=True`), all MCP tools have a configurable foreground timeout (`MCP_TOOL_TIMEOUT_SECONDS`), and raw `query(sql)` input is constrained by `MAX_SQL_LENGTH`. Explicit `ToolError` messages remain intentionally visible so safe validation failures can still guide the Agent.
 
 ### MCP Client Integration
 For a complete client configuration example, please refer to `mcp_config.json`.
 
 ## Changelog
+
+### v3.4 MCP Hardening and Skills Profile Policy (May 2026)
+
+Implemented a conservative hardening pass:
+
+- Enabled FastMCP `mask_error_details=True`; intentional `ToolError` messages still carry sanitized details
+- Added `MCP_TOOL_TIMEOUT_SECONDS` to apply a foreground timeout to registered MCP tools
+- Added `MAX_SQL_LENGTH` plus MCP schema `minLength`/`maxLength` metadata for raw `query(sql)` input
+- Added `SKILLS_EXCLUDE_PROFILES` so deployments can hide and block demo-profile skills without deleting examples
+- Added optional `SKILLS_AUDIT_QUERIES=1` query skill audit logging; returned data is never written to the audit log
+- Fixed `test_bug_fixes.py` pytest wrappers so tests assert instead of returning booleans
+- Deferred (`ToolResult.meta`), (session-state schema caching), and (`db://schema` resources) as explicit design decisions because they change client contracts or add stale-cache risk without solving a current blocker
+
+### v3.3 Skills Availability and Metadata Disclosure (May 2026)
+
+Added on-demand metadata disclosure for the Skills layer while preserving startup validation and cache semantics:
+
+- `list_skills(search, category, detail_level, available_only)`: Searchable catalog with `compact`, `summary`, and `full` projections plus optional availability filtering
+- `get_skill_detail(skill_name)`: Fetches one skill's cached parameter schema and execution metadata on demand
+- `SKILLS_LIST_DEFAULT_DETAIL`: Environment-controlled default projection (`summary` by default)
+- `SKILLS_LIST_AVAILABLE_ONLY_DEFAULT`: Agent-facing default hides currently non-executable skills while `available_only=false` preserves the full developer catalog
+- `SKILLS_CHECK_SCHEMA_ON_LIST`: Optional live table-existence readiness check; default discovery hides skills with missing required tables
+- Security boundary preserved: no runtime SQL/Python source reads and no raw source disclosure to Agents
+- Category aggregation added; missing categories are reported as `uncategorized`
+- Optional `databases` skill metadata prevents DB-specific skills from executing on incompatible adapters
+- Optional `profiles` skill metadata marks bundled sample skills as `demo`
+- Added `monthly-sales-report-sqlite` as a SQLite-specific counterpart to the MySQL example skill
 
 ### v3.0 Skills Extension (March 2026)
 
@@ -657,7 +725,7 @@ Added the Skills extension layer — pre-defined, parameterized SQL operations f
   - `execute_mutation_skill(name, params, confirm)`: Two-phase write operations (preview → confirm)
 - **Security Model** (16 items in `skills/SAFETY.md`): Template-as-whitelist, parameterized queries, dual-layer switches, error sanitization
 - **Database Adapter Extensions**: `execute()` now accepts optional `params`, new `execute_write()` method
-- **Example Skills**: `monthly-sales-report` (query) and `update-order-status` (mutation with optimistic locking)
+- **Example Skills**: `monthly-sales-report` (MySQL query), `monthly-sales-report-sqlite` (SQLite query), and `update-order-status` (mutation with optimistic locking)
 - **58 New Tests**: Covering skill loader, query skills, mutation skills, and audit logging
 - **New Dependencies**: `pyyaml` for skill_def.md frontmatter parsing; `SQLAlchemy>=2.0` version constraint added
 - **Full Backward Compatibility**: `ENABLE_SKILLS=0` (default) — zero overhead, no tools registered
@@ -921,9 +989,19 @@ Output:
 ```
 
 ### 8. `list_skills` (Skills Extension, Optional)
-Usage: List all available pre-defined skills (query and mutation).
+Usage: List pre-defined skills (query and mutation), with optional search, category filtering, metadata projection, and availability filtering.
 
-**Note**: Requires `ENABLE_SKILLS=1`. Returns skill metadata for progressive disclosure.
+**Note**: Requires `ENABLE_SKILLS=1`. `detail_level` can be `compact`, `summary`, or `full`. The default is controlled by `SKILLS_LIST_DEFAULT_DETAIL` (`summary` by default). `available_only` defaults to `SKILLS_LIST_AVAILABLE_ONLY_DEFAULT` (`1` by default), so Agent-facing discovery hides skills that cannot execute under the current `DB_TYPE`, mutation switch, or schema-readiness check. Pass `available_only=false` to inspect the full discovered catalog. This only changes Agent-facing metadata disclosure; SQL templates and mutation classes are still validated and cached at startup.
+
+Input:
+```json
+{
+  "search": "revenue",
+  "category": "reporting",
+  "detail_level": "summary",
+  "available_only": true
+}
+```
 
 Output:
 ```json
@@ -931,18 +1009,70 @@ Output:
   "success": true,
   "skills": [
     {
-      "name": "monthly-sales-report",
+      "name": "monthly-sales-report-sqlite",
       "type": "query",
       "risk": "low",
-      "description": "Generate a monthly sales summary report...",
-      "triggers": ["monthly sales", "revenue report"]
+      "description": "Generate a SQLite monthly sales summary report...",
+      "category": "reporting",
+      "executable": true,
+      "schema_ready": true,
+      "source": "query.sql",
+      "triggers": ["monthly sales", "revenue report"],
+      "idempotent": false,
+      "databases": ["sqlite"],
+      "profiles": ["demo"]
     }
   ],
-  "count": 1
+  "total_skills": 3,
+  "matched_skills": 1,
+  "matched_catalog_skills": 2,
+  "available_skills": 1,
+  "unavailable_skills": 1,
+  "filtered_unavailable_skills": 1,
+  "schema_unready_skills": 0,
+  "query_skills": 1,
+  "mutation_skills": 0,
+  "mutations_enabled": false,
+  "schema_check_enabled": true,
+  "schema_check_available": true,
+  "detail_level": "summary",
+  "available_only": true,
+  "current_database_type": "sqlite",
+  "search": "revenue",
+  "category": "reporting",
+  "categories": [{"category": "reporting", "count": 1}],
+  "hint": "Call get_skill_detail(skill_name) to retrieve params before calling execute_query_skill or execute_mutation_skill."
 }
 ```
 
-### 9. `execute_query_skill` (Skills Extension, Optional)
+### 9. `get_skill_detail` (Skills Extension, Optional)
+Usage: Retrieve full cached metadata and parameter schema for a single skill.
+
+**Note**: Requires `ENABLE_SKILLS=1`. This tool does not read skill files at runtime and does not expose raw SQL or mutation Python source.
+
+Input:
+```json
+{"skill_name": "monthly-sales-report"}
+```
+
+Output:
+```json
+{
+  "success": true,
+  "skill": {
+    "name": "monthly-sales-report",
+    "type": "query",
+    "params": {
+      "year": {"type": "int", "required": true},
+      "month": {"type": "int", "required": true, "min": 1, "max": 12}
+    },
+    "tables": ["orders"]
+  },
+  "usage_hint": "Call execute_query_skill(skill_name, params) with params matching this schema."
+}
+```
+
+### 10. `execute_query_skill` (Skills Extension, Optional)
 Usage: Execute a pre-defined query skill with parameterized SQL.
 
 **Note**: Requires `ENABLE_SKILLS=1`. Skills are pre-audited SQL templates — bypasses runtime `is_sql_safe()` checks.
@@ -955,7 +1085,7 @@ Input:
 }
 ```
 
-### 10. `execute_mutation_skill` (Skills Extension, Optional)
+### 11. `execute_mutation_skill` (Skills Extension, Optional)
 Usage: Execute a pre-defined mutation (write) skill with two-phase confirmation.
 
 **Note**: Requires `ENABLE_SKILLS=1` and `SKILLS_ALLOW_MUTATIONS=1`. Follows validate → preview → execute pattern.
@@ -998,6 +1128,7 @@ name: monthly-sales-report
 type: query              # Read-only, no data modification
 source: query.sql        # Explicit execution file declaration (required)
 risk: low
+databases: [mysql]       # Optional: supported DB types (omit = all)
 params:
   year: {type: int, required: true, description: "Year (e.g. 2026)"}
   month: {type: int, required: true, min: 1, max: 12, description: "Month (1-12)"}
@@ -1023,10 +1154,46 @@ ORDER BY date ASC
 
 **Invocation**: Agent calls via `execute_query_skill`:
 ```json
-{"skill_name": "monthly-sales-report", "params": "{\"year\": 2026, \"month\": 1}"}
+{"skill_name": "monthly-sales-report", "params": {"year": 2026, "month": 1}}
 ```
 
 **How it works**: On server startup, `skill_loader.py` scans the `skills/` directory, parses the YAML frontmatter from `skill_def.md`, reads the source file declared by the `source` field, and validates it via `is_sql_safe()`. At runtime, the Agent passes `year` and `month` parameters, and the server executes the query safely using SQLAlchemy's parameterized binding (`:year`, `:month`), preventing SQL injection.
+
+#### SQLite counterpart: `monthly-sales-report-sqlite`
+
+The repository also includes `monthly-sales-report-sqlite` for the sample SQLite database. It is intentionally a separate skill instead of a dialect branch inside the MySQL skill:
+
+```yaml
+name: monthly-sales-report-sqlite
+type: query
+source: query.sql
+risk: low
+databases: [sqlite]
+profiles: [demo]
+params:
+  year: {type: int, required: true, description: "Year (e.g. 2026)"}
+  month: {type: int, required: true, min: 1, max: 12, description: "Month (1-12)"}
+category: reporting
+related_skills:
+  - monthly-sales-report
+```
+
+The SQLite query uses the demo schema's `orders.total_amount` column and ISO-8601 text dates:
+
+```sql
+SELECT
+    date(order_date) AS date,
+    COUNT(*) AS order_count,
+    COALESCE(SUM(total_amount), 0) AS revenue,
+    ROUND(AVG(total_amount), 2) AS avg_order_value
+FROM orders
+WHERE order_date >= printf('%04d-%02d-01', :year, :month)
+  AND order_date < date(printf('%04d-%02d-01', :year, :month), '+1 month')
+GROUP BY date(order_date)
+ORDER BY date ASC
+```
+
+The bundled `monthly-sales-report`, `monthly-sales-report-sqlite`, and `update-order-status` skills are marked with `profiles: [demo]` because they require an `orders` demo schema. With `SKILLS_CHECK_SCHEMA_ON_LIST=1`, `available_only=true` hides them when the current database does not contain their required tables. Keeping dialect-specific SQL in separate skills keeps startup validation simple, avoids hidden runtime branching, and makes `available_only` filtering deterministic for Agents.
 
 #### Example 2: `update-order-status` (Mutation Skill)
 
@@ -1134,9 +1301,10 @@ flowchart LR
     end
 
     subgraph Runtime["Phase 3: Runtime — Agent Interaction"]
-        R1["list_skills()\nMetadata only"]
-        R2["execute_query_skill()\nCached SQL + params"]
-        R3["execute_mutation_skill()\nCached class + params"]
+        R1["list_skills()\nMetadata catalog"]
+        R2["get_skill_detail()\nCached params schema"]
+        R3["execute_query_skill()\nCached SQL + params"]
+        R4["execute_mutation_skill()\nCached class + params"]
     end
 
     D1 --> S1
@@ -1146,7 +1314,7 @@ flowchart LR
     S3 --> S5
     S4 --> S5
     S5 --> S6
-    S5 -.->|"Memory cache"| R1 & R2 & R3
+    S5 -.->|"Memory cache"| R1 & R2 & R3 & R4
 ```
 
 > Startup validation follows the **fail-fast principle** — if a Skill's SQL is unsafe or its source module is malformed,
@@ -1197,7 +1365,7 @@ sequenceDiagram
 
 `skill_def.md` uses a layered design of YAML frontmatter + Markdown body, serving different audiences:
 
-- **YAML frontmatter** (top section): Machine-parsed by `skill_loader.py` at server startup, extracting structured fields like `name`, `type`, `params` for registration and validation. Agents access this metadata (formatted) via `list_skills()`, not by reading the file directly.
+- **YAML frontmatter** (top section): Machine-parsed by `skill_loader.py` at server startup, extracting structured fields like `name`, `type`, `params` for registration and validation. Agents access this metadata (formatted) via `list_skills()` and `get_skill_detail()`, not by reading the file directly.
 - **Markdown body** (bottom section): Natural language documentation for developers (usage instructions, workflow hints, notes, etc.). **Not sent to the Agent** — this is a key difference from standard Agent Skills: the standard SKILL.md body contains instructions for the Agent to read, while this project's body is documentation for humans.
 - **Parameter constraint declarations**: `type`/`min`/`max`/`enum` declared in YAML, enforced uniformly by `validate_params()`. Skill authors don't need to duplicate validation logic in code.
 
@@ -1209,6 +1377,7 @@ name: monthly-sales-report          # Name constraint: ^[a-z0-9][a-z0-9-]*$
 type: query                         # query | mutation
 source: query.sql                   # Explicit execution file (required, suffix must match type)
 risk: low                           # low | medium | high
+databases: [mysql]                  # Optional: supported DB types (omit = all)
 params:                             # Parameter schema (Server-side enforced)
   year: {type: int, required: true} #   → validate_params() checks type
   month: {type: int, required: true,

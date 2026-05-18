@@ -215,6 +215,7 @@ def sqlite_memory_adapter():
     
     adapter = SQLiteAdapter(":memory:")
     adapter.connect()
+    assert adapter._engine is not None
     
     # Create test table
     from sqlalchemy import text

@@ -18,7 +18,7 @@ def read_source_file():
         return f.read()
 
 
-def test_extract_tables_regex_fix():
+def _verify_extract_tables_regex_fix():
     """Test the fixed regex pattern for table extraction by running it directly."""
     print("=" * 60)
     print("TEST 1: _extract_tables_from_sql regex fix verification")
@@ -86,7 +86,12 @@ def test_extract_tables_regex_fix():
     return all_passed
 
 
-def test_sql_assistant_prompt_fix():
+def test_extract_tables_regex_fix():
+    """Pytest wrapper for the regex fix verification."""
+    assert _verify_extract_tables_regex_fix()
+
+
+def _verify_sql_assistant_prompt_fix():
     """Verify sql_assistant prompt handles ALLOWED_TABLES=* correctly."""
     print("\n" + "=" * 60)
     print("TEST 2: sql_assistant prompt fix verification")
@@ -129,7 +134,12 @@ def test_sql_assistant_prompt_fix():
     return all_passed
 
 
-def test_get_full_schema_truncation():
+def test_sql_assistant_prompt_fix():
+    """Pytest wrapper for the sql_assistant prompt verification."""
+    assert _verify_sql_assistant_prompt_fix()
+
+
+def _verify_get_full_schema_truncation():
     """Verify get_full_schema has truncation logic and correct field names."""
     print("\n" + "=" * 60)
     print("TEST 3: get_full_schema truncation & field naming verification")
@@ -171,6 +181,11 @@ def test_get_full_schema_truncation():
     return all_passed
 
 
+def test_get_full_schema_truncation():
+    """Pytest wrapper for get_full_schema truncation verification."""
+    assert _verify_get_full_schema_truncation()
+
+
 def check_syntax():
     """Verify the modified file has no syntax errors."""
     print("\n" + "=" * 60)
@@ -192,9 +207,9 @@ if __name__ == "__main__":
     
     results = []
     
-    results.append(("P1: Regex fix", test_extract_tables_regex_fix()))
-    results.append(("P2: Prompt fix", test_sql_assistant_prompt_fix()))
-    results.append(("P0: Truncation fix", test_get_full_schema_truncation()))
+    results.append(("P1: Regex fix", _verify_extract_tables_regex_fix()))
+    results.append(("P2: Prompt fix", _verify_sql_assistant_prompt_fix()))
+    results.append(("P0: Truncation fix", _verify_get_full_schema_truncation()))
     results.append(("Syntax check", check_syntax()))
     
     print("\n" + "=" * 60)

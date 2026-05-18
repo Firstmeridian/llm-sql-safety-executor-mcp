@@ -36,7 +36,9 @@ the operation before confirming execution with `confirm=True`.
 
 Skills inherit `QUERY_TIMEOUT_SECONDS` from `db_adapter.py`. Query
 skills use the existing read timeout. Mutation skills use the same
-timeout mechanism through `execute_write()`.
+timeout mechanism through `execute_write()`. The MCP server also applies
+`MCP_TOOL_TIMEOUT_SECONDS` to foreground tool execution so non-database
+stalls do not leave client requests running indefinitely.
 
 ## 6. Idempotency
 
@@ -78,6 +80,10 @@ All mutation operations are logged to JSONL via `audit.py`:
 - **result**: success/failure and details
 
 Log path: `SKILLS_AUDIT_LOG` env var (default: `skills/_audit.jsonl`).
+
+Read-only query skills can be audited with `SKILLS_AUDIT_QUERIES=1`.
+This records skill name, sanitized params, row counts, success/failure,
+and errors. It does not log returned result rows.
 
 ## 11. mutation.py Execution Constraints
 
@@ -122,3 +128,12 @@ is **conventional**, not enforced at runtime. Security comes from:
 - Code review of skill implementations
 - SQLAlchemy 2.0 implicit transactions: `execute()` path has no
   `commit()`, so accidental write SQL won't persist (auto-rollback)
+
+## 17. Profile Exclusion Policy
+
+Profiles are descriptive metadata by default. Deployments can set
+`SKILLS_EXCLUDE_PROFILES=demo` (or another comma-separated profile list)
+to mark matching skills non-executable, hide them from default discovery,
+and reject direct execution attempts. This is useful for keeping bundled
+examples in the repository while preventing accidental use against a
+production schema.

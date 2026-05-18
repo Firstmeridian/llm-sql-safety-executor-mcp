@@ -58,6 +58,7 @@ def skills_dir(tmp_path):
         "source: query.sql\n"
         "risk: low\n"
         "description: A test query skill\n"
+        "profiles: [demo]\n"
         "triggers:\n"
         "  - test query\n"
         "  - testing\n"
@@ -86,6 +87,8 @@ def skills_dir(tmp_path):
         "description: A test mutation skill\n"
         "requires_confirmation: true\n"
         "idempotent: false\n"
+        "profiles: [demo]\n"
+        "tables: [orders]\n"
         "params:\n"
         "  order_id: {type: int, required: true}\n"
         "  new_status: {type: str, required: true, enum: [pending, shipped]}\n"
@@ -385,6 +388,10 @@ class TestDiscover:
         assert "test-mutation" in skills
         assert skills["test-query"].type == "query"
         assert skills["test-mutation"].type == "mutation"
+        assert skills["test-query"].profiles == ["demo"]
+        assert skills["test-query"].tables == ["orders"]
+        assert skills["test-mutation"].profiles == ["demo"]
+        assert skills["test-mutation"].tables == ["orders"]
 
     def test_skill_enabled_false_skipped(self, tmp_path):
         """#14: enabled: false skill is not in results."""
@@ -535,6 +542,8 @@ class TestGenerateSkillsMd:
         assert "test-query" in content
         assert "test-mutation" in content
         assert "A test query skill" in content
+        assert "Profiles" in content
+        assert "demo" in content
 
 
 # =============================================================================
@@ -832,3 +841,183 @@ class TestSourceField:
 
         skills = discover(sd)
         assert "symlink-escape" not in skills
+
+
+class TestDatabasesField:
+    """Tests for the optional 'databases' field in skill_def.md.
+
+    The 'databases' field declares which database types the skill supports.
+    Omitting it means the skill is compatible with all databases.
+    """
+
+    def test_databases_omitted_means_all(self, tmp_path):
+        """skill_def.md without 'databases' field -> databases=None (all compatible)."""
+        from skill_loader import discover
+
+        sd = tmp_path / "skills"
+        sd.mkdir()
+        q = sd / "no-db-field"
+        q.mkdir()
+        (q / "skill_def.md").write_text(
+            "---\n"
+            "name: no-db-field\n"
+            "type: query\n"
+            "source: query.sql\n"
+            "risk: low\n"
+            "description: No databases field\n"
+            "---\n\nNo restriction.\n",
+            encoding="utf-8",
+        )
+        (q / "query.sql").write_text("SELECT 1", encoding="utf-8")
+
+        skills = discover(sd)
+        assert "no-db-field" in skills
+        assert skills["no-db-field"].databases is None
+
+    def test_databases_single_value(self, tmp_path):
+        """databases: [mysql] -> only MySQL supported."""
+        from skill_loader import discover
+
+        sd = tmp_path / "skills"
+        sd.mkdir()
+        q = sd / "mysql-only"
+        q.mkdir()
+        (q / "skill_def.md").write_text(
+            "---\n"
+            "name: mysql-only\n"
+            "type: query\n"
+            "source: query.sql\n"
+            "risk: low\n"
+            "databases: [mysql]\n"
+            "description: MySQL only skill\n"
+            "---\n\nMySQL.\n",
+            encoding="utf-8",
+        )
+        (q / "query.sql").write_text("SELECT 1", encoding="utf-8")
+
+        skills = discover(sd)
+        assert "mysql-only" in skills
+        assert skills["mysql-only"].databases == ["mysql"]
+
+    def test_databases_multiple_values(self, tmp_path):
+        """databases: [mysql, sqlite] -> both supported."""
+        from skill_loader import discover
+
+        sd = tmp_path / "skills"
+        sd.mkdir()
+        q = sd / "multi-db"
+        q.mkdir()
+        (q / "skill_def.md").write_text(
+            "---\n"
+            "name: multi-db\n"
+            "type: query\n"
+            "source: query.sql\n"
+            "risk: low\n"
+            "databases: [mysql, sqlite]\n"
+            "description: Multi-DB skill\n"
+            "---\n\nBoth.\n",
+            encoding="utf-8",
+        )
+        (q / "query.sql").write_text("SELECT 1", encoding="utf-8")
+
+        skills = discover(sd)
+        assert "multi-db" in skills
+        assert skills["multi-db"].databases == ["mysql", "sqlite"]
+
+    def test_databases_string_coerced_to_list(self, tmp_path):
+        """databases: mysql (scalar string) -> ["mysql"]."""
+        from skill_loader import discover
+
+        sd = tmp_path / "skills"
+        sd.mkdir()
+        q = sd / "string-db"
+        q.mkdir()
+        (q / "skill_def.md").write_text(
+            "---\n"
+            "name: string-db\n"
+            "type: query\n"
+            "source: query.sql\n"
+            "risk: low\n"
+            "databases: mysql\n"
+            "description: String coerced\n"
+            "---\n\nCoerced.\n",
+            encoding="utf-8",
+        )
+        (q / "query.sql").write_text("SELECT 1", encoding="utf-8")
+
+        skills = discover(sd)
+        assert "string-db" in skills
+        assert skills["string-db"].databases == ["mysql"]
+
+    def test_databases_invalid_type_rejected(self, tmp_path):
+        """databases: [postgres] -> rejected (not a supported DB type)."""
+        from skill_loader import discover
+
+        sd = tmp_path / "skills"
+        sd.mkdir()
+        q = sd / "bad-db"
+        q.mkdir()
+        (q / "skill_def.md").write_text(
+            "---\n"
+            "name: bad-db\n"
+            "type: query\n"
+            "source: query.sql\n"
+            "risk: low\n"
+            "databases: [postgres]\n"
+            "description: Invalid DB type\n"
+            "---\n\nBad.\n",
+            encoding="utf-8",
+        )
+        (q / "query.sql").write_text("SELECT 1", encoding="utf-8")
+
+        skills = discover(sd)
+        assert "bad-db" not in skills
+
+    def test_databases_case_insensitive(self, tmp_path):
+        """databases: [MySQL] -> normalized to ['mysql']."""
+        from skill_loader import discover
+
+        sd = tmp_path / "skills"
+        sd.mkdir()
+        q = sd / "case-db"
+        q.mkdir()
+        (q / "skill_def.md").write_text(
+            "---\n"
+            "name: case-db\n"
+            "type: query\n"
+            "source: query.sql\n"
+            "risk: low\n"
+            "databases: [MySQL]\n"
+            "description: Case insensitive\n"
+            "---\n\nCase.\n",
+            encoding="utf-8",
+        )
+        (q / "query.sql").write_text("SELECT 1", encoding="utf-8")
+
+        skills = discover(sd)
+        assert "case-db" in skills
+        assert skills["case-db"].databases == ["mysql"]
+
+    def test_databases_empty_list_rejected(self, tmp_path):
+        """databases: [] -> rejected (empty list is invalid)."""
+        from skill_loader import discover
+
+        sd = tmp_path / "skills"
+        sd.mkdir()
+        q = sd / "empty-db"
+        q.mkdir()
+        (q / "skill_def.md").write_text(
+            "---\n"
+            "name: empty-db\n"
+            "type: query\n"
+            "source: query.sql\n"
+            "risk: low\n"
+            "databases: []\n"
+            "description: Empty databases list\n"
+            "---\n\nBad.\n",
+            encoding="utf-8",
+        )
+        (q / "query.sql").write_text("SELECT 1", encoding="utf-8")
+
+        skills = discover(sd)
+        assert "empty-db" not in skills

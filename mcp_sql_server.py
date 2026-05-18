@@ -40,9 +40,40 @@ from mcp.types import ToolAnnotations
 from fastmcp import FastMCP, Context
 from fastmcp.exceptions import ToolError
 from sql_safety_checker import is_sql_safe, execute_sql
-from db_adapter import get_adapter, DB_TYPE
+from db_adapter import get_adapter, DB_TYPE, QUERY_TIMEOUT_SECONDS
 
 logger = logging.getLogger(__name__)
+
+
+def _parse_env_bool(name: str, default: bool) -> bool:
+    """Parse a boolean environment variable with a conservative fallback."""
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+
+    normalized = raw.strip().lower()
+    if normalized in {"1", "true", "yes", "on"}:
+        return True
+    if normalized in {"0", "false", "no", "off"}:
+        return False
+
+    logger.warning(
+        "Invalid %s=%r; falling back to %s. Allowed values: 1/0, true/false, yes/no, on/off",
+        name,
+        raw,
+        default,
+    )
+    return default
+
+
+def _parse_env_csv_set(name: str) -> set[str]:
+    """Parse a comma-separated environment variable into lowercase tokens."""
+    raw = os.getenv(name, "")
+    return {
+        item.strip().lower()
+        for item in raw.split(",")
+        if item.strip()
+    }
 
 # =============================================================================
 # Configuration
@@ -65,8 +96,26 @@ LARGE_TABLE_THRESHOLD = int(os.getenv("LARGE_TABLE_THRESHOLD", "1000"))
 # Set to 0 to disable truncation (for data export scenarios)
 MAX_RESULT_ROWS = int(os.getenv("MAX_RESULT_ROWS", "100"))  # Max rows (0=unlimited)
 MAX_RESULT_CHARS = int(os.getenv("MAX_RESULT_CHARS", "16000"))  # Max chars (0=unlimited)
+MAX_SQL_LENGTH = int(os.getenv("MAX_SQL_LENGTH", "20000"))  # Max input SQL chars (0=unlimited)
 MAX_SCHEMA_TABLES = int(os.getenv("MAX_SCHEMA_TABLES", "50"))  # Max tables in get_full_schema
 MAX_OVERVIEW_TABLES = int(os.getenv("MAX_OVERVIEW_TABLES", "100"))  # Max tables in list_tables
+
+# FastMCP foreground tool timeout. This is intentionally higher than the DB
+# query timeout because schema tools may perform multiple metadata reads.
+MCP_TOOL_TIMEOUT_SECONDS = float(os.getenv("MCP_TOOL_TIMEOUT_SECONDS", "120"))
+_MCP_TOOL_TIMEOUT = MCP_TOOL_TIMEOUT_SECONDS if MCP_TOOL_TIMEOUT_SECONDS > 0 else None
+
+if MAX_SQL_LENGTH > 0:
+    _SQL_QUERY_FIELD = Field(
+        description="Read-only SQL query to execute (SELECT, SHOW, DESCRIBE, or EXPLAIN).",
+        min_length=1,
+        max_length=MAX_SQL_LENGTH,
+    )
+else:
+    _SQL_QUERY_FIELD = Field(
+        description="Read-only SQL query to execute (SELECT, SHOW, DESCRIBE, or EXPLAIN).",
+        min_length=1,
+    )
 
 # UNION Query Policy (P2 Security: Configurable UNION handling)
 # Reference: OWASP Defense-in-Depth - block UNION by default for safety
@@ -90,6 +139,51 @@ SKILLS_ALLOW_MUTATIONS = os.getenv("SKILLS_ALLOW_MUTATIONS", "0") == "1"
 
 # Skills directory path (relative to project root or absolute)
 SKILLS_DIR = os.getenv("SKILLS_DIR", "skills/")
+
+# Default metadata projection for list_skills(). This controls only what is
+# disclosed to the Agent; startup discovery, SQL validation, and in-memory
+# execution caches remain eager for TOCTOU protection.
+_SKILLS_DETAIL_LEVELS = {"compact", "summary", "full"}
+SKILLS_LIST_DEFAULT_DETAIL = os.getenv(
+    "SKILLS_LIST_DEFAULT_DETAIL",
+    "summary",
+).strip().lower()
+if SKILLS_LIST_DEFAULT_DETAIL not in _SKILLS_DETAIL_LEVELS:
+    logger.warning(
+        "Invalid SKILLS_LIST_DEFAULT_DETAIL=%r; falling back to 'summary'. "
+        "Allowed values: compact, summary, full",
+        SKILLS_LIST_DEFAULT_DETAIL,
+    )
+    SKILLS_LIST_DEFAULT_DETAIL = "summary"
+
+# Agent-facing default for list_skills(). When enabled, discovery hides skills
+# that cannot execute in the current server state (for example wrong DB_TYPE or
+# mutation skills when SKILLS_ALLOW_MUTATIONS=0). Developers can still request
+# the full discovered catalog with available_only=false.
+SKILLS_LIST_AVAILABLE_ONLY_DEFAULT = _parse_env_bool(
+    "SKILLS_LIST_AVAILABLE_ONLY_DEFAULT",
+    True,
+)
+
+# When enabled, list_skills()/get_skill_detail() also consider whether a skill's
+# declared/derived tables exist in the current database schema. This is still a
+# discovery/readiness signal; execution-time validation remains authoritative.
+SKILLS_CHECK_SCHEMA_ON_LIST = _parse_env_bool(
+    "SKILLS_CHECK_SCHEMA_ON_LIST",
+    True,
+)
+
+# Optional profile policy. Matching profiles make skills non-executable and
+# hidden from default Agent discovery, while available_only=false can still show
+# the catalog entry for developer review.
+SKILLS_EXCLUDE_PROFILES = _parse_env_csv_set("SKILLS_EXCLUDE_PROFILES")
+
+# Optional audit trail for read-only query skills. Mutation skills remain audited
+# unconditionally when mutation execution is enabled.
+SKILLS_AUDIT_QUERIES = _parse_env_bool("SKILLS_AUDIT_QUERIES", False)
+
+SKILLS_SEARCH_MAX_LENGTH = 128
+SKILLS_CATEGORY_MAX_LENGTH = 64
 
 # =============================================================================
 # Table Allowlist Configuration (P1 Security: Restrict table access)
@@ -236,6 +330,7 @@ mcp = FastMCP(
 Use query() for all data requests. Use describe_table() or get_full_schema() first if structure unknown.
 For single-table queries, if schema/columns unknown, call describe_table(table_name) before query().""",
     lifespan=lifespan,
+    mask_error_details=True,
 )
 
 
@@ -409,6 +504,7 @@ def _truncate_result(data: list, total_rows: int) -> dict[str, Any]:
 # =============================================================================
 
 @mcp.tool(
+    timeout=_MCP_TOOL_TIMEOUT,
     annotations=ToolAnnotations(
         title="Execute SQL Query",
         readOnlyHint=True,
@@ -417,7 +513,7 @@ def _truncate_result(data: list, total_rows: int) -> dict[str, Any]:
         openWorldHint=False,
     )
 )
-async def query(sql: str, ctx: Context) -> dict[str, Any]:
+async def query(sql: Annotated[str, _SQL_QUERY_FIELD], ctx: Context) -> dict[str, Any]:
     """
     Execute a SQL SELECT query on the database.
     
@@ -439,6 +535,21 @@ async def query(sql: str, ctx: Context) -> dict[str, Any]:
         query("DESCRIBE users")
         query("EXPLAIN SELECT * FROM products WHERE id = 1")
     """
+    if MAX_SQL_LENGTH > 0 and len(sql) > MAX_SQL_LENGTH:
+        await ctx.warning(
+            f"Rejected overlong SQL query: {len(sql)} characters "
+            f"(max {MAX_SQL_LENGTH})"
+        )
+        return {
+            "success": False,
+            "error": (
+                "SQL query is too long; maximum length is "
+                f"{MAX_SQL_LENGTH} characters"
+            ),
+            "query_length": len(sql),
+            "max_sql_length": MAX_SQL_LENGTH,
+        }
+
     await ctx.info(f"Executing query: {sql}")
     
     # Validate safety - basic check
@@ -515,6 +626,7 @@ async def query(sql: str, ctx: Context) -> dict[str, Any]:
 
 
 @mcp.tool(
+    timeout=_MCP_TOOL_TIMEOUT,
     annotations=ToolAnnotations(
         title="Check Database Connection",
         readOnlyHint=True,
@@ -572,6 +684,7 @@ async def check_connection(ctx: Context) -> dict[str, Any]:
 
 
 @mcp.tool(
+    timeout=_MCP_TOOL_TIMEOUT,
     annotations=ToolAnnotations(
         title="List Database Tables",
         readOnlyHint=True,
@@ -653,6 +766,7 @@ async def list_tables(ctx: Context) -> dict[str, Any]:
 
 
 @mcp.tool(
+    timeout=_MCP_TOOL_TIMEOUT,
     annotations=ToolAnnotations(
         title="Describe Table Structure",
         readOnlyHint=True,
@@ -739,6 +853,7 @@ async def describe_table(table_name: str, ctx: Context) -> dict[str, Any]:
 # =============================================================================
 
 @mcp.tool(
+    timeout=_MCP_TOOL_TIMEOUT,
     annotations=ToolAnnotations(
         title="Get Full Database Schema",
         readOnlyHint=True,
@@ -841,6 +956,7 @@ async def get_full_schema(ctx: Context) -> dict[str, Any]:
 # Enable via ENABLE_TABLE_SUMMARY=1 when exact counts are needed
 if TABLE_SUMMARY_ENABLED:
     @mcp.tool(
+        timeout=_MCP_TOOL_TIMEOUT,
         annotations=ToolAnnotations(
             title="Get Table Summary with Exact Count",
             readOnlyHint=True,
@@ -931,6 +1047,7 @@ if TABLE_SUMMARY_ENABLED:
 # Optional tool: Only register if enabled
 if SCHEMA_TOOLS_ENABLED:
     @mcp.tool(
+        timeout=_MCP_TOOL_TIMEOUT,
         annotations=ToolAnnotations(
             title="Sample Table Data",
             readOnlyHint=True,
@@ -1046,8 +1163,274 @@ if SKILLS_ENABLED:
         f"Skills extension enabled: {len(_discovered_skills)} skill(s) discovered"
     )
 
+    def _normalize_skill_detail_level(detail_level: str | None) -> str:
+        """Resolve and validate the metadata projection level for list_skills()."""
+        level = (detail_level or SKILLS_LIST_DEFAULT_DETAIL).strip().lower()
+        if level not in _SKILLS_DETAIL_LEVELS:
+            allowed = ", ".join(sorted(_SKILLS_DETAIL_LEVELS))
+            raise ValueError(
+                f"Invalid detail_level '{detail_level}'. Allowed values: {allowed}"
+            )
+        return level
+
+
+    def _resolve_available_only(available_only: bool | None) -> bool:
+        """Resolve the optional availability filter for list_skills()."""
+        if available_only is None:
+            return SKILLS_LIST_AVAILABLE_ONLY_DEFAULT
+        return available_only
+
+
+    def _normalize_optional_filter(
+        value: str | None,
+        field_name: str,
+        max_length: int,
+    ) -> str | None:
+        """Normalize optional list_skills filters and reject abusive lengths."""
+        if value is None:
+            return None
+        normalized = value.strip()
+        if not normalized:
+            return None
+        if len(normalized) > max_length:
+            raise ValueError(
+                f"{field_name} is too long; maximum length is {max_length} characters"
+            )
+        return normalized
+
+
+    def _skill_category(meta: SkillMetadata) -> str:
+        """Return the normalized display category for a skill."""
+        return meta.category or "uncategorized"
+
+
+    def _skill_excluded_profiles(meta: SkillMetadata) -> list[str]:
+        """Return skill profiles blocked by the current profile policy."""
+        if not SKILLS_EXCLUDE_PROFILES:
+            return []
+        return [
+            profile
+            for profile in meta.profiles
+            if profile.lower() in SKILLS_EXCLUDE_PROFILES
+        ]
+
+
+    def _get_skill_schema_table_names() -> set[str] | None:
+        """Return current database table names for Skills readiness checks."""
+        if not SKILLS_CHECK_SCHEMA_ON_LIST:
+            return None
+
+        try:
+            tables = get_adapter().get_tables()
+        except Exception as e:
+            logger.warning("Skills schema readiness check failed: %s", e)
+            return None
+
+        return {
+            str(table.get("table_name", "")).lower()
+            for table in tables
+            if table.get("table_name")
+        }
+
+
+    def _skill_availability_state(
+        meta: SkillMetadata,
+        schema_table_names: set[str] | None,
+    ) -> dict[str, Any]:
+        """Describe whether a discovered skill can execute in the current state."""
+        reasons: list[str] = []
+        missing_tables: list[str] = []
+        excluded_profiles = _skill_excluded_profiles(meta)
+        db_compatible = not meta.databases or DB_TYPE in meta.databases
+        mutation_enabled = meta.type != "mutation" or SKILLS_ALLOW_MUTATIONS
+        profile_allowed = not excluded_profiles
+        schema_ready = True
+
+        if excluded_profiles:
+            reasons.append(
+                "Skill profile(s) are excluded by SKILLS_EXCLUDE_PROFILES: "
+                f"{excluded_profiles}."
+            )
+
+        if meta.databases and DB_TYPE not in meta.databases:
+            reasons.append(
+                f"Current database type '{DB_TYPE}' is not compatible; "
+                f"supported: {meta.databases}."
+            )
+        if meta.type == "mutation" and not SKILLS_ALLOW_MUTATIONS:
+            reasons.append("Mutation skills are disabled (SKILLS_ALLOW_MUTATIONS=0).")
+
+        if SKILLS_CHECK_SCHEMA_ON_LIST and meta.tables and schema_table_names is not None:
+            missing_tables = [
+                table for table in meta.tables
+                if table.lower() not in schema_table_names
+            ]
+            if missing_tables:
+                schema_ready = False
+                reasons.append(
+                    "Required table(s) are missing from the current database "
+                    f"schema: {missing_tables}."
+                )
+
+        executable = not reasons
+        return {
+            "executable": executable,
+            "disabled_reason": " ".join(reasons) if reasons else None,
+            "db_compatible": db_compatible,
+            "mutation_enabled": mutation_enabled,
+            "profile_allowed": profile_allowed,
+            "excluded_profiles": excluded_profiles,
+            "schema_ready": schema_ready,
+            "schema_check_enabled": SKILLS_CHECK_SCHEMA_ON_LIST,
+            "schema_check_available": schema_table_names is not None,
+            "missing_tables": missing_tables,
+        }
+
+
+    def _skill_executable_state(
+        meta: SkillMetadata,
+        schema_table_names: set[str] | None,
+    ) -> tuple[bool, str | None]:
+        """Compatibility wrapper for executable state and reason."""
+        state = _skill_availability_state(meta, schema_table_names)
+        return state["executable"], state["disabled_reason"]
+
+
+    def _skill_is_executable(
+        meta: SkillMetadata,
+        schema_table_names: set[str] | None,
+    ) -> bool:
+        """Return True when the skill can execute in the current server state."""
+        executable, _disabled_reason = _skill_executable_state(meta, schema_table_names)
+        return executable
+
+
+    def _ensure_skill_schema_ready(meta: SkillMetadata) -> None:
+        """Raise a ToolError if the current database is missing required tables."""
+        if not SKILLS_CHECK_SCHEMA_ON_LIST or not meta.tables:
+            return
+
+        schema_table_names = _get_skill_schema_table_names()
+        if schema_table_names is None:
+            return
+
+        availability = _skill_availability_state(meta, schema_table_names)
+        if availability["missing_tables"]:
+            raise ToolError(
+                f"Skill '{meta.name}' requires table(s) not found in the "
+                f"current database schema: {availability['missing_tables']}"
+            )
+
+
+    def _ensure_skill_profile_allowed(meta: SkillMetadata) -> None:
+        """Raise a ToolError if the skill is excluded by profile policy."""
+        excluded_profiles = _skill_excluded_profiles(meta)
+        if excluded_profiles:
+            raise ToolError(
+                f"Skill '{meta.name}' is excluded by SKILLS_EXCLUDE_PROFILES: "
+                f"{excluded_profiles}"
+            )
+
+
+    def _context_client_id(ctx: Context) -> str | None:
+        """Return the optional MCP client id without failing direct tests."""
+        try:
+            return ctx.client_id
+        except Exception:
+            return None
+
+
+    def _skill_matches(
+        meta: SkillMetadata,
+        search: str | None,
+        category: str | None,
+    ) -> bool:
+        """Case-insensitive deterministic matching for skill discovery."""
+        if category and _skill_category(meta).lower() != category.lower():
+            return False
+
+        if not search:
+            return True
+
+        haystack_parts = [
+            meta.name,
+            meta.type,
+            meta.risk,
+            meta.description,
+            _skill_category(meta),
+            *meta.profiles,
+            *meta.tables,
+            *meta.triggers,
+            *meta.related_skills,
+        ]
+        if meta.databases:
+            haystack_parts.extend(meta.databases)
+        haystack = "\n".join(str(part).lower() for part in haystack_parts if part)
+        return search.lower() in haystack
+
+
+    def _project_skill_meta(
+        meta: SkillMetadata,
+        detail_level: str,
+        availability: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Project cached SkillMetadata into an Agent-facing disclosure shape."""
+        projected: dict[str, Any] = {
+            "name": meta.name,
+            "type": meta.type,
+            "description": meta.description,
+            "risk": meta.risk,
+            "category": _skill_category(meta),
+            "executable": availability["executable"],
+            "profile_allowed": availability["profile_allowed"],
+            "schema_ready": availability["schema_ready"],
+        }
+        if availability["disabled_reason"]:
+            projected["disabled_reason"] = availability["disabled_reason"]
+        if availability["excluded_profiles"]:
+            projected["excluded_profiles"] = availability["excluded_profiles"]
+        if availability["missing_tables"]:
+            projected["missing_tables"] = availability["missing_tables"]
+
+        if detail_level in {"summary", "full"}:
+            # Keep the summary shape close to the historical list_skills()
+            # response so existing clients can continue to reason from it.
+            projected.update({
+                "source": meta.source,
+                "triggers": meta.triggers,
+                "idempotent": meta.idempotent,
+                "databases": meta.databases,
+                "profiles": meta.profiles,
+            })
+            if meta.related_skills:
+                projected["related_skills"] = meta.related_skills
+
+        if detail_level == "full":
+            projected.update({
+                "params": meta.params,
+                "version": meta.version,
+                "requires_confirmation": meta.requires_confirmation,
+                "related_skills": meta.related_skills,
+                "tables": meta.tables,
+            })
+
+        return projected
+
+
+    def _aggregate_skill_categories(skills: list[SkillMetadata]) -> list[dict[str, Any]]:
+        """Aggregate category counts for the currently matched skill set."""
+        counts: dict[str, int] = {}
+        for meta in skills:
+            category = _skill_category(meta)
+            counts[category] = counts.get(category, 0) + 1
+        return [
+            {"category": category, "count": counts[category]}
+            for category in sorted(counts)
+        ]
+
     # ── list_skills ──
     @mcp.tool(
+        timeout=_MCP_TOOL_TIMEOUT,
         annotations=ToolAnnotations(
             title="List Available Skills",
             readOnlyHint=True,
@@ -1055,57 +1438,219 @@ if SKILLS_ENABLED:
             idempotentHint=True,
         )
     )
-    async def list_skills(ctx: Context) -> dict[str, Any]:
+    async def list_skills(
+        ctx: Context,
+        search: Annotated[
+            str | None,
+            Field(
+                description=(
+                    "Optional case-insensitive substring search over skill names, "
+                    "descriptions, triggers, category, type, risk, profiles, "
+                    "tables, and related skills."
+                ),
+                max_length=SKILLS_SEARCH_MAX_LENGTH,
+            ),
+        ] = None,
+        category: Annotated[
+            str | None,
+            Field(
+                description=(
+                    "Optional exact category filter. Skills without a category are "
+                    "grouped as 'uncategorized'."
+                ),
+                max_length=SKILLS_CATEGORY_MAX_LENGTH,
+            ),
+        ] = None,
+        detail_level: Annotated[
+            str | None,
+            Field(description="Metadata projection: compact, summary, or full."),
+        ] = None,
+        available_only: Annotated[
+            bool | None,
+            Field(
+                description=(
+                    "When true, return only skills executable in the current "
+                    "server state, including DB compatibility, mutation switch, "
+                    "and schema readiness. Pass false to inspect the full catalog."
+                ),
+            ),
+        ] = None,
+    ) -> dict[str, Any]:
         """
         List all available pre-defined skills (query and mutation).
 
-        Returns skill metadata for progressive disclosure:
-        Level 1 (this tool) — name, type, risk, description, triggers.
-        Level 2 — Read skill's skill_def.md for full documentation.
-        Level 3 — skill source file (code review, declared in skill_def.md 'source' field).
+        Supports MCP-level progressive disclosure:
+        - compact: lightweight catalog for discovery
+        - summary: default compatibility-oriented metadata projection
+        - full: full cached parameter schema for planning execution
+
+        This tool never reads skill files at runtime. It only projects metadata
+        from the startup-validated in-memory skill cache.
 
         Returns:
             Dict with skills list and count
         """
-        await ctx.info("Listing available skills")
+        try:
+            resolved_detail_level = _normalize_skill_detail_level(detail_level)
+            resolved_available_only = _resolve_available_only(available_only)
+            normalized_search = _normalize_optional_filter(
+                search,
+                "search",
+                SKILLS_SEARCH_MAX_LENGTH,
+            )
+            normalized_category = _normalize_optional_filter(
+                category,
+                "category",
+                SKILLS_CATEGORY_MAX_LENGTH,
+            )
+        except ValueError as e:
+            await ctx.warning(f"Skill listing parameter error: {e}")
+            raise ToolError(str(e)) from e
+
+        await ctx.info(
+            "Listing available skills "
+            f"(detail_level={resolved_detail_level}, "
+            f"available_only={resolved_available_only}, "
+            f"search={normalized_search!r}, category={normalized_category!r})"
+        )
 
         skills = get_skills_cache()
-        skills_list = []
-        for name in sorted(skills.keys()):
-            meta = skills[name]
-            skill_info = {
-                "name": meta.name,
-                "type": meta.type,
-                "source": meta.source,
-                "risk": meta.risk,
-                "description": meta.description,
-                "triggers": meta.triggers,
-                "category": meta.category,
-                "idempotent": meta.idempotent,
-            }
-            if meta.related_skills:
-                skill_info["related_skills"] = meta.related_skills
-            skills_list.append(skill_info)
+        schema_table_names = _get_skill_schema_table_names()
+        matched_catalog = [
+            meta
+            for name, meta in sorted(skills.items())
+            if _skill_matches(meta, normalized_search, normalized_category)
+        ]
+        availability_by_name = {
+            meta.name: _skill_availability_state(meta, schema_table_names)
+            for meta in matched_catalog
+        }
+        available_count = sum(
+            1 for meta in matched_catalog
+            if availability_by_name[meta.name]["executable"]
+        )
+        unavailable_count = len(matched_catalog) - available_count
+        schema_unready_count = sum(
+            1 for meta in matched_catalog
+            if not availability_by_name[meta.name]["schema_ready"]
+        )
+        profile_excluded_count = sum(
+            1 for meta in matched_catalog
+            if not availability_by_name[meta.name]["profile_allowed"]
+        )
+        matched = [
+            meta
+            for meta in matched_catalog
+            if not resolved_available_only or availability_by_name[meta.name]["executable"]
+        ]
+        skills_list = [
+            _project_skill_meta(
+                meta,
+                resolved_detail_level,
+                availability_by_name[meta.name],
+            )
+            for meta in matched
+        ]
 
-        query_count = sum(1 for s in skills.values() if s.type == "query")
-        mutation_count = sum(1 for s in skills.values() if s.type == "mutation")
+        query_count = sum(1 for meta in matched if meta.type == "query")
+        mutation_count = sum(1 for meta in matched if meta.type == "mutation")
 
         await ctx.info(
             f"Found {len(skills_list)} skill(s): "
             f"{query_count} query, {mutation_count} mutation"
         )
 
-        return {
+        result: dict[str, Any] = {
             "success": True,
             "skills": skills_list,
-            "total_skills": len(skills_list),
+            "total_skills": len(skills),
+            "matched_skills": len(skills_list),
+            "matched_catalog_skills": len(matched_catalog),
+            "available_skills": available_count,
+            "unavailable_skills": unavailable_count,
+            "filtered_unavailable_skills": unavailable_count if resolved_available_only else 0,
+            "schema_unready_skills": schema_unready_count,
+            "profile_excluded_skills": profile_excluded_count,
             "query_skills": query_count,
             "mutation_skills": mutation_count,
             "mutations_enabled": SKILLS_ALLOW_MUTATIONS,
+            "schema_check_enabled": SKILLS_CHECK_SCHEMA_ON_LIST,
+            "schema_check_available": schema_table_names is not None,
+            "excluded_profiles": sorted(SKILLS_EXCLUDE_PROFILES),
+            "detail_level": resolved_detail_level,
+            "available_only": resolved_available_only,
+            "current_database_type": DB_TYPE,
+            "search": normalized_search,
+            "category": normalized_category,
+            "categories": _aggregate_skill_categories(matched),
+        }
+        if resolved_detail_level != "full":
+            result["hint"] = (
+                "Call get_skill_detail(skill_name) to retrieve params before "
+                "calling execute_query_skill or execute_mutation_skill."
+            )
+        return result
+
+    # ── get_skill_detail ──
+    @mcp.tool(
+        timeout=_MCP_TOOL_TIMEOUT,
+        annotations=ToolAnnotations(
+            title="Get Skill Detail",
+            readOnlyHint=True,
+            destructiveHint=False,
+            idempotentHint=True,
+            openWorldHint=False,
+        )
+    )
+    async def get_skill_detail(
+        skill_name: Annotated[str, Field(description="Name of the skill to inspect")],
+        ctx: Context,
+    ) -> dict[str, Any]:
+        """
+        Return full cached metadata for one skill, including parameter schema.
+
+        This is the on-demand detail step after list_skills(). It does not read
+        skill files from disk and does not expose raw SQL or mutation source.
+        """
+        await ctx.info(f"Getting skill detail: {skill_name}")
+
+        try:
+            validate_name(skill_name)
+        except ValueError as e:
+            await ctx.warning(f"Skill detail parameter error: {e}")
+            raise ToolError(str(e)) from e
+
+        skills = get_skills_cache()
+        if skill_name not in skills:
+            msg = f"Skill '{skill_name}' not found"
+            await ctx.warning(msg)
+            raise ToolError(msg)
+
+        meta = skills[skill_name]
+        schema_table_names = _get_skill_schema_table_names()
+        availability = _skill_availability_state(meta, schema_table_names)
+        if meta.type == "query":
+            usage_hint = "Call execute_query_skill(skill_name, params) with params matching this schema."
+        elif SKILLS_ALLOW_MUTATIONS:
+            usage_hint = (
+                "Call execute_mutation_skill(skill_name, params, confirm=false) "
+                "to preview before confirm=true."
+            )
+        else:
+            usage_hint = "Mutation execution is disabled because SKILLS_ALLOW_MUTATIONS=0."
+
+        return {
+            "success": True,
+            "skill": _project_skill_meta(meta, "full", availability),
+            "mutations_enabled": SKILLS_ALLOW_MUTATIONS,
+            "schema_check_enabled": SKILLS_CHECK_SCHEMA_ON_LIST,
+            "schema_check_available": schema_table_names is not None,
+            "usage_hint": usage_hint,
         }
 
     # ── execute_query_skill ──
     @mcp.tool(
+        timeout=_MCP_TOOL_TIMEOUT,
         annotations=ToolAnnotations(
             title="Execute Query Skill",
             readOnlyHint=True,
@@ -1134,6 +1679,7 @@ if SKILLS_ENABLED:
             Query results (same format as query() tool, plus skill_name)
         """
         await ctx.info(f"Executing query skill: {skill_name}")
+        client_id = _context_client_id(ctx)
 
         try:
             validate_name(skill_name)
@@ -1143,6 +1689,27 @@ if SKILLS_ENABLED:
             await ctx.warning(f"Query skill error: {e}")
             raise ToolError(str(e)) from e
 
+        # Check database compatibility
+        meta = get_skills_cache().get(skill_name)
+        if meta and meta.databases and DB_TYPE not in meta.databases:
+            msg = (
+                f"Skill '{skill_name}' is not compatible with current database "
+                f"type '{DB_TYPE}'. Supported: {meta.databases}"
+            )
+            await ctx.warning(msg)
+            raise ToolError(msg)
+        if meta:
+            try:
+                _ensure_skill_profile_allowed(meta)
+            except ToolError as e:
+                await ctx.warning(str(e))
+                raise
+            try:
+                _ensure_skill_schema_ready(meta)
+            except ToolError as e:
+                await ctx.warning(str(e))
+                raise
+
         # Execute parameterized query via adapter (Step 3a: params support)
         adapter = get_adapter()
         result = adapter.execute(sql_template, params=validated_params)
@@ -1150,6 +1717,14 @@ if SKILLS_ENABLED:
         # Handle error (adapter returns error string on failure)
         if isinstance(result, str) and result.startswith("Error:"):
             await ctx.error(f"Query skill failed: {result}")
+            if SKILLS_AUDIT_QUERIES:
+                _audit_logger.log(
+                    skill_name=skill_name,
+                    params=validated_params,
+                    mode="query",
+                    result={"success": False, "error": result},
+                    client_id=client_id,
+                )
             raise ToolError(result)
 
         # Success — serialize and truncate (reuse existing helpers)
@@ -1164,6 +1739,20 @@ if SKILLS_ENABLED:
             )
         else:
             await ctx.info(f"Query skill returned {total_rows} rows")
+
+        if SKILLS_AUDIT_QUERIES:
+            _audit_logger.log(
+                skill_name=skill_name,
+                params=validated_params,
+                mode="query",
+                result={
+                    "success": True,
+                    "rowcount": truncation_result["returned_rows"],
+                    "total_rows": total_rows,
+                    "truncated": truncation_result["truncated"],
+                },
+                client_id=client_id,
+            )
 
         return {
             "success": True,
@@ -1181,6 +1770,7 @@ if SKILLS_ENABLED:
     # ── execute_mutation_skill (second switch) ──
     if SKILLS_ALLOW_MUTATIONS:
         @mcp.tool(
+            timeout=_MCP_TOOL_TIMEOUT,
             annotations=ToolAnnotations(
                 title="Execute Mutation Skill",
                 readOnlyHint=False,
@@ -1212,13 +1802,7 @@ if SKILLS_ENABLED:
             """
             mode = "execute" if confirm else "preview"
             await ctx.info(f"Mutation skill '{skill_name}' mode={mode}")
-
-            # Get client_id for audit logging (FastMCP Context provides this)
-            client_id = None
-            try:
-                client_id = ctx.client_id
-            except Exception:
-                pass  # client_id is optional, fall back to env var in AuditLogger
+            client_id = _context_client_id(ctx)
 
             try:
                 validate_name(skill_name)
@@ -1234,13 +1818,25 @@ if SKILLS_ENABLED:
                     )
                 validated_params = validate_params(params, meta.params)
 
+                # Check database compatibility
+                if meta.databases and DB_TYPE not in meta.databases:
+                    msg = (
+                        f"Skill '{skill_name}' is not compatible with current database "
+                        f"type '{DB_TYPE}'. Supported: {meta.databases}"
+                    )
+                    raise ValueError(msg)
+                _ensure_skill_profile_allowed(meta)
+                _ensure_skill_schema_ready(meta)
+
                 # Load mutation module
                 adapter = get_adapter()
                 mutation = load_mutation(skill_name, adapter, _audit_logger)
 
             except (ValueError, TypeError, FileNotFoundError, AttributeError,
-                    ImportError, SyntaxError) as e:
+                    ImportError, SyntaxError, ToolError) as e:
                 await ctx.warning(f"Mutation skill setup error: {e}")
+                if isinstance(e, ToolError):
+                    raise
                 raise ToolError(str(e)) from e
 
             if not confirm:
@@ -1356,7 +1952,8 @@ def sql_assistant() -> str:
     skills_info = ""
     if SKILLS_ENABLED:
         skills_info = """
-- list_skills(): List pre-defined query/mutation skills
+- list_skills(search, category, detail_level, available_only): List pre-defined query/mutation skills; default availability filters incompatible, disabled, or schema-unready skills
+- get_skill_detail(skill_name): Get params/schema for one skill before execution
 - execute_query_skill(name, params): Execute a query skill with parameters
 """
         if SKILLS_ALLOW_MUTATIONS:
