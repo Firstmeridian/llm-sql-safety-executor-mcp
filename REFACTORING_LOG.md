@@ -1,11 +1,209 @@
 # MCP SQL Server Refactoring Log
 
-**Date:** December 2, 2025 (Updated: May 14, 2026)
+**Date:** December 2, 2025 (Updated: May 26, 2026)
 **Author:** Code Refactoring Session
 
 ## Overview
 
 This document records the major refactoring changes made to `mcp_sql_server.py` to follow FastMCP best practices and improve the overall design.
+
+---
+
+## Latest Update v3.4.3 (May 24, 2026) - Bounded SQLite Estimates and Tool-Surface Wording
+
+### Overview
+
+Kept the release scope focused on removing an avoidable large-table scan and
+making model-facing descriptions more conservative. The SQLite row-estimate
+fallback no longer upgrades metadata discovery into a full `COUNT(*)`; when
+`sqlite_stat1` is unavailable and a table reaches the 10,000-row sampling cap,
+the adapter returns the cap as a lower-bound estimate. Exact counts remain
+explicit through user SQL or `get_table_summary(exact_count=True)`.
+
+### Changes
+
+| File | Change Type | Description |
+|------|-------------|-------------|
+| `db_adapter.py` | Modified | `SQLiteAdapter.get_row_estimate()` now prefers `sqlite_stat1`, then uses bounded 10,000-row sampling without a full `COUNT(*)` fallback for larger tables; tightened typing around SQLAlchemy engines/results and classifies SQLAlchemy-wrapped SQLite `interrupted` errors as query timeouts |
+| `tests/test_db_adapter.py` | Modified | Added regression coverage that large SQLite tables without `sqlite_stat1` return the sampling cap and do not execute full `COUNT(*)`; added coverage that `ANALYZE`/`sqlite_stat1` is still preferred; added SQLite timeout interruption coverage |
+| `mcp_sql_server.py` | Modified | Clarified query/skill truncation notes: truncation limits returned payload only, while `WHERE`/`LIMIT`/`ORDER BY` must be used to limit database work and stabilize ordering; updated `list_tables()` / `get_full_schema()` descriptions to visible/truncated semantics |
+| `test_mcp_client.py` | Modified | MCP smoke test now uses assertions, dict parameters for skill calls, `structured_content`-first result parsing, and an explicit skip only when the configured database is unavailable under pytest |
+| `README.md`, `README_ZH.md`, `TEST_MCP_CLIENT_GUIDE.md`, `MCP_AGENTS_SKILLS_DESIGN.md`, `PROMPT_ENGINEERING_BEST_PRACTICES.md`, `SQLITE_ADAPTER_DESIGN.md`, `.env.example`, `GEMINI.md`, `agent_examples/` | Modified | Updated safety wording, SQLite estimate behavior, optional exact-count guidance, visible/truncated schema language, tool-count wording, SQLite write-lock wording, and prompt guidance so `get_table_summary()` is not treated as a default planning step |
+| `DESIGN_RISK_REGISTER.md`, `DESIGN_RISK_REGISTER_ZH.md` | Added/Modified | Long-term design risk register records completed V343-001 through V343-005 and leaves V343-006 through V343-014 as policy/deferred items |
+
+### Design Decisions
+
+| Decision | Choice | Alternative | Rationale |
+|----------|--------|-------------|-----------|
+| SQLite large-table estimates | Return the 10,000-row sample cap as a lower-bound estimate when `sqlite_stat1` is absent | Run full `COUNT(*)` after the sample cap | Keeps metadata tools bounded and consistent with their estimate contract; exact counts are still available when explicitly requested |
+| Query truncation wording | Clarify payload-only truncation | Let users infer execution limits from `MAX_RESULT_ROWS` | Prevents agents from mistaking returned-row limits for database work limits |
+| Generic SQL pagination | Keep pagination in user SQL | Add `limit`/`offset` or cursor-token params to `query()` | Arbitrary SQL result stability depends on query semantics and ordering; generic wrappers would be misleading |
+| Tool/schema descriptions | Use visible/truncated wording | Say "all tables" / "complete schema" | FastMCP and function-calling guidance rewards precise descriptions because models choose tools from them |
+
+### Compatibility Notes
+
+- SQLite `row_count` for large tables without `ANALYZE` may now be lower than
+    before because it is a bounded lower-bound estimate rather than an exact
+    count. This affects metadata helpers only; explicit `COUNT(*)` queries are
+    unchanged.
+- `query()` and `execute_query_skill()` still execute through the existing
+    adapter path and truncate after fetching. v3.4.3 only clarifies this
+    contract; adapter-level streaming/fetch limiting remains a separate design
+    decision.
+- FastMCP client helpers should read `structured_content` before `data` because
+    skill payloads themselves contain a `data` field. Skill tool params are MCP
+    objects/dicts, not JSON strings.
+
+### Validation
+
+- Full repository test suite: `.venv/bin/python -m pytest -q` → 183 passed.
+- VS Code diagnostics: no errors found.
+- Patch whitespace: `git --no-pager diff --check` produced no output.
+- Direct MCP stdio verification covered `check_connection`, `list_tables`,
+  safe/unsafe `query`, `get_full_schema`, `list_skills`, `get_skill_detail`,
+  `execute_query_skill`, `execute_mutation_skill(confirm=false)`, and opt-in
+  telemetry JSONL. Telemetry records contained only sanitized fields and no SQL,
+  params, rows, or returned data.
+
+---
+
+## Update v3.4.2 (May 21, 2026) - Unified ToolResult, Output Schemas, and Optional Telemetry
+
+### Overview
+
+Closed the asymmetry from v3.4.1 by giving every MCP tool the same return
+shape, declared MCP `outputSchema` on the two skill execution tools, and
+introduced an opt-in middleware that records sanitized per-call telemetry.
+Also formalized the pytest-level annotation-consistency check.
+
+### Post-merge polish (same release, after code review)
+
+- **B1 fix**: telemetry middleware now distinguishes transport-level outcome
+    (`call_completed`, whether `call_next` returned without raising) from
+    business-level outcome (`success`, which honors the tool's own
+    `ToolResult.meta.success` when present). Previously a tool returning
+    `meta.success=False` without raising (e.g. an unsafe-SQL veto by `query`)
+    was mis-logged as `success=true`.
+- **C1 schema refinement**: `execute_mutation_skill` `outputSchema` rewritten
+    to reflect the real payload branches — `preview` object for preview mode,
+    `result` object for execute mode, `validation` object for the
+    validation-failure branch, `idempotent`/`hint` on the success branches.
+    `mode` is now required and bound by the existing `preview`/`execute` enum.
+- **3b sampling**: new `TOOL_TELEMETRY_SAMPLE_RATE` env var (float 0.0–1.0,
+    default 1.0) gates JSONL writes for high-throughput deployments; values
+    are clamped, invalid strings fall back to 1.0.
+- **Test coverage** (`tests/test_v342_meta_and_schema.py`): direct meta
+    assertions on every base tool, `outputSchema` registration check via real
+    `Client.list_tools()`, and an end-to-end telemetry check that drives the
+    middleware through `Client.call_tool()` covering both success and
+    business-level-rejection branches.
+- **Doc consistency**: removed v3.4.1-era "scope: only 2 skill tools" notes
+    from `README.md`, `README_ZH.md`, `TEST_MCP_CLIENT_GUIDE.md`, and
+    `MCP_AGENTS_SKILLS_DESIGN.md` that contradicted the v3.4.2 uniform
+    `ToolResult` rollout.
+- **Review follow-up**: `_skill_tool_result()` now includes the same common
+    `tool_name` and `success` metadata fields as base tools. The `success`
+    value is derived from the stable structured payload, so a mutation
+    validation failure that returns normally with `structuredContent.success=false`
+    is logged as business-failed telemetry instead of being mistaken for
+    success merely because no exception escaped `call_next()`.
+- **Telemetry parser hardening**: `TOOL_TELEMETRY_SAMPLE_RATE` now rejects
+    non-finite floats (`nan`, `inf`, `-inf`) by falling back to 1.0. Finite
+    out-of-range values remain clamped to the nearest bound. This keeps a typo
+    from silently disabling all telemetry records.
+- **Configuration/docs parity**: `.env.example` now documents the telemetry
+    feature flags, including the security compromise that tool usage timing is
+    sanitized but still operationally sensitive. Client response examples were
+    corrected to show `mode="query"`, real mutation preview/execute payload
+    keys, and the uniform `_meta.tool_name` / `_meta.success` fields.
+
+### Changes
+
+| File | Change Type | Description |
+|------|-------------|-------------|
+| `mcp_sql_server.py` | Modified | Added module-level `_tool_result()` helper; converted `query`, `check_connection`, `list_tables`, `describe_table`, `get_full_schema`, `get_table_summary`, `sample`, `list_skills`, `get_skill_detail` to return `ToolResult` with runtime metadata; added uniform `tool_name`/`success` meta to Skills execution results; added `output_schema` to `execute_query_skill` and `execute_mutation_skill`; added opt-in `_ToolTelemetryMiddleware` (env `ENABLE_TOOL_TELEMETRY` / `TOOL_TELEMETRY_LOG_PATH` / `TOOL_TELEMETRY_SAMPLE_RATE`) |
+| `tests/test_annotations_consistency.py` | Added | Pytest lint that fails CI if any registered tool's `ToolAnnotations` drift from the documented closed-world / read-only intent |
+| `tests/test_tool_telemetry.py` | Added/Modified | Verifies the telemetry middleware writes sanitized JSONL records on success, exception, and business-failure paths; covers sample-rate clamping including non-finite values; never logs SQL/params/rows |
+| `tests/test_v342_meta_and_schema.py` | Added | Verifies base and skill tool meta contracts, outputSchema registration, and end-to-end telemetry via real FastMCP `Client.call_tool()` |
+| `.env.example` | Modified | Documents opt-in tool telemetry configuration and sampling controls |
+| `README.md`, `README_ZH.md`, `TEST_MCP_CLIENT_GUIDE.md`, `MCP_AGENTS_SKILLS_DESIGN.md` | Modified | New v3.4.2 changelog entry, version badge bumped, scope/visibility notes updated, examples aligned with actual payload/meta contract |
+
+### Design Decisions
+
+| Decision | Choice | Alternative | Rationale |
+|----------|--------|-------------|-----------|
+| Unify return type across all tools | Wrap every tool in `ToolResult` | Keep skill tools special-cased | Removes the v3.4.1 direct-call asymmetry and makes observability symmetric across the whole tool surface; existing clients still read `structuredContent` unchanged |
+| Telemetry transport | FastMCP middleware writing local JSONL | Always-on logging or external sink | Opt-in (`ENABLE_TOOL_TELEMETRY=1`) keeps default behavior unchanged; local JSONL avoids new dependencies and remains greppable for operators |
+| Telemetry payload | `timestamp`, `tool_name`, `execution_ms`, `call_completed`, `success`, `error_class`, `db_type` only | Include SQL, params, rows for richer analytics | Honors SAFETY constraints (no SQL/params/rows/credentials) and the spirit of `mask_error_details=True`; separates transport completion from business success so validation/safety rejections are not misclassified |
+| Telemetry aggregation | Local JSONL plus optional sampling only | In-process p50/p95 stats tool/resource | Keeps the MCP server stateless and dependency-free; avoids exposing sensitive usage patterns to model-visible tools. Operators can compute percentiles externally over JSONL if needed |
+| Output schema strictness | Object with required success/skill_name and `additionalProperties: true` | Strict closed schema | Tolerates incremental payload evolution (preview vs execute mode in mutations) while still giving clients a usable validation contract |
+| Annotation consistency | Pytest test rather than startup assertion | Fail server startup if drift detected | Keeps server resilient to local edits while catching drift in CI; aligns with existing test-driven safety conventions |
+
+### Compatibility Notes
+
+- The `structuredContent` payload of every tool is byte-for-byte identical to
+    v3.4.1. Adding `ToolResult.meta` and `outputSchema` is additive only.
+- Direct Python callers should use
+    `getattr(result, "structured_content", result)` to unwrap. The pattern is
+    already in `tests/test_skills_disclosure.py::run_tool`.
+- The telemetry feature is **disabled by default**. When enabled it writes to
+    `logs/tool_calls.jsonl` (configurable via `TOOL_TELEMETRY_LOG_PATH`). The
+    middleware never reads tool arguments, SQL, params, rows, or result data —
+    it inspects tool name, timing, exception class, and the non-sensitive
+    `ToolResult.meta.success` bit. The resulting log still reveals tool usage
+    patterns and timings, so keep it on trusted local storage.
+- Per MCP spec `_meta` remains OPTIONAL; clients MAY ignore it. The VS Code
+    MCP UI still does not display `_meta`, so treat it as a server-side
+    observability channel.
+
+---
+
+## Update v3.4.1 (May 19, 2026) - ToolResult Metadata and Closed-World Annotations
+
+### Overview
+
+Implemented the previously deferred runtime metadata decision for Skills
+execution tools and normalized MCP tool safety annotations. The change keeps
+the existing structured payload contract intact while adding FastMCP
+`ToolResult.meta` for non-sensitive diagnostics.
+
+### Changes
+
+| File | Change Type | Description |
+|------|-------------|-------------|
+| `mcp_sql_server.py` | Modified | Added `ToolResult` wrappers for `execute_query_skill` and `execute_mutation_skill`; attached runtime metadata such as `execution_ms`, row counts, truncation state, mode, db type, idempotency, and skill version; set `openWorldHint=false` on all MCP tool annotations |
+| `tests/test_skills_disclosure.py` | Modified | Added coverage for `ToolResult.meta` on query skills and verified every listed MCP tool exposes `openWorldHint=false` |
+| `README.md`, `README_ZH.md` | Modified | Documented closed-world tool hints and Skills runtime metadata conventions |
+| `MCP_AGENTS_SKILLS_DESIGN.md` | Modified | Updated ToolAnnotations matrix, moved ToolResult metadata from deferred/future work to implemented design, and documented metadata exclusions |
+| `TEST_MCP_CLIENT_GUIDE.md` | Modified | Added client-facing note that Skills execution payloads remain structured while runtime diagnostics live in `meta` |
+
+### Design Decisions
+
+| Decision | Choice | Alternative | Rationale |
+|----------|--------|-------------|-----------|
+| Skills execution response wrapper | Return `ToolResult(structured_content=payload, meta=...)` | Add diagnostic fields directly into the existing payload | Keeps business results stable and separates diagnostics from model-facing data |
+| Metadata scope | Include timing/count/version/mode/truncation/audit flags | Include SQL, params, or returned data | Improves observability without expanding sensitive data exposure |
+| Tool world hint | Set `openWorldHint=false` on all MCP tools | Leave FastMCP default/open hint | Tools operate against configured database/server boundaries, not arbitrary external entities; hints are advisory only |
+
+### Compatibility Notes
+
+- Existing MCP clients that read structured payloads continue to receive the
+    same result object via `structuredContent` / client `.data`.
+- `ToolResult.meta` is additional runtime metadata. It is not an authorization
+    boundary and should not be treated as an audit log.
+- **Historical v3.4.1 scope**: In v3.4.1, `ToolResult` was used only by
+    `execute_query_skill` and `execute_mutation_skill`; the remaining nine MCP
+    tools still returned plain `dict`. That mixed direct-call shape was an
+    intentional narrow rollout at the time. v3.4.2 resolves it by making all 11
+    tools return `ToolResult` with uniform common `meta` fields — see the latest
+    section above.
+- **Client visibility caveat**: Per MCP spec the `_meta` field is OPTIONAL and
+    clients MAY ignore it. Verified during v3.4.1 testing: server-side
+    middleware and MCP Inspector can read `_meta`, but VS Code's MCP UI does
+    not currently surface it. Treat `ToolResult.meta` primarily as a
+    server-side observability hook and an opt-in client signal.
+- Query skill audit behavior is unchanged: `SKILLS_AUDIT_QUERIES=0` remains the
+    default to avoid surprising parameter logs.
 
 ---
 

@@ -46,6 +46,8 @@ def print_result(title: str, data: dict, note: str = None):
 
 def parse_result(result) -> dict:
     """Parse MCP tool result to dictionary."""
+    if hasattr(result, 'structured_content') and result.structured_content:
+        return result.structured_content
     if hasattr(result, 'data') and result.data:
         return result.data
     if hasattr(result, 'content') and result.content:
@@ -53,15 +55,25 @@ def parse_result(result) -> dict:
     return {}
 
 
-async def test_mcp_server():
+def maybe_skip_pytest(reason: str) -> bool:
+    """Skip optional database-dependent smoke checks when running under pytest."""
+    if "PYTEST_CURRENT_TEST" not in os.environ:
+        return False
+
+    import pytest
+
+    pytest.skip(reason)
+    return True
+
+
+async def _test_mcp_server_async():
     """Connect to the MCP server and test all available tools."""
     # Get the absolute path to start_server.py
     script_dir = Path(__file__).parent
     server_script = script_dir / "start_server.py"
     
     if not server_script.exists():
-        print(f"Error: Server script not found at {server_script}")
-        return
+        raise FileNotFoundError(f"Server script not found at {server_script}")
     
     print("=" * 70)
     print("MCP CLIENT TEST - SQL Safety Checker MCP Server")
@@ -72,8 +84,7 @@ async def test_mcp_server():
     print(f"Skills enabled: {SKILLS_ENABLED}")
     print()
     
-    try:
-        async with Client(str(server_script)) as client:
+    async with Client(str(server_script)) as client:
             # Ping server to verify connection
             await client.ping()
             print("✓ Successfully connected to MCP server\n")
@@ -82,30 +93,35 @@ async def test_mcp_server():
             tools = await client.list_tools()
             tool_names = [tool.name for tool in tools]
             print(f"Available tools: {tool_names}\n")
+            for expected_tool in ["check_connection", "query", "list_tables", "describe_table"]:
+                assert expected_tool in tool_names, f"Missing expected MCP tool: {expected_tool}"
             
             # Test 1: Check Database Connection
             result = await client.call_tool("check_connection", {})
             content = parse_result(result)
             print_result("TEST 1: check_connection", content)
+            assert "connected" in content, "check_connection result missing connected field"
             
             db_connected = content.get("connected", False)
             if not db_connected:
-                print("⚠️  Database not connected. Some tests may fail.")
-                print("    Check your .env file for DB credentials.\n")
+                message = "Database not connected. Check .env for DB credentials."
+                print(f"⚠️  {message}\n")
+                if maybe_skip_pytest(message):
+                    return
+                return
             
             # Test 2: List Tables - verify new field structure
             result = await client.call_tool("list_tables", {})
             content = parse_result(result)
             print_result("TEST 2: list_tables", content)
+            assert content.get("success") is True, f"list_tables failed: {content}"
             
             # Validate new fields (returned_table_count, total_tables, truncated)
             if content.get("success"):
                 required_fields = ["returned_table_count", "total_tables", "truncated", "truncation_note"]
                 missing = [f for f in required_fields if f not in content]
-                if missing:
-                    print(f"⚠️  Missing new fields: {missing}")
-                else:
-                    print(f"✓ All new fields present: returned_table_count={content['returned_table_count']}, total_tables={content['total_tables']}")
+                assert not missing, f"Missing new list_tables fields: {missing}"
+                print(f"✓ All new fields present: returned_table_count={content['returned_table_count']}, total_tables={content['total_tables']}")
             
             # Get first table name for later tests
             first_table = None
@@ -122,6 +138,8 @@ async def test_mcp_server():
             result = await client.call_tool("query", {"sql": "SELECT 1 as test"})
             content = parse_result(result)
             print(json.dumps(content, indent=2, ensure_ascii=False))
+            assert content.get("success") is True, f"SELECT smoke query failed: {content}"
+            assert content.get("data"), "SELECT smoke query returned no data"
             print("📝 Verify: 'data' field is [{'test': 1}] not [[1]]\n")
             
             # Test COUNT query
@@ -131,6 +149,7 @@ async def test_mcp_server():
                 result = await client.call_tool("query", {"sql": count_query})
                 content = parse_result(result)
                 print(json.dumps(content, indent=2, ensure_ascii=False))
+                assert content.get("success") is True, f"COUNT smoke query failed: {content}"
                 print("📝 Verify: 'data' field is [{'total': N}]\n")
             
             # Test unsafe query (should be blocked)
@@ -138,6 +157,7 @@ async def test_mcp_server():
             result = await client.call_tool("query", {"sql": "DELETE FROM users"})
             content = parse_result(result)
             print(json.dumps(content, indent=2, ensure_ascii=False))
+            assert content.get("success") is False, f"Unsafe query was not rejected: {content}"
             print("📝 Verify: 'success' is false, query blocked\n")
             
             # Test 4: Describe Table
@@ -148,6 +168,7 @@ async def test_mcp_server():
                 if content.get("columns") and len(content["columns"]) > 5:
                     content["columns"] = content["columns"][:5] + [{"...": "more columns"}]
                 print_result(f"TEST 4: describe_table('{first_table}')", content)
+                assert content.get("success") is True, f"describe_table failed: {content}"
             else:
                 print("-" * 70)
                 print("TEST 4: describe_table (skipped - no tables)")
@@ -173,24 +194,46 @@ async def test_mcp_server():
                 result = await client.call_tool("list_skills", {})
                 content = parse_result(result)
                 print_result("TEST 6: list_skills", content)
+                assert content.get("success") is True, f"list_skills failed: {content}"
                 
                 # Get first skill name for later tests
                 first_skill = None
                 skills_list = content.get("skills", [])
                 if skills_list:
                     first_skill = skills_list[0].get("name") if isinstance(skills_list[0], dict) else None
+                skill_names = [
+                    skill.get("name") for skill in skills_list
+                    if isinstance(skill, dict) and skill.get("name")
+                ]
                 
                 # Test 7: Execute Query Skill (if a query skill exists)
-                if first_skill:
+                query_skill = next(
+                    (
+                        skill_name for skill_name in (
+                            "monthly-sales-report",
+                            "monthly-sales-report-sqlite",
+                        )
+                        if skill_name in skill_names
+                    ),
+                    first_skill,
+                )
+                query_skill_params = (
+                    {"year": 2026, "month": 1}
+                    if query_skill in {"monthly-sales-report", "monthly-sales-report-sqlite"}
+                    else {}
+                )
+                if query_skill:
                     print("-" * 70)
-                    print(f"TEST 7: execute_query_skill('{first_skill}')")
+                    print(f"TEST 7: execute_query_skill('{query_skill}')")
                     print("-" * 70)
                     result = await client.call_tool("execute_query_skill", {
-                        "skill_name": first_skill,
-                        "params": "{}"
+                        "skill_name": query_skill,
+                        "params": query_skill_params,
                     })
                     content = parse_result(result)
                     print(json.dumps(content, indent=2, ensure_ascii=False))
+                    if query_skill in {"monthly-sales-report", "monthly-sales-report-sqlite"}:
+                        assert content.get("success") is True, f"execute_query_skill failed: {content}"
                     print()
                 else:
                     print("-" * 70)
@@ -203,14 +246,18 @@ async def test_mcp_server():
                     print("-" * 70)
                     print("TEST 8: execute_mutation_skill (dry-run with invalid skill)")
                     print("-" * 70)
-                    result = await client.call_tool("execute_mutation_skill", {
-                        "skill_name": "nonexistent-skill",
-                        "params": "{}",
-                        "confirm": False
-                    })
-                    content = parse_result(result)
-                    print(json.dumps(content, indent=2, ensure_ascii=False))
-                    print("📝 Verify: Should return error for nonexistent skill\n")
+                    try:
+                        result = await client.call_tool("execute_mutation_skill", {
+                            "skill_name": "nonexistent-skill",
+                            "params": {},
+                            "confirm": False,
+                        })
+                        content = parse_result(result)
+                        print(json.dumps(content, indent=2, ensure_ascii=False))
+                        raise AssertionError(f"Expected nonexistent mutation skill to fail: {content}")
+                    except Exception as exc:
+                        assert "not found" in str(exc).lower(), str(exc)
+                        print(f"✓ Expected error for nonexistent skill: {exc}\n")
                 else:
                     print("-" * 70)
                     print("TEST 8: execute_mutation_skill (skipped - SKILLS_ALLOW_MUTATIONS=0)")
@@ -225,16 +272,12 @@ async def test_mcp_server():
             print("=" * 70)
             print("✓ All MCP protocol tests completed!")
             print("=" * 70)
-            
-    except Exception as e:
-        print(f"\n❌ Failed to connect to MCP server: {e}")
-        print("\nTroubleshooting:")
-        print("1. Make sure start_server.py exists and is executable")
-        print("2. Check that all required environment variables are set in .env")
-        print("3. Verify that 'fastmcp' package is installed: pip install fastmcp")
-        import traceback
-        traceback.print_exc()
+
+
+def test_mcp_server():
+    """Pytest wrapper for the async MCP client smoke test."""
+    asyncio.run(_test_mcp_server_async())
 
 
 if __name__ == "__main__":
-    asyncio.run(test_mcp_server())
+    asyncio.run(_test_mcp_server_async())

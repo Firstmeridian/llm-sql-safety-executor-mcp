@@ -603,15 +603,53 @@ if SKILLS_ENABLED:
 
 ### Tool Annotations
 
-| Tool | readOnlyHint | destructiveHint | idempotentHint |
-|------|-------------|-----------------|----------------|
-| `list_skills` | true | false | true |
-| `get_skill_detail` | true | false | true |
-| `execute_query_skill` | true | false | true |
-| `execute_mutation_skill` | false | true | false |
+| Tool | readOnlyHint | destructiveHint | idempotentHint | openWorldHint |
+|------|-------------|-----------------|----------------|---------------|
+| `list_skills` | true | false | true | false |
+| `get_skill_detail` | true | false | true | false |
+| `execute_query_skill` | true | false | true | false |
+| `execute_mutation_skill` | false | true | false | false |
 
 `idempotentHint=false` for mutations is a conservative default. Per-skill
 idempotency info is conveyed via `list_skills()` and execution result dicts.
+`openWorldHint=false` is used consistently because these tools operate inside
+the configured database/server boundary rather than interacting with arbitrary
+external entities. This is an advisory MCP client hint; authorization still
+comes from environment switches, table allowlists, schema readiness checks, and
+execution-time validation.
+
+### Runtime Tool Metadata
+
+All 11 MCP tools return `ToolResult` (uniform since v3.4.2) so FastMCP clients
+receive per-invocation `meta` alongside the existing structured payload. The
+payload remains the same JSON object that clients read from
+`structuredContent` / `.data`; metadata is reserved for diagnostics and
+observability.
+
+Runtime metadata always includes `tool_name`, `db_type`, `execution_ms`, and
+`success`. For base tools, `success` is passed directly by each tool's result
+wrapper. For Skills execution tools, `success` is derived from the stable
+`structuredContent["success"]` payload so business-level validation failures
+(for example a mutation preview rejected by the state machine) are visible to
+telemetry even when the tool returns normally rather than raising `ToolError`.
+Data-returning tools add `row_count`, `total_rows`, `truncated`. Skills
+execution tools additionally expose `skill_name`, `skill_type`, `skill_version`,
+current `mode` (`query`, `preview`, or `execute`), and `idempotent`. Metadata
+intentionally does **not** include raw SQL templates, returned data rows, or
+parameter values. Query-parameter logging remains governed only by the explicit
+`SKILLS_AUDIT_QUERIES` audit switch.
+
+Operational telemetry (`ENABLE_TOOL_TELEMETRY=1`) writes a separate JSONL record
+per `tools/call` with sanitized fields only: `timestamp`, `tool_name`,
+`execution_ms`, `call_completed`, `success`, `error_class`, and `db_type`.
+`call_completed` records transport/control-flow completion, while `success`
+records the tool's own business outcome. This split avoids the common ambiguity
+where a safety or validation rejection returns a normal MCP response but should
+still count as an unsuccessful business operation. Sampling is intentionally
+simple (`TOOL_TELEMETRY_SAMPLE_RATE`, finite float clamped to 0.0-1.0) and does
+not provide p50/p95 aggregation inside the MCP server; richer analytics should
+run outside the server over the JSONL stream to avoid extra state and sensitive
+usage-pattern disclosure.
 
 ### Tool Count Impact
 
@@ -621,7 +659,7 @@ idempotency info is conveyed via `list_skills()` and execution result dicts.
 | ENABLE_SKILLS=1, MUTATIONS=0 | 8-10 |
 | ENABLE_SKILLS=1, MUTATIONS=1 | 9-11 |
 
-Within Google Gemini's recommended 10-20 tools range.
+The full Skills profile remains within Google Gemini's recommended 10-20 tools range. The base read-only profile intentionally stays below that range to keep simple deployments compact.
 
 ## 7. Database Adapter Extensions
 
@@ -707,6 +745,9 @@ clear policy switch.
 | `SKILLS_AUDIT_QUERIES` | `0` | Optional query skill audit; records metadata and row counts, never returned data |
 | `MAX_SQL_LENGTH` | `20000` | Maximum raw `query(sql)` input length exposed in the MCP schema and enforced before execution; `0` disables the length cap |
 | `MCP_TOOL_TIMEOUT_SECONDS` | `120` | FastMCP foreground tool timeout for registered tools; `0` disables the FastMCP timeout |
+| `ENABLE_TOOL_TELEMETRY` | `0` | Enable sanitized per-tool-call JSONL telemetry middleware |
+| `TOOL_TELEMETRY_LOG_PATH` | `logs/tool_calls.jsonl` | Local JSONL destination for telemetry records |
+| `TOOL_TELEMETRY_SAMPLE_RATE` | `1.0` | Telemetry write sampling probability (finite float clamped to 0.0-1.0; invalid values fall back to 1.0) |
 
 ## 10. Design Decisions
 
@@ -721,7 +762,13 @@ clear policy switch.
 | Query skill audit | Optional `SKILLS_AUDIT_QUERIES=1` | Audit every read skill by default | Avoids surprising sensitive parameter logs while providing an opt-in compliance trail; returned data is never logged |
 | Raw SQL length | `MAX_SQL_LENGTH` for `query(sql)` | Apply the same cap to reviewed skill templates | Free-form SQL is agent-provided input and needs schema/runtime bounds; reviewed skill SQL is startup-validated code and should not be constrained by the user-input cap |
 | Tool timeout | FastMCP `timeout=MCP_TOOL_TIMEOUT_SECONDS` | Rely only on DB query timeout | Protects the MCP foreground request from non-DB stalls while keeping the DB timeout as the lower-level query guard |
-| v3.4.B3 ToolResult metadata | Deferred decision | Return `ToolResult.meta` from tools now | Current dict returns already provide structured content; switching return wrappers would be a client-contract change without an immediate blocker |
+| v3.4.1.B1 ToolResult metadata | Implemented for Skills execution tools | Keep plain dict returns everywhere | Adds runtime diagnostics (`execution_ms`, row counts, truncation, skill version) without changing the structured payload; metadata excludes SQL, params, and returned rows |
+| v3.4.1.B2 Closed-world annotations | `openWorldHint=false` on all MCP tools | Leave FastMCP default `openWorldHint=true` | The server operates inside a configured database boundary, so closed-world hints better represent client-facing safety semantics; hints remain advisory, not authorization |
+| v3.4.1.B3 Direct-call API asymmetry | Skills execution tools return `ToolResult`; all other tools still return `dict` | Refactor every tool to return `ToolResult` for uniform return shape | Limits the v3.4.1 change surface to where rich runtime diagnostics matter; Python callers must read `result.structured_content` / `result.meta` on the two skill tools while continuing to use plain `dict` on the rest. Tracked as a follow-up for v3.4.2 if uniform return shape becomes valuable. Per MCP spec the `_meta` field is OPTIONAL and clients MAY ignore it (e.g. VS Code's MCP UI does not currently surface it), so `ToolResult.meta` is primarily a server-side observability hook |
+| v3.4.2.A1 Uniform ToolResult | All registered tools in the full profile converted to `ToolResult` | Keep mixed return shape from v3.4.1 | Removes the B3 asymmetry; every tool now carries `tool_name`/`execution_ms`/`db_type`/`success` plus tool-specific counters (`row_count`, `total_rows`, `truncated`) in `meta`; `structuredContent` is byte-identical to v3.4.1 so MCP clients see no behavior change |
+| v3.4.2.A2 Skill outputSchema | Declared on `execute_query_skill` and `execute_mutation_skill` | No schema (clients infer shape) | MCP `outputSchema` lets compliant clients validate `structuredContent`; the schemas use `additionalProperties: true` to tolerate preview/execute payload variation in mutations |
+| v3.4.2.A3 Tool telemetry | Opt-in middleware (`ENABLE_TOOL_TELEMETRY=1`) writes sanitized JSONL to `TOOL_TELEMETRY_LOG_PATH`, with optional `TOOL_TELEMETRY_SAMPLE_RATE` | Always-on telemetry, in-process p95 aggregation, or external sink | Default behavior unchanged; the middleware records only `timestamp`/`tool_name`/`execution_ms`/`call_completed`/`success`/`error_class`/`db_type`, never SQL/params/rows/credentials. `success` follows `ToolResult.meta.success`; `call_completed` captures exception-free return. Sampling is deliberately simple and finite-clamped. Percentile aggregation remains external to avoid server state, extra dependencies, and usage-pattern disclosure through a stats tool |
+| v3.4.2.A4 Annotation drift lint | `tests/test_annotations_consistency.py` | Fail-fast at server startup | Pytest captures drift in CI without making the server brittle to in-progress local edits; aligned with the test-driven safety convention already used by the project |
 | v3.4.B4 Schema state cache | Deferred decision | Cache schema table names in FastMCP session state | Reduces repeated metadata calls but risks stale readiness after DDL; current table checks are simple and execution guards remain authoritative |
 | v3.4.C1 Schema resource | Deferred decision | Add `db://schema` MCP resource now | Existing `get_full_schema` tool is explicit and already supported by clients; resource support varies and would add a second schema access path |
 | Metadata | skill_def.md YAML frontmatter | JSON manifest | Anthropic Agent Skills spec alignment |
@@ -1005,7 +1052,7 @@ All tests use SQLite in-memory databases for speed and isolation.
 - **Audit to database**: Optional `_audit_log` table for structured querying
 - **mutation.sql**: SQL-only mutations for simple INSERT/UPDATE operations
 - **`adapter.transaction()`**: Multi-statement atomic transactions
-- **`ToolResult.meta`**: Per-invocation runtime metadata via FastMCP v2.11.0+
+- **Output schemas**: Optional explicit `output_schema` declarations for selected stable tool responses
 
 ## 14. Industry Best Practices Alignment
 
@@ -1021,7 +1068,7 @@ practices from major AI platform providers and security standards.
 | *"Keep the number of tools small for higher accuracy."* | [OpenAI — Function Calling](https://platform.openai.com/docs/guides/function-calling) | Unified `execute_*_skill()` tools instead of per-skill tool registration |
 | *"Use clear and descriptive function/parameter names and descriptions."* | [Google Gemini — Function Calling Best Practices](https://ai.google.dev/gemini-api/docs/function-calling#best_practices) | `skill_def.md` YAML frontmatter provides structured name, description, and parameter schemas |
 | *"Use strong schema: specify types, limits, enums, and valid patterns."* | Google Gemini, ibid. | `validate_params()` enforces `type`, `min`, `max`, `enum` constraints declared in YAML |
-| 10-20 tools recommended range | [Google Gemini — Function Calling Limits](https://ai.google.dev/gemini-api/docs/function-calling) | Maximum 10 tools with full Skills enabled (within range) |
+| 10-20 tools recommended range | [Google Gemini — Function Calling Limits](https://ai.google.dev/gemini-api/docs/function-calling) | Maximum 11 tools when all optional schema/table-summary and mutation skills are enabled (within range) |
 
 ### Agent Architecture Principles
 
@@ -1039,7 +1086,7 @@ practices from major AI platform providers and security standards.
 
 | Principle | Source | How Applied |
 |-----------|--------|-------------|
-| *"Validate all inputs"* | [MCP Specification §7 — Security](https://modelcontextprotocol.io/specification/2025-03-26/basic/security) | `validate_name()` + `validate_params()` at every tool call |
+| *"Validate all inputs"* | [MCP Specification §7 — Security](https://modelcontextprotocol.io/specification/2025-03-26/basic/security) | Skills execution validates skill names and params; base tools use SQL/table-specific validators |
 | *"Implement proper access controls"* | MCP Spec §7, ibid. | Dual-layer switches + ALLOWED_TABLES + path constraints |
 | Parameterized queries | [OWASP — SQL Injection Prevention](https://cheatsheetseries.owasp.org/cheatsheets/SQL_Injection_Prevention_Cheat_Sheet.html) | SQLAlchemy `text()` + parameter binding; zero string concatenation |
 | TOCTOU prevention | [MITRE CWE-367](https://cwe.mitre.org/data/definitions/367.html) | Startup-time caching eliminates runtime file reads |
@@ -1052,6 +1099,7 @@ practices from major AI platform providers and security standards.
 | Pattern | Source | How Applied |
 |---------|--------|-------------|
 | `ToolError` for expected failures | [FastMCP — Error Handling](https://gofastmcp.com/servers/tools#errors) | Mutation failures raise `ToolError` (passed to client) vs generic exceptions (masked) |
-| `ToolAnnotations` metadata | [FastMCP — Tool Annotations](https://gofastmcp.com/servers/tools#tool-annotations) | `readOnlyHint`, `destructiveHint`, `idempotentHint` for each Skills tool |
+| `ToolAnnotations` metadata | [FastMCP — Tool Annotations](https://gofastmcp.com/servers/tools#tool-annotations) | `readOnlyHint`, `destructiveHint`, `idempotentHint`, and `openWorldHint=false` for MCP tools |
+| Runtime tool metadata | [FastMCP — ToolResult and Metadata](https://gofastmcp.com/servers/tools#toolresult-and-metadata) | All 11 tools return `ToolResult` with unchanged structured payload plus non-sensitive runtime `meta` (uniform since v3.4.2) |
 | Explicit transaction via `engine.begin()` | [SQLAlchemy 2.0 — Transactions](https://docs.sqlalchemy.org/en/20/core/connections.html#using-transactions) | `execute_write()` uses `engine.begin()` context manager (auto-commit/auto-rollback) |
 | Identifier quoting | [SQLAlchemy — `quoted_name()`](https://docs.sqlalchemy.org/en/20/core/sqlelement.html#sqlalchemy.sql.expression.quoted_name) | Table names quoted to prevent SQL injection in dynamic identifiers |

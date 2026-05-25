@@ -132,12 +132,13 @@ Provide clear tool priority while maintaining flexibility for LLM decision-makin
 ```python
 instructions="""Database query assistant with READ-ONLY access.
 
-Tools: query (primary), get_full_schema, list_tables, describe_table, get_table_summary, check_connection
+Tools: query (primary), get_full_schema, list_tables, describe_table, check_connection
+Optional: get_table_summary only when ENABLE_TABLE_SUMMARY=1 and exact counts are required
 
 Guidance (not mandatory):
 - Known table/columns and small request: query directly
 - Unknown structure: get_full_schema() or list_tables()/describe_table() first
-- Potentially large tables or uncertain result size: get_table_summary(table) before selecting raw rows
+- Potentially large tables or uncertain result size: use describe_table() estimates; use explicit COUNT(*) or get_table_summary(exact_count=True) only when exact counts are required
 
 Safe statements: SELECT, SHOW, DESCRIBE, EXPLAIN."""
 ```
@@ -272,7 +273,7 @@ Tool information already in docstrings doesn't need to repeat in system prompts:
 | ❌ Redundant | ✅ Optimized |
 |--------------|-------------|
 | "query(sql) - Execute SQL queries. Use for SELECT, SHOW..." | "query (primary)" |
-| "list_tables() - List all database tables with row counts" | "list_tables" |
+| "list_tables() - List visible tables with row estimates; may truncate" | "list_tables" |
 
 #### 7.2 Combine Related Instructions
 
@@ -302,9 +303,9 @@ TOOLS:
 
 **After optimization:** ~94 tokens (69% reduction)
 ```
-READ-ONLY SQL assistant. Tools: query (primary), get_full_schema, list_tables, describe_table, get_table_summary, sample.
+READ-ONLY SQL assistant. Tools: query (primary), get_full_schema, list_tables, describe_table, sample. Optional: get_table_summary only when enabled and exact counts are required.
 
-Guidance (not mandatory): schema unknown → get_full_schema()/describe_table(); before querying a table → get_table_summary() (size); large tables → LIMIT or aggregation.
+Guidance (not mandatory): schema unknown → get_full_schema()/describe_table(); potentially large tables → describe_table() estimate; exact counts → COUNT(*) or get_table_summary(exact_count=True) if enabled; large tables → LIMIT/ORDER BY or aggregation.
 Guidelines: Use aggregation (COUNT/GROUP BY) over raw data. Use JOINs for related data.
 Always show SQL in response.
 ```

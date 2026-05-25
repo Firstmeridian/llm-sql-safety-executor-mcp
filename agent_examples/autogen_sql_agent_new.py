@@ -277,7 +277,7 @@ def get_model_client() -> tuple[OpenAIChatCompletionClient, str]:
 # without hardcoding assumptions.
 # 为什么要动态检测？
 # 1. MCP 服务器的工具取决于 .env 配置（ENABLE_SKILLS、ENABLE_SCHEMA_TOOLS 等）
-# 2. 不同配置下可用工具数量不同（5-10 个）
+# 2. 不同配置下可用工具数量不同（5-11 个）
 # 3. 如果在提示词中描述不存在的工具，LLM 会产生“幻觉工具调用”（调用不存在的工具）
 #
 # Reference: MCP Spec — "Servers define capabilities during initialization"

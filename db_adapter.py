@@ -27,8 +27,9 @@ import time
 import logging
 import sqlite3
 from abc import ABC, abstractmethod
-from typing import Any
+from typing import Any, cast
 from dotenv import load_dotenv
+from sqlalchemy.engine import Engine
 
 # Load environment variables from .env file
 load_dotenv()
@@ -160,7 +161,7 @@ class DatabaseAdapter(ABC):
         Get estimated row count for a table.
         
         Note: This is an estimate, not exact count.
-        For SQLite, uses sampling strategy.
+        For SQLite, uses sqlite_stat1 or bounded sampling.
         For MySQL, uses INFORMATION_SCHEMA.TABLES.
         
         Args:
@@ -239,7 +240,7 @@ class MySQLAdapter(DatabaseAdapter):
     """
     
     def __init__(self):
-        self._engine = None
+        self._engine: Engine | None = None
         self._db_name = DB_NAME
         self._connected = False
     
@@ -298,6 +299,9 @@ class MySQLAdapter(DatabaseAdapter):
         if not self._engine:
             if not self.connect():
                 return "Error: Database engine could not be initialized."
+        engine = self._engine
+        if engine is None:
+            return "Error: Database engine could not be initialized."
         
         timeout = timeout if timeout is not None else QUERY_TIMEOUT_SECONDS
         
@@ -305,7 +309,7 @@ class MySQLAdapter(DatabaseAdapter):
             from sqlalchemy import text
             from sqlalchemy.exc import SQLAlchemyError
             
-            with self._engine.connect() as connection:
+            with engine.connect() as connection:
                 # Set session-level query timeout for MySQL
                 # MAX_EXECUTION_TIME is in milliseconds
                 timeout_ms = timeout * 1000
@@ -319,7 +323,7 @@ class MySQLAdapter(DatabaseAdapter):
                     result = connection.execute(text(sql), params)
                 else:
                     result = connection.execute(text(sql))
-                rows = result.fetchall()
+                rows = list(result.fetchall())
                 return rows
                 
         except Exception as e:
@@ -336,13 +340,16 @@ class MySQLAdapter(DatabaseAdapter):
         if not self._engine:
             if not self.connect():
                 raise RuntimeError("Database engine could not be initialized.")
+        engine = self._engine
+        if engine is None:
+            raise RuntimeError("Database engine could not be initialized.")
 
         timeout = timeout if timeout is not None else QUERY_TIMEOUT_SECONDS
 
         from sqlalchemy import text
         from sqlalchemy.exc import SQLAlchemyError
 
-        with self._engine.begin() as connection:
+        with engine.begin() as connection:
             timeout_ms = timeout * 1000
             try:
                 connection.execute(text(f"SET SESSION MAX_EXECUTION_TIME = {timeout_ms}"))
@@ -489,7 +496,8 @@ class SQLiteAdapter(DatabaseAdapter):
     
     Design Decisions:
     - Uses synchronous sqlite3 (not aiosqlite) for simplicity
-    - StaticPool ensures single connection, avoiding file lock issues
+        - StaticPool keeps a single process-local connection; SQLite file-level
+            write locks still apply when mutation skills are enabled
     - set_progress_handler provides query-level timeout without external threads
     
     Timeout Implementation:
@@ -505,7 +513,7 @@ class SQLiteAdapter(DatabaseAdapter):
     
     def __init__(self, database_path: str | None = None):
         self._database_path = database_path or SQLITE_DATABASE_PATH
-        self._engine = None
+        self._engine: Engine | None = None
         self._connection = None
         self._connected = False
     
@@ -564,15 +572,21 @@ class SQLiteAdapter(DatabaseAdapter):
         if not self._engine:
             if not self.connect():
                 return "Error: Database engine could not be initialized."
+        engine = self._engine
+        if engine is None:
+            return "Error: Database engine could not be initialized."
         
         timeout = timeout if timeout is not None else QUERY_TIMEOUT_SECONDS
         
         try:
             from sqlalchemy import text
             
-            with self._engine.connect() as connection:
+            with engine.connect() as connection:
                 # Get raw sqlite3 connection for set_progress_handler
                 raw_conn = connection.connection.dbapi_connection
+                if raw_conn is None:
+                    return "Error: Database engine could not be initialized."
+                sqlite_conn = cast(sqlite3.Connection, raw_conn)
                 
                 # Set up timeout handler
                 start_time = time.time()
@@ -586,26 +600,23 @@ class SQLiteAdapter(DatabaseAdapter):
                 # Install progress handler
                 # N = number of VM instructions between callbacks
                 # Lower N = more responsive but higher overhead
-                raw_conn.set_progress_handler(timeout_handler, SQLITE_PROGRESS_HANDLER_INTERVAL)
+                sqlite_conn.set_progress_handler(timeout_handler, SQLITE_PROGRESS_HANDLER_INTERVAL)
                 
                 try:
                     if params:
                         result = connection.execute(text(sql), params)
                     else:
                         result = connection.execute(text(sql))
-                    rows = result.fetchall()
+                    rows = list(result.fetchall())
                     return rows
                 finally:
                     # Remove progress handler after query
-                    raw_conn.set_progress_handler(None, 0)
+                    sqlite_conn.set_progress_handler(None, 0)
                 
         except sqlite3.OperationalError as e:
-            error_str = str(e)
-            if "interrupted" in error_str.lower():
-                return f"Error: Query timeout exceeded ({timeout}s limit)"
-            return self._handle_error(e)
+            return self._handle_error(e, timeout)
         except Exception as e:
-            return self._handle_error(e)
+            return self._handle_error(e, timeout)
 
     def execute_write(self, sql: str, params: dict, timeout: int | None = None) -> dict:
         """
@@ -618,13 +629,19 @@ class SQLiteAdapter(DatabaseAdapter):
         if not self._engine:
             if not self.connect():
                 raise RuntimeError("Database engine could not be initialized.")
+        engine = self._engine
+        if engine is None:
+            raise RuntimeError("Database engine could not be initialized.")
 
         timeout = timeout if timeout is not None else QUERY_TIMEOUT_SECONDS
 
         from sqlalchemy import text
 
-        with self._engine.begin() as connection:
+        with engine.begin() as connection:
             raw_conn = connection.connection.dbapi_connection
+            if raw_conn is None:
+                raise RuntimeError("Database engine could not be initialized.")
+            sqlite_conn = cast(sqlite3.Connection, raw_conn)
             start_time = time.time()
 
             def timeout_handler():
@@ -632,12 +649,12 @@ class SQLiteAdapter(DatabaseAdapter):
                     return 1
                 return 0
 
-            raw_conn.set_progress_handler(timeout_handler, SQLITE_PROGRESS_HANDLER_INTERVAL)
+            sqlite_conn.set_progress_handler(timeout_handler, SQLITE_PROGRESS_HANDLER_INTERVAL)
             try:
                 result = connection.execute(text(sql), params)
                 return {"success": True, "rowcount": result.rowcount}
             finally:
-                raw_conn.set_progress_handler(None, 0)
+                sqlite_conn.set_progress_handler(None, 0)
 
     def _handle_error(self, e: Exception, timeout: int | None = None) -> str:
         """
@@ -651,7 +668,10 @@ class SQLiteAdapter(DatabaseAdapter):
         error_str = str(e)
         logger.warning(f"SQLite execution error: {error_str[:200]}")
         
-        if "no such table" in error_str.lower():
+        if "interrupted" in error_str.lower():
+            timeout_suffix = f" ({timeout}s limit)" if timeout is not None else ""
+            return f"Error: Query timeout exceeded{timeout_suffix}"
+        elif "no such table" in error_str.lower():
             return "Error: Table or column not found"
         elif "syntax error" in error_str.lower():
             return "Error: SQL syntax error"
@@ -667,7 +687,7 @@ class SQLiteAdapter(DatabaseAdapter):
         Get all tables from sqlite_master.
         
         Note: SQLite doesn't have INFORMATION_SCHEMA, uses sqlite_master instead.
-        Row counts are estimated via sampling strategy.
+        Row counts are estimated via sqlite_stat1 or bounded sampling.
         """
         sql = """
             SELECT name as table_name
@@ -718,18 +738,13 @@ class SQLiteAdapter(DatabaseAdapter):
     
     def get_row_estimate(self, table_name: str) -> int:
         """
-        Estimate row count using sampling strategy.
+        Estimate row count using sqlite_stat1 or bounded sampling.
         
         Strategy:
         1. First try sqlite_stat1 if ANALYZE has been run
-        2. Fallback to limited COUNT with sampling
+        2. Fallback to bounded sampling
         
         This avoids full table scan for large tables.
-        
-        Design Decision:
-        - Use sample-based estimation for performance
-        - sqlite_stat1 is preferred when available (populated by ANALYZE)
-        - Fallback counts up to 10000 rows and extrapolates
         """
         # Try sqlite_stat1 first (if ANALYZE has been run)
         # First check if sqlite_stat1 exists to avoid error logging
@@ -751,9 +766,10 @@ class SQLiteAdapter(DatabaseAdapter):
                 except (ValueError, IndexError):
                     pass
         
-        # Fallback: Sample-based estimation
-        # Count first 10000 rows, then check if more exist
-        sample_sql = f"SELECT COUNT(*) FROM (SELECT 1 FROM {table_name} LIMIT 10000)"
+        # Fallback: bounded sample-based estimation. This intentionally avoids
+        # a full COUNT(*) on large tables; exact counts are opt-in elsewhere.
+        sample_limit = 10000
+        sample_sql = f"SELECT COUNT(*) FROM (SELECT 1 FROM {table_name} LIMIT {sample_limit})"
         sample_result = self.execute(sample_sql)
         
         if isinstance(sample_result, str) or not sample_result:
@@ -761,20 +777,13 @@ class SQLiteAdapter(DatabaseAdapter):
         
         sample_count = sample_result[0][0] or 0
         
-        if sample_count < 10000:
+        if sample_count < sample_limit:
             # Table has fewer than 10000 rows - return exact count
             return sample_count
         
-        # Table has 10000+ rows - get exact count for accuracy
-        # Note: For very large tables, this could be slow
-        # Future optimization: Use ROWID estimation
-        count_sql = f"SELECT COUNT(*) FROM {table_name}"
-        count_result = self.execute(count_sql)
-        
-        if isinstance(count_result, str) or not count_result:
-            return sample_count  # Return sample if full count fails
-        
-        return count_result[0][0] or sample_count
+        # Table has at least sample_limit rows. Return the lower-bound estimate
+        # instead of upgrading metadata discovery into an expensive full count.
+        return sample_count
     
     def check_connection(self) -> tuple[bool, str]:
         """Check SQLite connection status."""

@@ -94,6 +94,14 @@ def skills_server(monkeypatch):
 
 def run_tool(coro):
     """Run an async MCP tool function in synchronous pytest tests."""
+    result = asyncio.run(coro)
+    if hasattr(result, "structured_content") and result.structured_content is not None:
+        return result.structured_content
+    return result
+
+
+def run_tool_result(coro):
+    """Run an async MCP tool function and keep the raw ToolResult wrapper."""
     return asyncio.run(coro)
 
 
@@ -473,19 +481,28 @@ def test_query_skill_audit_is_opt_in(monkeypatch, tmp_path):
             },
         )
 
-        result = run_tool(
+        tool_result = run_tool_result(
             module.execute_query_skill(
                 skill_name="monthly-sales-report-sqlite",
                 params={"year": 2026, "month": 1},
                 ctx=DummyContext(),
             )
         )
+        result = tool_result.structured_content
     finally:
         sys.modules.pop("mcp_sql_server", None)
         sys.modules.pop("db_adapter", None)
         sys.modules.pop("sql_safety_checker", None)
 
     assert result["success"] is True
+    assert tool_result.meta["skill_name"] == "monthly-sales-report-sqlite"
+    assert tool_result.meta["skill_type"] == "query"
+    assert tool_result.meta["mode"] == "query"
+    assert tool_result.meta["row_count"] == 1
+    assert tool_result.meta["total_rows"] == 1
+    assert tool_result.meta["truncated"] is False
+    assert tool_result.meta["audit_logged"] is True
+    assert "execution_ms" in tool_result.meta
     entry = json.loads(audit_log.read_text().strip())
     assert entry["skill_name"] == "monthly-sales-report-sqlite"
     assert entry["mode"] == "query"
@@ -577,19 +594,22 @@ def test_fastmcp_tool_schema_exposes_skill_parameters(monkeypatch):
     sys.modules.pop("sql_safety_checker", None)
     module = importlib.import_module("mcp_sql_server")
 
-    async def inspect_schemas():
+    async def inspect_tools():
         from fastmcp import Client
 
         async with Client(module.mcp) as client:
             tools = await client.list_tools()
-        return {tool.name: tool.inputSchema for tool in tools}
+        return tools
 
     try:
-        schemas = run_tool(inspect_schemas())
+        tools = run_tool(inspect_tools())
     finally:
         sys.modules.pop("mcp_sql_server", None)
         sys.modules.pop("db_adapter", None)
         sys.modules.pop("sql_safety_checker", None)
+
+    schemas = {tool.name: tool.inputSchema for tool in tools}
+    annotations = {tool.name: tool.annotations for tool in tools}
 
     list_props = schemas["list_skills"]["properties"]
     assert "available_only" in list_props
@@ -607,6 +627,9 @@ def test_fastmcp_tool_schema_exposes_skill_parameters(monkeypatch):
     assert "params" in mutation_schema["properties"]
     assert "confirm" in mutation_schema["properties"]
     assert mutation_schema["properties"]["confirm"]["type"] == "boolean"
+
+    for tool_name, annotation in annotations.items():
+        assert annotation.openWorldHint is False, tool_name
 
 
 def test_raw_query_rejects_over_max_sql_length(skills_server):

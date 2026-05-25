@@ -32,13 +32,17 @@ import re
 import sys
 import json
 import logging
+import math
+import time
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Annotated, Any, AsyncIterator
 from pydantic import Field
 from mcp.types import ToolAnnotations
 from fastmcp import FastMCP, Context
 from fastmcp.exceptions import ToolError
+from fastmcp.tools.tool import ToolResult
 from sql_safety_checker import is_sql_safe, execute_sql
 from db_adapter import get_adapter, DB_TYPE, QUERY_TIMEOUT_SECONDS
 
@@ -184,6 +188,37 @@ SKILLS_AUDIT_QUERIES = _parse_env_bool("SKILLS_AUDIT_QUERIES", False)
 
 SKILLS_SEARCH_MAX_LENGTH = 128
 SKILLS_CATEGORY_MAX_LENGTH = 64
+
+# Optional opt-in telemetry: write per-tool-call runtime metadata to a JSONL log.
+# Disabled by default. Captures only non-sensitive fields from ToolResult._meta —
+# never SQL text, parameter values, returned rows, or credentials.
+ENABLE_TOOL_TELEMETRY = _parse_env_bool("ENABLE_TOOL_TELEMETRY", False)
+TOOL_TELEMETRY_LOG_PATH = os.getenv(
+    "TOOL_TELEMETRY_LOG_PATH",
+    str(Path(__file__).parent / "logs" / "tool_calls.jsonl"),
+)
+
+
+def _parse_telemetry_sample_rate(raw: str | None) -> float:
+    """Clamp TOOL_TELEMETRY_SAMPLE_RATE to [0.0, 1.0]. Defaults to 1.0."""
+    if raw is None or raw == "":
+        return 1.0
+    try:
+        value = float(raw)
+    except ValueError:
+        return 1.0
+    if not math.isfinite(value):
+        return 1.0
+    if value < 0.0:
+        return 0.0
+    if value > 1.0:
+        return 1.0
+    return value
+
+
+TOOL_TELEMETRY_SAMPLE_RATE = _parse_telemetry_sample_rate(
+    os.getenv("TOOL_TELEMETRY_SAMPLE_RATE")
+)
 
 # =============================================================================
 # Table Allowlist Configuration (P1 Security: Restrict table access)
@@ -332,6 +367,83 @@ For single-table queries, if schema/columns unknown, call describe_table(table_n
     lifespan=lifespan,
     mask_error_details=True,
 )
+
+
+# =============================================================================
+# Optional Tool Telemetry Middleware (opt-in via ENABLE_TOOL_TELEMETRY=1)
+# Logs per-call runtime metadata (tool_name, execution_ms, db_type, success)
+# to a JSONL file for offline observability. NEVER logs SQL/params/rows.
+# Reference: MCP spec — _meta is OPTIONAL diagnostic; keep logs sanitized.
+# =============================================================================
+if ENABLE_TOOL_TELEMETRY:
+    from fastmcp.server.middleware import Middleware, MiddlewareContext
+    import random as _random
+
+    class _ToolTelemetryMiddleware(Middleware):
+        """Append a sanitized JSONL record for each tools/call invocation.
+
+        Records reflect both transport-level outcome (no exception escaped
+        ``call_next``) and business-level outcome (``ToolResult.meta.success``
+        when present). ``call_completed`` captures the former, ``success``
+        captures the latter so operators can tell e.g. a safety rejection
+        (``call_completed=True``, ``success=False``) apart from a crash
+        (``call_completed=False``, ``success=False``).
+        """
+
+        def __init__(self, log_path: str, sample_rate: float = 1.0) -> None:
+            self._log_path: Path | None = Path(log_path)
+            self._sample_rate = sample_rate
+            try:
+                assert self._log_path is not None
+                self._log_path.parent.mkdir(parents=True, exist_ok=True)
+            except OSError as exc:  # pragma: no cover - filesystem edge case
+                logger.warning(f"Tool telemetry disabled (mkdir failed): {exc}")
+                self._log_path = None
+
+        async def on_call_tool(self, context: MiddlewareContext[Any], call_next):  # type: ignore[override]
+            tool_name = getattr(context.message, "name", None) or "unknown"
+            started = time.perf_counter()
+            call_completed = True
+            error_class: str | None = None
+            success: bool = True
+            try:
+                result = await call_next(context)
+                meta = getattr(result, "meta", None) or {}
+                meta_success = meta.get("success") if isinstance(meta, dict) else None
+                if isinstance(meta_success, bool):
+                    success = meta_success
+                return result
+            except BaseException as exc:
+                call_completed = False
+                success = False
+                error_class = type(exc).__name__
+                raise
+            finally:
+                if self._log_path is not None and (
+                    self._sample_rate >= 1.0 or _random.random() < self._sample_rate
+                ):
+                    record = {
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                        "tool_name": tool_name,
+                        "execution_ms": round((time.perf_counter() - started) * 1000, 3),
+                        "call_completed": call_completed,
+                        "success": success,
+                        "error_class": error_class,
+                        "db_type": DB_TYPE,
+                    }
+                    try:
+                        with self._log_path.open("a", encoding="utf-8") as fh:
+                            fh.write(json.dumps(record, ensure_ascii=False) + "\n")
+                    except OSError as exc:  # pragma: no cover - filesystem edge case
+                        logger.warning(f"Tool telemetry write failed: {exc}")
+
+    mcp.add_middleware(
+        _ToolTelemetryMiddleware(TOOL_TELEMETRY_LOG_PATH, TOOL_TELEMETRY_SAMPLE_RATE)
+    )
+    logger.info(
+        f"Tool telemetry middleware enabled → {TOOL_TELEMETRY_LOG_PATH} "
+        f"(sample_rate={TOOL_TELEMETRY_SAMPLE_RATE})"
+    )
 
 
 # =============================================================================
@@ -499,6 +611,38 @@ def _truncate_result(data: list, total_rows: int) -> dict[str, Any]:
     }
 
 
+def _elapsed_ms_from(start_time: float) -> float:
+    """Return elapsed milliseconds rounded for stable runtime metadata."""
+    return round((time.perf_counter() - start_time) * 1000, 3)
+
+
+def _tool_result(
+    payload: dict[str, Any],
+    *,
+    tool_name: str,
+    start_time: float,
+    **meta_extras: Any,
+) -> ToolResult:
+    """
+    Wrap a dict-shaped tool response in ``ToolResult`` and attach runtime metadata.
+
+    ``_meta`` always carries ``tool_name``, ``db_type``, and ``execution_ms``;
+    callers may add tool-specific fields via ``**meta_extras`` (None values are
+    dropped). Metadata is non-sensitive diagnostics only — never raw SQL,
+    returned rows, parameter values, or credentials.
+
+    Per MCP spec the ``_meta`` field is OPTIONAL: clients MAY ignore it. This
+    helper is primarily a server-side observability hook.
+    """
+    runtime_meta: dict[str, Any] = {
+        "tool_name": tool_name,
+        "db_type": DB_TYPE,
+        "execution_ms": _elapsed_ms_from(start_time),
+    }
+    runtime_meta.update({k: v for k, v in meta_extras.items() if v is not None})
+    return ToolResult(structured_content=payload, meta=runtime_meta)
+
+
 # =============================================================================
 # MCP Tools (Following FastMCP Best Practices)
 # =============================================================================
@@ -513,13 +657,15 @@ def _truncate_result(data: list, total_rows: int) -> dict[str, Any]:
         openWorldHint=False,
     )
 )
-async def query(sql: Annotated[str, _SQL_QUERY_FIELD], ctx: Context) -> dict[str, Any]:
+async def query(sql: Annotated[str, _SQL_QUERY_FIELD], ctx: Context) -> ToolResult:
     """
     Execute a SQL SELECT query on the database.
     
     This is the PRIMARY tool for all database queries.
     Safety validation is automatic - only read-only statements are allowed.
     Supported: SELECT, SHOW, DESCRIBE, EXPLAIN.
+    Returned payloads may be truncated for context safety; truncation does not
+    limit database work. Add WHERE/LIMIT/ORDER BY in SQL when needed.
     
     Args:
         sql: A SQL SELECT query to execute
@@ -535,12 +681,13 @@ async def query(sql: Annotated[str, _SQL_QUERY_FIELD], ctx: Context) -> dict[str
         query("DESCRIBE users")
         query("EXPLAIN SELECT * FROM products WHERE id = 1")
     """
+    start_time = time.perf_counter()
     if MAX_SQL_LENGTH > 0 and len(sql) > MAX_SQL_LENGTH:
         await ctx.warning(
             f"Rejected overlong SQL query: {len(sql)} characters "
             f"(max {MAX_SQL_LENGTH})"
         )
-        return {
+        return _tool_result({
             "success": False,
             "error": (
                 "SQL query is too long; maximum length is "
@@ -548,39 +695,39 @@ async def query(sql: Annotated[str, _SQL_QUERY_FIELD], ctx: Context) -> dict[str
             ),
             "query_length": len(sql),
             "max_sql_length": MAX_SQL_LENGTH,
-        }
+        }, tool_name="query", start_time=start_time, success=False)
 
     await ctx.info(f"Executing query: {sql}")
     
     # Validate safety - basic check
     if not is_sql_safe(sql):
         await ctx.warning(f"Rejected unsafe query: {sql}")
-        return {
+        return _tool_result({
             "success": False,
             "error": "Only read-only queries allowed (SELECT, SHOW, DESCRIBE, EXPLAIN)",
             "query": sql
-        }
+        }, tool_name="query", start_time=start_time, success=False)
     
     # Extended safety check - block dangerous patterns
     is_safe, error_msg = _is_query_safe_extended(sql)
     if not is_safe:
         await ctx.warning(f"Rejected query (extended check): {error_msg}")
-        return {
+        return _tool_result({
             "success": False,
             "error": error_msg,
             "query": sql
-        }
+        }, tool_name="query", start_time=start_time, success=False)
     
     # Table allowlist check (P1 Security)
     # Reference: Microsoft "Least Privilege Principle"
     is_allowed, allowlist_error = _check_table_allowlist(sql)
     if not is_allowed:
         await ctx.warning(f"Table access denied: {allowlist_error}")
-        return {
+        return _tool_result({
             "success": False,
             "error": allowlist_error,
             "query": sql
-        }
+        }, tool_name="query", start_time=start_time, success=False)
     
     # Execute query
     result = execute_sql(sql)
@@ -588,11 +735,11 @@ async def query(sql: Annotated[str, _SQL_QUERY_FIELD], ctx: Context) -> dict[str
     # Handle error
     if isinstance(result, str) and result.startswith("Error:"):
         await ctx.error(f"Query failed: {result}")
-        return {
+        return _tool_result({
             "success": False,
             "error": result,
             "query": sql
-        }
+        }, tool_name="query", start_time=start_time, success=False)
     
     # Success - Apply token optimization with truncation
     # Best practice: Limit response size to prevent context overflow
@@ -605,24 +752,34 @@ async def query(sql: Annotated[str, _SQL_QUERY_FIELD], ctx: Context) -> dict[str
     
     if truncation_result["truncated"]:
         await ctx.warning(
-            f"Truncated: {truncation_result['returned_rows']}/{total_rows} rows. "
-            f"Add LIMIT to your query for precise control."
+            f"Truncated returned payload: {truncation_result['returned_rows']}/{total_rows} rows shown. "
+            f"Add WHERE/LIMIT/ORDER BY to limit database work and stabilize ordering."
         )
     else:
         await ctx.info(f"Query returned {total_rows} rows")
     
-    return {
+    payload = {
         "success": True,
         "data": truncation_result["data"],
         "row_count": truncation_result["returned_rows"],
         "total_rows": total_rows,
         "truncated": truncation_result["truncated"],
         "truncation_note": (
-            f"Showing {truncation_result['returned_rows']}/{total_rows} rows. "
-            f"Use LIMIT clause for full control."
+            f"Showing {truncation_result['returned_rows']}/{total_rows} fetched rows. "
+            f"Truncation limits the returned payload only; add WHERE/LIMIT/ORDER BY "
+            f"to limit database work and stabilize ordering."
         ) if truncation_result["truncated"] else None,
         "query": sql
     }
+    return _tool_result(
+        payload,
+        tool_name="query",
+        start_time=start_time,
+        success=True,
+        row_count=truncation_result["returned_rows"],
+        total_rows=total_rows,
+        truncated=truncation_result["truncated"],
+    )
 
 
 @mcp.tool(
@@ -632,9 +789,10 @@ async def query(sql: Annotated[str, _SQL_QUERY_FIELD], ctx: Context) -> dict[str
         readOnlyHint=True,
         destructiveHint=False,
         idempotentHint=True,
+        openWorldHint=False,
     )
 )
-async def check_connection(ctx: Context) -> dict[str, Any]:
+async def check_connection(ctx: Context) -> ToolResult:
     """
     Check if the database connection is working.
 
@@ -643,6 +801,7 @@ async def check_connection(ctx: Context) -> dict[str, Any]:
     Returns:
         Connection status, database type, and configuration check
     """
+    start_time = time.perf_counter()
     await ctx.info("Checking database connection...")
     
     adapter = get_adapter()
@@ -653,7 +812,7 @@ async def check_connection(ctx: Context) -> dict[str, Any]:
         
         # Return appropriate config hints based on database type
         if DB_TYPE == "sqlite":
-            return {
+            payload = {
                 "connected": False,
                 "error": message,
                 "db_type": "sqlite",
@@ -662,7 +821,7 @@ async def check_connection(ctx: Context) -> dict[str, Any]:
                 }
             }
         else:  # mysql
-            return {
+            payload = {
                 "connected": False,
                 "error": message,
                 "db_type": "mysql",
@@ -673,38 +832,47 @@ async def check_connection(ctx: Context) -> dict[str, Any]:
                     "DB_NAME": "set" if os.getenv("DB_NAME") else "missing",
                 }
             }
+        return _tool_result(
+            payload, tool_name="check_connection", start_time=start_time, success=False,
+        )
     
     await ctx.info(f"Database connection successful ({DB_TYPE})")
-    return {
+    payload = {
         "connected": True,
         "message": message,
         "db_type": DB_TYPE,
         "database_name": adapter.get_database_name()
     }
+    return _tool_result(
+        payload, tool_name="check_connection", start_time=start_time, success=True,
+    )
 
 
 @mcp.tool(
     timeout=_MCP_TOOL_TIMEOUT,
     annotations=ToolAnnotations(
-        title="List Database Tables",
+        title="List Visible Database Tables",
         readOnlyHint=True,
         destructiveHint=False,
         idempotentHint=True,
+        openWorldHint=False,
     )
 )
-async def list_tables(ctx: Context) -> dict[str, Any]:
+async def list_tables(ctx: Context) -> ToolResult:
     """
-    Database overview: list all tables with names and approximate row counts.
+    Visible database overview: list allowed tables with approximate row counts.
     
-    Lightweight initial discovery tool. Row counts are estimates:
+    Lightweight initial discovery tool. Results may be truncated by
+    MAX_OVERVIEW_TABLES. Row counts are estimates:
     - MySQL: from INFORMATION_SCHEMA (InnoDB may vary ±40%)
-    - SQLite: from sqlite_stat1 or sampling
+    - SQLite: from sqlite_stat1 or bounded sampling
     
     For column details, use describe_table(name).
 
     Returns:
-        Database name, table count, and list of tables with approximate row counts
+        Database name, visible table counts, and returned table rows
     """
+    start_time = time.perf_counter()
     await ctx.info("Listing database tables")
     
     adapter = get_adapter()
@@ -715,7 +883,7 @@ async def list_tables(ctx: Context) -> dict[str, Any]:
     
     if not tables:
         await ctx.info(f"No tables found in {database_name}")
-        return {
+        return _tool_result({
             "success": True,
             "database_name": database_name,
             "db_type": DB_TYPE,
@@ -726,7 +894,8 @@ async def list_tables(ctx: Context) -> dict[str, Any]:
             "truncated": False,
             "truncation_note": None,
             "hint": "No tables found in database."
-        }
+        }, tool_name="list_tables", start_time=start_time, success=True,
+           returned_table_count=0, total_tables=0, truncated=False)
     
     # Filter by allowlist if configured (P1 Security)
     # Skip filtering if ALLOWED_TABLES=* (explicit allow all)
@@ -749,7 +918,7 @@ async def list_tables(ctx: Context) -> dict[str, Any]:
     # Use consistent field names: returned_table_count vs total_tables (visible before truncation)
     # Note: total_tables is after allowlist filtering, before truncation
     # "returned_" prefix avoids confusion with "total tables in database"
-    return {
+    payload = {
         "success": True,
         "database_name": database_name,
         "db_type": DB_TYPE,
@@ -763,6 +932,10 @@ async def list_tables(ctx: Context) -> dict[str, Any]:
         ) if truncated else None,
         "hint": f"Row counts are estimates. total_tables = visible after allowlist. DB type: {DB_TYPE}"
     }
+    return _tool_result(
+        payload, tool_name="list_tables", start_time=start_time, success=True,
+        returned_table_count=len(tables), total_tables=total_tables, truncated=truncated,
+    )
 
 
 @mcp.tool(
@@ -772,15 +945,16 @@ async def list_tables(ctx: Context) -> dict[str, Any]:
         readOnlyHint=True,
         destructiveHint=False,
         idempotentHint=True,
+        openWorldHint=False,
     )
 )
-async def describe_table(table_name: str, ctx: Context) -> dict[str, Any]:
+async def describe_table(table_name: str, ctx: Context) -> ToolResult:
     """
     Get table structure: columns, row count estimate, and query hints.
     
     Returns column details plus approximate row count:
     - MySQL: from INFORMATION_SCHEMA (InnoDB ±40% variance)
-    - SQLite: from sqlite_stat1 or sampling
+    - SQLite: from sqlite_stat1 or bounded sampling
     
     Includes is_large flag and recommendations for large tables.
 
@@ -790,21 +964,22 @@ async def describe_table(table_name: str, ctx: Context) -> dict[str, Any]:
     Returns:
         Table structure with columns, row count, and query recommendations
     """
+    start_time = time.perf_counter()
     # Validate table name to prevent SQL injection
     if not _is_valid_identifier(table_name):
         await ctx.warning(f"Invalid table name rejected: {table_name}")
-        return {
+        return _tool_result({
             "success": False,
             "error": f"Invalid table name: {table_name}"
-        }
+        }, tool_name="describe_table", start_time=start_time, success=False)
     
     # Check table allowlist (P1 Security)
     if not _is_table_allowed(table_name):
         await ctx.warning(f"Table access denied by allowlist: {table_name}")
-        return {
+        return _tool_result({
             "success": False,
             "error": f"Access denied to table: {table_name}"
-        }
+        }, tool_name="describe_table", start_time=start_time, success=False)
     
     await ctx.info(f"Describing table: {table_name}")
     
@@ -816,10 +991,10 @@ async def describe_table(table_name: str, ctx: Context) -> dict[str, Any]:
     
     if not columns_data:
         await ctx.error(f"Table not found: {table_name}")
-        return {
+        return _tool_result({
             "success": False,
             "error": f"Table '{table_name}' not found"
-        }
+        }, tool_name="describe_table", start_time=start_time, success=False)
     
     # Determine if table is large (needs LIMIT)
     is_large = row_count > LARGE_TABLE_THRESHOLD
@@ -827,7 +1002,7 @@ async def describe_table(table_name: str, ctx: Context) -> dict[str, Any]:
     await ctx.info(f"Table {table_name}: ~{row_count} rows, {len(columns_data)} columns")
     
     # Build response with query recommendations
-    result = {
+    result_payload = {
         "success": True,
         "table_name": table_name,
         "db_type": DB_TYPE,
@@ -840,11 +1015,14 @@ async def describe_table(table_name: str, ctx: Context) -> dict[str, Any]:
     
     # Add recommendation only for large tables (reduce token overhead)
     if is_large:
-        result["recommendation"] = (
+        result_payload["recommendation"] = (
             f"Large table (~{row_count} rows). Use LIMIT or aggregation (COUNT/GROUP BY)."
         )
     
-    return result
+    return _tool_result(
+        result_payload, tool_name="describe_table", start_time=start_time, success=True,
+        row_count=row_count, is_large=is_large,
+    )
 
 
 # =============================================================================
@@ -855,23 +1033,26 @@ async def describe_table(table_name: str, ctx: Context) -> dict[str, Any]:
 @mcp.tool(
     timeout=_MCP_TOOL_TIMEOUT,
     annotations=ToolAnnotations(
-        title="Get Full Database Schema",
+        title="Get Visible Database Schema",
         readOnlyHint=True,
         destructiveHint=False,
         idempotentHint=True,
+        openWorldHint=False,
     )
 )
-async def get_full_schema(ctx: Context) -> dict[str, Any]:
+async def get_full_schema(ctx: Context) -> ToolResult:
     """
-    Get complete database schema (all tables and columns) in one call.
+    Get a visible database schema overview in one call.
     
     Best for: exploring unknown databases, multi-table queries, or complex JOINs.
+    Results may be filtered by allowlist and truncated by MAX_SCHEMA_TABLES.
     
     Works with both MySQL and SQLite databases.
 
     Returns:
-        Complete schema with all tables and their column definitions
+        Returned schema tables with column definitions and visible table counts
     """
+    start_time = time.perf_counter()
     await ctx.info("Fetching complete database schema...")
     
     adapter = get_adapter()
@@ -881,7 +1062,7 @@ async def get_full_schema(ctx: Context) -> dict[str, Any]:
     
     if not tables_data:
         await ctx.info("No tables found in database")
-        return {
+        return _tool_result({
             "success": True,
             "schema": {},
             "db_type": DB_TYPE,
@@ -892,7 +1073,8 @@ async def get_full_schema(ctx: Context) -> dict[str, Any]:
             "truncated": False,
             "truncation_note": None,
             "hint": "No tables found in database."
-        }
+        }, tool_name="get_full_schema", start_time=start_time, success=True,
+           returned_table_count=0, total_tables=0, truncated=False)
     
     # Filter tables by allowlist if configured (P1 Security)
     # Skip filtering if ALLOWED_TABLES=* (explicit allow all)
@@ -935,7 +1117,7 @@ async def get_full_schema(ctx: Context) -> dict[str, Any]:
     # Use consistent field names: returned_table_count vs total_tables (visible before truncation)
     # Note: total_tables is after allowlist filtering, before truncation
     # "returned_" prefix avoids confusion with "total tables in database"
-    return {
+    payload = {
         "success": True,
         "schema": schema,
         "db_type": DB_TYPE,
@@ -949,6 +1131,10 @@ async def get_full_schema(ctx: Context) -> dict[str, Any]:
         ) if truncated else None,
         "hint": f"Row counts are estimates. Use LIMIT for large tables (row_count > {LARGE_TABLE_THRESHOLD}). total_tables = visible after allowlist. DB type: {DB_TYPE}"
     }
+    return _tool_result(
+        payload, tool_name="get_full_schema", start_time=start_time, success=True,
+        returned_table_count=len(schema), total_tables=total_tables, truncated=truncated,
+    )
 
 
 # Optional tool: get_table_summary with exact COUNT(*) option
@@ -962,20 +1148,22 @@ if TABLE_SUMMARY_ENABLED:
             readOnlyHint=True,
             destructiveHint=False,
             idempotentHint=True,
+            openWorldHint=False,
         )
     )
     async def get_table_summary(
         table_name: str, 
         ctx: Context, 
         exact_count: bool = False
-    ) -> dict[str, Any]:
+    ) -> ToolResult:
         """
         Table statistics with optional exact row count.
         
-        WARNING: exact_count=True runs COUNT(*) which may be slow on large InnoDB tables
-        (full table scan, potential MDL contention). Use only when precision is required.
+        WARNING: exact_count=True runs COUNT(*) which may be slow on large tables
+        (full scan; MySQL can also see MDL contention). Use only when precision is required.
         
-        Default: Uses INFORMATION_SCHEMA estimate (fast, ~40% variance for InnoDB).
+        Default: Uses adapter estimates (INFORMATION_SCHEMA for MySQL;
+        sqlite_stat1 or bounded sampling for SQLite).
         
         Args:
             table_name: Name of the table
@@ -984,15 +1172,22 @@ if TABLE_SUMMARY_ENABLED:
         Returns:
             Table statistics with row count, columns, and query hints
         """
+        start_time = time.perf_counter()
         # Validate table name
         if not _is_valid_identifier(table_name):
             await ctx.warning(f"Invalid table name rejected: {table_name}")
-            return {"success": False, "error": f"Invalid table name: {table_name}"}
+            return _tool_result(
+                {"success": False, "error": f"Invalid table name: {table_name}"},
+                tool_name="get_table_summary", start_time=start_time, success=False,
+            )
         
         # Check table allowlist (P1 Security)
         if not _is_table_allowed(table_name):
             await ctx.warning(f"Table access denied by allowlist: {table_name}")
-            return {"success": False, "error": f"Access denied to table: {table_name}"}
+            return _tool_result(
+                {"success": False, "error": f"Access denied to table: {table_name}"},
+                tool_name="get_table_summary", start_time=start_time, success=False,
+            )
         
         await ctx.info(f"Getting summary for table: {table_name} (exact_count={exact_count})")
         
@@ -1001,7 +1196,7 @@ if TABLE_SUMMARY_ENABLED:
         # Get row count — use adapter for cross-database compatibility
         row_count_approximate = True
         if exact_count:
-            # WARNING: COUNT(*) can be slow on large InnoDB tables
+            # WARNING: COUNT(*) can be slow on large tables
             row_count_approximate = False
             await ctx.warning(f"Running COUNT(*) on {table_name} - may be slow on large tables")
             quote = '`' if adapter.db_type == 'mysql' else '"'
@@ -1009,7 +1204,10 @@ if TABLE_SUMMARY_ENABLED:
             count_result = execute_sql(count_sql)
             if isinstance(count_result, str) and count_result.startswith("Error:"):
                 await ctx.error(f"Failed to count rows: {count_result}")
-                return {"success": False, "error": count_result}
+                return _tool_result(
+                    {"success": False, "error": count_result},
+                    tool_name="get_table_summary", start_time=start_time, success=False,
+                )
             count_data = _serialize_result(count_result)
             total_rows = count_data[0]["total_rows"] if count_data else 0
             total_rows = total_rows or 0
@@ -1025,7 +1223,7 @@ if TABLE_SUMMARY_ENABLED:
         
         await ctx.info(f"Table {table_name}: {'~' if row_count_approximate else ''}{total_rows} rows, {len(columns_data)} columns")
         
-        result = {
+        result_payload = {
             "success": True,
             "table_name": table_name,
             "row_count": total_rows,
@@ -1036,12 +1234,15 @@ if TABLE_SUMMARY_ENABLED:
         }
         
         if is_large:
-            result["recommendation"] = (
+            result_payload["recommendation"] = (
                 f"Large table ({'~' if row_count_approximate else ''}{total_rows} rows). "
                 "Use LIMIT or aggregation (COUNT/GROUP BY)."
             )
         
-        return result
+        return _tool_result(
+            result_payload, tool_name="get_table_summary", start_time=start_time, success=True,
+            row_count=total_rows, is_large=is_large, exact_count=exact_count,
+        )
 
 
 # Optional tool: Only register if enabled
@@ -1053,9 +1254,10 @@ if SCHEMA_TOOLS_ENABLED:
             readOnlyHint=True,
             destructiveHint=False,
             idempotentHint=True,
+            openWorldHint=False,
         )
     )
-    async def sample(table_name: str, ctx: Context, limit: int = 5) -> dict[str, Any]:
+    async def sample(table_name: str, ctx: Context, limit: int = 5) -> ToolResult:
         """
         Get sample rows from a table to preview its data.
         
@@ -1066,21 +1268,22 @@ if SCHEMA_TOOLS_ENABLED:
         Returns:
             Sample rows from the table
         """
+        start_time = time.perf_counter()
         # Validate inputs
         if not _is_valid_identifier(table_name):
             await ctx.warning(f"Invalid table name rejected: {table_name}")
-            return {
+            return _tool_result({
                 "success": False,
                 "error": f"Invalid table name: {table_name}"
-            }
+            }, tool_name="sample", start_time=start_time, success=False)
         
         # Check table allowlist (P1 Security)
         if not _is_table_allowed(table_name):
             await ctx.warning(f"Table access denied by allowlist: {table_name}")
-            return {
+            return _tool_result({
                 "success": False,
                 "error": f"Access denied to table: {table_name}"
-            }
+            }, tool_name="sample", start_time=start_time, success=False)
         
         limit = min(max(1, limit), 20)  # Clamp between 1-20
         
@@ -1094,17 +1297,20 @@ if SCHEMA_TOOLS_ENABLED:
         
         if isinstance(result, str) and result.startswith("Error:"):
             await ctx.error(f"Failed to sample table: {result}")
-            return {"success": False, "error": result}
+            return _tool_result(
+                {"success": False, "error": result},
+                tool_name="sample", start_time=start_time, success=False,
+            )
         
         data = _serialize_result(result)
         
-        return {
+        return _tool_result({
             "success": True,
             "table_name": table_name,
             "data": data,
             "row_count": len(data),
             "query": sql
-        }
+        }, tool_name="sample", start_time=start_time, success=True, row_count=len(data))
 
 
 # =============================================================================
@@ -1340,6 +1546,52 @@ if SKILLS_ENABLED:
             return None
 
 
+    def _elapsed_ms(start_time: float) -> float:
+        """Return elapsed milliseconds rounded for stable runtime metadata."""
+        return round((time.perf_counter() - start_time) * 1000, 3)
+
+
+    def _skill_tool_result(
+        payload: dict[str, Any],
+        meta: SkillMetadata,
+        *,
+        mode: str,
+        start_time: float,
+        row_count: int | None = None,
+        total_rows: int | None = None,
+        truncated: bool | None = None,
+        audit_logged: bool | None = None,
+    ) -> ToolResult:
+        """Attach runtime metadata without changing the structured payload."""
+        payload_success = payload.get("success")
+        tool_name = (
+            "execute_mutation_skill"
+            if meta.type == "mutation"
+            else "execute_query_skill"
+        )
+        runtime_meta: dict[str, Any] = {
+            "tool_name": tool_name,
+            "skill_name": meta.name,
+            "skill_type": meta.type,
+            "skill_version": meta.version,
+            "mode": mode,
+            "db_type": DB_TYPE,
+            "execution_ms": _elapsed_ms(start_time),
+            "success": payload_success if isinstance(payload_success, bool) else True,
+            "idempotent": meta.idempotent,
+        }
+        optional_fields = {
+            "row_count": row_count,
+            "total_rows": total_rows,
+            "truncated": truncated,
+            "audit_logged": audit_logged,
+        }
+        runtime_meta.update(
+            {key: value for key, value in optional_fields.items() if value is not None}
+        )
+        return ToolResult(structured_content=payload, meta=runtime_meta)
+
+
     def _skill_matches(
         meta: SkillMetadata,
         search: str | None,
@@ -1436,6 +1688,7 @@ if SKILLS_ENABLED:
             readOnlyHint=True,
             destructiveHint=False,
             idempotentHint=True,
+            openWorldHint=False,
         )
     )
     async def list_skills(
@@ -1475,7 +1728,7 @@ if SKILLS_ENABLED:
                 ),
             ),
         ] = None,
-    ) -> dict[str, Any]:
+    ) -> ToolResult:
         """
         List all available pre-defined skills (query and mutation).
 
@@ -1490,6 +1743,7 @@ if SKILLS_ENABLED:
         Returns:
             Dict with skills list and count
         """
+        start_time = time.perf_counter()
         try:
             resolved_detail_level = _normalize_skill_detail_level(detail_level)
             resolved_available_only = _resolve_available_only(available_only)
@@ -1589,7 +1843,11 @@ if SKILLS_ENABLED:
                 "Call get_skill_detail(skill_name) to retrieve params before "
                 "calling execute_query_skill or execute_mutation_skill."
             )
-        return result
+        return _tool_result(
+            result, tool_name="list_skills", start_time=start_time, success=True,
+            matched_skills=len(skills_list), available_skills=available_count,
+            total_skills=len(skills),
+        )
 
     # ── get_skill_detail ──
     @mcp.tool(
@@ -1605,13 +1863,14 @@ if SKILLS_ENABLED:
     async def get_skill_detail(
         skill_name: Annotated[str, Field(description="Name of the skill to inspect")],
         ctx: Context,
-    ) -> dict[str, Any]:
+    ) -> ToolResult:
         """
         Return full cached metadata for one skill, including parameter schema.
 
         This is the on-demand detail step after list_skills(). It does not read
         skill files from disk and does not expose raw SQL or mutation source.
         """
+        start_time = time.perf_counter()
         await ctx.info(f"Getting skill detail: {skill_name}")
 
         try:
@@ -1639,14 +1898,15 @@ if SKILLS_ENABLED:
         else:
             usage_hint = "Mutation execution is disabled because SKILLS_ALLOW_MUTATIONS=0."
 
-        return {
+        return _tool_result({
             "success": True,
             "skill": _project_skill_meta(meta, "full", availability),
             "mutations_enabled": SKILLS_ALLOW_MUTATIONS,
             "schema_check_enabled": SKILLS_CHECK_SCHEMA_ON_LIST,
             "schema_check_available": schema_table_names is not None,
             "usage_hint": usage_hint,
-        }
+        }, tool_name="get_skill_detail", start_time=start_time, success=True,
+           skill_name=skill_name, skill_type=meta.type)
 
     # ── execute_query_skill ──
     @mcp.tool(
@@ -1656,13 +1916,31 @@ if SKILLS_ENABLED:
             readOnlyHint=True,
             destructiveHint=False,
             idempotentHint=True,
-        )
+            openWorldHint=False,
+        ),
+        output_schema={
+            "type": "object",
+            "properties": {
+                "success": {"type": "boolean"},
+                "skill_name": {"type": "string"},
+                "data": {
+                    "type": "array",
+                    "items": {"type": "object", "additionalProperties": True},
+                },
+                "row_count": {"type": "integer", "minimum": 0},
+                "total_rows": {"type": "integer", "minimum": 0},
+                "truncated": {"type": "boolean"},
+                "truncation_note": {"type": ["string", "null"]},
+            },
+            "required": ["success", "skill_name", "data", "row_count", "total_rows", "truncated"],
+            "additionalProperties": True,
+        },
     )
     async def execute_query_skill(
         skill_name: Annotated[str, Field(description="Name of the query skill to execute")],
         params: Annotated[dict[str, Any], Field(description="Parameters for the skill (must match skill_def.md schema)")],
         ctx: Context,
-    ) -> dict[str, Any]:
+    ) -> ToolResult:
         """
         Execute a pre-defined query skill with parameterized SQL.
 
@@ -1679,6 +1957,7 @@ if SKILLS_ENABLED:
             Query results (same format as query() tool, plus skill_name)
         """
         await ctx.info(f"Executing query skill: {skill_name}")
+        start_time = time.perf_counter()
         client_id = _context_client_id(ctx)
 
         try:
@@ -1691,6 +1970,10 @@ if SKILLS_ENABLED:
 
         # Check database compatibility
         meta = get_skills_cache().get(skill_name)
+        if meta is None:
+            msg = f"Skill '{skill_name}' metadata not found"
+            await ctx.warning(msg)
+            raise ToolError(msg)
         if meta and meta.databases and DB_TYPE not in meta.databases:
             msg = (
                 f"Skill '{skill_name}' is not compatible with current database "
@@ -1735,11 +2018,13 @@ if SKILLS_ENABLED:
 
         if truncation_result["truncated"]:
             await ctx.warning(
-                f"Truncated: {truncation_result['returned_rows']}/{total_rows} rows."
+                f"Truncated returned payload: {truncation_result['returned_rows']}/{total_rows} rows shown. "
+                f"Add WHERE/LIMIT/ORDER BY to limit database work and stabilize ordering."
             )
         else:
             await ctx.info(f"Query skill returned {total_rows} rows")
 
+        audit_logged = False
         if SKILLS_AUDIT_QUERIES:
             _audit_logger.log(
                 skill_name=skill_name,
@@ -1753,8 +2038,9 @@ if SKILLS_ENABLED:
                 },
                 client_id=client_id,
             )
+            audit_logged = True
 
-        return {
+        payload = {
             "success": True,
             "skill_name": skill_name,
             "data": truncation_result["data"],
@@ -1762,10 +2048,21 @@ if SKILLS_ENABLED:
             "total_rows": total_rows,
             "truncated": truncation_result["truncated"],
             "truncation_note": (
-                f"Showing {truncation_result['returned_rows']}/{total_rows} rows. "
-                f"Use LIMIT clause for full control."
+                f"Showing {truncation_result['returned_rows']}/{total_rows} fetched rows. "
+                f"Truncation limits the returned payload only; add WHERE/LIMIT/ORDER BY "
+                f"to limit database work and stabilize ordering."
             ) if truncation_result["truncated"] else None,
         }
+        return _skill_tool_result(
+            payload,
+            meta,
+            mode="query",
+            start_time=start_time,
+            row_count=truncation_result["returned_rows"],
+            total_rows=total_rows,
+            truncated=truncation_result["truncated"],
+            audit_logged=audit_logged,
+        )
 
     # ── execute_mutation_skill (second switch) ──
     if SKILLS_ALLOW_MUTATIONS:
@@ -1777,14 +2074,46 @@ if SKILLS_ENABLED:
                 destructiveHint=True,
                 idempotentHint=False,  # Conservative default; per-skill idempotent
                                        # info is conveyed via list_skills() and result dict
-            )
+                openWorldHint=False,
+            ),
+            output_schema={
+                "type": "object",
+                "properties": {
+                    "success": {"type": "boolean"},
+                    "skill_name": {"type": "string"},
+                    "mode": {"type": "string", "enum": ["preview", "execute"]},
+                    # Preview branch (success=true, mode=preview)
+                    "preview": {
+                        "type": "object",
+                        "additionalProperties": True,
+                        "description": "Preview details returned by mutation.preview(); shape is skill-defined.",
+                    },
+                    "hint": {"type": "string"},
+                    # Execute branch (success=true, mode=execute)
+                    "result": {
+                        "type": "object",
+                        "additionalProperties": True,
+                        "description": "Execution result; typically includes 'rowcount'. Shape is skill-defined.",
+                    },
+                    # Validation-failure branch (success=false, either mode)
+                    "validation": {
+                        "type": "object",
+                        "additionalProperties": True,
+                        "description": "Validation details when success=false (contains 'valid' and 'errors').",
+                    },
+                    # Common (both success branches)
+                    "idempotent": {"type": "boolean"},
+                },
+                "required": ["success", "skill_name", "mode"],
+                "additionalProperties": True,
+            },
         )
         async def execute_mutation_skill(
             skill_name: Annotated[str, Field(description="Name of the mutation skill to execute")],
             params: Annotated[dict[str, Any], Field(description="Parameters for the skill (must match skill_def.md schema)")],
             ctx: Context,
             confirm: Annotated[bool, Field(description="False=preview (default), True=execute")] = False,
-        ) -> dict[str, Any]:
+        ) -> ToolResult:
             """
             Execute a pre-defined mutation (write) skill.
 
@@ -1802,6 +2131,7 @@ if SKILLS_ENABLED:
             """
             mode = "execute" if confirm else "preview"
             await ctx.info(f"Mutation skill '{skill_name}' mode={mode}")
+            start_time = time.perf_counter()
             client_id = _context_client_id(ctx)
 
             try:
@@ -1846,12 +2176,19 @@ if SKILLS_ENABLED:
                     if not validation.get("valid", False):
                         errors = validation.get("errors", ["Validation failed"])
                         await ctx.warning(f"Validation failed: {errors}")
-                        return {
+                        payload = {
                             "success": False,
                             "skill_name": skill_name,
                             "mode": "preview",
                             "validation": validation,
                         }
+                        return _skill_tool_result(
+                            payload,
+                            meta,
+                            mode="preview",
+                            start_time=start_time,
+                            audit_logged=False,
+                        )
 
                     preview_result = mutation.preview(validated_params)
 
@@ -1865,7 +2202,7 @@ if SKILLS_ENABLED:
                     )
 
                     await ctx.info(f"Preview completed for '{skill_name}'")
-                    return {
+                    payload = {
                         "success": True,
                         "skill_name": skill_name,
                         "mode": "preview",
@@ -1873,6 +2210,14 @@ if SKILLS_ENABLED:
                         "idempotent": meta.idempotent,
                         "hint": "Set confirm=true to execute this operation.",
                     }
+                    return _skill_tool_result(
+                        payload,
+                        meta,
+                        mode="preview",
+                        start_time=start_time,
+                        row_count=preview_result.get("affected_rows_estimate"),
+                        audit_logged=True,
+                    )
                 except ToolError:
                     raise
                 except Exception as e:
@@ -1885,12 +2230,19 @@ if SKILLS_ENABLED:
                     if not validation.get("valid", False):
                         errors = validation.get("errors", ["Validation failed"])
                         await ctx.warning(f"Validation failed: {errors}")
-                        return {
+                        payload = {
                             "success": False,
                             "skill_name": skill_name,
                             "mode": "execute",
                             "validation": validation,
                         }
+                        return _skill_tool_result(
+                            payload,
+                            meta,
+                            mode="execute",
+                            start_time=start_time,
+                            audit_logged=False,
+                        )
 
                     result = mutation.run_execute(
                         validated_params,
@@ -1901,13 +2253,21 @@ if SKILLS_ENABLED:
                     await ctx.info(
                         f"Mutation '{skill_name}' executed: rowcount={result.get('rowcount')}"
                     )
-                    return {
+                    payload = {
                         "success": True,
                         "skill_name": skill_name,
                         "mode": "execute",
                         "result": result,
                         "idempotent": meta.idempotent,
                     }
+                    return _skill_tool_result(
+                        payload,
+                        meta,
+                        mode="execute",
+                        start_time=start_time,
+                        row_count=result.get("rowcount"),
+                        audit_logged=True,
+                    )
                 except ToolError:
                     raise
                 except Exception as e:
@@ -1965,9 +2325,9 @@ def sql_assistant() -> str:
 
 Tools (choose based on need):
 - query(sql): Execute SELECT/SHOW/DESCRIBE/EXPLAIN
-- list_tables(): Database overview with table names and row estimates
+- list_tables(): Visible table overview with row estimates; may be truncated
 - describe_table(name): Single table columns + row estimate + is_large hint
-- get_full_schema(): All tables with columns (use for multi-table JOINs)
+- get_full_schema(): Visible schema overview; may be truncated; use for multi-table JOINs
 - check_connection(): Verify database connectivity (use only on connection errors)
 {skills_info}
 Decision rules:

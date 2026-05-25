@@ -293,9 +293,26 @@ def mysql_adapter():
         Connected MySQLAdapter instance
     """
     from db_adapter import MySQLAdapter
+
+    required_env = {
+        "DB_USER": os.getenv("DB_USER"),
+        "DB_PASSWORD": os.getenv("DB_PASSWORD"),
+        "DB_HOST": os.getenv("DB_HOST"),
+        "DB_NAME": os.getenv("DB_NAME"),
+    }
+    missing = [name for name, value in required_env.items() if not value]
+    if missing:
+        pytest.skip(f"MySQL integration tests require env vars: {', '.join(missing)}")
     
     adapter = MySQLAdapter()
-    adapter.connect()
+    if not adapter.connect():
+        pytest.skip("MySQL integration tests require a reachable MySQL server")
+
+    success, message = adapter.check_connection()
+    if not success:
+        adapter.close()
+        pytest.skip(f"MySQL integration tests skipped: {message}")
+
     yield adapter
     adapter.close()
 

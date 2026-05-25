@@ -1,6 +1,6 @@
 # 面向 AI Agent 的数据库安全访问入口 - MCP 服务
 
-![Version](https://img.shields.io/badge/version-3.4-blue)
+![Version](https://img.shields.io/badge/version-3.4.3-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Python](https://img.shields.io/badge/python-3.12+-blue?logo=python)
 ![MCP](https://img.shields.io/badge/MCP-Protocol-orange)
@@ -20,7 +20,7 @@
 
 **面向 AI Agent 的数据库安全访问入口：赋予LLM(Agents)进入数据库的能力。**  
 - 使大模型 (LLM) 通过标准化的 MCP 接口，以经过认证的 SQL 安全获取数据库查询。并提供白名单、超时与结果截断等防护。降低误操作风险同时避免 Token 成本失控。  
-- 除 MySQL、SQLite 外，还提供对 NoSQL 的支持。(in progress，NoSQL 支持计划在未来版本中提供)    
+- 除 MySQL、SQLite 外，NoSQL 支持计划在未来版本中提供。(in progress)
 - 另外，本项目还支持基于 Agent Skills 的服务侧插件式动作扩展。用户或开发者可以编写可复用的预定义参数化操作（查询与受控写入）扩展能力，并通过 `skill_def.md` 统一管理。Agent 可按需发现并调用，以扩展复杂查询、敏感变更和特定业务流程的处理能力。  
 
 本项目解决了 LLM “进入数据库”的需求。并可通过与 AI Agent 的配合，扩展 LLM 的能力边界，延伸大模型在实际业务中的应用范围。
@@ -84,6 +84,8 @@
 **3. 工具设计**：
 - 采用 Model-driven 模式，优先提供决策规则而非固定流程
 - 工具返回 `is_large`/`row_count` 等上下文，供 LLM 自主决策
+- MCP `ToolAnnotations` 包含只读/破坏性/幂等提示，并统一设置 `openWorldHint=false`，表示工具工作在当前配置的数据库边界内，而不是任意外部系统
+- Skills 执行工具保持原有结构化 payload 不变，同时通过 `ToolResult.meta` 附加运行时元数据（如耗时、行数、截断状态、Skill 版本），用于调试和可观测性
 - 支持基于配置的策略/提示注入（如 ALLOW_UNION、ALLOWED_TABLES、截断阈值），用更短、更相关的指导减少无效工具调用
 - 错误反馈面向 LLM 优化：明确失败原因（安全拦截/表未允许/语法/超时/截断等）并给出修正建议，减少反复试错与无效调用，同时避免泄露敏感信息（凭据、系统表细节等）
 - 适配 ReAct 模式：推理 → 行动 → 观察 → 再思考
@@ -106,7 +108,7 @@ Skills 场景：list_skills(search/category/detail_level/available_only) → get
 
 ### 安全功能
 - **查询限制**：仅允许 SELECT / SHOW / DESCRIBE / EXPLAIN
-- **SQL 解析验证**：使用 `sqlparse` 进行全面的查询分析
+- **SQL 解析验证**：通过 `sqlparse` 做语句类型 allowlist，并叠加 MCP 层扩展检查
 - **连接安全**：基于环境的凭据管理
 - **错误隔离**：面向LLM的全面异常处理和报告
 - **接入隔离**：由宿主/运行环境控制接入边界
@@ -118,6 +120,25 @@ Skills 场景：list_skills(search/category/detail_level/available_only) → get
 - **Skills 模板即白名单**：SQL 模板启动时经 `is_sql_safe()` 校验并缓存，运行时零磁盘 I/O（防 TOCTOU）
 - **Skills 参数强类型验证**：type/min/max/enum 约束 + 拒绝 schema 之外的参数（防 injection/hallucination）
 - **Skills 双层开关**：`ENABLE_SKILLS` + `SKILLS_ALLOW_MUTATIONS` 最小权限控制
+- **闭合世界工具提示**：MCP 工具统一设置 `openWorldHint=false`，表示工具只触达当前数据库/服务边界，不访问任意外部实体。该提示用于改善客户端展示和工具选择，不替代权限控制。**未来新增工具检查清单**：任何新工具如果会越过当前数据库边界（外部 HTTP API、webhook、第三方服务、跨实例 DB 调用等），**必须**显式设置 `openWorldHint=true` 并在 review 时核对此条；`tests/test_annotations_consistency.py` 通过显式 allowlist 在 CI 中拦截回归。
+- **Skills 运行元数据**：全部 11 个 MCP 工具均使用 `ToolResult` 包装结构化 payload，并通过 `meta` 暴露 `tool_name`、`db_type`、`execution_ms`、`success` 等通用字段，以及 `row_count`、`total_rows`、`truncated`、`skill_version` 等工具特定计数。元数据有意不包含原始 SQL、返回数据行和参数值。
+  - **作用范围（v3.4.2）**：`ToolResult.meta` 在基础工具（`query`、`check_connection`、`list_tables`、`describe_table`、`get_full_schema`、`get_table_summary`、`sample`、`list_skills`、`get_skill_detail`）与 Skills 工具（`execute_query_skill`、`execute_mutation_skill`）之间保持一致。基础工具走共享的 `_tool_result(...)`，Skills 工具走 `_skill_tool_result(...)`。Python 直接调用方可统一通过 `result.structured_content` 读取 payload、`result.meta` 读取元数据。
+  - **客户端可见性**：依据 MCP 规范，`_meta` 字段是**可选**的，客户端 *MAY* 忽略。实测：服务器中间件、MCP Inspector、显式读取 `_meta` 的客户端可以看到；VS Code 的 MCP UI 当前不展示。请把 `ToolResult.meta` 主要视为服务端可观测钩子和"愿意读 meta 的客户端"的可选信号，而**不能**假定它一定对终端用户可见。
+  - **最小示例**（完整请求/响应见 [TEST_MCP_CLIENT_GUIDE.md](TEST_MCP_CLIENT_GUIDE.md)）：
+
+    ```jsonc
+    // execute_query_skill 响应
+    {
+      "structuredContent": { "success": true, "skill_name": "monthly-sales-report",
+                              "data": [/* rows */], "row_count": 2, "total_rows": 2,
+                              "truncated": false, "truncation_note": null },
+      "_meta": { "tool_name": "execute_query_skill", "success": true,
+          "skill_name": "monthly-sales-report", "skill_type": "query",
+          "mode": "query", "execution_ms": 12.3, "row_count": 2,
+                  "total_rows": 2, "truncated": false, "audit_logged": false,
+                  "db_type": "mysql", "idempotent": true, "skill_version": "1.0.0" }
+    }
+    ```
 
   | 级别 | 配置 | `ENABLE_SKILLS` | `SKILLS_ALLOW_MUTATIONS` | 可用工具 | 权限层级 |
   |:---:|------|:---:|:---:|------|------|
@@ -167,7 +188,7 @@ LLM(Agents)不能凭空生成SQL，需要有一定的上下文基础。这里的
   2. 聚焦于真实使用中的Token爆炸风险（这可能导致大量的LLM API费用支出）进行针对性优化。
   3. 同时新增了[多Agent调用该MCP服务的示例](README_ZH.md#autogen-多-agent-示例)，基于AutoGen框架，用于示范Agents与本服务的结合。
 
-- [在(v2.1)版本](REFACTORING_LOG.md#latest-update-january-4-2026---tool-optimization--field-naming) 专注于工具设计和输出一致性的改进。优化并重构了大量工具，尽可能地遵守业界相关的最佳实践。整体设计上，采用ReAct方案推理 (Thought) --> 行动 (Action) --> 观察(Observation) --> 再思考决定下一步行动的循环范式。在保证查询效率的同时提升查询准确性和多步骤查询的质量。基于AutoGen的多agent调用示例也同步更新。
+- [在(v2.1)版本](REFACTORING_LOG.md#update-v21-january-4-2026---tool-optimization--field-naming) 专注于工具设计和输出一致性的改进。优化并重构了大量工具，尽可能地遵守业界相关的最佳实践。整体设计上，采用ReAct方案推理 (Thought) --> 行动 (Action) --> 观察(Observation) --> 再思考决定下一步行动的循环范式。在保证查询效率的同时提升查询准确性和多步骤查询的质量。基于AutoGen的多agent调用示例也同步更新。
 
 经过上述迭代，本项目从最初基于LLM/Agents的用户界面设想，演进到支持MCP的SQL综合查询服务。但需要承认的是，当前的项目虽然出发点不同，但实际上与目前的Text2SQL有所相似。  
 在本项目构思初期（2025年3-4月），此类系统还是较为少见的。在当时，类似的Text2SQL实践主要还停留在：接收相关人员的提示，LLM单次生成SQL语句辅助其进行查询的背景下。而本项目的出发点不同，核心动机主要是 **使LLM(Agents)代替传统前端，成为新的“前端”，无论是界面中的数据还是界面本身，都能动态地与用户进行交互。** 让整个系统达到充分灵活且动态的效果。  
@@ -387,11 +408,11 @@ Agent **既是决策者又是执行者**，安全保障依赖于：
 ### 已知问题和不足
 - **行数相关字段可能不精确**：`list_tables()` / `describe_table()` / `get_full_schema()` 返回的 `row_count` 属于统计估计值：
   - **MySQL**：来自 `INFORMATION_SCHEMA.TABLES.TABLE_ROWS`（InnoDB 可能有明显偏差或滞后）
-  - **SQLite**：来自 `sqlite_stat1`（如果已运行 ANALYZE）或采样策略
+  - **SQLite**：来自 `sqlite_stat1`（如果已运行 ANALYZE）或最多 10,000 行的有界采样；如果达到采样上限，则该值是下界估算，除非已有统计信息
   - 仅建议用于“量级判断/是否加 LIMIT/是否大表”等策略，不应当作精确计数。
   - 如需精确行数，请使用 `SELECT COUNT(*) ...`，或启用 `ENABLE_TABLE_SUMMARY=1` 后使用 `get_table_summary(exact_count=True)`（注意大表可能较慢）。
 
-- **为避免 Token 爆炸，返回结果可能被截断**：`query()`、`list_tables()`、`get_full_schema()` 会根据 `MAX_RESULT_ROWS` / `MAX_RESULT_CHARS` / `MAX_OVERVIEW_TABLES` / `MAX_SCHEMA_TABLES` 截断输出；因此“返回的数据/表/列”可能不是全量。需要全量时请显式使用更小范围的查询（加 `LIMIT`、按条件分页），或调整相关环境变量（风险自担）。
+- **为避免 Token 爆炸，返回结果可能被截断**：`query()`、`list_tables()`、`get_full_schema()` 会根据 `MAX_RESULT_ROWS` / `MAX_RESULT_CHARS` / `MAX_OVERVIEW_TABLES` / `MAX_SCHEMA_TABLES` 截断返回 payload；因此“返回的数据/表/列”可能不是全量。`query()` 的截断不等于限制数据库执行量或 Python 侧获取量；请在 SQL 中显式使用 `WHERE`、`LIMIT`、`ORDER BY` 来限制工作量并稳定结果顺序。表/Schema 工具需要更小范围时，请优先使用 `describe_table()` 或调整相关环境变量（风险自担）。
 
 - **部分“总数”字段是“可见范围”语义**：例如 `total_tables` 在工具输出中表示“allowlist 参数过滤后的可见表数量（再考虑截断）”，并非一定等同于数据库实际总表数；请避免将其误读为“全库统计”。
 
@@ -680,6 +701,40 @@ SKILLS_AUDIT_QUERIES=1
 
 ## 更新日志
 
+### v3.4.3 有界 SQLite 估算与设计风险登记表（2026年5月）
+
+本版本聚焦于有界元数据行为和长期设计风险跟踪：
+
+- `SQLiteAdapter.get_row_estimate()` 现在优先使用 `sqlite_stat1`，没有统计信息且大表达到 10,000 行采样上限时，返回该上限作为下界估算，不再自动运行完整 `COUNT(*)`
+- 查询截断提示现在明确：截断只限制返回 payload；仍需在 SQL 中使用 `WHERE`/`LIMIT`/`ORDER BY` 来限制数据库工作量并稳定顺序
+- `list_tables()` 和 `get_full_schema()` 描述改为 visible/truncated 语义，不再暗示一定返回所有表或完整 schema
+- 安全文档措辞区分 sqlparse 语句类型 allowlist、MCP 层扩展检查、Skills 参数校验和基础 SQL/table 校验
+- 新增 [设计风险登记表](DESIGN_RISK_REGISTER_ZH.md) 与 [English version](DESIGN_RISK_REGISTER.md)，长期跟踪已接受、暂缓、拒绝和需要策略决策的设计风险
+- 最终复审补充修复了 SQLite timeout 分类、MCP client smoke test 的断言/结果解析、完整配置工具数量表述，以及 SQLite 写锁风险措辞。直接 MCP stdio 验证覆盖了基础工具、Skills 工具、mutation preview 和脱敏 telemetry。
+
+### v3.4.2 统一 ToolResult、输出 Schema 与可选遥测（2026年5月）
+
+将 v3.4.1 的元数据模式推广到全部工具，同时增加两项可选可观测性能力：
+
+- **完整配置下注册的所有 MCP 工具**（最多 11 个：核心 SQL 工具、可选 schema/table-summary 工具、Skill 发现/详情工具和 Skill 执行工具）现在返回 `ToolResult`：`structuredContent` 保持原有业务负载不变，`meta` 携带非敏感运行诊断（`tool_name`、`execution_ms`、`db_type`、`success`，以及适用时的 `row_count`、`total_rows`、`truncated` 等）
+- Skills 执行工具也携带相同的通用 `meta.tool_name` 和 `meta.success` 字段；`meta.success` 来自 `structuredContent.success`，因此正常返回的校验/安全拒绝也会在遥测中表现为业务失败（简而言之，系统把“工具有没有崩溃”和“这次业务算不算成功”分开记录。比如一个 Skill 因为参数不合法、安全规则拒绝、状态流转不允许而被拦下，服务器可能是正常返回一个失败结果，而不是直接抛异常。这种情况下，遥测里会是 call_completed=true，但 success=false。这样你就能分清，这不是程序崩了，而是一次被规则正常拒绝的业务失败。）
+- `execute_query_skill` 和 `execute_mutation_skill` 现在声明 MCP `outputSchema`，兼容客户端可以直接校验 `structuredContent` 的结构
+- 新增可选开关 `ENABLE_TOOL_TELEMETRY=1`：启用后一个 FastMCP 中间件会在 `TOOL_TELEMETRY_LOG_PATH`（默认 `logs/tool_calls.jsonl`）为每次 `tools/call` 追加一条脱敏后的 JSONL 记录，仅包含 `timestamp`、`tool_name`、`execution_ms`、`call_completed`、`success`、`error_class`、`db_type`——不记录 SQL、参数、返回行或凭证。`call_completed` 反映工具是否未抛异常返回；`success` 优先读取工具自身 `ToolResult.meta.success`，因此业务级拒绝（例如安全校验返回 `success=False` 但未抛异常）能与传输级崩溃正确区分
+- 可选 `TOOL_TELEMETRY_SAMPLE_RATE`（有限浮点数，0.0–1.0，默认 1.0）控制高流量场景下的 JSONL 写入概率；越界值会被夹紧，非法值或非有限值（`nan`、`inf`）回退为 1.0。这里的“默认 1.0”是指在已经启用 `ENABLE_TOOL_TELEMETRY=1` 的前提下，如果未显式配置 `TOOL_TELEMETRY_SAMPLE_RATE`，就按 1.0 处理，也就是默认每次 `tools/call` 都写一条遥测记录。项目默认不启用遥测中间件，也不会写 JSONL 日志，因为 `ENABLE_TOOL_TELEMETRY` 的默认值是 `0`。（可以把它理解为：`ENABLE_TOOL_TELEMETRY` 决定“记不记”，`TOOL_TELEMETRY_SAMPLE_RATE` 决定“记多少”。）
+- 新增 pytest 标注一致性测试（`tests/test_annotations_consistency.py`），保证每个工具的 `ToolAnnotations`（`readOnlyHint`/`destructiveHint`/`idempotentHint`/`openWorldHint`）与设计意图保持一致
+- 按 MCP 规范，`_meta` 是可选字段，客户端可以忽略；VS Code 的 MCP UI 仅呈现 `structuredContent`，请将 `meta` 视为服务端可观测性输出
+- 进程内直接调用者请使用 `getattr(result, "structured_content", result)` 解包（参考 `tests/test_skills_disclosure.py::run_tool`）
+
+### v3.4.1 ToolResult 运行元数据与闭合世界标注（2026年5月）
+
+完成 v3.4 后续的协议语义和可观测性补充，同时不改变原有结构化业务 payload：
+
+- `execute_query_skill` 与 `execute_mutation_skill` 现在返回 `ToolResult`，原有业务 payload 保持在 `structuredContent`，运行诊断信息放入 `meta`
+- 运行元数据包含耗时、模式、Skill 版本/类型、数据库类型、幂等性、行数、截断状态和适用时的审计记录状态
+- 运行元数据有意不包含原始 SQL 模板、参数值、返回数据行、凭据和数据库连接内部信息
+- 所有 MCP 工具统一设置 `openWorldHint=false`，表示工作范围限制在当前配置的数据库/服务边界内；该字段只是客户端提示，不是权限控制
+- 测试覆盖 Skills `ToolResult.meta` 行为，并验证所有已列出的 MCP 工具都暴露闭合世界标注
+
 ### v3.4 MCP 加固和 Skills Profile 策略（2026年5月）
 
 实施了一轮保守的安全强化措施：
@@ -690,7 +745,7 @@ SKILLS_AUDIT_QUERIES=1
 - 增加 `SKILLS_EXCLUDE_PROFILES`，生产环境可隐藏并阻止 `demo` profile 的示例 Skill
 - 增加可选 `SKILLS_AUDIT_QUERIES=1` 查询 Skill 审计；不会记录返回数据
 - 修复 `test_bug_fixes.py` 中 pytest 测试返回布尔值导致的 warning
-- 明确暂缓（`ToolResult.meta`）、（session schema cache）和（`db://schema` Resource），避免过早改变客户端契约或引入缓存陈旧风险
+- v3.4 当时明确暂缓（`ToolResult.meta`）、（session schema cache）和（`db://schema` Resource）；其中 `ToolResult.meta` 已在 v3.4.1/v3.4.2 渐进落地，session schema cache 与 `db://schema` Resource 仍保持暂缓
 
 ### v3.3 Skills 可用性和元数据按需披露（2026年5月）
 
@@ -741,7 +796,7 @@ SKILLS_AUDIT_QUERIES=1
   - 通过 `set_progress_handler()` 实现查询超时（SQLite 原生回调）
   - `StaticPool` 连接池（单连接，避免文件锁问题）
   - 使用 `sqlite_master` 和 `PRAGMA table_info()` 进行元数据查询
-  - 行数估计使用 `sqlite_stat1` 或采样策略
+  - 行数估计使用 `sqlite_stat1` 或有界采样
 - **新增环境变量**：
   - `DB_TYPE=mysql|sqlite` - 数据库类型选择（默认：mysql）
   - `SQLITE_DATABASE_PATH` - SQLite 文件路径或 `:memory:`
@@ -770,7 +825,7 @@ SKILLS_AUDIT_QUERIES=1
 
 详细变更请参阅 [REFACTORING_LOG.md](REFACTORING_LOG.md)。
 
-### v2.0 重构（2025年12月）- 当前分支：`feature/v2.0-mcp-server-refactoring`
+### v2.0 重构（2025年12月）- 历史分支：`feature/v2.0-mcp-server-refactoring`
 
 遵循 FastMCP 最佳实践的重大改进：
 
@@ -811,7 +866,7 @@ SKILLS_AUDIT_QUERIES=1
 
 ## 公开的 MCP 工具
 
-该服务公开 5-10 个标准化的 MCP 工具（取决于配置）：
+该服务公开 5-11 个标准化的 MCP 工具（取决于配置）：
 
 ### 1. `query`（主要工具）
 用途：执行带有自动安全验证的只读 SQL 查询
@@ -849,9 +904,9 @@ SKILLS_AUDIT_QUERIES=1
 ```
 
 ### 3. `list_tables`
-用途：数据库概览 - 列出所有表及其估计行数
+用途：可见数据库概览 - 列出返回/允许访问的表及其估计行数
 
-轻量级的初始探索工具。行数为 INFORMATION_SCHEMA 估计值（InnoDB 可能有 ±40% 误差）。
+轻量级的初始探索工具。表列表可能被 `MAX_OVERVIEW_TABLES` 截断。MySQL 行数为 INFORMATION_SCHEMA 估计值（InnoDB 可能有 ±40% 误差），SQLite 来自统计信息或采样。
 
 输出：
 ```json
@@ -874,7 +929,7 @@ SKILLS_AUDIT_QUERIES=1
 ### 4. `describe_table`
 用途：获取表结构 - 列信息、估计行数和查询建议
 
-返回列详情以及来自 INFORMATION_SCHEMA 的估计行数（避免 COUNT(*) 全表扫描）。包含 `is_large` 标志用于查询规划。
+返回列详情以及来自适配器元数据/统计信息的估计行数（MySQL 使用 INFORMATION_SCHEMA；SQLite 使用 sqlite_stat1 或有界采样）。包含 `is_large` 标志用于查询规划，并避免自动执行 COUNT(*) 全表扫描。
 
 输入：
 ```json
@@ -928,9 +983,9 @@ SKILLS_AUDIT_QUERIES=1
 ```
 
 ### 6. `get_full_schema`
-用途：在一次调用中获取完整的数据库模式（所有表和列）
+用途：在一次调用中获取可见数据库 Schema 概览
 
-适用于多表 JOIN 或需要一次性获取所有表结构的场景。对于单表查询，建议使用 `describe_table()`。
+适用于多表 JOIN 或需要一次性获取多个表结构的场景。返回的 Schema 可能受 allowlist 过滤，并可能被 `MAX_SCHEMA_TABLES` 截断；对于单表查询，建议使用 `describe_table()`。
 
 输出：
 ```json
@@ -960,7 +1015,7 @@ SKILLS_AUDIT_QUERIES=1
 
 **注意**：此工具由 `ENABLE_TABLE_SUMMARY` 环境变量控制（默认：**禁用**）。`describe_table()` 工具已经提供估计行数，因此只有在需要精确计数时才需要此工具。
 
-**警告**：`exact_count=True` 会运行 COUNT(*)，在大型 InnoDB 表上可能很慢（全表扫描）。
+**警告**：`exact_count=True` 会运行 COUNT(*)，在大型表上可能很慢（全表扫描）。
 
 输入：
 ```json
@@ -1400,7 +1455,7 @@ execute_query_skill("monthly-sales-report", {"year": 2026, "month": 1})
 | *"Offload the burden from the model and use code where possible."* | [OpenAI — Function Calling (2025)](https://platform.openai.com/docs/guides/function-calling#best-practices-for-defining-functions) | Skills 预制 SQL/Python 逻辑，Agent 只传参数 |
 | *"Use clear and descriptive function/parameter names and descriptions."* | [Google Gemini — Function Calling](https://ai.google.dev/gemini-api/docs/function-calling#best_practices) | YAML frontmatter 提供结构化的名称、描述和参数约束 |
 | *"Give models less freedom for higher-stakes operations."* | [Anthropic — Building Effective Agents](https://docs.anthropic.com/en/docs/build-with-claude/agentic-systems) | Mutation 操作走受约束的 `MutationBase`，非自由代码 |
-| *"Validate all inputs"* | [MCP 规范 §7 — 安全](https://modelcontextprotocol.io/specification/2025-03-26/basic/security) | 每次调用经 `validate_name()` + `validate_params()` |
+| *"Validate all inputs"* | [MCP 规范 §7 — 安全](https://modelcontextprotocol.io/specification/2025-03-26/basic/security) | Skills 执行调用校验 skill 名称和参数；基础工具使用 SQL/table 专用校验 |
 | 参数化查询 | [OWASP — SQL 注入防护](https://cheatsheetseries.owasp.org/cheatsheets/SQL_Injection_Prevention_Cheat_Sheet.html) | SQLAlchemy `text()` + 参数绑定，零字符串拼接 |
 
 完整设计详情、执行流程图和行业最佳实践对齐分析，请参阅 [MCP_AGENTS_SKILLS_DESIGN.md](MCP_AGENTS_SKILLS_DESIGN.md)。
@@ -1448,12 +1503,13 @@ python test_mcp_client.py
 
 - [Skills 设计文档](MCP_AGENTS_SKILLS_DESIGN.md)：v3.0 Skills 扩展层架构和设计决策
 - [Skills 安全策略](skills/SAFETY.md)：面向技能作者的 16 项安全治理
+- [设计风险登记表](DESIGN_RISK_REGISTER_ZH.md)：长期维护的设计、安全与运维风险登记
 - [可行性分析](LLM_TO_MCP_FEASIBILITY_ANALYSIS.md)：LLM 到 MCP 转换的详细分析
 - [原始上下文](GEMINI.md)：项目背景和开发指南
-- [重构日志](REFACTORING_LOG.md)：重构变更文档（v2.0 — v3.0）
+- [重构日志](REFACTORING_LOG.md)：重构变更文档（v2.0 — v3.4.3）
 - [MCP 客户端测试指南](TEST_MCP_CLIENT_GUIDE.md)：通过客户端测试 MCP 服务器的指南
 - [提示工程最佳实践](PROMPT_ENGINEERING_BEST_PRACTICES.md)：MCP 工具描述和提示的指南
-- [Agent 示例开发日志](agent_examples/AGENT_DEVELOPMENT.md)：AutoGen 多智能体示例的设计与决策
+- [Agent 示例开发日志](agent_examples/AGENT_DEVELOPMENT_ZH.md)：AutoGen 多智能体示例的设计与决策
 
 ## 贡献
 

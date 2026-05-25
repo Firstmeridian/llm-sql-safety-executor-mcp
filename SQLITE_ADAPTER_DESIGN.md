@@ -94,7 +94,7 @@ raw_conn.set_progress_handler(timeout_handler, SQLITE_PROGRESS_HANDLER_INTERVAL)
 | Database | Pool Type | Reason |
 |----------|-----------|--------|
 | MySQL | QueuePool | Supports concurrent connections |
-| SQLite | StaticPool | Single connection avoids file locking |
+| SQLite | StaticPool | Single process-local connection; SQLite file-level write locks still apply |
 
 **SQLite StaticPool Convention:**
 ```python
@@ -132,7 +132,7 @@ SQLite lacks MySQL's `INFORMATION_SCHEMA` and `SHOW/DESCRIBE` commands:
 
 ### 5. Row Count Estimation Strategy (SQLite)
 
-MySQL has `INFORMATION_SCHEMA.TABLES.TABLE_ROWS` for row count estimates, but **SQLite has no equivalent**. We implement a two-tier fallback strategy:
+MySQL has `INFORMATION_SCHEMA.TABLES.TABLE_ROWS` for row count estimates, but **SQLite has no equivalent**. We implement a bounded estimate strategy:
 
 **Multi-tier approach:**
 
@@ -150,7 +150,7 @@ MySQL has `INFORMATION_SCHEMA.TABLES.TABLE_ROWS` for row count estimates, but **
 │         ├── SELECT COUNT(*) FROM (SELECT 1 FROM t LIMIT 10000)│
 │         │                                                   │
 │         └── If sample < 10000 → Return sample (exact)       │
-│             If sample = 10000 → Full COUNT(*) query         │
+│             If sample = 10000 → Return 10000 lower bound    │
 │                                                             │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -201,7 +201,7 @@ def get_row_estimate(self, table_name: str) -> int:
     if sample_count < 10000:
         return sample_count  # Exact value
     else:
-        return execute(f"SELECT COUNT(*) FROM {table_name}")  # Full count
+        return sample_count  # Lower-bound estimate; exact COUNT(*) is opt-in
 ```
 
 #### Accuracy Comparison
@@ -210,7 +210,8 @@ def get_row_estimate(self, table_name: str) -> int:
 |--------|----------|-------------|----------|
 | sqlite_stat1 | Estimate (may be stale) | Very fast | Requires ANALYZE |
 | Sampling < 10000 rows | Exact | Fast | Small tables |
-| Full COUNT(*) | Exact | May be slow | Large tables |
+| Sampling cap reached | Lower-bound estimate (`>= 10000`) | Fast and bounded | Large tables without ANALYZE |
+| Explicit COUNT(*) | Exact | May be slow | Opt-in user SQL or `get_table_summary(exact_count=True)` |
 
 **Convention:** `sqlite_stat1` is populated by running `ANALYZE table_name`. If users want accurate estimates, they should run ANALYZE periodically.
 
@@ -246,7 +247,8 @@ def get_row_estimate(self, table_name: str) -> int:
 **Mitigation:**
 - Use `sqlite_stat1` when available (run `ANALYZE`)
 - Sample-based fallback for tables < 10000 rows (exact)
-- Full COUNT(*) for larger tables (accurate but slower)
+- Return the 10000-row sample cap for larger tables as a lower-bound estimate
+- Keep exact COUNT(*) as an explicit opt-in operation
 
 ### 4. No Catalog/Schema Separation in SQLite
 
@@ -294,10 +296,11 @@ SQLITE_PROGRESS_HANDLER_INTERVAL=1000
 **Issue:** SQLite uses file-level locking for writes.
 
 **Mitigation:**
-- This MCP server is READ-ONLY (no writes)
-- StaticPool prevents connection contention
+- Core SQL tools remain read-only. Optional mutation skills can write only when `ENABLE_SKILLS=1` and `SKILLS_ALLOW_MUTATIONS=1` are enabled.
+- StaticPool prevents connection contention within the process.
+- For mutation-heavy or concurrent write workloads, prefer MySQL/PostgreSQL or serialize SQLite writes at the deployment boundary.
 
-**Risk Level:** Minimal for read-only workloads.
+**Risk Level:** Minimal for read-only workloads; operationally relevant when mutation skills are enabled.
 
 ### 4. No Connection Pooling Benefits for SQLite
 
@@ -469,16 +472,16 @@ None. All existing MySQL configurations continue to work without modification.
 
 | File | Change Type | Description |
 |------|-------------|-------------|
-| `db_adapter.py` | **NEW** (749 lines) | Database adapter abstraction layer |
+| `db_adapter.py` | Added in v2.2 | Database adapter abstraction layer |
 | `sql_safety_checker.py` | Modified | Now uses adapter; removed MySQL-specific code |
 | `mcp_sql_server.py` | Modified | Uses adapter methods; adds `db_type` to responses |
 | `.env.example` | Modified | Added SQLite configuration section |
 | `.env` | Modified | Added SQLite configuration section |
 | `README.md` | Modified | v2.2 changelog, SQLite config docs |
 | `README_ZH.md` | Modified | v2.2 changelog, SQLite config docs |
-| `tests/conftest.py` | **NEW** (318 lines) | Pytest fixtures for SQLite/MySQL tests |
-| `tests/test_db_adapter.py` | **NEW** | Unit tests for adapters |
-| `tests/test_sqlite_integration.py` | **NEW** | SQLite integration tests |
+| `tests/conftest.py` | Added in v2.2 | Pytest fixtures for SQLite/MySQL tests |
+| `tests/test_db_adapter.py` | Added in v2.2 | Unit tests for adapters |
+| `tests/test_sqlite_integration.py` | Added in v2.2 | SQLite integration tests |
 | `requirements.txt` | Modified | Added `pytest` dependency |
 
 ---

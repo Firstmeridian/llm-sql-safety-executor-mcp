@@ -586,6 +586,6 @@ flowchart TD
 | Agent | v2.x（旧） | v3.0（新） |
 |-------|-----------|-----------|
 | PlanningAgent | 静态；无 Skills 感知 | 动态；检测到时包含 SKILLS WORKFLOW + MUTATION SAFETY 段落 |
-| SQLExecutorAgent | 静态；列出 5 个工具；提及 `SHOW, DESCRIBE` SQL | 动态；仅列出可用工具（5-10 个）；DATABASE COMPATIBILITY 说明；skills 使用指南 |
+| SQLExecutorAgent | 静态；列出 5 个工具；提及 `SHOW, DESCRIBE` SQL | 动态；仅列出可用工具（5-11 个）；DATABASE COMPATIBILITY 说明；skills 使用指南 |
 | AnalystAgent | 静态；通用 | 动态；添加 skill 结果格式说明 |
 | Selector | 静态 | 动态；添加 mutation 预览 → 用户批准路由 |

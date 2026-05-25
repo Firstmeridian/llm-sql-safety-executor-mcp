@@ -199,22 +199,67 @@ class TestSQLiteAdapterTimeout:
         
         assert not isinstance(result, str)
 
+    def test_timeout_interrupted_query_returns_timeout_error(self, sqlite_memory_adapter):
+        """Interrupted SQLite queries should be reported as timeout errors."""
+        result = sqlite_memory_adapter.execute(
+            """
+            WITH RECURSIVE counter(value) AS (
+                SELECT 1
+                UNION ALL
+                SELECT value + 1 FROM counter WHERE value < 10000000
+            )
+            SELECT max(value) FROM counter
+            """,
+            timeout=0,
+        )
+
+        assert result == "Error: Query timeout exceeded (0s limit)"
+
 
 class TestSQLiteAdapterLargeTable:
     """Tests for SQLite row count estimation with large tables."""
     
-    def test_large_table_row_count(self, sqlite_large_table_db):
-        """Test row count estimation for large table (15,000 rows)."""
+    def test_large_table_row_count_uses_bounded_sample(self, sqlite_large_table_db, monkeypatch):
+        """Large tables without sqlite_stat1 return the sample cap, not COUNT(*)."""
         from db_adapter import SQLiteAdapter
         
         adapter = SQLiteAdapter(sqlite_large_table_db)
         adapter.connect()
+
+        original_execute = adapter.execute
+        executed_sql = []
+
+        def execute_spy(sql, timeout=None, params=None):
+            normalized_sql = " ".join(sql.split()).lower()
+            executed_sql.append(normalized_sql)
+            assert normalized_sql != "select count(*) from large_table"
+            return original_execute(sql, timeout=timeout, params=params)
+
+        monkeypatch.setattr(adapter, "execute", execute_spy)
         
         row_count = adapter.get_row_estimate("large_table")
         
-        # Should get exact count since we fall back to COUNT(*)
-        assert row_count == 15000
+        assert row_count == 10000
+        assert any("limit 10000" in sql for sql in executed_sql)
         
+        adapter.close()
+
+    def test_large_table_row_count_prefers_sqlite_stat1(self, sqlite_large_table_db):
+        """When ANALYZE has populated sqlite_stat1, use its estimate first."""
+        import sqlite3
+        from db_adapter import SQLiteAdapter
+
+        conn = sqlite3.connect(sqlite_large_table_db)
+        conn.execute("ANALYZE")
+        conn.close()
+
+        adapter = SQLiteAdapter(sqlite_large_table_db)
+        adapter.connect()
+
+        row_count = adapter.get_row_estimate("large_table")
+
+        assert row_count == 15000
+
         adapter.close()
 
 

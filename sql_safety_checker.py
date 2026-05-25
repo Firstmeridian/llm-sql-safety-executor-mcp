@@ -141,11 +141,15 @@ if __name__ == '__main__':
     # Create a dummy 'test_users' table for testing if it doesn't exist
     # This requires write access - only works in dev environment
     try:
+        engine = getattr(adapter, "_engine", None)
+        if engine is None:
+            print("Database setup for example failed: adapter engine is unavailable.")
+            exit(1)
+
         if adapter.db_type == "mysql":
             # MySQL-specific setup
             from sqlalchemy import text
-            from db_adapter import MySQLAdapter
-            with adapter._engine.connect() as connection:
+            with engine.connect() as connection:
                 with connection.begin():
                     connection.execute(text("""
                         CREATE TABLE IF NOT EXISTS test_users (
@@ -161,7 +165,7 @@ if __name__ == '__main__':
         elif adapter.db_type == "sqlite":
             # SQLite-specific setup
             from sqlalchemy import text
-            with adapter._engine.connect() as connection:
+            with engine.connect() as connection:
                 with connection.begin():
                     connection.execute(text("""
                         CREATE TABLE IF NOT EXISTS test_users (

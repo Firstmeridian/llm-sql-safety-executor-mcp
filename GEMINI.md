@@ -4,7 +4,7 @@
 
 This project is a Python-based tool designed to allow Large Language Models (LLMs) to safely execute read-only SQL queries. It provides functions to validate a given SQL query to ensure it is safe and read-only (i.e., only `SELECT` / `SHOW` / `DESCRIBE` / `EXPLAIN` are allowed), and then execute the validated query against a database.
 
-**NEW: MCP Service Implementation** - The project now includes a Model Context Protocol (MCP) service that wraps the original functionality, providing a standardized interface for AI models to interact with the SQL safety checker.
+**MCP Service Implementation** - The project includes a Model Context Protocol (MCP) service that wraps the original functionality, providing a standardized interface for AI models to interact with the SQL safety checker.
 
 The primary technologies used are:
 - **Python** as the programming language.
@@ -22,19 +22,19 @@ The primary technologies used are:
 *   `mcp_sql_server.py`: MCP (Model Context Protocol) server implementation that wraps the SQL safety checker functionality (refactored December 2025):
     *   `query(sql)`: Primary MCP tool for executing read-only SQL queries (with automatic validation)
     *   `check_connection()`: MCP tool for testing database connectivity
-    *   `list_tables()`: MCP tool for listing all tables with estimated row counts
+    *   `list_tables()`: MCP tool for listing visible/allowed tables with estimated row counts; output may be truncated
     *   `describe_table(table_name)`: MCP tool for retrieving table column info and query recommendations
-    *   `get_full_schema()`: MCP tool for getting complete database schema in one call
+    *   `get_full_schema()`: MCP tool for getting a visible schema overview in one call; output may be truncated
     *   `get_table_summary(table_name)`: **Optional** MCP tool for getting table statistics (controlled by `ENABLE_TABLE_SUMMARY`, default disabled)
     *   `sample(table_name, limit)`: **Optional** MCP tool for retrieving sample data (controlled by `ENABLE_SCHEMA_TOOLS`, default enabled)
     *   `sql_assistant()`: MCP prompt for SQL query assistance
-*   `test_mcp_functions.py`: **NEW** - Test script to verify MCP functions work correctly (internal tests)
-*   `test_mcp_client.py`: **NEW** - MCP client test script that simulates real client connections
-*   `mcp_config.json`: **NEW** - Configuration file for MCP client integration
-*   `TEST_MCP_CLIENT_GUIDE.md`: **NEW** - Usage guide for the MCP client test script
-*   `PROMPT_ENGINEERING_BEST_PRACTICES.md`: **NEW** - Guidelines for MCP tool descriptions and prompts
-*   `REFACTORING_LOG.md`: **NEW** - December 2025 refactoring changes documentation
-*   `.env.example`: **NEW** - Example environment configuration file
+*   `test_mcp_functions.py`: Test script to verify MCP functions work correctly (internal tests)
+*   `test_mcp_client.py`: MCP client test script that simulates real client connections
+*   `mcp_config.json`: Configuration file for MCP client integration
+*   `TEST_MCP_CLIENT_GUIDE.md`: Usage guide for the MCP client test script
+*   `PROMPT_ENGINEERING_BEST_PRACTICES.md`: Guidelines for MCP tool descriptions and prompts
+*   `REFACTORING_LOG.md`: Refactoring and release-history documentation
+*   `.env.example`: Example environment configuration file
 *   `requirements.txt`: Lists all the necessary Python packages for this project (now includes fastMCP).
 *   `.gitignore`: A standard Python `.gitignore` file to exclude unnecessary files from version control.
 *   `GEMINI.md`: This file, providing context for the Gemini CLI.
@@ -183,15 +183,19 @@ The conversion of this SQL safety checker tool to an MCP (Model Context Protocol
 
 ### Available MCP Tools
 
-The MCP service provides 5-7 tools (depending on configuration):
+The MCP service provides 5-11 tools (depending on configuration):
 
 1. **`query`**: Primary tool - Executes read-only SQL queries with automatic safety validation
 2. **`check_connection`**: Tests database connectivity and configuration
-3. **`list_tables`**: Lists all tables in the database with estimated row counts
+3. **`list_tables`**: Lists visible/allowed tables in the database with estimated row counts; output may be truncated
 4. **`describe_table`**: Retrieves table column info and query recommendations
-5. **`get_full_schema`**: Gets complete database schema in one call
+5. **`get_full_schema`**: Gets a visible schema overview in one call; output may be truncated
 6. **`get_table_summary`**: **Optional** - Gets table statistics (controlled by `ENABLE_TABLE_SUMMARY`, default disabled)
 7. **`sample`**: **Optional** - Retrieves sample data from tables (controlled by `ENABLE_SCHEMA_TOOLS`, default enabled)
+8. **`list_skills`**: **Optional** - Lists available Skills when `ENABLE_SKILLS=1`
+9. **`get_skill_detail`**: **Optional** - Retrieves detailed metadata for one Skill when `ENABLE_SKILLS=1`
+10. **`execute_query_skill`**: **Optional** - Executes a cached query Skill when `ENABLE_SKILLS=1`
+11. **`execute_mutation_skill`**: **Optional** - Executes or previews a mutation Skill when both `ENABLE_SKILLS=1` and `SKILLS_ALLOW_MUTATIONS=1`
 
 ### Available MCP Prompts
 

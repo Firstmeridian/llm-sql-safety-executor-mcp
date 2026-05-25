@@ -1,6 +1,6 @@
 # MCP Client Test - Usage Guide
 
-**Updated:** May 14, 2026 (v3.4)
+**Updated:** May 25, 2026 (v3.4.3)
 
 ## Purpose
 
@@ -77,6 +77,15 @@ TEST_SAMPLE_LIMIT = 3  # Sample data row limit
 python test_mcp_client.py
 ```
 
+### Client Parsing and Env Overrides
+
+- Skill tools accept `params` as an MCP object/dict, not a JSON string.
+- When reading FastMCP client results, prefer `result.structured_content` before
+  `result.data`; skill payloads have their own `data` field.
+- For stdio checks that must override startup env vars, such as telemetry tests,
+  construct `StdioTransport` explicitly with `env=...` and the current Python
+  executable instead of relying on the path-shortcut `Client(str(start_server))`.
+
 ### Sample Output
 
 ```
@@ -144,7 +153,7 @@ The script tests the following tools:
    - COUNT query
    - Unsafe query rejection
 4. ✅ `describe_table` - Table structure with row count estimate and `is_large` hint
-5. ✅ `get_full_schema` - Complete database schema in one call
+5. ✅ `get_full_schema` - Visible schema overview in one call; may be truncated
 6. ✅ `get_table_summary` - Table statistics with optional exact count (requires `ENABLE_TABLE_SUMMARY=1`)
 7. ✅ `sample` - Sample data retrieval (requires `ENABLE_SCHEMA_TOOLS=1`)
 8. ✅ `list_skills` - List/search skills with `compact`/`summary`/`full` metadata, optional `available_only` filtering, and schema readiness fields (requires `ENABLE_SKILLS=1`)
@@ -155,6 +164,118 @@ The script tests the following tools:
 **Note**: All tool responses include `db_type` field ("mysql" or "sqlite") since v2.2.
 
 **Note**: Skills tools (8-11) only appear when `ENABLE_SKILLS=1` is set. Mutation skills additionally require `SKILLS_ALLOW_MUTATIONS=1`.
+
+**Note**: All MCP tools wrap their structured payload in FastMCP `ToolResult` and expose runtime `ToolResult.meta` for diagnostics. Metadata is for diagnostics only (for example `tool_name`, `db_type`, `execution_ms`, `success`, plus tool-specific counters such as `row_count`, `total_rows`, `truncated`, `skill_version`, `mode`) and intentionally excludes raw SQL, returned rows, and parameter values.
+
+**Note**: Per MCP spec the `_meta` field is OPTIONAL and clients MAY ignore it. In practice this means:
+- Servers and middleware always populate it (you can rely on it for server-side observability and structured logs).
+- MCP Inspector, raw JSON-RPC tooling, and clients that explicitly surface `_meta` will display it.
+- VS Code's MCP UI (verified during v3.4.1) does **not** currently render `_meta`; only `structuredContent` is shown to the user. If you need to see runtime metadata while testing, use MCP Inspector or capture the JSON-RPC frames directly.
+
+**v3.4.2 update**: Uniform `ToolResult` across the full 11-tool profile (core SQL tools, optional schema/table-summary tools, skill discovery/detail tools, and skill execution tools). Every tool's `meta` carries `tool_name`, `execution_ms`, `db_type`, and `success`; data-returning tools also add `row_count`, `total_rows`, and `truncated`. The skill execution tools additionally declare an MCP `outputSchema` so clients can validate `structuredContent` programmatically. Also new in v3.4.2: opt-in tool telemetry via `ENABLE_TOOL_TELEMETRY=1` writes one JSONL line per `tools/call` to `TOOL_TELEMETRY_LOG_PATH` (default `logs/tool_calls.jsonl`) containing only `timestamp`, `tool_name`, `execution_ms`, `call_completed`, `success`, `error_class`, and `db_type` — never SQL, parameters, or returned rows. Sampling can be configured via `TOOL_TELEMETRY_SAMPLE_RATE` (0.0–1.0; default 1.0).
+
+#### Skills `ToolResult.meta` Response Examples
+
+The examples below show the JSON-RPC response shape clients see for the two
+Skills execution tools. `structuredContent` is the business payload (stable
+contract); `_meta` is runtime diagnostics added in v3.4.1 and made uniform
+across all tools in v3.4.2.
+
+**Query skill — `execute_query_skill(skill_name="monthly-sales-report", params={"year": 2024, "month": 1})`**
+
+```jsonc
+{
+  "structuredContent": {
+    "success": true,
+    "skill_name": "monthly-sales-report",
+    "data": [
+      { "date": "2024-01-15", "order_count": 1, "revenue": "100.00", "avg_order_value": "100.00" },
+      { "date": "2024-01-20", "order_count": 1, "revenue": "250.00", "avg_order_value": "250.00" }
+    ],
+    "row_count": 2,
+    "total_rows": 2,
+    "truncated": false,
+    "truncation_note": null
+  },
+  "_meta": {
+    "tool_name": "execute_query_skill",
+    "success": true,
+    "skill_name": "monthly-sales-report",
+    "skill_type": "query",
+    "skill_version": "1.0.0",
+    "mode": "query",
+    "execution_ms": 12.3,
+    "row_count": 2,
+    "total_rows": 2,
+    "truncated": false,
+    "audit_logged": false,
+    "db_type": "mysql",
+    "idempotent": true
+  }
+}
+```
+
+**Mutation skill (preview phase) — `execute_mutation_skill(skill_name="update-order-status", params={"order_id": 1, "new_status": "shipped"}, confirm=false)`**
+
+```jsonc
+{
+  "structuredContent": {
+    "success": true,
+    "skill_name": "update-order-status",
+    "mode": "preview",
+    "preview": { /* before/after diff produced by the mutation class */ },
+    "idempotent": false,
+    "hint": "Set confirm=true to execute this operation."
+  },
+  "_meta": {
+    "tool_name": "execute_mutation_skill",
+    "success": true,
+    "skill_name": "update-order-status",
+    "skill_type": "mutation",
+    "skill_version": "1.0.0",
+    "mode": "preview",
+    "execution_ms": 4.7,
+    "row_count": 1,
+    "audit_logged": true,
+    "db_type": "mysql",
+    "idempotent": false
+  }
+}
+```
+
+**Mutation skill (confirm phase) — same call with `confirm=true`**
+
+```jsonc
+{
+  "structuredContent": {
+    "success": true,
+    "skill_name": "update-order-status",
+    "mode": "execute",
+    "result": { "success": true, "rowcount": 1, /* mutation-specific fields */ },
+    "idempotent": false
+  },
+  "_meta": {
+    "tool_name": "execute_mutation_skill",
+    "success": true,
+    "skill_name": "update-order-status",
+    "skill_type": "mutation",
+    "skill_version": "1.0.0",
+    "mode": "execute",
+    "execution_ms": 8.5,
+    "audit_logged": true,
+    "db_type": "mysql",
+    "idempotent": false
+  }
+}
+```
+
+Fields visible in `_meta` may vary by skill type and mode (for example
+`row_count` / `total_rows` / `truncated` are populated only for query skills,
+`row_count` is populated for mutation preview/execute only when the skill result
+provides an affected-row estimate or rowcount). `tool_name`, `success`,
+`db_type`, and `execution_ms` are always present. `call_completed` is not part of
+tool `_meta`; it exists only in the optional telemetry JSONL record to separate
+transport completion from business success.
 
 **Note**: SQL validation tests are also covered in `test_mcp_functions.py`.
 
@@ -177,6 +298,7 @@ result = await client.call_tool(
   "execute_query_skill",
   {"skill_name": "monthly-sales-report-sqlite", "params": {"year": 2026, "month": 1}},
 )
+# FastMCP clients can inspect result.meta for runtime diagnostics.
 ```
 
 Use `list_skills(search=..., category=..., available_only=true)` for Agent-facing discovery and `get_skill_detail()` for params before execution when the list response is not `full`. Use `available_only=false` for developer catalog review, including skills that are currently incompatible with `DB_TYPE`, disabled by mutation switches, or marked `schema_ready=false` because required tables are missing.

@@ -1,6 +1,6 @@
 # LLM Database Safety Gateway - MCP Service
 
-![Version](https://img.shields.io/badge/version-3.4-blue)
+![Version](https://img.shields.io/badge/version-3.4.3-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Python](https://img.shields.io/badge/python-3.12+-blue?logo=python)
 ![MCP](https://img.shields.io/badge/MCP-Protocol-orange)
@@ -84,6 +84,8 @@ This project implements a standard MCP (Model Context Protocol) service to provi
 **3. Tool Design**:
 - Adopts a Model-driven pattern, prioritizing decision rules over fixed workflows.
 - Tools return context like `is_large`/`row_count` to enable LLM autonomy.
+- MCP `ToolAnnotations` include read-only/destructive/idempotent hints plus `openWorldHint=false`, reflecting that tools operate inside the configured database boundary rather than arbitrary external systems.
+- Skills execution tools return the same structured payload as before and attach `ToolResult.meta` runtime metadata (for example elapsed time, row counts, truncation state, skill version) for debugging and observability.
 - Supports configuration-based policy/prompt injection (e.g., ALLOW_UNION, ALLOWED_TABLES, truncation thresholds), using shorter, more relevant guidance to reduce invalid tool calls.
 - Error feedback optimized for LLMs: Clearly identifies failure reasons (security blocking/table not allowed/syntax/timeout/truncation, etc.) and offers correction suggestions, reducing trial-and-error and invalid calls while avoiding leakage of sensitive information (credentials, system table details, etc.).
 - Adapted for ReAct Pattern: Thought → Action → Observation → Rethink.
@@ -106,7 +108,7 @@ Skills Scenario: list_skills(search/category/detail_level/available_only) → ge
 
 ### Safety Features
 - **Query Restrictions**: Only SELECT / SHOW / DESCRIBE / EXPLAIN allowed.
-- **SQL Parsing Validation**: Comprehensive query analysis using `sqlparse`.
+- **SQL Parsing Validation**: Statement-type allowlist via `sqlparse` plus MCP-layer extended checks.
 - **Connection Security**: Environment-based credential management.
 - **Error Isolation**: Comprehensive exception handling and reporting tailored for LLMs.
 - **Access Isolation**: Access boundaries controlled by the host/runtime environment.
@@ -119,6 +121,25 @@ Skills Scenario: list_skills(search/category/detail_level/available_only) → ge
 - **Skills Template-as-Allowlist**: SQL templates are validated via `is_sql_safe()` at startup and cached in memory — zero disk I/O at runtime (prevents TOCTOU)
 - **Skills Strong Parameter Validation**: type/min/max/enum constraints + rejection of parameters outside schema (prevents injection/hallucination)
 - **Skills Dual-Layer Switches**: `ENABLE_SKILLS` + `SKILLS_ALLOW_MUTATIONS` for least-privilege control
+- **Closed-World Tool Hints**: MCP tools set `openWorldHint=false` because they interact with the configured database/server boundary, not arbitrary external entities. These hints improve client UX but are advisory, not security controls. **Future-tool checklist**: any newly added tool that reaches outside the configured database (external HTTP APIs, webhooks, third-party services, cross-instance DB calls, etc.) MUST set `openWorldHint=true` and be reviewed against this list; `tests/test_annotations_consistency.py` enforces an explicit allowlist so regressions fail in CI.
+- **Skills Runtime Metadata**: All 11 MCP tools wrap their structured payloads in `ToolResult` and expose runtime `meta` fields (`tool_name`, `db_type`, `execution_ms`, `success`, plus tool-specific counters such as `row_count`, `total_rows`, `truncated`, `skill_version`, etc.). Metadata intentionally excludes raw SQL, returned rows, and parameter values.
+  - **Scope (v3.4.2)**: Uniform `ToolResult.meta` across base tools (`query`, `check_connection`, `list_tables`, `describe_table`, `get_full_schema`, `get_table_summary`, `sample`, `list_skills`, `get_skill_detail`) **and** Skills tools (`execute_query_skill`, `execute_mutation_skill`). Base tools use the shared `_tool_result(...)` helper; Skills tools use `_skill_tool_result(...)`. Direct Python callers can read `result.structured_content` for the payload and `result.meta` for metadata uniformly.
+  - **Client visibility**: Per MCP spec, the `_meta` field is OPTIONAL and clients MAY ignore it. Real-world behavior varies: server-side middleware, MCP Inspector, and clients that explicitly surface `_meta` will see runtime metadata; VS Code's MCP UI (as of testing) does not display it. Treat `ToolResult.meta` primarily as a server-side observability hook and an opt-in client signal, not as a guaranteed user-visible diagnostic.
+  - **Minimal example** (see [TEST_MCP_CLIENT_GUIDE.md](TEST_MCP_CLIENT_GUIDE.md) for full request/response examples):
+
+    ```jsonc
+    // execute_query_skill response
+    {
+      "structuredContent": { "success": true, "skill_name": "monthly-sales-report",
+                              "data": [/* rows */], "row_count": 2, "total_rows": 2,
+                              "truncated": false, "truncation_note": null },
+      "_meta": { "tool_name": "execute_query_skill", "success": true,
+          "skill_name": "monthly-sales-report", "skill_type": "query",
+          "mode": "query", "execution_ms": 12.3, "row_count": 2,
+                  "total_rows": 2, "truncated": false, "audit_logged": false,
+                  "db_type": "mysql", "idempotent": true, "skill_version": "1.0.0" }
+    }
+    ```
 
   | Level | Configuration | `ENABLE_SKILLS` | `SKILLS_ALLOW_MUTATIONS` | Available Tools | Permission |
   |:---:|------|:---:|:---:|------|------|
@@ -171,7 +192,7 @@ Early on, the goal was to build a simple SQL safety checker that could inspect a
   2. Focused on specific optimizations for Token Explosion risks in real-world usage (which can lead to massive LLM API costs).
   3. Added [examples of multi-Agent calls to this MCP service](README.md#autogen-multi-agent-example), based on the AutoGen framework, to demonstrate the combination of Agents and this service.
 
-- [In version (v2.1)](REFACTORING_LOG.md#latest-update-january-4-2026---tool-optimization--field-naming), the focus was on improving tool design and output consistency. Many tools were optimized and refactored to adhere as closely as possible to industry best practices. The overall design adopts the ReAct paradigm (Thought --> Action --> Observation --> Rethink) loop. This improves query accuracy and multi-step query quality while ensuring query efficiency. The AutoGen-based multi-agent example was also updated synchronously.
+- [In version (v2.1)](REFACTORING_LOG.md#update-v21-january-4-2026---tool-optimization--field-naming), the focus was on improving tool design and output consistency. Many tools were optimized and refactored to adhere as closely as possible to industry best practices. The overall design adopts the ReAct paradigm (Thought --> Action --> Observation --> Rethink) loop. This improves query accuracy and multi-step query quality while ensuring query efficiency. The AutoGen-based multi-agent example was also updated synchronously.
 
 Through these iterations, this project evolved from an initial concept of an LLM/Agent-based user interface to an MCP-supported comprehensive SQL query service. It is worth acknowledging that although the starting point was different, the current project actually shares similarities with current Text2SQL solutions.  
 In the early conception of this project (March-April 2025), such systems were relatively rare. At that time, similar Text2SQL practices were mainly stuck in the context of receiving prompts from relevant personnel and the LLM generating SQL statements once to assist their queries. The core motivation of this project is **to enable LLMs (Agents) to replace traditional frontends and become the new "frontend", capable of dynamic interaction with users regarding both the data in the interface and the interface itself.** Making the entire system fully flexible and dynamic.  
@@ -390,11 +411,11 @@ In recent updates, multiple efficiency optimizations have been carried out for t
 ### Known Issues and Limitations
 - **Row count fields may be imprecise**: `list_tables()` / `describe_table()` / `get_full_schema()` return `row_count` as estimates:
   - **MySQL**: from `INFORMATION_SCHEMA.TABLES.TABLE_ROWS` (InnoDB may have significant deviation or lag)
-  - **SQLite**: from `sqlite_stat1` (if ANALYZE has been run) or sampling strategy
+  - **SQLite**: from `sqlite_stat1` (if ANALYZE has been run) or bounded 10,000-row sampling; if the sample cap is reached, the value is a lower-bound estimate unless statistics exist
   - Only recommended for "order of magnitude judgment/whether to add LIMIT/whether it is a large table" strategies.
   - If an exact count is needed, please use `SELECT COUNT(*) ...`, or enable `ENABLE_TABLE_SUMMARY=1` and use `get_table_summary(exact_count=True)` (note that large tables may be slow).
 
-- **Result truncation to avoid Token explosion**: `query()`, `list_tables()`, `get_full_schema()` will truncate output based on `MAX_RESULT_ROWS` / `MAX_RESULT_CHARS` / `MAX_OVERVIEW_TABLES` / `MAX_SCHEMA_TABLES`; therefore, "returned data/tables/columns" may not be the full set. When the full set is needed, please explicitly use smaller scope queries (add `LIMIT`, pagination by condition), or adjust relevant environment variables (at your own risk).
+- **Result truncation to avoid Token explosion**: `query()`, `list_tables()`, `get_full_schema()` will truncate returned payloads based on `MAX_RESULT_ROWS` / `MAX_RESULT_CHARS` / `MAX_OVERVIEW_TABLES` / `MAX_SCHEMA_TABLES`; therefore, "returned data/tables/columns" may not be the full set. Query truncation does not reduce database execution work or Python-side fetching; use explicit `WHERE`, `LIMIT`, and `ORDER BY` clauses to limit work and stabilize result order. For table/schema tools, narrow the scope with `describe_table()` or adjust relevant environment variables (at your own risk).
 
 - **Some "Total" fields have "Visible Range" semantics**: For example, `total_tables` in tool output represents "the number of visible tables after allowlist parameter filtering (and considering truncation)", which is not necessarily equal to the actual total number of tables in the database; please avoid misinterpreting it as "whole database statistics".
 
@@ -684,6 +705,42 @@ For a complete client configuration example, please refer to `mcp_config.json`.
 
 ## Changelog
 
+### v3.4.3 Bounded SQLite Estimates and Design Risk Register (May 2026)
+
+Focused on bounded metadata behavior and long-term design-risk tracking:
+
+- `SQLiteAdapter.get_row_estimate()` now uses `sqlite_stat1` when available and otherwise returns the 10,000-row sampling cap as a lower-bound estimate for larger tables instead of running full `COUNT(*)`
+- Query truncation warnings now clarify that truncation limits returned payload only; SQL `WHERE`/`LIMIT`/`ORDER BY` is still required to limit database work and stabilize ordering
+- `list_tables()` and `get_full_schema()` descriptions now use visible/truncated wording instead of implying all tables or complete schema are always returned
+- Security wording now distinguishes sqlparse statement-type allowlisting, MCP-layer checks, Skills parameter validation, and base SQL/table validators
+- Added [Design Risk Register](DESIGN_RISK_REGISTER.md) and [中文版本](DESIGN_RISK_REGISTER_ZH.md) as long-term tracking documents for accepted, deferred, rejected, and policy-required design risks
+- Final review fixes tightened SQLite timeout classification, MCP client smoke-test assertions/result parsing, full-profile tool-count wording, and SQLite write-lock wording. Direct MCP stdio validation covered base tools, Skills tools, mutation preview, and sanitized telemetry.
+
+### v3.4.2 Unified ToolResult, Output Schemas, and Optional Telemetry (May 2026)
+
+Generalized the v3.4.1 metadata pattern across the full tool surface and added two optional observability features:
+
+- **All registered MCP tools in the full profile** (up to 11: core SQL tools, optional schema/table-summary tools, skill discovery/detail tools, and skill execution tools) now return `ToolResult` with `structuredContent` (previous business payload, unchanged) plus a `meta` block carrying `tool_name`, `execution_ms`, `db_type`, `success`, and tool-specific counters such as `row_count`, `total_rows`, and `truncated`
+- Skills execution tools also carry the same common `meta.tool_name` and `meta.success` fields; `meta.success` is derived from `structuredContent.success`, so the system records "did the tool call crash?" separately from "did the business operation succeed?". A Skill blocked by invalid parameters, a safety rule, or a disallowed state transition may return a normal failure result instead of raising. In telemetry, that appears as `call_completed=true` and `success=false`, which indicates a business-level rejection rather than a transport/runtime crash
+- `execute_query_skill` and `execute_mutation_skill` now declare an MCP `outputSchema` so compliant clients can validate `structuredContent` shape without trial and error
+- New opt-in `ENABLE_TOOL_TELEMETRY=1` enables a FastMCP middleware that appends a sanitized JSONL record per `tools/call` invocation to `TOOL_TELEMETRY_LOG_PATH` (default `logs/tool_calls.jsonl`); the record contains only `timestamp`, `tool_name`, `execution_ms`, `call_completed`, `success`, `error_class`, and `db_type` — never SQL, parameters, returned rows, or credentials. `call_completed` reflects whether the tool returned without raising; `success` honors the tool's own `ToolResult.meta.success` when present, so business-level rejections (e.g. a safety-checker veto returning `success=False` without raising) are correctly distinguished from transport-level crashes
+- Optional `TOOL_TELEMETRY_SAMPLE_RATE` (a finite float from `0.0` to `1.0`, default `1.0`) controls the probability of writing JSONL telemetry records in high-throughput deployments; out-of-range values are clamped, and invalid or non-finite values (`nan`, `inf`) fall back to `1.0`. Here, "default `1.0`" means that once telemetry is enabled via `ENABLE_TOOL_TELEMETRY=1`, an unset `TOOL_TELEMETRY_SAMPLE_RATE` is treated as `1.0`, so every `tools/call` invocation writes a telemetry record by default. The project does not enable the telemetry middleware or write JSONL logs by default, because `ENABLE_TOOL_TELEMETRY` defaults to `0`. Put simply, `ENABLE_TOOL_TELEMETRY` decides whether anything is logged, while `TOOL_TELEMETRY_SAMPLE_RATE` decides how much gets logged.
+- New pytest annotation-consistency test (`tests/test_annotations_consistency.py`) keeps `ToolAnnotations` (`readOnlyHint`/`destructiveHint`/`idempotentHint`/`openWorldHint`) aligned with the documented intent for every registered tool
+- Per MCP spec the `_meta` field is OPTIONAL — clients MAY ignore it. The VS Code MCP UI for example only renders `structuredContent`; treat `meta` as server-side observability
+- Direct in-process callers should unwrap with `getattr(result, "structured_content", result)` (see `tests/test_skills_disclosure.py::run_tool`)
+
+
+
+### v3.4.1 ToolResult Runtime Metadata and Closed-World Annotations (May 2026)
+
+Completed the protocol/observability follow-up from v3.4 without changing the existing structured result payloads:
+
+- `execute_query_skill` and `execute_mutation_skill` now return `ToolResult` with the previous business payload in `structuredContent` and non-sensitive runtime diagnostics in `meta`
+- Runtime metadata includes timing, mode, skill version/type, database type, idempotency, row counts, truncation state, and audit logging state where applicable
+- Runtime metadata intentionally excludes raw SQL templates, parameter values, returned rows, credentials, and database connection internals
+- All MCP tools now set `openWorldHint=false` to reflect the configured database/server boundary; this remains an advisory client hint, not an authorization control
+- Tests cover Skills `ToolResult.meta` behavior and verify every listed MCP tool exposes the closed-world annotation
+
 ### v3.4 MCP Hardening and Skills Profile Policy (May 2026)
 
 Implemented a conservative hardening pass:
@@ -694,7 +751,7 @@ Implemented a conservative hardening pass:
 - Added `SKILLS_EXCLUDE_PROFILES` so deployments can hide and block demo-profile skills without deleting examples
 - Added optional `SKILLS_AUDIT_QUERIES=1` query skill audit logging; returned data is never written to the audit log
 - Fixed `test_bug_fixes.py` pytest wrappers so tests assert instead of returning booleans
-- Deferred (`ToolResult.meta`), (session-state schema caching), and (`db://schema` resources) as explicit design decisions because they change client contracts or add stale-cache risk without solving a current blocker
+- At v3.4 time, deferred (`ToolResult.meta`), (session-state schema caching), and (`db://schema` resources) as explicit design decisions; `ToolResult.meta` later landed incrementally in v3.4.1/v3.4.2, while schema caching and `db://schema` resources remain deferred
 
 ### v3.3 Skills Availability and Metadata Disclosure (May 2026)
 
@@ -743,9 +800,9 @@ Added support for SQLite databases while maintaining full backward compatibility
   - `create_adapter()` factory function for automatic adapter selection
 - **SQLite-Specific Features**:
   - Query timeout via `set_progress_handler()` (native SQLite callback)
-  - `StaticPool` connection pooling (single connection, avoids file lock issues)
+  - `StaticPool` connection pooling (single process-local connection; SQLite file-level write locks still apply)
   - `sqlite_master` and `PRAGMA table_info()` for metadata queries
-  - Row count estimation using `sqlite_stat1` or sampling strategy
+  - Row count estimation using `sqlite_stat1` or bounded sampling
 - **New Environment Variables**:
   - `DB_TYPE=mysql|sqlite` - Database type selection (default: mysql)
   - `SQLITE_DATABASE_PATH` - Path to SQLite file or `:memory:`
@@ -774,7 +831,7 @@ Focused on improvements in tool design and output consistency:
 
 For detailed changes, please refer to [REFACTORING_LOG.md](REFACTORING_LOG.md).
 
-### v2.0 Refactoring (December 2025) - Current Branch: `feature/v2.0-mcp-server-refactoring`
+### v2.0 Refactoring (December 2025) - Historical Branch: `feature/v2.0-mcp-server-refactoring`
 
 Major improvements following FastMCP best practices:
 
@@ -815,7 +872,7 @@ This project has transitioned from direct function calls to a standardized MCP s
 
 ## Exposed MCP Tools
 
-The service exposes 5-10 standardized MCP tools (depending on configuration):
+The service exposes 5-11 standardized MCP tools (depending on configuration):
 
 ### 1. `query` (Primary Tool)
 Usage: Execute read-only SQL queries with automatic security validation.
@@ -853,9 +910,9 @@ Output:
 ```
 
 ### 3. `list_tables`
-Usage: Database Overview - List all tables and their estimated row counts.
+Usage: Visible Database Overview - List returned/allowed tables and their estimated row counts.
 
-Lightweight initial exploration tool. Row counts are INFORMATION_SCHEMA estimates (InnoDB may have ±40% error).
+Lightweight initial exploration tool. The table list may be truncated by `MAX_OVERVIEW_TABLES`. Row counts are INFORMATION_SCHEMA estimates for MySQL (InnoDB may have ±40% error) or SQLite statistics/sampling.
 
 Output:
 ```json
@@ -878,7 +935,7 @@ Output:
 ### 4. `describe_table`
 Usage: Get Table Structure - Column info, estimated row count, and query suggestions.
 
-Returns column details and estimated row counts from INFORMATION_SCHEMA (avoids COUNT(*) full table scans). Includes `is_large` flag for query planning.
+Returns column details and estimated row counts from adapter metadata/statistics (MySQL INFORMATION_SCHEMA; SQLite sqlite_stat1 or bounded sampling). Includes `is_large` flag for query planning and avoids automatic COUNT(*) full table scans.
 
 Input:
 ```json
@@ -932,9 +989,9 @@ Output:
 ```
 
 ### 6. `get_full_schema`
-Usage: Fetch complete database schema (all tables and columns) in a single call.
+Usage: Fetch a visible database schema overview in a single call.
 
-Suitable for multi-table JOIN or scenarios requiring all table structures at once. For single table queries, `describe_table()` is recommended.
+Suitable for multi-table JOIN or scenarios requiring several table structures at once. The returned schema may be filtered by allowlist and truncated by `MAX_SCHEMA_TABLES`; for single table queries, `describe_table()` is recommended.
 
 Output:
 ```json
@@ -964,7 +1021,7 @@ Usage: Get table statistics, supports optional exact row count calculation.
 
 **Note**: This tool is controlled by `ENABLE_TABLE_SUMMARY` environment variable (Default: **Disabled**). `describe_table()` tool already provides estimated row counts, so this tool is needed only when precise counting is required.
 
-**Warning**: `exact_count=True` will run COUNT(*), which may be slow on large InnoDB tables (full table scan).
+**Warning**: `exact_count=True` will run COUNT(*), which may be slow on large tables (full table scan).
 
 Input:
 ```json
@@ -1406,7 +1463,7 @@ This follows Google's [Function Calling Best Practices](https://ai.google.dev/ge
 | *"Offload the burden from the model and use code where possible."* | [OpenAI — Function Calling (2025)](https://platform.openai.com/docs/guides/function-calling#best-practices-for-defining-functions) | Skills pre-build SQL/Python logic, Agent only passes parameters |
 | *"Use clear and descriptive function/parameter names and descriptions."* | [Google Gemini — Function Calling](https://ai.google.dev/gemini-api/docs/function-calling#best_practices) | YAML frontmatter provides structured names, descriptions, and parameter constraints |
 | *"Give models less freedom for higher-stakes operations."* | [Anthropic — Building Effective Agents](https://docs.anthropic.com/en/docs/build-with-claude/agentic-systems) | Mutation operations go through constrained `MutationBase`, not free-form code |
-| *"Validate all inputs"* | [MCP Specification §7 — Security](https://modelcontextprotocol.io/specification/2025-03-26/basic/security) | Every call goes through `validate_name()` + `validate_params()` |
+| *"Validate all inputs"* | [MCP Specification §7 — Security](https://modelcontextprotocol.io/specification/2025-03-26/basic/security) | Skills execution calls validate skill names and params; base tools use SQL/table-specific validators |
 | Parameterized queries | [OWASP — SQL Injection Prevention](https://cheatsheetseries.owasp.org/cheatsheets/SQL_Injection_Prevention_Cheat_Sheet.html) | SQLAlchemy `text()` + parameter binding, zero string concatenation |
 
 For complete design details, execution flow diagrams, and industry best practices alignment analysis, see [MCP_AGENTS_SKILLS_DESIGN.md](MCP_AGENTS_SKILLS_DESIGN.md).
@@ -1454,12 +1511,13 @@ This script:
 
 - [Skills Design](MCP_AGENTS_SKILLS_DESIGN.md): v3.0 Skills extension layer architecture and design decisions
 - [Skills Security Policy](skills/SAFETY.md): 16-item security governance for skill authors
+- [Design Risk Register](DESIGN_RISK_REGISTER.md): Long-term design, security, and operations risk register
 - [Feasibility Analysis](LLM_TO_MCP_FEASIBILITY_ANALYSIS.md): Detailed analysis of LLM to MCP conversion
 - [Original Context](GEMINI.md): Project background and development guide
-- [Refactoring Log](REFACTORING_LOG.md): Refactoring change documentation (v2.0 — v3.0)
+- [Refactoring Log](REFACTORING_LOG.md): Refactoring change documentation (v2.0 — v3.4.3)
 - [MCP Client Test Guide](TEST_MCP_CLIENT_GUIDE.md): Guide for testing MCP Server via client
 - [Prompt Engineering Best Practices](PROMPT_ENGINEERING_BEST_PRACTICES.md): Guide for MCP tool descriptions and prompts
-- [Agent Examples Development Log](agent_examples/AGENT_DEVELOPMENT.md): AutoGen multi-agent example design and decisions
+- [Agent Examples Development Log (Chinese)](agent_examples/AGENT_DEVELOPMENT_ZH.md): AutoGen multi-agent example design and decisions
 
 ## Contribution
 
