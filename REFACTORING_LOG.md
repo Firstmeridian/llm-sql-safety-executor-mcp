@@ -1,6 +1,6 @@
 # MCP SQL Server Refactoring Log
 
-**Date:** December 2, 2025 (Updated: May 26, 2026)
+**Date:** December 2, 2025 (Updated: August 2, 2026)
 **Author:** Code Refactoring Session
 
 ## Overview
@@ -9,7 +9,262 @@ This document records the major refactoring changes made to `mcp_sql_server.py` 
 
 ---
 
-## Latest Update v3.4.3 (May 24, 2026) - Bounded SQLite Estimates and Tool-Surface Wording
+## Post-v3.6 Test Isolation and Documentation Follow-up (August 2, 2026)
+
+### Test Isolation
+
+The local live `.env` intentionally enables the v3.6 strict named-write policy
+with `SKILLS_ALLOW_MUTATION_CONNECTIONS=mysql,analytics`. The v3.5 regression
+fixture instead registers `default,analytics`. Because `db_adapter.py` calls
+`load_dotenv()` during module import, an unisolated test process could restore
+the local allowlist and fail during `mcp_sql_server` import by looking for an
+unconfigured `mysql` fixture connection.
+
+`tests/test_multi_connection_v35.py::_reload_server()` now explicitly sets
+`SKILLS_ALLOW_MUTATION_CONNECTIONS` to an empty value before re-importing the
+server modules. Empty, rather than deleting the variable, is deliberate:
+`load_dotenv()` does not override an existing empty environment value, so the
+live `.env` cannot reintroduce the `mysql,analytics` allowlist. This is a test
+fixture isolation fix; the live `.env` must not be changed to accommodate the
+v3.5 test aliases.
+
+### Documentation Follow-up
+
+- Added `V3_5_V3_6_SKILLS_GUIDE_ZH.md`, an explanatory Chinese guide covering
+    named connections, per-connection policy, Skill metadata, strict mutation
+    routing, preview-token binding, state drift, and MutationBase contracts.
+- Updated `skills/SAFETY.md` for the implemented v3.6 server-side
+    preview-token model, corrected the concrete `Mutation.execute()` write
+    constraint, and clarified that stdio/SSE is not itself a rate-limit boundary.
+- Added Chinese explanations to the local `.env` for connection routing,
+    timeout scope, token lifecycle, audit behavior, default limits, and the
+    test-isolation boundary. No effective live configuration values were changed.
+
+### Validation
+
+- `.venv/bin/python -m pytest -q tests/test_multi_connection_v35.py` → 6 passed.
+- `.venv/bin/python -m pytest -q tests/test_mutation_multi_connection_v36_design.py` → 27 passed.
+- `git diff --check` for the changed test and documentation files produced no output.
+
+## Project-wide Pylance Type-Safety Follow-up (August 2, 2026)
+
+### Findings and Root Cause
+
+A workspace-wide Pylance scan found five severity-1 diagnostics outside the
+previously fixed v3.5/v3.6 regression files. They had the same underlying
+pattern: optional or loosely typed values were allowed to cross a helper or
+test-double boundary without an explicit contract or runtime narrowing.
+
+- `test_mcp_client.py` passed `None` to a parameter declared as `str`.
+- `tests/test_annotations_consistency.py` declared FastMCP tools as
+    `object`, then accessed their `annotations` member; a second access path
+    also used an optional annotation without checking it.
+- `tests/test_db_adapter.py` assigned lightweight `DummyEngine` instances to
+    the production `Engine | None` attribute without documenting the test-only
+    structural substitution.
+- `tests/test_skills_disclosure.py` accessed `openWorldHint` on an optional
+    `ToolAnnotations` value.
+
+### Remediation
+
+- Marked the client helper's `note` parameter as `str | None`.
+- Typed the annotation test's tool collection as `dict[str, Tool]` and added
+    explicit `None` assertions before reading optional annotations.
+- Used narrow `cast(Engine, ...)` expressions only at the three test-double
+    assignments; production adapter typing remains unchanged.
+- Added an explicit annotation-presence assertion before reading
+    `openWorldHint` in the Skills disclosure test.
+- Extended pytest environment isolation to include
+    `SKILLS_ALLOW_MUTATION_CONNECTIONS`, and made the named-connection policy
+    test explicitly disable MySQL mutations so local `.env` values cannot alter
+    its expected baseline.
+
+The preferred rule is to fix uncertainty at the producer or helper boundary,
+then use a runtime assertion when the test is intentionally validating that
+the value exists. Broad `Any` annotations and scattered `# type: ignore`
+directives are not appropriate substitutes for these contracts.
+
+### Validation
+
+- Workspace Pylance diagnostics: no severity-1 findings remain. Severity-4
+    unused-symbol notices are informational and were left outside this fix.
+- `.venv/bin/python -m pytest -q tests/test_annotations_consistency.py
+    tests/test_db_adapter.py tests/test_skills_disclosure.py` -> 70 passed,
+    3 skipped.
+
+---
+
+## Update v3.6 (May 30, 2026) - Mutation Preview Tokens and Named Write Policy
+
+### Overview
+
+Closed the v3.5 compromise that kept mutation Skills on the default connection
+only. v3.6 introduces one consistent high-impact write protocol: every
+`execute_mutation_skill(confirm=true)` call must present the one-time
+`preview_token` returned by the matching `confirm=false` preview, including on
+the default connection. Named write targets are opt-in and require three
+independent policy layers before a write is considered.
+
+The token is HMAC-signed and bound to skill name, skill version, canonical
+params hash, resolved `connection_id`, `db_type`, issue/expiry timestamps, a
+random `jti`, and a hash of the minimal preview-time execution binding. It is
+registered in a bounded process-local store and atomically consumed before
+dynamic validation and the write, so replay fails closed. Consumption is
+terminal: after a later validation, database, timeout, audit, or response
+failure the caller must preview again rather than retry the old token.
+
+### Changes
+
+| File | Change Type | Description |
+|------|-------------|-------------|
+| `mcp_sql_server.py` | Modified | Added `PreviewTokenRecord`, `InMemoryPreviewTokenStore` (bounded, locked, lazy-expiring), token payload/signature/verify/consume helpers, `MUTATION_PREVIEW_TOKEN_*` configuration, `SKILLS_ALLOW_MUTATION_CONNECTIONS` strict-mode parsing with startup validation of each listed id, `_mutation_connection_policy_state()` shared by discovery and execution, and optional `connection_id` plus required `preview_token` on `execute_mutation_skill` |
+| `mcp_sql_server.py` Skills paths | Modified | `list_skills` / `get_skill_detail` now report `mutation_connection_supported` and `mutation_policy_allowed`; unauthorized mutation Skills are non-executable in discovery and rejected at execution with the same policy result |
+| `db_adapter.py` | Modified | Extended `ConnectionPolicy` with `allow_mutations` and `mutation_skills`; added `DB_<ID>_ALLOW_MUTATIONS` / `DB_<ID>_MUTATION_SKILLS` parsing with skill-name validation and explicit `*` wildcard; omitted per-target values deny writes |
+| `skills/_lib/mutation_base.py` | Modified | Added `build_execution_binding()` and `execute_with_binding()`; `run_execute()` now routes through the binding path, forwards `client_id` / `connection_id` / `db_type` to audit, and returns the real `_audit_logged` outcome. A non-empty binding is rejected rather than silently ignored |
+| `skills/update-order-status/mutation.py` | Modified | Captures `expected_status` during preview and applies the optimistic lock against that previewed value via `_execute_with_expected_status()` instead of re-binding to a later status |
+| `skills/update-order-status/skill_def.md` | Modified | Documented the token workflow, one-time replay protection, preview-state binding, and best-effort audit semantics |
+| `tests/test_mutation_multi_connection_v36_design.py` | Added | 27 tests covering routing, token binding/tampering/expiry, all three denial layers, one-time replay, concurrent consumption, capacity and lazy expiry, restart invalidation, static-rejection non-consumption, terminal failure semantics, preview-state drift, and full-token exclusion from meta/audit |
+| `.env.example` | Modified | Documented `MUTATION_PREVIEW_TOKEN_TTL_SECONDS`, `MUTATION_PREVIEW_TOKEN_STORE_MAX_ENTRIES`, `MUTATION_PREVIEW_TOKEN_SECRET`, `SKILLS_ALLOW_MUTATION_CONNECTIONS`, and the per-connection write variables |
+| `README.md`, `README_ZH.md`, `MCP_AGENTS_SKILLS_DESIGN.md`, `skills/SAFETY.md`, `DESIGN_RISK_REGISTER.md`, `DESIGN_RISK_REGISTER_ZH.md` | Modified | Documented the two-call migration requirement, the strict write policy layers, token lifecycle and limits, and DRR-2026-030 / DRR-2026-034 |
+| `RELEASE_NOTES/RELEASE_NOTES_v3_6.md` | Added | Release notes for the preview-token core and named write policy |
+
+### Write Authorization Layers
+
+A mutation write is attempted only when all of the following hold. They are
+independent switches, not alternatives:
+
+1. `ENABLE_SKILLS=1`
+2. `SKILLS_ALLOW_MUTATIONS=1`
+3. Target `connection_id` listed in `SKILLS_ALLOW_MUTATION_CONNECTIONS`
+   (omitting the variable keeps v3.5-compatible default-connection-only scope)
+4. `DB_<ID>_ALLOW_MUTATIONS=1`
+5. Skill listed in `DB_<ID>_MUTATION_SKILLS` (or the explicit `*` wildcard)
+6. DB type compatibility and schema readiness for the resolved connection
+7. Parameter schema validation plus the Skill's own `validate()`
+8. A valid, unexpired, unconsumed `preview_token` matching this exact request
+
+Query `ALLOWED_TABLES` is deliberately not reused as write authorization: a
+readable table is not a writable table.
+
+### Design Decisions
+
+| Decision | Choice | Alternative | Rationale |
+|----------|--------|-------------|-----------|
+| Token scope | Required for every mutation execute, including the default connection | Require tokens only for non-default connections | One protocol avoids a weaker legacy path and makes preview/execute target binding explicit everywhere |
+| Token binding fields | skill name, version, canonical params hash, `connection_id`, `db_type`, `iat`/`exp`, `jti`, execution-binding hash | Sign only skill name and params | Prevents preview-on-A/execute-on-B, param substitution, and executing v2 logic against a v1 preview |
+| Replay protection | Bounded process-local store consumed atomically before validation/write | Rely on HMAC expiry alone, or consume only after successful commit | HMAC alone is replayable until expiry; consuming after commit reopens the race. Consuming first is conservative for uncertain write outcomes |
+| Capacity behavior | Fail closed when the store is full; never evict valid tokens | LRU eviction | Eviction would silently invalidate a legitimate reviewed preview |
+| Preview-state binding | Opt-in per Skill via `build_execution_binding()` / `execute_with_binding()`; non-empty bindings must be handled | Always re-read state during execute | Re-reading lets execute act on state the reviewer never saw; explicit opt-in avoids silently ignored bindings |
+| Named write policy | Global target allowlist plus per-connection switch plus per-connection skill allowlist | Single global switch, or reuse read allowlists | Deny-by-default with separate operator-controlled layers; read policy and write authorization stay distinct |
+| Discovery/execution parity | `_mutation_connection_policy_state()` used by both | Filter in discovery only | Keeps `available_only` an ergonomic filter while execution stays authoritative |
+
+### Compatibility Notes
+
+- **Breaking for direct execute callers.** Clients that previously called
+    `execute_mutation_skill(confirm=true)` in one step must now call
+    `confirm=false` first and pass the returned `preview_token`.
+- Omitting `SKILLS_ALLOW_MUTATION_CONNECTIONS` preserves the v3.5
+    default-connection-only mutation scope. Setting it enables strict mode and
+    does not by itself grant write permission.
+- The token store is process-local. Preview and execute must reach the same
+    server process, so the supported deployment boundary is stdio or a single
+    HTTP/SSE worker. Restart invalidates outstanding tokens even when
+    `MUTATION_PREVIEW_TOKEN_SECRET` is fixed, because store state is not
+    persisted. Multi-worker deployments require a shared atomic backend and must
+    not fall back to stateless HMAC acceptance.
+- `preview_token` is returned in the structured payload only. Metadata, audit
+    records, and telemetry carry a short `preview_token_id` digest prefix, never
+    the full token.
+- `destructiveHint` and `requires_confirmation` remain advisory client hints.
+    `confirm=true` proves the client requested execution; it does not prove a
+    human approved it. Deployments needing human approval require a separate
+    client or external workflow.
+
+### Validation
+
+- `.venv/bin/python -m pytest -q tests/test_mutation_multi_connection_v36_design.py` → 27 passed.
+- Full repository test suite after the v3.6 change set: `.venv/bin/python -m pytest -q` → 259 passed, 3 skipped.
+- Live MCP stdio smoke on MySQL and SQLite fixtures verified preview token
+    issuance, execute with the matching token, one-time replay rejection,
+    cross-connection token rejection without consuming the valid token, and
+    `pending -> confirmed` writes with `rowcount=1`. Details and cleanup
+    evidence are in `RELEASE_NOTES/LIVE_MCP_TSET/LIVE_MCP_TEST_V36_ZH.md`.
+
+---
+
+## Update v3.5 (May 30, 2026) - Named Multi-Connection Read Tools and Query Skills
+
+### Overview
+
+Implemented configured named database connections while preserving the legacy
+single-default-connection path. The core invariant is now explicit in code and
+docs: resolve the target `ConnectionContext` first, then run SQL policy, schema
+readiness checks, dialect-specific helper SQL, execution, metadata, audit, and
+telemetry against that same connection. Unknown connection ids fail closed and
+never fall back to the default.
+
+### Changes
+
+| File | Change Type | Description |
+|------|-------------|-------------|
+| `db_adapter.py` | Modified | Added `ConnectionPolicy` and `DatabaseConfig`, named connection env parsing, `get_default_connection_id()`, `get_connection_config()`, `list_connection_configs()`, and an adapter cache keyed by `connection_id`; direct constructors and no-arg `get_adapter()` remain compatible with legacy callers; `DB_<ID>_*` and `DEFAULT_DB_CONNECTION` are ignored unless `DB_CONNECTIONS` is explicitly set |
+| `sql_safety_checker.py` | Modified | Added optional `connection_id` to `execute_sql()` and now resolves the selected adapter/config before SQL safety policy or execution while preserving existing two-argument behavior |
+| `mcp_sql_server.py` | Modified | Added `ConnectionContext`, `_resolve_connection_context()`, `list_connections()`, optional `connection_id` on read-only core tools, connection-aware policy/schema helpers, connection-aware ToolResult metadata/telemetry, quoted-identifier table allowlist extraction, and SQLite public database display aliases (`sqlite:<connection_id>`) |
+| `mcp_sql_server.py` Skills paths | Modified | `list_skills`, `get_skill_detail`, and `execute_query_skill` now evaluate DB compatibility, schema readiness, allowlists, execution, metadata, optional query audit, and telemetry against the target connection; mutation Skills are marked non-executable on non-default connections in v3.5 |
+| `skills/_lib/audit.py`, `skills/_lib/mutation_base.py` | Modified | Audit records can include safe `connection_id` and actual `db_type` without logging DSNs, credentials, SQL params, or returned rows |
+| `start_server.py` | Modified | Startup validation imports server code only after environment validation and now validates the configured connection registry |
+| `.env.example` | Modified | Added optional `DB_CONNECTIONS`, `DEFAULT_DB_CONNECTION`, and `DB_<ID>_*` examples, including the legacy-mode rule that per-connection variables and default selection are inactive until `DB_CONNECTIONS` is set |
+| `README.md`, `README_ZH.md`, `MCP_AGENTS_SKILLS_DESIGN.md`, `SQLITE_ADAPTER_DESIGN.md`, `skills/SAFETY.md`, `TEST_MCP_CLIENT_GUIDE.md`, `DESIGN_RISK_REGISTER.md`, `DESIGN_RISK_REGISTER_ZH.md` | Modified | Documented v3.5 behavior, invariants, compatibility, compromises, telemetry/audit privacy, deferred multi-connection mutation risk, the `DB_CONNECTIONS` feature gate, runtime allowlist checks for quoted identifiers, SQLite path sanitization in public payloads, and the distinction between local pytest guardrails and actual CI enforcement |
+| `tests/test_multi_connection_v35.py` | Added | Covers registry parsing, unknown connection fail-closed behavior, same-connection policy/execution, Skills availability/execution consistency, and mutation default-only scope |
+| `tests/conftest.py`, `tests/test_db_adapter.py`, `tests/test_v342_meta_and_schema.py`, `tests/test_audit.py`, `tests/test_skills_disclosure.py`, `tests/test_annotations_consistency.py` | Modified | Expanded assertions for registry reset behavior, legacy-mode isolation from local named `.env` variables, connection metadata, audit fields, tool surface, and disclosure consistency |
+
+### Design Decisions
+
+| Decision | Choice | Alternative | Rationale |
+|----------|--------|-------------|-----------|
+| Connection identity | Server-configured `connection_id` aliases only | Allow tools/models to pass DSNs | Prevents credential disclosure and keeps routing under operator control |
+| Resolve-first invariant | Resolve `ConnectionContext` before policy, readiness, helper SQL, execution, metadata, audit, and telemetry | Let each helper read global adapter/config state | Prevents cross-connection mismatches and fixes the historical quote-on-one-adapter/execute-on-default risk |
+| Default compatibility | Omitted `connection_id` uses the default connection and legacy env vars still work when `DB_CONNECTIONS` is unset | Require all callers to pass connection ids | Preserves existing behavior and minimizes migration cost |
+| Query Skill runtime policy | Startup validation checks read-only/structural safety; runtime enforces target connection policy | Validate every skill against every configured connection at startup | Per-connection allowlists differ by deployment, so runtime is the authoritative policy point |
+| Table allowlist parsing | Normalize common quoted and schema-qualified identifiers before comparison | Continue matching only bare identifiers | Prevents `"table"`, `[table]`, and `schema."table"` forms from bypassing per-connection allowlists |
+| Mutation scope | Default-connection only in v3.5 | Enable multi-connection writes immediately | Avoids preview/execute target drift and missing per-connection write permissions until a dedicated write policy exists |
+| Metadata privacy | Include `connection_id` and `db_type`; exclude DSNs, hosts, users, passwords, SQLite paths, SQL params, and returned rows; display SQLite databases as `sqlite:<connection_id>` in public payloads | Include connection internals for debugging | Gives operators enough correlation without leaking sensitive connection material |
+
+### Compatibility Notes
+
+- Existing `.env` files that set only `DB_TYPE`, MySQL credentials, or
+    `SQLITE_DATABASE_PATH` continue to work. `DB_CONNECTIONS` is optional.
+- `DB_<ID>_*` variables are treated as named-connection config only when
+    `DB_CONNECTIONS` is explicitly set. If `DB_CONNECTIONS` is unset or empty,
+    legacy mode ignores those variables so local smoke configuration cannot
+    silently override `DB_TYPE`/`SQLITE_DATABASE_PATH`.
+- `DEFAULT_DB_CONNECTION` is also ignored in legacy mode; it only selects a
+    default among ids listed in `DB_CONNECTIONS`.
+- Existing MCP calls keep working when they omit `connection_id`; the default
+    connection is selected.
+- `SkillMetadata.databases` still describes DB type compatibility (`mysql`,
+    `sqlite`, or omitted), not connection ids.
+- Query Skills are now connection-scoped for listing, detail, and execution.
+    Their visible executability should match the target connection used for
+    execution.
+- Mutation Skills intentionally remain default-connection only in v3.5. This is
+    a documented compromise, not a missing parameter.
+- Result-size caps (`MAX_RESULT_ROWS`, `MAX_RESULT_CHARS`, schema/table overview
+    caps) remain process-wide; per-connection policy currently covers allowlist,
+    UNION, query timeout, connect timeout, and SQLite progress interval.
+
+### Validation
+
+- Syntax check: `.venv/bin/python -m py_compile db_adapter.py sql_safety_checker.py mcp_sql_server.py start_server.py skills/_lib/audit.py skills/_lib/mutation_base.py tests/test_multi_connection_v35.py tests/test_db_adapter.py tests/test_v342_meta_and_schema.py tests/test_audit.py`
+- Focused v3.5/regression suite after the latest follow-up: `.venv/bin/python -m pytest -q tests/test_sql_policy.py tests/test_multi_connection_v35.py tests/test_db_adapter.py::TestGlobalAdapter tests/test_v342_meta_and_schema.py tests/test_audit.py tests/test_skills_disclosure.py::test_mysql_database_hides_sqlite_skill_by_default tests/test_annotations_consistency.py` → 44 passed.
+- Full repository test suite: `.venv/bin/python -m pytest -q` → 231 passed.
+- Patch whitespace and syntax: `git --no-pager diff --check && .venv/bin/python -m py_compile db_adapter.py mcp_sql_server.py sql_safety_checker.py tests/test_sql_policy.py tests/test_db_adapter.py tests/test_multi_connection_v35.py` produced no output.
+- VS Code diagnostics: no errors found for the changed Python files.
+- Live MCP smoke on the local `.env` after adding `DB_CONNECTIONS=mysql,analytics`: `list_connections()` reported `mysql` (MySQL, selected as the default) and `analytics` (SQLite); `check_connection()` and `query(..., "SELECT 1 AS smoke_test")` succeeded on both connections. `list_tables(connection_id="analytics")` returned only `orders` under the analytics allowlist. `list_skills(connection_id="analytics", available_only=false)` showed `monthly-sales-report-sqlite` executable and `update-order-status` non-executable with `disabled_reason="Mutation skills are limited to the default connection in v3.5."`; `execute_query_skill(connection_id="analytics", skill_name="monthly-sales-report-sqlite", params={"year": 2024, "month": 1})` succeeded with zero rows and no truncation.
+
+---
+
+## Update v3.4.3 (May 24, 2026) - Bounded SQLite Estimates and Tool-Surface Wording
 
 ### Overview
 
@@ -29,7 +284,7 @@ explicit through user SQL or `get_table_summary(exact_count=True)`.
 | `mcp_sql_server.py` | Modified | Clarified query/skill truncation notes: truncation limits returned payload only, while `WHERE`/`LIMIT`/`ORDER BY` must be used to limit database work and stabilize ordering; updated `list_tables()` / `get_full_schema()` descriptions to visible/truncated semantics |
 | `test_mcp_client.py` | Modified | MCP smoke test now uses assertions, dict parameters for skill calls, `structured_content`-first result parsing, and an explicit skip only when the configured database is unavailable under pytest |
 | `README.md`, `README_ZH.md`, `TEST_MCP_CLIENT_GUIDE.md`, `MCP_AGENTS_SKILLS_DESIGN.md`, `PROMPT_ENGINEERING_BEST_PRACTICES.md`, `SQLITE_ADAPTER_DESIGN.md`, `.env.example`, `GEMINI.md`, `agent_examples/` | Modified | Updated safety wording, SQLite estimate behavior, optional exact-count guidance, visible/truncated schema language, tool-count wording, SQLite write-lock wording, and prompt guidance so `get_table_summary()` is not treated as a default planning step |
-| `DESIGN_RISK_REGISTER.md`, `DESIGN_RISK_REGISTER_ZH.md` | Added/Modified | Long-term design risk register records completed V343-001 through V343-005 and leaves V343-006 through V343-014 as policy/deferred items |
+| `DESIGN_RISK_REGISTER.md`, `DESIGN_RISK_REGISTER_ZH.md` | Added/Modified | Long-term design risk register records completed V343-001 through V343-005, closes V343-006 through V343-008 as documentation/operations guidance, and leaves V343-009 through V343-014 as accepted/deferred items |
 
 ### Design Decisions
 
@@ -53,6 +308,10 @@ explicit through user SQL or `get_table_summary(exact_count=True)`.
 - FastMCP client helpers should read `structured_content` before `data` because
     skill payloads themselves contain a `data` field. Skill tool params are MCP
     objects/dicts, not JSON strings.
+- V343-006 through V343-008 are intentionally documented rather than implemented
+    as new runtime controls in this release: raw SQL echo remains compatible,
+    audit params are treated as business audit data rather than secrets, and
+    JSONL rotation/retention is delegated to deployment tooling.
 
 ### Validation
 
@@ -122,7 +381,7 @@ Also formalized the pytest-level annotation-consistency check.
 | File | Change Type | Description |
 |------|-------------|-------------|
 | `mcp_sql_server.py` | Modified | Added module-level `_tool_result()` helper; converted `query`, `check_connection`, `list_tables`, `describe_table`, `get_full_schema`, `get_table_summary`, `sample`, `list_skills`, `get_skill_detail` to return `ToolResult` with runtime metadata; added uniform `tool_name`/`success` meta to Skills execution results; added `output_schema` to `execute_query_skill` and `execute_mutation_skill`; added opt-in `_ToolTelemetryMiddleware` (env `ENABLE_TOOL_TELEMETRY` / `TOOL_TELEMETRY_LOG_PATH` / `TOOL_TELEMETRY_SAMPLE_RATE`) |
-| `tests/test_annotations_consistency.py` | Added | Pytest lint that fails CI if any registered tool's `ToolAnnotations` drift from the documented closed-world / read-only intent |
+| `tests/test_annotations_consistency.py` | Added | Pytest lint that fails local/default test runs if any registered tool's `ToolAnnotations` drift from the documented closed-world / read-only intent; add a CI workflow before describing this as CI enforcement |
 | `tests/test_tool_telemetry.py` | Added/Modified | Verifies the telemetry middleware writes sanitized JSONL records on success, exception, and business-failure paths; covers sample-rate clamping including non-finite values; never logs SQL/params/rows |
 | `tests/test_v342_meta_and_schema.py` | Added | Verifies base and skill tool meta contracts, outputSchema registration, and end-to-end telemetry via real FastMCP `Client.call_tool()` |
 | `.env.example` | Modified | Documents opt-in tool telemetry configuration and sampling controls |
@@ -137,7 +396,7 @@ Also formalized the pytest-level annotation-consistency check.
 | Telemetry payload | `timestamp`, `tool_name`, `execution_ms`, `call_completed`, `success`, `error_class`, `db_type` only | Include SQL, params, rows for richer analytics | Honors SAFETY constraints (no SQL/params/rows/credentials) and the spirit of `mask_error_details=True`; separates transport completion from business success so validation/safety rejections are not misclassified |
 | Telemetry aggregation | Local JSONL plus optional sampling only | In-process p50/p95 stats tool/resource | Keeps the MCP server stateless and dependency-free; avoids exposing sensitive usage patterns to model-visible tools. Operators can compute percentiles externally over JSONL if needed |
 | Output schema strictness | Object with required success/skill_name and `additionalProperties: true` | Strict closed schema | Tolerates incremental payload evolution (preview vs execute mode in mutations) while still giving clients a usable validation contract |
-| Annotation consistency | Pytest test rather than startup assertion | Fail server startup if drift detected | Keeps server resilient to local edits while catching drift in CI; aligns with existing test-driven safety conventions |
+| Annotation consistency | Pytest test rather than startup assertion | Fail server startup if drift detected | Keeps server resilient to local edits while catching drift in local/default test runs; add repository CI before calling it CI enforcement |
 
 ### Compatibility Notes
 
@@ -207,7 +466,7 @@ the existing structured payload contract intact while adding FastMCP
 
 ---
 
-## Latest Update v3.4 (May 14, 2026) - MCP Hardening and Skills Profile Policy
+## Update v3.4 (May 14, 2026) - MCP Hardening and Skills Profile Policy
 
 ### Overview
 
@@ -526,7 +785,7 @@ Added an optional Skills extension layer for pre-defined, parameterized SQL oper
 
 ```
 skills/
-├── SAFETY.md                          # Security governance (16 items)
+├── SAFETY.md                          # Security governance
 ├── SKILLS.md                          # Auto-generated overview (by discover())
 ├── _lib/                              # Shared infrastructure
 │   ├── __init__.py
@@ -587,7 +846,7 @@ Skill definition files are named `skill_def.md` instead of `SKILL.md` to avoid c
 | Error handling | ToolError propagation | FastMCP ToolError bypasses `mask_error_details` |
 | Audit storage | JSONL file | Minimal dependency for MVP |
 
-### Security Model (16 items in SAFETY.md)
+### Security Model (SAFETY.md)
 
 1. Template = Whitelist — only pre-defined SQL/Python in `skills/` is executed
 2. Parameterized queries via SQLAlchemy `text()` + named parameters
@@ -642,6 +901,7 @@ Code review following MCP Spec §7, Anthropic, Google Gemini, and Microsoft best
 | 16 | P3 Robustness | `AuditLogger.__init__` calls `mkdir()` without error handling — `PermissionError` crashes entire Skills initialization | Wrapped `mkdir()` in try-except `OSError`; logs warning but allows AuditLogger to construct |
 | 17 | P1 Logic | `mutation.py execute()` returns `{"success": False}` on failure instead of raising exception — bypasses `run_execute()` error handling chain, causes semantic contradiction (`{"success": True, "result": {"success": False}}`) in MCP tool response, and `run_execute()` `except ToolError` path lacked audit logging | Changed `execute()` to `raise ToolError(...)` on order-not-found and optimistic lock failure; added audit logging to `run_execute()` `except ToolError` path before re-raising |
 | 18 | P2 Type | `SkillMetadata._mutation_class: type \| None` — Pylance reports "Variable not allowed in type expression". Python 3.12 introduced `type` as a soft keyword for type alias statements (`type X = ...`), causing Pylance to misparse the built-in `type` in annotation context within a `@dataclass` | Added `from __future__ import annotations` (PEP 563) to `skill_loader.py` — defers all annotation evaluation to string form, bypassing the `type` soft keyword parsing conflict |
+| 19 | P1 Semantics | MySQL `execute_write()` used `MAX_EXECUTION_TIME`, but MySQL documents that mechanism as SELECT/read-query oriented and live validation showed `UPDATE ... SLEEP(2)` still succeeded under `timeout=1` | Removed write-path `MAX_EXECUTION_TIME`; `execute_write()` now sets session `innodb_lock_wait_timeout` for InnoDB row-lock waits and fails closed if that guard cannot be configured. Remaining DML CPU/IO runtime limits are documented as driver/deployment scope. |
 
 #### Noted (Not Fixed — Design Decisions)
 

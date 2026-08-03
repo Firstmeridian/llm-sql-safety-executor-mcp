@@ -31,9 +31,16 @@ import os
 import re
 import sys
 import json
+import hmac
+import base64
+import hashlib
 import logging
 import math
+import secrets
 import time
+import threading
+import sqlparse
+from dataclasses import dataclass
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from pathlib import Path
@@ -44,9 +51,100 @@ from fastmcp import FastMCP, Context
 from fastmcp.exceptions import ToolError
 from fastmcp.tools.tool import ToolResult
 from sql_safety_checker import is_sql_safe, execute_sql
-from db_adapter import get_adapter, DB_TYPE, QUERY_TIMEOUT_SECONDS
+from db_adapter import (
+    ConnectionPolicy,
+    DatabaseAdapter,
+    DatabaseConfig,
+    get_adapter,
+    get_connection_config,
+    get_default_connection_id,
+    list_connection_configs,
+    DB_TYPE,
+)
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class ConnectionContext:
+    """Per-tool target connection resolved before policy/readiness/execution."""
+
+    connection_id: str
+    config: DatabaseConfig
+    adapter: DatabaseAdapter
+    policy: ConnectionPolicy
+
+    @property
+    def db_type(self) -> str:
+        return self.config.db_type
+
+
+@dataclass(frozen=True)
+class PreviewTokenRecord:
+    """Minimal server-side state needed for one-time mutation execution."""
+
+    expires_at: int
+    execution_binding_json: str
+
+
+class InMemoryPreviewTokenStore:
+    """Bounded process-local preview-token store with atomic consumption."""
+
+    def __init__(self, max_entries: int):
+        if max_entries < 1:
+            raise ValueError("Preview token store max_entries must be positive")
+        self._max_entries = max_entries
+        self._entries: dict[str, PreviewTokenRecord] = {}
+        self._lock = threading.Lock()
+
+    def _purge_expired_locked(self, now: int) -> None:
+        expired = [
+            token_digest
+            for token_digest, record in self._entries.items()
+            if record.expires_at <= now
+        ]
+        for token_digest in expired:
+            self._entries.pop(token_digest, None)
+
+    def issue(
+        self,
+        token_digest: str,
+        expires_at: int,
+        execution_binding_json: str,
+        *,
+        now: int,
+    ) -> bool:
+        """Register one issued token, returning False on collision/capacity."""
+        with self._lock:
+            self._purge_expired_locked(now)
+            if expires_at <= now or token_digest in self._entries:
+                return False
+            if len(self._entries) >= self._max_entries:
+                return False
+            self._entries[token_digest] = PreviewTokenRecord(
+                expires_at=expires_at,
+                execution_binding_json=execution_binding_json,
+            )
+            return True
+
+    def consume(
+        self,
+        token_digest: str,
+        expires_at: int,
+        *,
+        now: int,
+    ) -> PreviewTokenRecord | None:
+        """Atomically claim and remove one unexpired matching token."""
+        with self._lock:
+            self._purge_expired_locked(now)
+            record = self._entries.get(token_digest)
+            if record is None or record.expires_at != expires_at:
+                return None
+            return self._entries.pop(token_digest)
+
+    def __len__(self) -> int:
+        with self._lock:
+            return len(self._entries)
 
 
 def _parse_env_bool(name: str, default: bool) -> bool:
@@ -78,6 +176,30 @@ def _parse_env_csv_set(name: str) -> set[str]:
         for item in raw.split(",")
         if item.strip()
     }
+
+
+def _parse_env_int(name: str, default: int, *, min_value: int = 1) -> int:
+    """Parse a positive integer environment variable with a safe fallback."""
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+
+    try:
+        value = int(raw.strip())
+    except ValueError:
+        logger.warning("Invalid %s=%r; falling back to %s", name, raw, default)
+        return default
+
+    if value < min_value:
+        logger.warning(
+            "Invalid %s=%r; must be >= %s. Falling back to %s",
+            name,
+            raw,
+            min_value,
+            default,
+        )
+        return default
+    return value
 
 # =============================================================================
 # Configuration
@@ -126,7 +248,9 @@ else:
 # Reference: OpenAI "minimize tool calls" - allow UNION for efficiency when needed
 # When disabled (default): LLM uses multiple queries (safer, more calls)
 # When enabled: UNION allowed but requires table allowlist for validation
-ALLOW_UNION = os.getenv("ALLOW_UNION", "0") == "1"
+_DEFAULT_CONNECTION_CONFIG = get_connection_config()
+_DEFAULT_CONNECTION_POLICY = _DEFAULT_CONNECTION_CONFIG.policy
+ALLOW_UNION = _DEFAULT_CONNECTION_POLICY.allow_union
 
 # =============================================================================
 # Skills Extension Layer Configuration (v3.0)
@@ -140,6 +264,45 @@ SKILLS_ENABLED = os.getenv("ENABLE_SKILLS", "0") == "1"
 # Only effective when ENABLE_SKILLS=1
 # Default: disabled — only query skills are available
 SKILLS_ALLOW_MUTATIONS = os.getenv("SKILLS_ALLOW_MUTATIONS", "0") == "1"
+
+# v3.6 core: every mutation execute requires a preview token. If no explicit
+# secret is configured, tokens are valid only for this server process lifetime.
+MUTATION_PREVIEW_TOKEN_TTL_SECONDS = _parse_env_int(
+    "MUTATION_PREVIEW_TOKEN_TTL_SECONDS",
+    300,
+    min_value=1,
+)
+_MUTATION_PREVIEW_TOKEN_SECRET = (
+    os.getenv("MUTATION_PREVIEW_TOKEN_SECRET") or secrets.token_urlsafe(32)
+).encode("utf-8")
+MUTATION_PREVIEW_TOKEN_STORE_MAX_ENTRIES = _parse_env_int(
+    "MUTATION_PREVIEW_TOKEN_STORE_MAX_ENTRIES",
+    10000,
+    min_value=1,
+)
+MUTATION_PREVIEW_BINDING_MAX_BYTES = 4096
+_MUTATION_PREVIEW_TOKEN_STORE = InMemoryPreviewTokenStore(
+    MUTATION_PREVIEW_TOKEN_STORE_MAX_ENTRIES
+)
+
+_mutation_connection_allowlist_raw = os.getenv(
+    "SKILLS_ALLOW_MUTATION_CONNECTIONS",
+    "",
+).strip()
+MUTATION_CONNECTION_POLICY_EXPLICIT = bool(_mutation_connection_allowlist_raw)
+if MUTATION_CONNECTION_POLICY_EXPLICIT:
+    _mutation_connection_allowlist = frozenset(
+        _parse_env_csv_set("SKILLS_ALLOW_MUTATION_CONNECTIONS")
+    )
+    if not _mutation_connection_allowlist:
+        raise ValueError(
+            "SKILLS_ALLOW_MUTATION_CONNECTIONS is set but contains no "
+            "connection ids"
+        )
+    for _mutation_connection_id in _mutation_connection_allowlist:
+        get_connection_config(_mutation_connection_id)
+else:
+    _mutation_connection_allowlist = frozenset({get_default_connection_id()})
 
 # Skills directory path (relative to project root or absolute)
 SKILLS_DIR = os.getenv("SKILLS_DIR", "skills/")
@@ -254,8 +417,13 @@ def _parse_table_allowlist() -> set[str] | None:
     return tables if tables else None
 
 
-# Load allowlist at startup
-ALLOWED_TABLES: set[str] | None = _parse_table_allowlist()
+# Load allowlist at startup for the default connection. Per-call tools use the
+# selected ConnectionContext policy instead of this legacy module-level value.
+ALLOWED_TABLES: set[str] | None = (
+    set(_DEFAULT_CONNECTION_POLICY.allowed_tables)
+    if _DEFAULT_CONNECTION_POLICY.allowed_tables is not None
+    else None
+)
 
 # Log security configuration at module load
 if ALLOW_UNION:
@@ -267,7 +435,12 @@ else:
     logger.info("UNION queries disabled (default safe mode)")
 
 
-def _is_table_allowed(table_name: str) -> bool:
+def _effective_policy(policy: ConnectionPolicy | None = None) -> ConnectionPolicy:
+    """Return the explicit policy or the default connection policy."""
+    return policy or _DEFAULT_CONNECTION_POLICY
+
+
+def _is_table_allowed(table_name: str, policy: ConnectionPolicy | None = None) -> bool:
     """
     Check if a table is in the allowlist.
     
@@ -277,11 +450,33 @@ def _is_table_allowed(table_name: str) -> bool:
     Returns:
         True if table is allowed (or no allowlist configured), False otherwise
     """
-    if ALLOWED_TABLES is None:
+    allowed_tables = _effective_policy(policy).allowed_tables
+    if allowed_tables is None:
         return True  # No allowlist - allow all
-    if "*" in ALLOWED_TABLES:
+    if "*" in allowed_tables:
         return True  # Explicit "allow all" via ALLOWED_TABLES=*
-    return table_name.lower() in ALLOWED_TABLES
+    return table_name.lower() in allowed_tables
+
+
+_SQL_IDENTIFIER_PATTERN = (
+    r'(?:`[^`]+`|"[^"]+"|\[[^\]]+\]|[a-zA-Z_\u4e00-\u9fff][a-zA-Z0-9_\u4e00-\u9fff]*)'
+)
+_SQL_TABLE_REFERENCE_PATTERN = (
+    rf'(?:{_SQL_IDENTIFIER_PATTERN}\s*\.\s*)?({_SQL_IDENTIFIER_PATTERN})'
+)
+
+
+def _normalize_sql_identifier(identifier: str) -> str:
+    """Remove common SQL identifier quoting without treating it as authorization."""
+    value = identifier.strip()
+    if len(value) >= 2:
+        if value[0] == "`" and value[-1] == "`":
+            return value[1:-1].replace("``", "`")
+        if value[0] == '"' and value[-1] == '"':
+            return value[1:-1].replace('""', '"')
+        if value[0] == "[" and value[-1] == "]":
+            return value[1:-1].replace("]]", "]")
+    return value
 
 
 def _extract_tables_from_sql(sql: str) -> list[str]:
@@ -302,22 +497,24 @@ def _extract_tables_from_sql(sql: str) -> list[str]:
     """
     tables = []
     
-    # Pattern for FROM/JOIN clauses
-    # Handles: FROM table, FROM `table`, FROM schema.table, FROM `schema`.`table`
-    # Reference: MySQL identifier syntax - captures only the table name (after optional schema.)
-    from_join_pattern = r'(?:FROM|JOIN)\s+(?:`?[a-zA-Z_\u4e00-\u9fff][a-zA-Z0-9_\u4e00-\u9fff]*`?\s*\.\s*)?`?([a-zA-Z_\u4e00-\u9fff][a-zA-Z0-9_\u4e00-\u9fff]*)`?'
+    # Handles: FROM table, FROM `table`, FROM "table", FROM [table],
+    # FROM schema.table, and quoted schema-qualified forms.
+    from_join_pattern = rf'(?:FROM|JOIN)\s+{_SQL_TABLE_REFERENCE_PATTERN}'
     matches = re.findall(from_join_pattern, sql, re.IGNORECASE)
-    tables.extend(matches)
+    tables.extend(_normalize_sql_identifier(match) for match in matches)
     
     # Pattern for table in DESCRIBE/EXPLAIN (also handles schema.table)
-    describe_pattern = r'(?:DESCRIBE|DESC|EXPLAIN)\s+(?:`?[a-zA-Z_\u4e00-\u9fff][a-zA-Z0-9_\u4e00-\u9fff]*`?\s*\.\s*)?`?([a-zA-Z_\u4e00-\u9fff][a-zA-Z0-9_\u4e00-\u9fff]*)`?'
+    describe_pattern = rf'(?:DESCRIBE|DESC|EXPLAIN)\s+{_SQL_TABLE_REFERENCE_PATTERN}'
     matches = re.findall(describe_pattern, sql, re.IGNORECASE)
-    tables.extend(matches)
+    tables.extend(_normalize_sql_identifier(match) for match in matches)
     
     return list(set(tables))  # Remove duplicates
 
 
-def _check_table_allowlist(sql: str) -> tuple[bool, str | None]:
+def _check_table_allowlist(
+    sql: str,
+    policy: ConnectionPolicy | None = None,
+) -> tuple[bool, str | None]:
     """
     Check if all tables in a SQL query are in the allowlist.
     
@@ -327,16 +524,44 @@ def _check_table_allowlist(sql: str) -> tuple[bool, str | None]:
     Returns:
         (is_allowed, error_message) - True if all tables allowed, False with error otherwise
     """
-    if ALLOWED_TABLES is None:
+    allowed_tables = _effective_policy(policy).allowed_tables
+    if allowed_tables is None:
         return True, None  # No allowlist configured
     
     tables = _extract_tables_from_sql(sql)
-    blocked_tables = [t for t in tables if not _is_table_allowed(t)]
+    blocked_tables = [t for t in tables if not _is_table_allowed(t, policy)]
     
     if blocked_tables:
-        return False, f"Access denied to table(s): {', '.join(blocked_tables)}. Only allowed tables: {', '.join(sorted(ALLOWED_TABLES))}"
+        return False, f"Access denied to table(s): {', '.join(blocked_tables)}. Only allowed tables: {', '.join(sorted(allowed_tables))}"
     
     return True, None
+
+
+def _validate_sql_query_policy(
+    sql: str,
+    policy: ConnectionPolicy | None = None,
+) -> tuple[bool, str | None]:
+    """Apply the full read-query policy used by raw queries and query skills."""
+    if not is_sql_safe(sql):
+        return False, "Only read-only queries allowed (SELECT, SHOW, DESCRIBE, EXPLAIN)"
+
+    is_safe, error_msg = _is_query_safe_extended(sql, policy)
+    if not is_safe:
+        return False, error_msg
+
+    return _check_table_allowlist(sql, policy)
+
+
+def _validate_sql_template_startup_policy(sql: str) -> tuple[bool, str | None]:
+    """Validate query skill templates before any target connection is selected.
+
+    v3.5 moves table allowlists to per-connection policy. Startup validation
+    therefore checks read-only shape and structural deny rules, while runtime
+    execution re-applies the full policy for the resolved target connection.
+    """
+    if not is_sql_safe(sql):
+        return False, "Only read-only queries allowed (SELECT, SHOW, DESCRIBE, EXPLAIN)"
+    return _is_query_safe_extended(sql, _DEFAULT_CONNECTION_POLICY, require_union_allowlist=False)
 
 
 # =============================================================================
@@ -406,12 +631,19 @@ if ENABLE_TOOL_TELEMETRY:
             call_completed = True
             error_class: str | None = None
             success: bool = True
+            result_db_type = DB_TYPE
+            result_connection_id = get_default_connection_id()
             try:
                 result = await call_next(context)
                 meta = getattr(result, "meta", None) or {}
                 meta_success = meta.get("success") if isinstance(meta, dict) else None
                 if isinstance(meta_success, bool):
                     success = meta_success
+                if isinstance(meta, dict):
+                    if isinstance(meta.get("db_type"), str):
+                        result_db_type = meta["db_type"]
+                    if isinstance(meta.get("connection_id"), str):
+                        result_connection_id = meta["connection_id"]
                 return result
             except BaseException as exc:
                 call_completed = False
@@ -429,7 +661,8 @@ if ENABLE_TOOL_TELEMETRY:
                         "call_completed": call_completed,
                         "success": success,
                         "error_class": error_class,
-                        "db_type": DB_TYPE,
+                        "db_type": result_db_type,
+                        "connection_id": result_connection_id,
                     }
                     try:
                         with self._log_path.open("a", encoding="utf-8") as fh:
@@ -511,40 +744,73 @@ BLOCKED_SHOW_PATTERNS = [
     r'SHOW\s+STATUS',  # Can leak sensitive metrics
 ]
 
+MYSQL_FILE_OPERATION_PATTERNS = [
+    r'\bINTO\s+(?:OUTFILE|DUMPFILE)\b',
+    r'\bLOAD_FILE\s*\(',
+]
 
-def _is_query_safe_extended(sql: str) -> tuple[bool, str | None]:
+
+def _normalize_sql_for_policy(sql: str) -> str:
+    """Strip comments and collapse whitespace before regex policy checks."""
+    try:
+        sql = sqlparse.format(sql, strip_comments=True)
+    except Exception:
+        pass
+    return re.sub(r'\s+', ' ', sql).strip()
+
+
+def _is_query_safe_extended(
+    sql: str,
+    policy: ConnectionPolicy | None = None,
+    *,
+    require_union_allowlist: bool = True,
+) -> tuple[bool, str | None]:
     """
     Extended safety check beyond basic statement type validation.
     
     Returns:
         (is_safe, error_message)
     """
-    sql_upper = sql.upper().strip()
+    normalized_sql = _normalize_sql_for_policy(sql)
+    sql_upper = normalized_sql.upper().strip()
+    effective_policy = _effective_policy(policy)
     
     # Check blocked SHOW commands
     for pattern in BLOCKED_SHOW_PATTERNS:
         if re.match(pattern, sql_upper, re.IGNORECASE):
             return False, "This SHOW command is not allowed for security reasons"
     
+    # Block MySQL server-side file reads/writes. These are SELECT-shaped but can
+    # touch files if the DB account has FILE privilege.
+    for pattern in MYSQL_FILE_OPERATION_PATTERNS:
+        if re.search(pattern, normalized_sql, re.IGNORECASE):
+            return False, "MySQL server-side file operations are not allowed"
+
     # Block access to system databases in SELECT
     # Includes INFORMATION_SCHEMA to prevent ALLOWED_TABLES bypass
     # (users could query INFORMATION_SCHEMA.TABLES to see all table names)
-    system_table_pattern = r'\b(mysql|performance_schema|information_schema)\s*\.'
-    if re.search(system_table_pattern, sql, re.IGNORECASE):
+    system_table_pattern = (
+        r'(?<![A-Za-z0-9_`])`?\s*'
+        r'(?:mysql|performance_schema|information_schema)'
+        r'\s*`?\s*\.'
+    )
+    if re.search(system_table_pattern, normalized_sql, re.IGNORECASE):
         return False, "Access to system databases not allowed. Use list_tables() or describe_table() instead."
     
     # UNION handling: Configurable based on ALLOW_UNION setting
     # Reference: OWASP - UNION is common SQL injection vector
     # Reference: OpenAI - minimize tool calls for efficiency
-    if re.search(r'\bUNION\b', sql, re.IGNORECASE):
-        if not ALLOW_UNION:
+    if re.search(r'\bUNION\b', normalized_sql, re.IGNORECASE):
+        if not require_union_allowlist:
+            logger.info("UNION in query skill template will be checked at runtime")
+        elif not effective_policy.allow_union:
             # Default: Block UNION, guide LLM to use multiple queries
             return False, (
                 "UNION queries disabled for security. "
                 "Execute separate queries for each table and combine results in your response."
             )
         # UNION enabled: Require table allowlist for validation
-        if ALLOWED_TABLES is None:
+        elif effective_policy.allowed_tables is None:
             return False, (
                 "UNION requires ALLOWED_TABLES. "
                 "Set ALLOWED_TABLES=table1,table2 or ALLOWED_TABLES=* to enable."
@@ -554,7 +820,7 @@ def _is_query_safe_extended(sql: str) -> tuple[bool, str | None]:
     
     # Block subqueries in FROM clause (potential info disclosure)
     # Allow subqueries in WHERE for legitimate use
-    if re.search(r'FROM\s*\(', sql, re.IGNORECASE):
+    if re.search(r'FROM\s*\(', normalized_sql, re.IGNORECASE):
         return False, "Subqueries in FROM clause not allowed"
     
     return True, None
@@ -616,11 +882,331 @@ def _elapsed_ms_from(start_time: float) -> float:
     return round((time.perf_counter() - start_time) * 1000, 3)
 
 
+_CONNECTION_ID_FIELD = Field(
+    description=(
+        "Optional configured database connection id. Omit to use the default "
+        "connection. Use list_connections() to inspect configured ids."
+    ),
+    min_length=1,
+    max_length=64,
+)
+
+_MUTATION_PREVIEW_TOKEN_FIELD = Field(
+    description=(
+        "Preview token returned by execute_mutation_skill(confirm=false). "
+        "Required when confirm=true."
+    ),
+    min_length=1,
+    max_length=4096,
+)
+
+
+def _resolve_connection_context(connection_id: str | None = None) -> ConnectionContext:
+    """Resolve the target connection before policy, schema, or execution."""
+    try:
+        config = get_connection_config(connection_id)
+        adapter = get_adapter(config.connection_id)
+    except ValueError as exc:
+        raise ToolError(str(exc)) from exc
+    return ConnectionContext(
+        connection_id=config.connection_id,
+        config=config,
+        adapter=adapter,
+        policy=config.policy,
+    )
+
+
+def _policy_summary(policy: ConnectionPolicy) -> dict[str, Any]:
+    """Return a non-sensitive summary of connection policy."""
+    allowed_tables = policy.allowed_tables
+    if allowed_tables is None:
+        mode = "unrestricted"
+        values: list[str] | None = None
+    elif "*" in allowed_tables:
+        mode = "explicit_all"
+        values = ["*"]
+    else:
+        mode = "allowlist"
+        values = sorted(allowed_tables)
+    mutation_skills = policy.mutation_skills
+    if "*" in mutation_skills:
+        mutation_skills_mode = "explicit_all"
+        mutation_skill_values = ["*"]
+    elif mutation_skills:
+        mutation_skills_mode = "allowlist"
+        mutation_skill_values = sorted(mutation_skills)
+    else:
+        mutation_skills_mode = "deny_all"
+        mutation_skill_values = []
+
+    return {
+        "allow_union": policy.allow_union,
+        "allowed_tables_mode": mode,
+        "allowed_tables": values,
+        "allowed_tables_count": len(allowed_tables) if allowed_tables is not None else None,
+        "allow_mutations": policy.allow_mutations,
+        "mutation_skills_mode": mutation_skills_mode,
+        "mutation_skills": mutation_skill_values,
+        "mutation_skills_count": len(mutation_skills),
+    }
+
+
+def _config_status(config: DatabaseConfig) -> dict[str, str]:
+    """Return set/missing status for required connection fields without values."""
+    if config.db_type == "sqlite":
+        return {
+            "SQLITE_DATABASE_PATH": "set" if config.sqlite_database_path else "missing (using :memory:)",
+        }
+    return {
+        "DB_USER": "set" if config.mysql_user else "missing",
+        "DB_PASSWORD": "set" if config.mysql_password else "missing",
+        "DB_HOST": "set" if config.mysql_host else "missing",
+        "DB_NAME": "set" if config.mysql_database else "missing",
+    }
+
+
+def _public_database_name(connection: ConnectionContext) -> str | None:
+    """Return a non-sensitive database display name for tool payloads/logs."""
+    if connection.db_type == "sqlite":
+        return f"sqlite:{connection.connection_id}"
+    return connection.adapter.get_database_name()
+
+
+def _b64url_encode(data: bytes) -> str:
+    return base64.urlsafe_b64encode(data).rstrip(b"=").decode("ascii")
+
+
+def _b64url_decode(data: str) -> bytes:
+    padding = "=" * (-len(data) % 4)
+    return base64.urlsafe_b64decode((data + padding).encode("ascii"))
+
+
+def _canonical_json(value: Any) -> str:
+    try:
+        return json.dumps(
+            value,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=False,
+        )
+    except TypeError as exc:
+        raise ToolError(
+            "Mutation params must be JSON-serializable for preview token binding."
+        ) from exc
+
+
+def _mutation_params_hash(params: dict[str, Any]) -> str:
+    canonical = _canonical_json(params).encode("utf-8")
+    return hashlib.sha256(canonical).hexdigest()
+
+
+def _execution_binding_json(execution_binding: Any) -> str:
+    if not isinstance(execution_binding, dict):
+        raise ToolError("Mutation execution binding must be a JSON object.")
+    canonical = _canonical_json(execution_binding)
+    if len(canonical.encode("utf-8")) > MUTATION_PREVIEW_BINDING_MAX_BYTES:
+        raise ToolError(
+            "Mutation execution binding exceeds "
+            f"the {MUTATION_PREVIEW_BINDING_MAX_BYTES}-byte limit."
+        )
+    return canonical
+
+
+def _sha256_hex(value: str) -> str:
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+
+def _mutation_preview_token_payload(
+    *,
+    skill_name: str,
+    skill_version: str,
+    params: dict[str, Any],
+    connection: ConnectionContext,
+    execution_binding_json: str,
+    issued_at: int | None = None,
+) -> dict[str, Any]:
+    now = issued_at if issued_at is not None else int(time.time())
+    return {
+        "v": 1,
+        "jti": secrets.token_urlsafe(16),
+        "skill_name": skill_name,
+        "skill_version": skill_version,
+        "params_hash": _mutation_params_hash(params),
+        "execution_binding_hash": _sha256_hex(execution_binding_json),
+        "connection_id": connection.connection_id,
+        "db_type": connection.db_type,
+        "iat": now,
+        "exp": now + MUTATION_PREVIEW_TOKEN_TTL_SECONDS,
+    }
+
+
+def _mutation_preview_signature(encoded_payload: str) -> str:
+    digest = hmac.new(
+        _MUTATION_PREVIEW_TOKEN_SECRET,
+        encoded_payload.encode("ascii"),
+        hashlib.sha256,
+    ).digest()
+    return _b64url_encode(digest)
+
+
+def _create_mutation_preview_token(
+    *,
+    skill_name: str,
+    skill_version: str,
+    params: dict[str, Any],
+    connection: ConnectionContext,
+    execution_binding_json: str,
+) -> tuple[str, dict[str, Any]]:
+    payload = _mutation_preview_token_payload(
+        skill_name=skill_name,
+        skill_version=skill_version,
+        params=params,
+        connection=connection,
+        execution_binding_json=execution_binding_json,
+    )
+    encoded_payload = _b64url_encode(_canonical_json(payload).encode("utf-8"))
+    signature = _mutation_preview_signature(encoded_payload)
+    return f"{encoded_payload}.{signature}", payload
+
+
+def _preview_token_id(preview_token: str) -> str:
+    return _preview_token_digest(preview_token)[:16]
+
+
+def _preview_token_digest(preview_token: str) -> str:
+    return _sha256_hex(preview_token)
+
+
+def _register_mutation_preview_token(
+    preview_token: str,
+    payload: dict[str, Any],
+    execution_binding_json: str,
+) -> None:
+    now = int(time.time())
+    if not _MUTATION_PREVIEW_TOKEN_STORE.issue(
+        _preview_token_digest(preview_token),
+        int(payload["exp"]),
+        execution_binding_json,
+        now=now,
+    ):
+        raise ToolError(
+            "Mutation preview token could not be registered; retry preview later."
+        )
+
+
+def _verify_mutation_preview_token(
+    preview_token: str | None,
+    *,
+    skill_name: str,
+    skill_version: str,
+    params: dict[str, Any],
+    connection: ConnectionContext,
+) -> dict[str, Any]:
+    if not preview_token:
+        raise ToolError(
+            "preview_token is required for mutation execute; run "
+            "execute_mutation_skill with confirm=false first."
+        )
+
+    try:
+        encoded_payload, signature = preview_token.split(".", 1)
+    except ValueError as exc:
+        raise ToolError("Invalid preview_token; run preview again.") from exc
+
+    expected_signature = _mutation_preview_signature(encoded_payload)
+    if not hmac.compare_digest(signature, expected_signature):
+        raise ToolError("Invalid preview_token; run preview again.")
+
+    try:
+        payload = json.loads(_b64url_decode(encoded_payload).decode("utf-8"))
+    except Exception as exc:
+        raise ToolError("Invalid preview_token; run preview again.") from exc
+
+    if not isinstance(payload, dict):
+        raise ToolError("Invalid preview_token; run preview again.")
+
+    try:
+        issued_at = payload["iat"]
+        expires_at = payload["exp"]
+        if (
+            isinstance(issued_at, bool)
+            or not isinstance(issued_at, int)
+            or isinstance(expires_at, bool)
+            or not isinstance(expires_at, int)
+            or expires_at <= issued_at
+        ):
+            raise ValueError
+    except (KeyError, TypeError, ValueError) as exc:
+        raise ToolError("Invalid preview_token; run preview again.") from exc
+
+    if expires_at <= int(time.time()):
+        raise ToolError("Expired preview_token; run preview again.")
+
+    expected_fields = {
+        "v": 1,
+        "skill_name": skill_name,
+        "skill_version": skill_version,
+        "params_hash": _mutation_params_hash(params),
+        "connection_id": connection.connection_id,
+        "db_type": connection.db_type,
+    }
+    for key, expected_value in expected_fields.items():
+        if payload.get(key) != expected_value:
+            raise ToolError(
+                "preview_token does not match this mutation request; run preview again."
+            )
+
+    jti = payload.get("jti")
+    binding_hash = payload.get("execution_binding_hash")
+    if (
+        not isinstance(jti, str)
+        or not re.fullmatch(r"[A-Za-z0-9_-]{20,128}", jti)
+        or not isinstance(binding_hash, str)
+        or not re.fullmatch(r"[0-9a-f]{64}", binding_hash)
+    ):
+        raise ToolError("Invalid preview_token; run preview again.")
+
+    return payload
+
+
+def _consume_mutation_preview_token(
+    preview_token: str,
+    payload: dict[str, Any],
+) -> dict[str, Any]:
+    record = _MUTATION_PREVIEW_TOKEN_STORE.consume(
+        _preview_token_digest(preview_token),
+        int(payload["exp"]),
+        now=int(time.time()),
+    )
+    if record is None:
+        raise ToolError(
+            "preview_token has already been used, was not issued by this server "
+            "process, or expired; run preview again."
+        )
+
+    if not hmac.compare_digest(
+        _sha256_hex(record.execution_binding_json),
+        payload["execution_binding_hash"],
+    ):
+        raise ToolError("Invalid preview_token execution binding; run preview again.")
+
+    try:
+        execution_binding = json.loads(record.execution_binding_json)
+    except Exception as exc:
+        raise ToolError(
+            "Invalid preview_token execution binding; run preview again."
+        ) from exc
+    if not isinstance(execution_binding, dict):
+        raise ToolError("Invalid preview_token execution binding; run preview again.")
+    return execution_binding
+
+
 def _tool_result(
     payload: dict[str, Any],
     *,
     tool_name: str,
     start_time: float,
+    connection: ConnectionContext | None = None,
     **meta_extras: Any,
 ) -> ToolResult:
     """
@@ -634,9 +1220,14 @@ def _tool_result(
     Per MCP spec the ``_meta`` field is OPTIONAL: clients MAY ignore it. This
     helper is primarily a server-side observability hook.
     """
+    db_type = connection.db_type if connection is not None else DB_TYPE
+    connection_id = (
+        connection.connection_id if connection is not None else get_default_connection_id()
+    )
     runtime_meta: dict[str, Any] = {
         "tool_name": tool_name,
-        "db_type": DB_TYPE,
+        "db_type": db_type,
+        "connection_id": connection_id,
         "execution_ms": _elapsed_ms_from(start_time),
     }
     runtime_meta.update({k: v for k, v in meta_extras.items() if v is not None})
@@ -650,6 +1241,53 @@ def _tool_result(
 @mcp.tool(
     timeout=_MCP_TOOL_TIMEOUT,
     annotations=ToolAnnotations(
+        title="List Configured Database Connections",
+        readOnlyHint=True,
+        destructiveHint=False,
+        idempotentHint=True,
+        openWorldHint=False,
+    )
+)
+async def list_connections(ctx: Context) -> ToolResult:
+    """
+    List configured database connection ids and non-sensitive policy metadata.
+
+    This tool never returns DSNs, credentials, host names, passwords, or SQLite
+    file paths. Use a returned connection_id with read-only tools and query
+    skills; omit connection_id to use the default connection.
+    """
+    start_time = time.perf_counter()
+    await ctx.info("Listing configured database connections")
+
+    default_connection_id = get_default_connection_id()
+    connections = []
+    for config in list_connection_configs():
+        connections.append({
+            "connection_id": config.connection_id,
+            "db_type": config.db_type,
+            "is_default": config.connection_id == default_connection_id,
+            "query_timeout_seconds": config.query_timeout_seconds,
+            "connect_timeout_seconds": config.connect_timeout_seconds,
+            "policy": _policy_summary(config.policy),
+        })
+
+    payload = {
+        "success": True,
+        "default_connection_id": default_connection_id,
+        "connection_count": len(connections),
+        "connections": connections,
+    }
+    return _tool_result(
+        payload,
+        tool_name="list_connections",
+        start_time=start_time,
+        success=True,
+        connection_count=len(connections),
+    )
+
+@mcp.tool(
+    timeout=_MCP_TOOL_TIMEOUT,
+    annotations=ToolAnnotations(
         title="Execute SQL Query",
         readOnlyHint=True,
         destructiveHint=False,
@@ -657,7 +1295,11 @@ def _tool_result(
         openWorldHint=False,
     )
 )
-async def query(sql: Annotated[str, _SQL_QUERY_FIELD], ctx: Context) -> ToolResult:
+async def query(
+    sql: Annotated[str, _SQL_QUERY_FIELD],
+    ctx: Context,
+    connection_id: Annotated[str | None, _CONNECTION_ID_FIELD] = None,
+) -> ToolResult:
     """
     Execute a SQL SELECT query on the database.
     
@@ -682,6 +1324,7 @@ async def query(sql: Annotated[str, _SQL_QUERY_FIELD], ctx: Context) -> ToolResu
         query("EXPLAIN SELECT * FROM products WHERE id = 1")
     """
     start_time = time.perf_counter()
+    connection = _resolve_connection_context(connection_id)
     if MAX_SQL_LENGTH > 0 and len(sql) > MAX_SQL_LENGTH:
         await ctx.warning(
             f"Rejected overlong SQL query: {len(sql)} characters "
@@ -695,42 +1338,26 @@ async def query(sql: Annotated[str, _SQL_QUERY_FIELD], ctx: Context) -> ToolResu
             ),
             "query_length": len(sql),
             "max_sql_length": MAX_SQL_LENGTH,
-        }, tool_name="query", start_time=start_time, success=False)
+            "connection_id": connection.connection_id,
+            "db_type": connection.db_type,
+        }, tool_name="query", start_time=start_time, connection=connection, success=False)
 
-    await ctx.info(f"Executing query: {sql}")
+    await ctx.info(f"Executing query on connection '{connection.connection_id}': {sql}")
     
-    # Validate safety - basic check
-    if not is_sql_safe(sql):
-        await ctx.warning(f"Rejected unsafe query: {sql}")
-        return _tool_result({
-            "success": False,
-            "error": "Only read-only queries allowed (SELECT, SHOW, DESCRIBE, EXPLAIN)",
-            "query": sql
-        }, tool_name="query", start_time=start_time, success=False)
-    
-    # Extended safety check - block dangerous patterns
-    is_safe, error_msg = _is_query_safe_extended(sql)
+    # Validate the shared read-query policy used by raw queries and query skills.
+    is_safe, error_msg = _validate_sql_query_policy(sql, connection.policy)
     if not is_safe:
-        await ctx.warning(f"Rejected query (extended check): {error_msg}")
+        await ctx.warning(f"Rejected query: {error_msg}")
         return _tool_result({
             "success": False,
             "error": error_msg,
-            "query": sql
-        }, tool_name="query", start_time=start_time, success=False)
-    
-    # Table allowlist check (P1 Security)
-    # Reference: Microsoft "Least Privilege Principle"
-    is_allowed, allowlist_error = _check_table_allowlist(sql)
-    if not is_allowed:
-        await ctx.warning(f"Table access denied: {allowlist_error}")
-        return _tool_result({
-            "success": False,
-            "error": allowlist_error,
-            "query": sql
-        }, tool_name="query", start_time=start_time, success=False)
+            "query": sql,
+            "connection_id": connection.connection_id,
+            "db_type": connection.db_type,
+        }, tool_name="query", start_time=start_time, connection=connection, success=False)
     
     # Execute query
-    result = execute_sql(sql)
+    result = execute_sql(sql, connection_id=connection.connection_id)
     
     # Handle error
     if isinstance(result, str) and result.startswith("Error:"):
@@ -738,8 +1365,10 @@ async def query(sql: Annotated[str, _SQL_QUERY_FIELD], ctx: Context) -> ToolResu
         return _tool_result({
             "success": False,
             "error": result,
-            "query": sql
-        }, tool_name="query", start_time=start_time, success=False)
+            "query": sql,
+            "connection_id": connection.connection_id,
+            "db_type": connection.db_type,
+        }, tool_name="query", start_time=start_time, connection=connection, success=False)
     
     # Success - Apply token optimization with truncation
     # Best practice: Limit response size to prevent context overflow
@@ -769,12 +1398,15 @@ async def query(sql: Annotated[str, _SQL_QUERY_FIELD], ctx: Context) -> ToolResu
             f"Truncation limits the returned payload only; add WHERE/LIMIT/ORDER BY "
             f"to limit database work and stabilize ordering."
         ) if truncation_result["truncated"] else None,
-        "query": sql
+        "query": sql,
+        "connection_id": connection.connection_id,
+        "db_type": connection.db_type,
     }
     return _tool_result(
         payload,
         tool_name="query",
         start_time=start_time,
+        connection=connection,
         success=True,
         row_count=truncation_result["returned_rows"],
         total_rows=total_rows,
@@ -792,7 +1424,10 @@ async def query(sql: Annotated[str, _SQL_QUERY_FIELD], ctx: Context) -> ToolResu
         openWorldHint=False,
     )
 )
-async def check_connection(ctx: Context) -> ToolResult:
+async def check_connection(
+    ctx: Context,
+    connection_id: Annotated[str | None, _CONNECTION_ID_FIELD] = None,
+) -> ToolResult:
     """
     Check if the database connection is working.
 
@@ -802,49 +1437,37 @@ async def check_connection(ctx: Context) -> ToolResult:
         Connection status, database type, and configuration check
     """
     start_time = time.perf_counter()
-    await ctx.info("Checking database connection...")
+    connection = _resolve_connection_context(connection_id)
+    await ctx.info(f"Checking database connection '{connection.connection_id}'...")
     
-    adapter = get_adapter()
+    adapter = connection.adapter
     success, message = adapter.check_connection()
     
     if not success:
         await ctx.error(f"Connection failed: {message}")
-        
-        # Return appropriate config hints based on database type
-        if DB_TYPE == "sqlite":
-            payload = {
-                "connected": False,
-                "error": message,
-                "db_type": "sqlite",
-                "config": {
-                    "SQLITE_DATABASE_PATH": "set" if os.getenv("SQLITE_DATABASE_PATH") else "missing (using :memory:)",
-                }
-            }
-        else:  # mysql
-            payload = {
-                "connected": False,
-                "error": message,
-                "db_type": "mysql",
-                "config": {
-                    "DB_USER": "set" if os.getenv("DB_USER") else "missing",
-                    "DB_PASSWORD": "set" if os.getenv("DB_PASSWORD") else "missing",
-                    "DB_HOST": "set" if os.getenv("DB_HOST") else "missing",
-                    "DB_NAME": "set" if os.getenv("DB_NAME") else "missing",
-                }
-            }
+        payload = {
+            "connected": False,
+            "error": message,
+            "db_type": connection.db_type,
+            "connection_id": connection.connection_id,
+            "config": _config_status(connection.config),
+        }
         return _tool_result(
-            payload, tool_name="check_connection", start_time=start_time, success=False,
+            payload, tool_name="check_connection", start_time=start_time,
+            connection=connection, success=False,
         )
     
-    await ctx.info(f"Database connection successful ({DB_TYPE})")
+    await ctx.info(f"Database connection successful ({connection.db_type})")
     payload = {
         "connected": True,
         "message": message,
-        "db_type": DB_TYPE,
-        "database_name": adapter.get_database_name()
+        "db_type": connection.db_type,
+        "connection_id": connection.connection_id,
+        "database_name": _public_database_name(connection),
     }
     return _tool_result(
-        payload, tool_name="check_connection", start_time=start_time, success=True,
+        payload, tool_name="check_connection", start_time=start_time,
+        connection=connection, success=True,
     )
 
 
@@ -858,7 +1481,10 @@ async def check_connection(ctx: Context) -> ToolResult:
         openWorldHint=False,
     )
 )
-async def list_tables(ctx: Context) -> ToolResult:
+async def list_tables(
+    ctx: Context,
+    connection_id: Annotated[str | None, _CONNECTION_ID_FIELD] = None,
+) -> ToolResult:
     """
     Visible database overview: list allowed tables with approximate row counts.
     
@@ -873,10 +1499,11 @@ async def list_tables(ctx: Context) -> ToolResult:
         Database name, visible table counts, and returned table rows
     """
     start_time = time.perf_counter()
-    await ctx.info("Listing database tables")
+    connection = _resolve_connection_context(connection_id)
+    await ctx.info(f"Listing database tables on connection '{connection.connection_id}'")
     
-    adapter = get_adapter()
-    database_name = adapter.get_database_name()
+    adapter = connection.adapter
+    database_name = _public_database_name(connection)
     
     # Use adapter method for cross-database compatibility
     tables = adapter.get_tables()
@@ -886,7 +1513,8 @@ async def list_tables(ctx: Context) -> ToolResult:
         return _tool_result({
             "success": True,
             "database_name": database_name,
-            "db_type": DB_TYPE,
+            "db_type": connection.db_type,
+            "connection_id": connection.connection_id,
             "returned_table_count": 0,
             "total_tables": 0,
             "tables": [],
@@ -894,14 +1522,15 @@ async def list_tables(ctx: Context) -> ToolResult:
             "truncated": False,
             "truncation_note": None,
             "hint": "No tables found in database."
-        }, tool_name="list_tables", start_time=start_time, success=True,
+        }, tool_name="list_tables", start_time=start_time, connection=connection, success=True,
            returned_table_count=0, total_tables=0, truncated=False)
     
     # Filter by allowlist if configured (P1 Security)
     # Skip filtering if ALLOWED_TABLES=* (explicit allow all)
-    if ALLOWED_TABLES is not None and "*" not in ALLOWED_TABLES:
+    allowed_tables = connection.policy.allowed_tables
+    if allowed_tables is not None and "*" not in allowed_tables:
         original_count = len(tables)
-        tables = [t for t in tables if t["table_name"].lower() in ALLOWED_TABLES]
+        tables = [t for t in tables if t["table_name"].lower() in allowed_tables]
         if len(tables) < original_count:
             await ctx.info(f"Filtered {original_count - len(tables)} tables by allowlist")
     
@@ -921,7 +1550,8 @@ async def list_tables(ctx: Context) -> ToolResult:
     payload = {
         "success": True,
         "database_name": database_name,
-        "db_type": DB_TYPE,
+        "db_type": connection.db_type,
+        "connection_id": connection.connection_id,
         "returned_table_count": len(tables),
         "total_tables": total_tables,  # Visible tables (after allowlist, before truncation)
         "tables": tables,
@@ -930,10 +1560,11 @@ async def list_tables(ctx: Context) -> ToolResult:
         "truncation_note": (
             f"Showing {len(tables)}/{total_tables} tables. Use describe_table(name) for specific tables."
         ) if truncated else None,
-        "hint": f"Row counts are estimates. total_tables = visible after allowlist. DB type: {DB_TYPE}"
+        "hint": f"Row counts are estimates. total_tables = visible after allowlist. DB type: {connection.db_type}"
     }
     return _tool_result(
         payload, tool_name="list_tables", start_time=start_time, success=True,
+        connection=connection,
         returned_table_count=len(tables), total_tables=total_tables, truncated=truncated,
     )
 
@@ -948,7 +1579,11 @@ async def list_tables(ctx: Context) -> ToolResult:
         openWorldHint=False,
     )
 )
-async def describe_table(table_name: str, ctx: Context) -> ToolResult:
+async def describe_table(
+    table_name: str,
+    ctx: Context,
+    connection_id: Annotated[str | None, _CONNECTION_ID_FIELD] = None,
+) -> ToolResult:
     """
     Get table structure: columns, row count estimate, and query hints.
     
@@ -965,26 +1600,31 @@ async def describe_table(table_name: str, ctx: Context) -> ToolResult:
         Table structure with columns, row count, and query recommendations
     """
     start_time = time.perf_counter()
+    connection = _resolve_connection_context(connection_id)
     # Validate table name to prevent SQL injection
     if not _is_valid_identifier(table_name):
         await ctx.warning(f"Invalid table name rejected: {table_name}")
         return _tool_result({
             "success": False,
-            "error": f"Invalid table name: {table_name}"
-        }, tool_name="describe_table", start_time=start_time, success=False)
+            "error": f"Invalid table name: {table_name}",
+            "connection_id": connection.connection_id,
+            "db_type": connection.db_type,
+        }, tool_name="describe_table", start_time=start_time, connection=connection, success=False)
     
     # Check table allowlist (P1 Security)
-    if not _is_table_allowed(table_name):
+    if not _is_table_allowed(table_name, connection.policy):
         await ctx.warning(f"Table access denied by allowlist: {table_name}")
         return _tool_result({
             "success": False,
-            "error": f"Access denied to table: {table_name}"
-        }, tool_name="describe_table", start_time=start_time, success=False)
+            "error": f"Access denied to table: {table_name}",
+            "connection_id": connection.connection_id,
+            "db_type": connection.db_type,
+        }, tool_name="describe_table", start_time=start_time, connection=connection, success=False)
     
-    await ctx.info(f"Describing table: {table_name}")
+    await ctx.info(f"Describing table on connection '{connection.connection_id}': {table_name}")
     
     # Use adapter methods for cross-database compatibility
-    adapter = get_adapter()
+    adapter = connection.adapter
     
     columns_data = adapter.get_columns(table_name)
     row_count = adapter.get_row_estimate(table_name)
@@ -993,8 +1633,10 @@ async def describe_table(table_name: str, ctx: Context) -> ToolResult:
         await ctx.error(f"Table not found: {table_name}")
         return _tool_result({
             "success": False,
-            "error": f"Table '{table_name}' not found"
-        }, tool_name="describe_table", start_time=start_time, success=False)
+            "error": f"Table '{table_name}' not found",
+            "connection_id": connection.connection_id,
+            "db_type": connection.db_type,
+        }, tool_name="describe_table", start_time=start_time, connection=connection, success=False)
     
     # Determine if table is large (needs LIMIT)
     is_large = row_count > LARGE_TABLE_THRESHOLD
@@ -1005,7 +1647,8 @@ async def describe_table(table_name: str, ctx: Context) -> ToolResult:
     result_payload = {
         "success": True,
         "table_name": table_name,
-        "db_type": DB_TYPE,
+        "db_type": connection.db_type,
+        "connection_id": connection.connection_id,
         "row_count": row_count,
         "row_count_approximate": True,
         "column_count": len(columns_data),
@@ -1020,7 +1663,8 @@ async def describe_table(table_name: str, ctx: Context) -> ToolResult:
         )
     
     return _tool_result(
-        result_payload, tool_name="describe_table", start_time=start_time, success=True,
+        result_payload, tool_name="describe_table", start_time=start_time,
+        connection=connection, success=True,
         row_count=row_count, is_large=is_large,
     )
 
@@ -1040,7 +1684,10 @@ async def describe_table(table_name: str, ctx: Context) -> ToolResult:
         openWorldHint=False,
     )
 )
-async def get_full_schema(ctx: Context) -> ToolResult:
+async def get_full_schema(
+    ctx: Context,
+    connection_id: Annotated[str | None, _CONNECTION_ID_FIELD] = None,
+) -> ToolResult:
     """
     Get a visible database schema overview in one call.
     
@@ -1053,9 +1700,10 @@ async def get_full_schema(ctx: Context) -> ToolResult:
         Returned schema tables with column definitions and visible table counts
     """
     start_time = time.perf_counter()
-    await ctx.info("Fetching complete database schema...")
+    connection = _resolve_connection_context(connection_id)
+    await ctx.info(f"Fetching visible database schema for connection '{connection.connection_id}'...")
     
-    adapter = get_adapter()
+    adapter = connection.adapter
     
     # Step 1: Get all tables with row counts using adapter
     tables_data = adapter.get_tables()
@@ -1065,7 +1713,8 @@ async def get_full_schema(ctx: Context) -> ToolResult:
         return _tool_result({
             "success": True,
             "schema": {},
-            "db_type": DB_TYPE,
+            "db_type": connection.db_type,
+            "connection_id": connection.connection_id,
             "returned_table_count": 0,
             "total_tables": 0,
             "total_columns": 0,
@@ -1073,13 +1722,14 @@ async def get_full_schema(ctx: Context) -> ToolResult:
             "truncated": False,
             "truncation_note": None,
             "hint": "No tables found in database."
-        }, tool_name="get_full_schema", start_time=start_time, success=True,
+        }, tool_name="get_full_schema", start_time=start_time, connection=connection, success=True,
            returned_table_count=0, total_tables=0, truncated=False)
     
     # Filter tables by allowlist if configured (P1 Security)
     # Skip filtering if ALLOWED_TABLES=* (explicit allow all)
-    if ALLOWED_TABLES is not None and "*" not in ALLOWED_TABLES:
-        tables_data = [t for t in tables_data if t["table_name"].lower() in ALLOWED_TABLES]
+    allowed_tables = connection.policy.allowed_tables
+    if allowed_tables is not None and "*" not in allowed_tables:
+        tables_data = [t for t in tables_data if t["table_name"].lower() in allowed_tables]
         await ctx.info(f"Allowlist active: showing {len(tables_data)} allowed tables")
     
     # Step 2: Apply truncation to prevent token overflow (P0 security/performance)
@@ -1120,7 +1770,8 @@ async def get_full_schema(ctx: Context) -> ToolResult:
     payload = {
         "success": True,
         "schema": schema,
-        "db_type": DB_TYPE,
+        "db_type": connection.db_type,
+        "connection_id": connection.connection_id,
         "returned_table_count": len(schema),
         "total_tables": total_tables,  # Visible tables (after allowlist, before truncation)
         "total_columns": total_columns_shown,
@@ -1129,10 +1780,11 @@ async def get_full_schema(ctx: Context) -> ToolResult:
         "truncation_note": (
             f"Showing {len(schema)}/{total_tables} tables. Use describe_table(name) for specific tables."
         ) if truncated else None,
-        "hint": f"Row counts are estimates. Use LIMIT for large tables (row_count > {LARGE_TABLE_THRESHOLD}). total_tables = visible after allowlist. DB type: {DB_TYPE}"
+        "hint": f"Row counts are estimates. Use LIMIT for large tables (row_count > {LARGE_TABLE_THRESHOLD}). total_tables = visible after allowlist. DB type: {connection.db_type}"
     }
     return _tool_result(
         payload, tool_name="get_full_schema", start_time=start_time, success=True,
+        connection=connection,
         returned_table_count=len(schema), total_tables=total_tables, truncated=truncated,
     )
 
@@ -1154,7 +1806,8 @@ if TABLE_SUMMARY_ENABLED:
     async def get_table_summary(
         table_name: str, 
         ctx: Context, 
-        exact_count: bool = False
+        exact_count: bool = False,
+        connection_id: Annotated[str | None, _CONNECTION_ID_FIELD] = None,
     ) -> ToolResult:
         """
         Table statistics with optional exact row count.
@@ -1173,25 +1826,41 @@ if TABLE_SUMMARY_ENABLED:
             Table statistics with row count, columns, and query hints
         """
         start_time = time.perf_counter()
+        connection = _resolve_connection_context(connection_id)
         # Validate table name
         if not _is_valid_identifier(table_name):
             await ctx.warning(f"Invalid table name rejected: {table_name}")
             return _tool_result(
-                {"success": False, "error": f"Invalid table name: {table_name}"},
-                tool_name="get_table_summary", start_time=start_time, success=False,
+                {
+                    "success": False,
+                    "error": f"Invalid table name: {table_name}",
+                    "connection_id": connection.connection_id,
+                    "db_type": connection.db_type,
+                },
+                tool_name="get_table_summary", start_time=start_time,
+                connection=connection, success=False,
             )
         
         # Check table allowlist (P1 Security)
-        if not _is_table_allowed(table_name):
+        if not _is_table_allowed(table_name, connection.policy):
             await ctx.warning(f"Table access denied by allowlist: {table_name}")
             return _tool_result(
-                {"success": False, "error": f"Access denied to table: {table_name}"},
-                tool_name="get_table_summary", start_time=start_time, success=False,
+                {
+                    "success": False,
+                    "error": f"Access denied to table: {table_name}",
+                    "connection_id": connection.connection_id,
+                    "db_type": connection.db_type,
+                },
+                tool_name="get_table_summary", start_time=start_time,
+                connection=connection, success=False,
             )
         
-        await ctx.info(f"Getting summary for table: {table_name} (exact_count={exact_count})")
+        await ctx.info(
+            f"Getting summary for table on connection '{connection.connection_id}': "
+            f"{table_name} (exact_count={exact_count})"
+        )
         
-        adapter = get_adapter()
+        adapter = connection.adapter
         
         # Get row count — use adapter for cross-database compatibility
         row_count_approximate = True
@@ -1201,12 +1870,18 @@ if TABLE_SUMMARY_ENABLED:
             await ctx.warning(f"Running COUNT(*) on {table_name} - may be slow on large tables")
             quote = '`' if adapter.db_type == 'mysql' else '"'
             count_sql = f"SELECT COUNT(*) as total_rows FROM {quote}{table_name}{quote}"
-            count_result = execute_sql(count_sql)
+            count_result = adapter.execute(count_sql)
             if isinstance(count_result, str) and count_result.startswith("Error:"):
                 await ctx.error(f"Failed to count rows: {count_result}")
                 return _tool_result(
-                    {"success": False, "error": count_result},
-                    tool_name="get_table_summary", start_time=start_time, success=False,
+                    {
+                        "success": False,
+                        "error": count_result,
+                        "connection_id": connection.connection_id,
+                        "db_type": connection.db_type,
+                    },
+                    tool_name="get_table_summary", start_time=start_time,
+                    connection=connection, success=False,
                 )
             count_data = _serialize_result(count_result)
             total_rows = count_data[0]["total_rows"] if count_data else 0
@@ -1226,6 +1901,8 @@ if TABLE_SUMMARY_ENABLED:
         result_payload = {
             "success": True,
             "table_name": table_name,
+            "db_type": connection.db_type,
+            "connection_id": connection.connection_id,
             "row_count": total_rows,
             "row_count_approximate": row_count_approximate,
             "column_count": len(columns_data),
@@ -1241,6 +1918,7 @@ if TABLE_SUMMARY_ENABLED:
         
         return _tool_result(
             result_payload, tool_name="get_table_summary", start_time=start_time, success=True,
+            connection=connection,
             row_count=total_rows, is_large=is_large, exact_count=exact_count,
         )
 
@@ -1257,7 +1935,12 @@ if SCHEMA_TOOLS_ENABLED:
             openWorldHint=False,
         )
     )
-    async def sample(table_name: str, ctx: Context, limit: int = 5) -> ToolResult:
+    async def sample(
+        table_name: str,
+        ctx: Context,
+        limit: int = 5,
+        connection_id: Annotated[str | None, _CONNECTION_ID_FIELD] = None,
+    ) -> ToolResult:
         """
         Get sample rows from a table to preview its data.
         
@@ -1269,37 +1952,48 @@ if SCHEMA_TOOLS_ENABLED:
             Sample rows from the table
         """
         start_time = time.perf_counter()
+        connection = _resolve_connection_context(connection_id)
         # Validate inputs
         if not _is_valid_identifier(table_name):
             await ctx.warning(f"Invalid table name rejected: {table_name}")
             return _tool_result({
                 "success": False,
-                "error": f"Invalid table name: {table_name}"
-            }, tool_name="sample", start_time=start_time, success=False)
+                "error": f"Invalid table name: {table_name}",
+                "connection_id": connection.connection_id,
+                "db_type": connection.db_type,
+            }, tool_name="sample", start_time=start_time, connection=connection, success=False)
         
         # Check table allowlist (P1 Security)
-        if not _is_table_allowed(table_name):
+        if not _is_table_allowed(table_name, connection.policy):
             await ctx.warning(f"Table access denied by allowlist: {table_name}")
             return _tool_result({
                 "success": False,
-                "error": f"Access denied to table: {table_name}"
-            }, tool_name="sample", start_time=start_time, success=False)
+                "error": f"Access denied to table: {table_name}",
+                "connection_id": connection.connection_id,
+                "db_type": connection.db_type,
+            }, tool_name="sample", start_time=start_time, connection=connection, success=False)
         
         limit = min(max(1, limit), 20)  # Clamp between 1-20
         
-        await ctx.info(f"Sampling {limit} rows from: {table_name}")
+        await ctx.info(f"Sampling {limit} rows from connection '{connection.connection_id}': {table_name}")
         
         # Use adapter-compatible quoting (backticks for MySQL, double-quotes for SQLite)
-        adapter = get_adapter()
+        adapter = connection.adapter
         quote = '`' if adapter.db_type == 'mysql' else '"'
         sql = f"SELECT * FROM {quote}{table_name}{quote} LIMIT {limit}"
-        result = execute_sql(sql)
+        result = adapter.execute(sql)
         
         if isinstance(result, str) and result.startswith("Error:"):
             await ctx.error(f"Failed to sample table: {result}")
             return _tool_result(
-                {"success": False, "error": result},
-                tool_name="sample", start_time=start_time, success=False,
+                {
+                    "success": False,
+                    "error": result,
+                    "connection_id": connection.connection_id,
+                    "db_type": connection.db_type,
+                },
+                tool_name="sample", start_time=start_time,
+                connection=connection, success=False,
             )
         
         data = _serialize_result(result)
@@ -1309,8 +2003,10 @@ if SCHEMA_TOOLS_ENABLED:
             "table_name": table_name,
             "data": data,
             "row_count": len(data),
-            "query": sql
-        }, tool_name="sample", start_time=start_time, success=True, row_count=len(data))
+            "query": sql,
+            "connection_id": connection.connection_id,
+            "db_type": connection.db_type,
+        }, tool_name="sample", start_time=start_time, connection=connection, success=True, row_count=len(data))
 
 
 # =============================================================================
@@ -1333,7 +2029,9 @@ if SKILLS_ENABLED:
 
     # Security: SKILLS_DIR must be within project root (prevent .env poisoning)
     # Reference: SAFETY.md #15
-    if not str(_skills_dir).startswith(str(_project_root)):
+    try:
+        _skills_dir.relative_to(_project_root)
+    except ValueError:
         logger.error(
             f"SKILLS_DIR '{_skills_dir}' is outside project root '{_project_root}'. "
             "Refusing to load skills for security (SAFETY.md #15)."
@@ -1358,7 +2056,10 @@ if SKILLS_ENABLED:
 
     # Discover skills at module load time (synchronous, consistent with
     # existing ENABLE_SCHEMA_TOOLS conditional registration pattern)
-    _discovered_skills = discover(_skills_dir)
+    _discovered_skills = discover(
+        _skills_dir,
+        query_validator=_validate_sql_template_startup_policy,
+    )
     _audit_logger = AuditLogger()
 
     # Generate SKILLS.md overview for human review
@@ -1421,13 +2122,13 @@ if SKILLS_ENABLED:
         ]
 
 
-    def _get_skill_schema_table_names() -> set[str] | None:
+    def _get_skill_schema_table_names(connection: ConnectionContext) -> set[str] | None:
         """Return current database table names for Skills readiness checks."""
         if not SKILLS_CHECK_SCHEMA_ON_LIST:
             return None
 
         try:
-            tables = get_adapter().get_tables()
+            tables = connection.adapter.get_tables()
         except Exception as e:
             logger.warning("Skills schema readiness check failed: %s", e)
             return None
@@ -1439,18 +2140,93 @@ if SKILLS_ENABLED:
         }
 
 
+    def _query_skill_blocked_tables(
+        meta: SkillMetadata,
+        connection: ConnectionContext,
+    ) -> list[str]:
+        """Return required query-skill tables blocked by target allowlist."""
+        if meta.type != "query" or not meta.tables:
+            return []
+        allowed_tables = connection.policy.allowed_tables
+        if allowed_tables is None or "*" in allowed_tables:
+            return []
+        return [
+            table for table in meta.tables
+            if table.lower() not in allowed_tables
+        ]
+
+
+    def _mutation_connection_policy_state(
+        meta: SkillMetadata,
+        connection: ConnectionContext,
+    ) -> tuple[bool, bool, str | None]:
+        """Return connection support, policy result, and rejection reason."""
+        if meta.type != "mutation":
+            return True, True, None
+
+        connection_supported = (
+            connection.connection_id in _mutation_connection_allowlist
+        )
+        if not connection_supported:
+            if MUTATION_CONNECTION_POLICY_EXPLICIT:
+                return (
+                    False,
+                    False,
+                    "Target connection is not authorized by "
+                    "SKILLS_ALLOW_MUTATION_CONNECTIONS.",
+                )
+            return (
+                False,
+                False,
+                "Mutation skills are limited to the default connection unless "
+                "v3.6 mutation connection policy is configured.",
+            )
+
+        if not MUTATION_CONNECTION_POLICY_EXPLICIT:
+            return True, True, None
+
+        if not connection.policy.allow_mutations:
+            return (
+                True,
+                False,
+                "Mutation writes are disabled by the target connection policy.",
+            )
+
+        mutation_skills = connection.policy.mutation_skills
+        if "*" not in mutation_skills and meta.name not in mutation_skills:
+            return (
+                True,
+                False,
+                f"Mutation skill '{meta.name}' is not authorized by the target "
+                "connection policy.",
+            )
+
+        return True, True, None
+
+
     def _skill_availability_state(
         meta: SkillMetadata,
         schema_table_names: set[str] | None,
+        connection: ConnectionContext,
     ) -> dict[str, Any]:
         """Describe whether a discovered skill can execute in the current state."""
         reasons: list[str] = []
         missing_tables: list[str] = []
+        blocked_tables: list[str] = []
         excluded_profiles = _skill_excluded_profiles(meta)
-        db_compatible = not meta.databases or DB_TYPE in meta.databases
+        db_compatible = not meta.databases or connection.db_type in meta.databases
         mutation_enabled = meta.type != "mutation" or SKILLS_ALLOW_MUTATIONS
+        (
+            mutation_connection_supported,
+            mutation_policy_allowed,
+            mutation_policy_reason,
+        ) = _mutation_connection_policy_state(
+            meta,
+            connection,
+        )
         profile_allowed = not excluded_profiles
         schema_ready = True
+        policy_allowed = True
 
         if excluded_profiles:
             reasons.append(
@@ -1458,13 +2234,24 @@ if SKILLS_ENABLED:
                 f"{excluded_profiles}."
             )
 
-        if meta.databases and DB_TYPE not in meta.databases:
+        if meta.databases and connection.db_type not in meta.databases:
             reasons.append(
-                f"Current database type '{DB_TYPE}' is not compatible; "
+                f"Target connection database type '{connection.db_type}' is not compatible; "
                 f"supported: {meta.databases}."
             )
         if meta.type == "mutation" and not SKILLS_ALLOW_MUTATIONS:
             reasons.append("Mutation skills are disabled (SKILLS_ALLOW_MUTATIONS=0).")
+        if mutation_policy_reason:
+            reasons.append(mutation_policy_reason)
+            policy_allowed = False
+
+        blocked_tables = _query_skill_blocked_tables(meta, connection)
+        if blocked_tables:
+            policy_allowed = False
+            reasons.append(
+                "Required query skill table(s) are blocked by the target "
+                f"connection allowlist: {blocked_tables}."
+            )
 
         if SKILLS_CHECK_SCHEMA_ON_LIST and meta.tables and schema_table_names is not None:
             missing_tables = [
@@ -1484,8 +2271,12 @@ if SKILLS_ENABLED:
             "disabled_reason": " ".join(reasons) if reasons else None,
             "db_compatible": db_compatible,
             "mutation_enabled": mutation_enabled,
+            "mutation_connection_supported": mutation_connection_supported,
+            "mutation_policy_allowed": mutation_policy_allowed,
             "profile_allowed": profile_allowed,
             "excluded_profiles": excluded_profiles,
+            "policy_allowed": policy_allowed,
+            "blocked_tables": blocked_tables,
             "schema_ready": schema_ready,
             "schema_check_enabled": SKILLS_CHECK_SCHEMA_ON_LIST,
             "schema_check_available": schema_table_names is not None,
@@ -1496,35 +2287,50 @@ if SKILLS_ENABLED:
     def _skill_executable_state(
         meta: SkillMetadata,
         schema_table_names: set[str] | None,
+        connection: ConnectionContext,
     ) -> tuple[bool, str | None]:
         """Compatibility wrapper for executable state and reason."""
-        state = _skill_availability_state(meta, schema_table_names)
+        state = _skill_availability_state(meta, schema_table_names, connection)
         return state["executable"], state["disabled_reason"]
 
 
     def _skill_is_executable(
         meta: SkillMetadata,
         schema_table_names: set[str] | None,
+        connection: ConnectionContext,
     ) -> bool:
         """Return True when the skill can execute in the current server state."""
-        executable, _disabled_reason = _skill_executable_state(meta, schema_table_names)
+        executable, _disabled_reason = _skill_executable_state(meta, schema_table_names, connection)
         return executable
 
 
-    def _ensure_skill_schema_ready(meta: SkillMetadata) -> None:
+    def _ensure_skill_schema_ready(meta: SkillMetadata, connection: ConnectionContext) -> None:
         """Raise a ToolError if the current database is missing required tables."""
         if not SKILLS_CHECK_SCHEMA_ON_LIST or not meta.tables:
             return
 
-        schema_table_names = _get_skill_schema_table_names()
+        schema_table_names = _get_skill_schema_table_names(connection)
         if schema_table_names is None:
             return
 
-        availability = _skill_availability_state(meta, schema_table_names)
+        availability = _skill_availability_state(meta, schema_table_names, connection)
         if availability["missing_tables"]:
             raise ToolError(
                 f"Skill '{meta.name}' requires table(s) not found in the "
-                f"current database schema: {availability['missing_tables']}"
+                f"target connection schema: {availability['missing_tables']}"
+            )
+
+
+    def _ensure_query_skill_policy_ready(
+        meta: SkillMetadata,
+        connection: ConnectionContext,
+    ) -> None:
+        """Raise a ToolError if target connection policy blocks query skill tables."""
+        blocked_tables = _query_skill_blocked_tables(meta, connection)
+        if blocked_tables:
+            raise ToolError(
+                f"Skill '{meta.name}' requires table(s) blocked by target "
+                f"connection policy: {blocked_tables}"
             )
 
 
@@ -1557,10 +2363,15 @@ if SKILLS_ENABLED:
         *,
         mode: str,
         start_time: float,
+        connection: ConnectionContext,
         row_count: int | None = None,
         total_rows: int | None = None,
         truncated: bool | None = None,
         audit_logged: bool | None = None,
+        preview_token_required: bool | None = None,
+        preview_token_validated: bool | None = None,
+        preview_token_consumed: bool | None = None,
+        preview_token_id: str | None = None,
     ) -> ToolResult:
         """Attach runtime metadata without changing the structured payload."""
         payload_success = payload.get("success")
@@ -1575,7 +2386,8 @@ if SKILLS_ENABLED:
             "skill_type": meta.type,
             "skill_version": meta.version,
             "mode": mode,
-            "db_type": DB_TYPE,
+            "db_type": connection.db_type,
+            "connection_id": connection.connection_id,
             "execution_ms": _elapsed_ms(start_time),
             "success": payload_success if isinstance(payload_success, bool) else True,
             "idempotent": meta.idempotent,
@@ -1585,6 +2397,10 @@ if SKILLS_ENABLED:
             "total_rows": total_rows,
             "truncated": truncated,
             "audit_logged": audit_logged,
+            "preview_token_required": preview_token_required,
+            "preview_token_validated": preview_token_validated,
+            "preview_token_consumed": preview_token_consumed,
+            "preview_token_id": preview_token_id,
         }
         runtime_meta.update(
             {key: value for key, value in optional_fields.items() if value is not None}
@@ -1635,15 +2451,25 @@ if SKILLS_ENABLED:
             "category": _skill_category(meta),
             "executable": availability["executable"],
             "profile_allowed": availability["profile_allowed"],
+            "db_compatible": availability["db_compatible"],
+            "policy_allowed": availability["policy_allowed"],
             "schema_ready": availability["schema_ready"],
         }
+        if meta.type == "mutation":
+            projected["mutation_connection_supported"] = availability[
+                "mutation_connection_supported"
+            ]
+            projected["mutation_policy_allowed"] = availability[
+                "mutation_policy_allowed"
+            ]
         if availability["disabled_reason"]:
             projected["disabled_reason"] = availability["disabled_reason"]
         if availability["excluded_profiles"]:
             projected["excluded_profiles"] = availability["excluded_profiles"]
         if availability["missing_tables"]:
             projected["missing_tables"] = availability["missing_tables"]
-
+        if availability["blocked_tables"]:
+            projected["blocked_tables"] = availability["blocked_tables"]
         if detail_level in {"summary", "full"}:
             # Keep the summary shape close to the historical list_skills()
             # response so existing clients can continue to reason from it.
@@ -1722,12 +2548,14 @@ if SKILLS_ENABLED:
             bool | None,
             Field(
                 description=(
-                    "When true, return only skills executable in the current "
-                    "server state, including DB compatibility, mutation switch, "
-                    "and schema readiness. Pass false to inspect the full catalog."
+                    "When true, return only skills executable for the target "
+                    "connection, including DB compatibility, mutation switch, "
+                    "connection policy, and schema readiness. Pass false to "
+                    "inspect the full catalog."
                 ),
             ),
         ] = None,
+        connection_id: Annotated[str | None, _CONNECTION_ID_FIELD] = None,
     ) -> ToolResult:
         """
         List all available pre-defined skills (query and mutation).
@@ -1744,6 +2572,7 @@ if SKILLS_ENABLED:
             Dict with skills list and count
         """
         start_time = time.perf_counter()
+        connection = _resolve_connection_context(connection_id)
         try:
             resolved_detail_level = _normalize_skill_detail_level(detail_level)
             resolved_available_only = _resolve_available_only(available_only)
@@ -1763,20 +2592,21 @@ if SKILLS_ENABLED:
 
         await ctx.info(
             "Listing available skills "
+            f"for connection={connection.connection_id}, "
             f"(detail_level={resolved_detail_level}, "
             f"available_only={resolved_available_only}, "
             f"search={normalized_search!r}, category={normalized_category!r})"
         )
 
         skills = get_skills_cache()
-        schema_table_names = _get_skill_schema_table_names()
+        schema_table_names = _get_skill_schema_table_names(connection)
         matched_catalog = [
             meta
             for name, meta in sorted(skills.items())
             if _skill_matches(meta, normalized_search, normalized_category)
         ]
         availability_by_name = {
-            meta.name: _skill_availability_state(meta, schema_table_names)
+            meta.name: _skill_availability_state(meta, schema_table_names, connection)
             for meta in matched_catalog
         }
         available_count = sum(
@@ -1791,6 +2621,10 @@ if SKILLS_ENABLED:
         profile_excluded_count = sum(
             1 for meta in matched_catalog
             if not availability_by_name[meta.name]["profile_allowed"]
+        )
+        policy_blocked_count = sum(
+            1 for meta in matched_catalog
+            if not availability_by_name[meta.name]["policy_allowed"]
         )
         matched = [
             meta
@@ -1824,6 +2658,7 @@ if SKILLS_ENABLED:
             "unavailable_skills": unavailable_count,
             "filtered_unavailable_skills": unavailable_count if resolved_available_only else 0,
             "schema_unready_skills": schema_unready_count,
+            "policy_blocked_skills": policy_blocked_count,
             "profile_excluded_skills": profile_excluded_count,
             "query_skills": query_count,
             "mutation_skills": mutation_count,
@@ -1833,7 +2668,8 @@ if SKILLS_ENABLED:
             "excluded_profiles": sorted(SKILLS_EXCLUDE_PROFILES),
             "detail_level": resolved_detail_level,
             "available_only": resolved_available_only,
-            "current_database_type": DB_TYPE,
+            "current_database_type": connection.db_type,
+            "connection_id": connection.connection_id,
             "search": normalized_search,
             "category": normalized_category,
             "categories": _aggregate_skill_categories(matched),
@@ -1845,6 +2681,7 @@ if SKILLS_ENABLED:
             )
         return _tool_result(
             result, tool_name="list_skills", start_time=start_time, success=True,
+            connection=connection,
             matched_skills=len(skills_list), available_skills=available_count,
             total_skills=len(skills),
         )
@@ -1863,6 +2700,7 @@ if SKILLS_ENABLED:
     async def get_skill_detail(
         skill_name: Annotated[str, Field(description="Name of the skill to inspect")],
         ctx: Context,
+        connection_id: Annotated[str | None, _CONNECTION_ID_FIELD] = None,
     ) -> ToolResult:
         """
         Return full cached metadata for one skill, including parameter schema.
@@ -1871,7 +2709,8 @@ if SKILLS_ENABLED:
         skill files from disk and does not expose raw SQL or mutation source.
         """
         start_time = time.perf_counter()
-        await ctx.info(f"Getting skill detail: {skill_name}")
+        connection = _resolve_connection_context(connection_id)
+        await ctx.info(f"Getting skill detail for connection '{connection.connection_id}': {skill_name}")
 
         try:
             validate_name(skill_name)
@@ -1886,17 +2725,18 @@ if SKILLS_ENABLED:
             raise ToolError(msg)
 
         meta = skills[skill_name]
-        schema_table_names = _get_skill_schema_table_names()
-        availability = _skill_availability_state(meta, schema_table_names)
+        schema_table_names = _get_skill_schema_table_names(connection)
+        availability = _skill_availability_state(meta, schema_table_names, connection)
         if meta.type == "query":
             usage_hint = "Call execute_query_skill(skill_name, params) with params matching this schema."
-        elif SKILLS_ALLOW_MUTATIONS:
+        elif availability["executable"]:
             usage_hint = (
                 "Call execute_mutation_skill(skill_name, params, confirm=false) "
-                "to preview before confirm=true."
+                "to preview, then pass the returned preview_token with "
+                "confirm=true on the same connection."
             )
         else:
-            usage_hint = "Mutation execution is disabled because SKILLS_ALLOW_MUTATIONS=0."
+            usage_hint = availability["disabled_reason"] or "Mutation execution is unavailable."
 
         return _tool_result({
             "success": True,
@@ -1904,8 +2744,11 @@ if SKILLS_ENABLED:
             "mutations_enabled": SKILLS_ALLOW_MUTATIONS,
             "schema_check_enabled": SKILLS_CHECK_SCHEMA_ON_LIST,
             "schema_check_available": schema_table_names is not None,
+            "connection_id": connection.connection_id,
+            "current_database_type": connection.db_type,
             "usage_hint": usage_hint,
         }, tool_name="get_skill_detail", start_time=start_time, success=True,
+           connection=connection,
            skill_name=skill_name, skill_type=meta.type)
 
     # ── execute_query_skill ──
@@ -1923,6 +2766,8 @@ if SKILLS_ENABLED:
             "properties": {
                 "success": {"type": "boolean"},
                 "skill_name": {"type": "string"},
+                "connection_id": {"type": "string"},
+                "db_type": {"type": "string"},
                 "data": {
                     "type": "array",
                     "items": {"type": "object", "additionalProperties": True},
@@ -1940,12 +2785,13 @@ if SKILLS_ENABLED:
         skill_name: Annotated[str, Field(description="Name of the query skill to execute")],
         params: Annotated[dict[str, Any], Field(description="Parameters for the skill (must match skill_def.md schema)")],
         ctx: Context,
+        connection_id: Annotated[str | None, _CONNECTION_ID_FIELD] = None,
     ) -> ToolResult:
         """
         Execute a pre-defined query skill with parameterized SQL.
 
-        Skills are pre-audited SQL templates — bypasses runtime is_sql_safe() and
-        ALLOWED_TABLES checks (security comes from code review, see SAFETY.md #1 & #14).
+        Skills are pre-audited SQL templates and are checked against the same
+        read-query policy used by the raw query(sql) tool at startup and runtime.
 
         Uses named parameters (:param_name) via SQLAlchemy text() for SQL injection prevention.
 
@@ -1956,8 +2802,11 @@ if SKILLS_ENABLED:
         Returns:
             Query results (same format as query() tool, plus skill_name)
         """
-        await ctx.info(f"Executing query skill: {skill_name}")
         start_time = time.perf_counter()
+        connection = _resolve_connection_context(connection_id)
+        await ctx.info(
+            f"Executing query skill on connection '{connection.connection_id}': {skill_name}"
+        )
         client_id = _context_client_id(ctx)
 
         try:
@@ -1974,10 +2823,10 @@ if SKILLS_ENABLED:
             msg = f"Skill '{skill_name}' metadata not found"
             await ctx.warning(msg)
             raise ToolError(msg)
-        if meta and meta.databases and DB_TYPE not in meta.databases:
+        if meta and meta.databases and connection.db_type not in meta.databases:
             msg = (
-                f"Skill '{skill_name}' is not compatible with current database "
-                f"type '{DB_TYPE}'. Supported: {meta.databases}"
+                f"Skill '{skill_name}' is not compatible with target connection "
+                f"database type '{connection.db_type}'. Supported: {meta.databases}"
             )
             await ctx.warning(msg)
             raise ToolError(msg)
@@ -1988,13 +2837,20 @@ if SKILLS_ENABLED:
                 await ctx.warning(str(e))
                 raise
             try:
-                _ensure_skill_schema_ready(meta)
+                _ensure_skill_schema_ready(meta, connection)
+                _ensure_query_skill_policy_ready(meta, connection)
             except ToolError as e:
                 await ctx.warning(str(e))
                 raise
 
+        is_safe, safety_error = _validate_sql_query_policy(sql_template, connection.policy)
+        if not is_safe:
+            msg = f"Skill '{skill_name}' failed SQL safety policy: {safety_error}"
+            await ctx.warning(msg)
+            raise ToolError(msg)
+
         # Execute parameterized query via adapter (Step 3a: params support)
-        adapter = get_adapter()
+        adapter = connection.adapter
         result = adapter.execute(sql_template, params=validated_params)
 
         # Handle error (adapter returns error string on failure)
@@ -2007,6 +2863,8 @@ if SKILLS_ENABLED:
                     mode="query",
                     result={"success": False, "error": result},
                     client_id=client_id,
+                    connection_id=connection.connection_id,
+                    db_type=connection.db_type,
                 )
             raise ToolError(result)
 
@@ -2026,7 +2884,7 @@ if SKILLS_ENABLED:
 
         audit_logged = False
         if SKILLS_AUDIT_QUERIES:
-            _audit_logger.log(
+            audit_logged = _audit_logger.log(
                 skill_name=skill_name,
                 params=validated_params,
                 mode="query",
@@ -2037,12 +2895,15 @@ if SKILLS_ENABLED:
                     "truncated": truncation_result["truncated"],
                 },
                 client_id=client_id,
+                connection_id=connection.connection_id,
+                db_type=connection.db_type,
             )
-            audit_logged = True
 
         payload = {
             "success": True,
             "skill_name": skill_name,
+            "connection_id": connection.connection_id,
+            "db_type": connection.db_type,
             "data": truncation_result["data"],
             "row_count": truncation_result["returned_rows"],
             "total_rows": total_rows,
@@ -2058,6 +2919,7 @@ if SKILLS_ENABLED:
             meta,
             mode="query",
             start_time=start_time,
+            connection=connection,
             row_count=truncation_result["returned_rows"],
             total_rows=total_rows,
             truncated=truncation_result["truncated"],
@@ -2082,12 +2944,20 @@ if SKILLS_ENABLED:
                     "success": {"type": "boolean"},
                     "skill_name": {"type": "string"},
                     "mode": {"type": "string", "enum": ["preview", "execute"]},
+                    "connection_id": {"type": "string"},
+                    "db_type": {"type": "string"},
                     # Preview branch (success=true, mode=preview)
                     "preview": {
                         "type": "object",
                         "additionalProperties": True,
                         "description": "Preview details returned by mutation.preview(); shape is skill-defined.",
                     },
+                    "preview_token": {
+                        "type": "string",
+                        "description": "Opaque token returned by preview and required for execute.",
+                    },
+                    "preview_token_expires_at": {"type": "string"},
+                    "preview_token_expires_in_seconds": {"type": "integer"},
                     "hint": {"type": "string"},
                     # Execute branch (success=true, mode=execute)
                     "result": {
@@ -2113,18 +2983,25 @@ if SKILLS_ENABLED:
             params: Annotated[dict[str, Any], Field(description="Parameters for the skill (must match skill_def.md schema)")],
             ctx: Context,
             confirm: Annotated[bool, Field(description="False=preview (default), True=execute")] = False,
+            preview_token: Annotated[str | None, _MUTATION_PREVIEW_TOKEN_FIELD] = None,
+            connection_id: Annotated[str | None, _CONNECTION_ID_FIELD] = None,
         ) -> ToolResult:
             """
             Execute a pre-defined mutation (write) skill.
 
             Two-phase workflow (Anthropic plan-validate-execute pattern):
-            1. confirm=false (default) — validate + preview, no database changes
-            2. confirm=true — validate + execute, commits changes in a transaction
+                1. confirm=false (default) — validate + preview, no database changes;
+                    registers and returns a one-time preview_token
+                2. confirm=true — verify and atomically consume preview_token,
+                    re-validate + execute with preview-state binding, commits changes
+                    in a transaction
 
             Args:
                 skill_name: The mutation skill name (e.g., "update-order-status")
                 params: Parameter dict matching the skill's frontmatter schema
                 confirm: False=dry-run preview (default), True=actual execution
+                preview_token: Required when confirm=True; returned by preview
+                connection_id: Configured target connection; omit for the default
 
             Returns:
                 Preview result (confirm=false) or execution result (confirm=true)
@@ -2132,6 +3009,7 @@ if SKILLS_ENABLED:
             mode = "execute" if confirm else "preview"
             await ctx.info(f"Mutation skill '{skill_name}' mode={mode}")
             start_time = time.perf_counter()
+            connection = _resolve_connection_context(connection_id)
             client_id = _context_client_id(ctx)
 
             try:
@@ -2146,20 +3024,28 @@ if SKILLS_ENABLED:
                     raise TypeError(
                         f"Skill '{skill_name}' is type '{meta.type}', expected 'mutation'"
                     )
+                _, mutation_policy_allowed, mutation_policy_reason = (
+                    _mutation_connection_policy_state(meta, connection)
+                )
+                if not mutation_policy_allowed:
+                    raise ToolError(
+                        mutation_policy_reason
+                        or "Mutation is not authorized by target connection policy."
+                    )
                 validated_params = validate_params(params, meta.params)
 
                 # Check database compatibility
-                if meta.databases and DB_TYPE not in meta.databases:
+                if meta.databases and connection.db_type not in meta.databases:
                     msg = (
                         f"Skill '{skill_name}' is not compatible with current database "
-                        f"type '{DB_TYPE}'. Supported: {meta.databases}"
+                        f"type '{connection.db_type}'. Supported: {meta.databases}"
                     )
                     raise ValueError(msg)
                 _ensure_skill_profile_allowed(meta)
-                _ensure_skill_schema_ready(meta)
+                _ensure_skill_schema_ready(meta, connection)
 
                 # Load mutation module
-                adapter = get_adapter()
+                adapter = connection.adapter
                 mutation = load_mutation(skill_name, adapter, _audit_logger)
 
             except (ValueError, TypeError, FileNotFoundError, AttributeError,
@@ -2180,6 +3066,8 @@ if SKILLS_ENABLED:
                             "success": False,
                             "skill_name": skill_name,
                             "mode": "preview",
+                            "connection_id": connection.connection_id,
+                            "db_type": connection.db_type,
                             "validation": validation,
                         }
                         return _skill_tool_result(
@@ -2187,18 +3075,45 @@ if SKILLS_ENABLED:
                             meta,
                             mode="preview",
                             start_time=start_time,
+                            connection=connection,
                             audit_logged=False,
                         )
 
                     preview_result = mutation.preview(validated_params)
+                    execution_binding = mutation.build_execution_binding(
+                        validated_params,
+                        validation,
+                        preview_result,
+                    )
+                    binding_json = _execution_binding_json(execution_binding)
 
-                    # Audit the preview
-                    _audit_logger.log(
+                    generated_token, token_payload = _create_mutation_preview_token(
+                        skill_name=skill_name,
+                        skill_version=meta.version,
+                        params=validated_params,
+                        connection=connection,
+                        execution_binding_json=binding_json,
+                    )
+                    _register_mutation_preview_token(
+                        generated_token,
+                        token_payload,
+                        binding_json,
+                    )
+                    token_id = _preview_token_id(generated_token)
+
+                    # Audit the preview without recording the full token.
+                    audit_logged = _audit_logger.log(
                         skill_name=skill_name,
                         params=validated_params,
                         mode="preview",
-                        result={"success": True, "preview": True},
+                        result={
+                            "success": True,
+                            "preview": True,
+                            "preview_token_id": token_id,
+                        },
                         client_id=client_id,
+                        connection_id=connection.connection_id,
+                        db_type=connection.db_type,
                     )
 
                     await ctx.info(f"Preview completed for '{skill_name}'")
@@ -2206,17 +3121,35 @@ if SKILLS_ENABLED:
                         "success": True,
                         "skill_name": skill_name,
                         "mode": "preview",
+                        "connection_id": connection.connection_id,
+                        "db_type": connection.db_type,
                         "preview": preview_result,
+                        "preview_token": generated_token,
+                        "preview_token_expires_at": datetime.fromtimestamp(
+                            token_payload["exp"],
+                            timezone.utc,
+                        ).isoformat(),
+                        "preview_token_expires_in_seconds": (
+                            token_payload["exp"] - int(time.time())
+                        ),
                         "idempotent": meta.idempotent,
-                        "hint": "Set confirm=true to execute this operation.",
+                        "hint": (
+                            "Set confirm=true and pass preview_token to execute "
+                            "this operation."
+                        ),
                     }
                     return _skill_tool_result(
                         payload,
                         meta,
                         mode="preview",
                         start_time=start_time,
+                        connection=connection,
                         row_count=preview_result.get("affected_rows_estimate"),
-                        audit_logged=True,
+                        audit_logged=audit_logged,
+                        preview_token_required=True,
+                        preview_token_validated=False,
+                        preview_token_consumed=False,
+                        preview_token_id=token_id,
                     )
                 except ToolError:
                     raise
@@ -2225,7 +3158,22 @@ if SKILLS_ENABLED:
                     raise ToolError(sanitized) from e
             else:
                 # Phase 2: validate + execute (commits to database)
+                token_consumed = False
                 try:
+                    verified_token_payload = _verify_mutation_preview_token(
+                        preview_token,
+                        skill_name=skill_name,
+                        skill_version=meta.version,
+                        params=validated_params,
+                        connection=connection,
+                    )
+                    token_id = _preview_token_id(preview_token or "")
+                    execution_binding = _consume_mutation_preview_token(
+                        preview_token or "",
+                        verified_token_payload,
+                    )
+                    token_consumed = True
+
                     validation = mutation.validate(validated_params)
                     if not validation.get("valid", False):
                         errors = validation.get("errors", ["Validation failed"])
@@ -2234,6 +3182,8 @@ if SKILLS_ENABLED:
                             "success": False,
                             "skill_name": skill_name,
                             "mode": "execute",
+                            "connection_id": connection.connection_id,
+                            "db_type": connection.db_type,
                             "validation": validation,
                         }
                         return _skill_tool_result(
@@ -2241,14 +3191,24 @@ if SKILLS_ENABLED:
                             meta,
                             mode="execute",
                             start_time=start_time,
+                            connection=connection,
                             audit_logged=False,
+                            preview_token_required=True,
+                            preview_token_validated=True,
+                            preview_token_consumed=True,
+                            preview_token_id=token_id,
                         )
 
                     result = mutation.run_execute(
                         validated_params,
                         skill_name=skill_name,
                         mode="execute",
+                        client_id=client_id,
+                        connection_id=connection.connection_id,
+                        db_type=connection.db_type,
+                        execution_binding=execution_binding,
                     )
+                    audit_logged = bool(result.pop("_audit_logged", True))
 
                     await ctx.info(
                         f"Mutation '{skill_name}' executed: rowcount={result.get('rowcount')}"
@@ -2257,6 +3217,8 @@ if SKILLS_ENABLED:
                         "success": True,
                         "skill_name": skill_name,
                         "mode": "execute",
+                        "connection_id": connection.connection_id,
+                        "db_type": connection.db_type,
                         "result": result,
                         "idempotent": meta.idempotent,
                     }
@@ -2265,19 +3227,36 @@ if SKILLS_ENABLED:
                         meta,
                         mode="execute",
                         start_time=start_time,
+                        connection=connection,
                         row_count=result.get("rowcount"),
-                        audit_logged=True,
+                        audit_logged=audit_logged,
+                        preview_token_required=True,
+                        preview_token_validated=True,
+                        preview_token_consumed=True,
+                        preview_token_id=token_id,
                     )
-                except ToolError:
+                except ToolError as e:
+                    if token_consumed:
+                        raise ToolError(
+                            f"{e} The preview_token has been consumed; run "
+                            "preview again."
+                        ) from e
                     raise
                 except Exception as e:
                     sanitized = adapter._handle_error(e)
+                    if token_consumed:
+                        sanitized = (
+                            f"{sanitized} The preview_token has been consumed; "
+                            "run preview again."
+                        )
                     _audit_logger.log(
                         skill_name=skill_name,
                         params=validated_params,
                         mode="execute",
                         result={"success": False, "error": sanitized},
                         client_id=client_id,
+                        connection_id=connection.connection_id,
+                        db_type=connection.db_type,
                     )
                     raise ToolError(sanitized) from e
 
@@ -2313,22 +3292,23 @@ def sql_assistant() -> str:
     if SKILLS_ENABLED:
         skills_info = """
 - list_skills(search, category, detail_level, available_only): List pre-defined query/mutation skills; default availability filters incompatible, disabled, or schema-unready skills
-- get_skill_detail(skill_name): Get params/schema for one skill before execution
-- execute_query_skill(name, params): Execute a query skill with parameters
+- get_skill_detail(skill_name, connection_id): Get params/schema for one skill before execution
+- execute_query_skill(name, params, connection_id): Execute a query skill with parameters
 """
         if SKILLS_ALLOW_MUTATIONS:
-            skills_info += "- execute_mutation_skill(name, params, confirm): Execute a mutation skill (confirm=false for preview)\n"
+            skills_info += "- execute_mutation_skill(name, params, confirm, preview_token, connection_id): Preview a mutation on an authorized configured connection, then execute on the same connection with confirm=true plus the returned preview_token\n"
 
     # Conditional heuristic prompt - let LLM decide based on context
     # Reference: "Model-driven tool selection" - provide rules, not fixed chains
     return f"""Database query assistant.
 
 Tools (choose based on need):
-- query(sql): Execute SELECT/SHOW/DESCRIBE/EXPLAIN
-- list_tables(): Visible table overview with row estimates; may be truncated
-- describe_table(name): Single table columns + row estimate + is_large hint
-- get_full_schema(): Visible schema overview; may be truncated; use for multi-table JOINs
-- check_connection(): Verify database connectivity (use only on connection errors)
+- list_connections(): Show configured connection ids; omit connection_id to use default
+- query(sql, connection_id): Execute SELECT/SHOW/DESCRIBE/EXPLAIN
+- list_tables(connection_id): Visible table overview with row estimates; may be truncated
+- describe_table(name, connection_id): Single table columns + row estimate + is_large hint
+- get_full_schema(connection_id): Visible schema overview; may be truncated; use for multi-table JOINs
+- check_connection(connection_id): Verify database connectivity (use only on connection errors)
 {skills_info}
 Decision rules:
 - Unknown structure? list_tables() for overview, then describe_table() for details

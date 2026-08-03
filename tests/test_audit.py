@@ -13,6 +13,7 @@ Usage:
 """
 
 import json
+import logging
 import sys
 import pytest
 from pathlib import Path
@@ -36,7 +37,7 @@ class TestAuditLogger:
         log_path = tmp_path / "audit.jsonl"
         logger = AuditLogger(log_path=log_path)
 
-        logger.log(
+        result = logger.log(
             skill_name="update-order-status",
             params={"order_id": 42, "new_status": "shipped"},
             mode="execute",
@@ -44,6 +45,7 @@ class TestAuditLogger:
             client_id="test-agent-001",
         )
 
+        assert result is True
         assert log_path.exists()
         content = log_path.read_text(encoding="utf-8").strip()
         entry = json.loads(content)
@@ -74,6 +76,26 @@ class TestAuditLogger:
         content = log_path.read_text(encoding="utf-8").strip()
         entry = json.loads(content)
         assert entry["mode"] == "preview"
+
+    def test_audit_log_records_optional_connection_metadata(self, tmp_path):
+        """v3.5: audit can include safe connection alias and actual DB type."""
+        from audit import AuditLogger
+
+        log_path = tmp_path / "audit.jsonl"
+        logger = AuditLogger(log_path=log_path)
+
+        logger.log(
+            skill_name="monthly-sales-report-sqlite",
+            params={"year": 2026, "month": 1},
+            mode="query",
+            result={"success": True, "rowcount": 1},
+            connection_id="analytics",
+            db_type="sqlite",
+        )
+
+        entry = json.loads(log_path.read_text(encoding="utf-8").strip())
+        assert entry["connection_id"] == "analytics"
+        assert entry["db_type"] == "sqlite"
 
     def test_audit_log_multiple_entries(self, tmp_path):
         """Multiple log entries produce valid JSONL (one per line)."""
@@ -184,3 +206,23 @@ class TestAuditLogger:
             # Should not raise — just log a warning
             audit_logger = AuditLogger(log_path=bad_path)
             assert audit_logger.log_path == bad_path
+
+    def test_audit_write_failure_is_best_effort(self, tmp_path, caplog):
+        """Write failure returns False and does not raise."""
+        from audit import AuditLogger
+        from unittest.mock import patch
+
+        log_path = tmp_path / "audit.jsonl"
+        logger = AuditLogger(log_path=log_path)
+
+        with patch("builtins.open", side_effect=OSError("disk full")):
+            with caplog.at_level(logging.ERROR):
+                result = logger.log(
+                    skill_name="test",
+                    params={},
+                    mode="execute",
+                    result={"success": True},
+                )
+
+        assert result is False
+        assert "Failed to write audit log" in caplog.text

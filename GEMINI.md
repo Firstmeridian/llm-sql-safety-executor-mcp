@@ -183,19 +183,26 @@ The conversion of this SQL safety checker tool to an MCP (Model Context Protocol
 
 ### Available MCP Tools
 
-The MCP service provides 5-11 tools (depending on configuration):
+The MCP service provides 6-12 tools (depending on configuration):
 
 1. **`query`**: Primary tool - Executes read-only SQL queries with automatic safety validation
 2. **`check_connection`**: Tests database connectivity and configuration
-3. **`list_tables`**: Lists visible/allowed tables in the database with estimated row counts; output may be truncated
-4. **`describe_table`**: Retrieves table column info and query recommendations
-5. **`get_full_schema`**: Gets a visible schema overview in one call; output may be truncated
-6. **`get_table_summary`**: **Optional** - Gets table statistics (controlled by `ENABLE_TABLE_SUMMARY`, default disabled)
-7. **`sample`**: **Optional** - Retrieves sample data from tables (controlled by `ENABLE_SCHEMA_TOOLS`, default enabled)
-8. **`list_skills`**: **Optional** - Lists available Skills when `ENABLE_SKILLS=1`
-9. **`get_skill_detail`**: **Optional** - Retrieves detailed metadata for one Skill when `ENABLE_SKILLS=1`
-10. **`execute_query_skill`**: **Optional** - Executes a cached query Skill when `ENABLE_SKILLS=1`
-11. **`execute_mutation_skill`**: **Optional** - Executes or previews a mutation Skill when both `ENABLE_SKILLS=1` and `SKILLS_ALLOW_MUTATIONS=1`
+3. **`list_connections`**: Lists configured connection aliases and non-sensitive policy summaries (no DSNs/credentials/paths)
+4. **`list_tables`**: Lists visible/allowed tables in the target connection with estimated row counts; output may be truncated
+5. **`describe_table`**: Retrieves table column info and query recommendations
+6. **`get_full_schema`**: Gets a visible schema overview in one call; output may be truncated
+7. **`get_table_summary`**: **Optional** - Gets table statistics (controlled by `ENABLE_TABLE_SUMMARY`, default disabled)
+8. **`sample`**: **Optional** - Retrieves sample data from tables (controlled by `ENABLE_SCHEMA_TOOLS`, default enabled)
+9. **`list_skills`**: **Optional** - Lists available Skills for the target connection when `ENABLE_SKILLS=1`
+10. **`get_skill_detail`**: **Optional** - Retrieves detailed metadata/readiness for one Skill when `ENABLE_SKILLS=1`
+11. **`execute_query_skill`**: **Optional** - Executes a cached query Skill on the target connection when `ENABLE_SKILLS=1`
+12. **`execute_mutation_skill`**: **Optional** - Previews a mutation Skill on an authorized configured connection and executes it only on the same connection with the returned `preview_token` when both `ENABLE_SKILLS=1` and `SKILLS_ALLOW_MUTATIONS=1`
+
+v3.5 adds optional `connection_id` to read-only core tools and query Skills.
+Omitting it preserves default-connection behavior. Tools cannot accept arbitrary
+DSNs from the model. Mutation Skills use the default connection unless strict
+named-write policy is configured with `SKILLS_ALLOW_MUTATION_CONNECTIONS` and
+matching per-connection mutation settings.
 
 ### Available MCP Prompts
 

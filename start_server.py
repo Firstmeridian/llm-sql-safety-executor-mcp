@@ -9,7 +9,6 @@ validation and logging configuration.
 import os
 import logging
 from dotenv import load_dotenv
-from mcp_sql_server import mcp
 from datetime import datetime
 
 # Load environment variables from .env file
@@ -44,17 +43,28 @@ def validate_environment():
     Returns:
         tuple: (is_valid, missing_vars)
     """
-    db_type = os.getenv("DB_TYPE", "mysql").lower()
+    try:
+        from db_adapter import list_connection_configs
+    except ValueError as exc:
+        return False, [str(exc)]
 
-    if db_type == "sqlite":
-        # SQLite only needs a database path; default ':memory:' is always valid
-        required_env_vars = []  # SQLITE_DATABASE_PATH has a default
-    else:
-        # MySQL requires connection credentials
-        required_env_vars = ["DB_USER", "DB_PASSWORD", "DB_HOST", "DB_NAME"]
+    missing_vars: list[str] = []
+    for config in list_connection_configs():
+        if config.db_type == "sqlite":
+            continue
+        required = {
+            "USER": config.mysql_user,
+            "PASSWORD": config.mysql_password,
+            "HOST": config.mysql_host,
+            "NAME": config.mysql_database,
+        }
+        for suffix, value in required.items():
+            if not value:
+                if config.connection_id == "default" and not os.getenv("DB_CONNECTIONS"):
+                    missing_vars.append(f"DB_{suffix}")
+                else:
+                    missing_vars.append(f"DB_{config.connection_id.upper()}_{suffix}")
 
-    missing_vars = [var for var in required_env_vars if not os.getenv(var)]
-    
     return len(missing_vars) == 0, missing_vars
 
 def main():
@@ -69,13 +79,19 @@ def main():
     if not is_valid:
         logger.error(f"Missing required environment variables: {missing_vars}")
         logger.error("Please ensure your .env file is configured correctly")
-        logger.error("Required variables: DB_USER, DB_PASSWORD, DB_HOST, DB_NAME")
+        logger.error(
+            "Required MySQL variables are DB_USER/DB_PASSWORD/DB_HOST/DB_NAME "
+            "for legacy default config, or DB_<CONNECTION_ID>_USER/PASSWORD/HOST/NAME "
+            "for named DB_CONNECTIONS entries."
+        )
         return 1
     
     logger.info("Environment validation passed")
     logger.info("Starting MCP server...")
     
     try:
+        from mcp_sql_server import mcp
+
         # Run the MCP server
         mcp.run()
     except KeyboardInterrupt:

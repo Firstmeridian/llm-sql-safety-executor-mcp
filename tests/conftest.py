@@ -24,6 +24,13 @@ from unittest.mock import patch
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+# Keep the default pytest suite hermetic even when a developer's local .env
+# enables named connections or mutation routing for live smoke testing.
+# Individual tests that exercise these policies set the variables explicitly
+# with monkeypatch.
+os.environ["DB_CONNECTIONS"] = ""
+os.environ["SKILLS_ALLOW_MUTATION_CONNECTIONS"] = ""
+
 
 # =============================================================================
 # SQLite Test Fixtures

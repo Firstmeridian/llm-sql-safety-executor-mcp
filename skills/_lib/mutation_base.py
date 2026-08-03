@@ -126,7 +126,38 @@ class MutationBase(ABC):
         """
         pass
 
-    def run_execute(self, params: dict, skill_name: str, mode: str = "execute") -> dict:
+    def build_execution_binding(
+        self,
+        params: dict,
+        validation: dict,
+        preview: dict,
+    ) -> dict:
+        """Return minimal preview-time state that execution must honor."""
+        return {}
+
+    def execute_with_binding(
+        self,
+        params: dict,
+        execution_binding: dict,
+    ) -> dict:
+        """Execute with verified preview state, rejecting ignored bindings."""
+        if execution_binding:
+            raise ToolError(
+                "Mutation skill produced an execution binding but does not "
+                "implement execute_with_binding()."
+            )
+        return self.execute(params)
+
+    def run_execute(
+        self,
+        params: dict,
+        skill_name: str,
+        mode: str = "execute",
+        client_id: str | None = None,
+        connection_id: str | None = None,
+        db_type: str | None = None,
+        execution_binding: dict | None = None,
+    ) -> dict:
         """
         Template method: wraps execute() with error handling and audit logging.
 
@@ -138,6 +169,10 @@ class MutationBase(ABC):
             params: Validated parameters
             skill_name: Skill name for audit logging
             mode: "preview" or "execute"
+            client_id: Optional MCP client id for audit logging
+            connection_id: Optional configured connection id for audit logging
+            db_type: Optional actual database type for audit logging
+            execution_binding: Preview-time state verified by the token layer
 
         Returns:
             Result dict from execute() on success
@@ -146,13 +181,19 @@ class MutationBase(ABC):
             ToolError: On any execution failure (sanitized error message)
         """
         try:
-            result = self.execute(params)
-            self.logger.log(
+            result = self.execute_with_binding(params, execution_binding or {})
+            audit_result = self.logger.log(
                 skill_name=skill_name,
                 params=params,
                 mode=mode,
                 result=result,
+                client_id=client_id,
+                connection_id=connection_id,
+                db_type=db_type,
             )
+            audit_logged = True if audit_result is None else bool(audit_result)
+            if isinstance(result, dict):
+                result = {**result, "_audit_logged": audit_logged}
             return result
         except ToolError as e:
             # Audit-log business logic failures before re-raising
@@ -161,6 +202,9 @@ class MutationBase(ABC):
                 params=params,
                 mode=mode,
                 result={"success": False, "error": str(e)},
+                client_id=client_id,
+                connection_id=connection_id,
+                db_type=db_type,
             )
             raise
         except Exception as e:
@@ -171,5 +215,8 @@ class MutationBase(ABC):
                 params=params,
                 mode=mode,
                 result={"success": False, "error": sanitized},
+                client_id=client_id,
+                connection_id=connection_id,
+                db_type=db_type,
             )
             raise ToolError(sanitized) from e

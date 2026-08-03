@@ -6,7 +6,7 @@ Covers:
 - Skill name validation (regex + path traversal)
 - Parameter validation (types, ranges, enums, required/optional)
 - Query SQL loading from cache (not disk)
-- Mutation module loading (success + missing class + import error)
+- Mutation module loading (success + malformed class + import error)
 - discover() behavior (disabled skills, missing dirs, unsafe SQL)
 - generate_skills_md()
 - related_skills warning
@@ -334,6 +334,48 @@ class TestValidateParams:
         assert result == {"year": 2024}
         assert isinstance(result["year"], int)
 
+    @pytest.mark.parametrize(
+        ("raw_value", "expected"),
+        [
+            (True, True),
+            (False, False),
+            ("true", True),
+            ("false", False),
+        ],
+    )
+    def test_validate_params_bool_accepts_json_literals(self, raw_value, expected):
+        """Boolean params accept JSON bools and explicit true/false strings."""
+        from skill_loader import validate_params
+
+        schema = {"enabled": {"type": "bool", "required": True}}
+
+        result = validate_params({"enabled": raw_value}, schema)
+
+        assert result == {"enabled": expected}
+        assert isinstance(result["enabled"], bool)
+
+    @pytest.mark.parametrize(
+        "raw_value",
+        ["True", "False", "TRUE", "FALSE", "0", "1", 0, 1, "yes", ""],
+    )
+    def test_validate_params_bool_rejects_truthy_coercion(self, raw_value):
+        """Boolean params should not use Python truthiness coercion."""
+        from skill_loader import validate_params
+
+        schema = {"enabled": {"type": "bool", "required": True}}
+
+        with pytest.raises(TypeError, match="expected type 'bool'"):
+            validate_params({"enabled": raw_value}, schema)
+
+    def test_validate_params_rejects_unknown_schema_type(self):
+        """Unknown param type names fail closed instead of passing through."""
+        from skill_loader import validate_params
+
+        schema = {"starts_on": {"type": "date", "required": True}}
+
+        with pytest.raises(ValueError, match="unsupported schema type"):
+            validate_params({"starts_on": "2026-05-29"}, schema)
+
     def test_validate_params_optional_missing(self):
         """Optional parameter not provided is silently skipped."""
         from skill_loader import validate_params
@@ -456,6 +498,75 @@ class TestDiscover:
         skills = discover(sd)
         assert "no-type" not in skills
 
+    def test_malformed_missing_name_field(self, tmp_path):
+        """skill_def.md without name is skipped at discovery."""
+        from skill_loader import discover
+
+        sd = tmp_path / "skills"
+        sd.mkdir()
+        q = sd / "no-name"
+        q.mkdir()
+        (q / "skill_def.md").write_text(
+            "---\n"
+            "type: query\n"
+            "source: query.sql\n"
+            "risk: low\n"
+            "description: Missing name\n"
+            "---\n\nNo name.\n",
+            encoding="utf-8",
+        )
+        (q / "query.sql").write_text("SELECT 1", encoding="utf-8")
+
+        skills = discover(sd)
+        assert "no-name" not in skills
+
+    def test_discover_rejects_frontmatter_name_mismatch(self, tmp_path):
+        """frontmatter name must match the skill directory name."""
+        from skill_loader import discover
+
+        sd = tmp_path / "skills"
+        sd.mkdir()
+        q = sd / "name-mismatch"
+        q.mkdir()
+        (q / "skill_def.md").write_text(
+            "---\n"
+            "name: other-skill\n"
+            "type: query\n"
+            "source: query.sql\n"
+            "risk: low\n"
+            "description: Name mismatch\n"
+            "---\n\nMismatch.\n",
+            encoding="utf-8",
+        )
+        (q / "query.sql").write_text("SELECT 1", encoding="utf-8")
+
+        skills = discover(sd)
+        assert "name-mismatch" not in skills
+        assert "other-skill" not in skills
+
+    def test_discover_rejects_invalid_frontmatter_name(self, tmp_path):
+        """frontmatter name must follow the skill-name regex."""
+        from skill_loader import discover
+
+        sd = tmp_path / "skills"
+        sd.mkdir()
+        q = sd / "bad-name"
+        q.mkdir()
+        (q / "skill_def.md").write_text(
+            "---\n"
+            "name: BadName\n"
+            "type: query\n"
+            "source: query.sql\n"
+            "risk: low\n"
+            "description: Invalid name\n"
+            "---\n\nBad name.\n",
+            encoding="utf-8",
+        )
+        (q / "query.sql").write_text("SELECT 1", encoding="utf-8")
+
+        skills = discover(sd)
+        assert "bad-name" not in skills
+
     def test_discover_rejects_unsafe_sql(self, tmp_path):
         """#26: query.sql with DROP TABLE is rejected at startup."""
         from skill_loader import discover
@@ -481,6 +592,58 @@ class TestDiscover:
 
         skills = discover(sd)
         assert "bad-query" not in skills
+
+    def test_discover_uses_custom_query_validator(self, tmp_path):
+        """MCP can pass the raw query(sql) policy into skill discovery."""
+        from skill_loader import discover
+
+        sd = tmp_path / "skills"
+        sd.mkdir()
+        q = sd / "policy-rejected-query"
+        q.mkdir()
+        (q / "skill_def.md").write_text(
+            "---\n"
+            "name: policy-rejected-query\n"
+            "type: query\n"
+            "source: query.sql\n"
+            "risk: low\n"
+            "description: Query rejected by injected policy\n"
+            "---\n\nPolicy test.\n",
+            encoding="utf-8",
+        )
+        (q / "query.sql").write_text("SELECT 1", encoding="utf-8")
+
+        def reject_all(_sql):
+            return False, "blocked by test policy"
+
+        skills = discover(sd, query_validator=reject_all)
+        assert "policy-rejected-query" not in skills
+
+    def test_discover_rejects_unknown_param_schema_type(self, tmp_path):
+        """Unsupported frontmatter param type names are rejected at startup."""
+        from skill_loader import discover
+
+        sd = tmp_path / "skills"
+        sd.mkdir()
+        q = sd / "bad-param-schema"
+        q.mkdir()
+        (q / "skill_def.md").write_text(
+            "---\n"
+            "name: bad-param-schema\n"
+            "type: query\n"
+            "source: query.sql\n"
+            "risk: low\n"
+            "description: Unsupported param type\n"
+            "params:\n"
+            "  starts_on: {type: date, required: true}\n"
+            "---\n\nBad param schema.\n",
+            encoding="utf-8",
+        )
+        (q / "query.sql").write_text("SELECT 1", encoding="utf-8")
+
+        skills = discover(sd)
+
+        assert "bad-param-schema" not in skills
 
     def test_skills_dir_not_found(self, tmp_path):
         """#23: Non-existent skills dir returns empty, no crash."""
@@ -607,6 +770,88 @@ class TestLoadMutation:
         skills = discover(sd)
         # Skill excluded from cache because _load_mutation_class() failed
         assert "bad-import" not in skills
+
+    def test_mutation_export_must_be_class(self, tmp_path):
+        """mutation.py Mutation export must be a class, not any attribute."""
+        from skill_loader import discover
+
+        sd = tmp_path / "skills"
+        sd.mkdir()
+        m = sd / "non-class"
+        m.mkdir()
+        (m / "skill_def.md").write_text(
+            "---\n"
+            "name: non-class\n"
+            "type: mutation\n"
+            "source: mutation.py\n"
+            "risk: low\n"
+            "description: Non-class Mutation export\n"
+            "---\n\nBad.\n",
+            encoding="utf-8",
+        )
+        (m / "mutation.py").write_text(
+            "Mutation = object()\n",
+            encoding="utf-8",
+        )
+
+        skills = discover(sd)
+        assert "non-class" not in skills
+
+    def test_mutation_class_must_subclass_base(self, tmp_path):
+        """mutation.py Mutation class must inherit MutationBase."""
+        from skill_loader import discover
+
+        sd = tmp_path / "skills"
+        sd.mkdir()
+        m = sd / "not-subclass"
+        m.mkdir()
+        (m / "skill_def.md").write_text(
+            "---\n"
+            "name: not-subclass\n"
+            "type: mutation\n"
+            "source: mutation.py\n"
+            "risk: low\n"
+            "description: Plain Mutation class\n"
+            "---\n\nBad.\n",
+            encoding="utf-8",
+        )
+        (m / "mutation.py").write_text(
+            "class Mutation:\n"
+            "    pass\n",
+            encoding="utf-8",
+        )
+
+        skills = discover(sd)
+        assert "not-subclass" not in skills
+
+    def test_mutation_class_must_be_concrete(self, tmp_path):
+        """MutationBase subclasses missing abstract methods are rejected."""
+        from skill_loader import discover
+
+        sd = tmp_path / "skills"
+        sd.mkdir()
+        m = sd / "abstract-mutation"
+        m.mkdir()
+        (m / "skill_def.md").write_text(
+            "---\n"
+            "name: abstract-mutation\n"
+            "type: mutation\n"
+            "source: mutation.py\n"
+            "risk: low\n"
+            "description: Incomplete MutationBase subclass\n"
+            "---\n\nBad.\n",
+            encoding="utf-8",
+        )
+        (m / "mutation.py").write_text(
+            "from mutation_base import MutationBase\n\n"
+            "class Mutation(MutationBase):\n"
+            "    def validate(self, params): return {'valid': True}\n"
+            "    def preview(self, params): return {'preview_sql': 'UPDATE ...'}\n",
+            encoding="utf-8",
+        )
+
+        skills = discover(sd)
+        assert "abstract-mutation" not in skills
 
     def test_load_mutation_type_mismatch(self, discovered_skills):
         """Calling load_mutation on a query skill raises TypeError."""

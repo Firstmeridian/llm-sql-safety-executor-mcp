@@ -309,6 +309,7 @@ class TestRunExecuteAudit:
         )
 
         assert result["success"] is True
+        assert result["_audit_logged"] is True
 
         # Check audit log
         log_content = log_path.read_text(encoding="utf-8").strip()
@@ -316,6 +317,61 @@ class TestRunExecuteAudit:
         assert entry["skill_name"] == "test-success"
         assert entry["mode"] == "execute"
         assert entry["success"] is True
+
+    def test_run_execute_reports_audit_write_failure(self, adapter_with_orders):
+        """run_execute() exposes best-effort audit write failure in the result."""
+        from mutation_base import MutationBase
+
+        class FailingAuditLogger:
+            def log(self, **kwargs):
+                return False
+
+        class SuccessMutation(MutationBase):
+            def validate(self, params):
+                return {"valid": True}
+
+            def preview(self, params):
+                return {}
+
+            def execute(self, params):
+                return {"success": True, "rowcount": 1}
+
+        mutation = SuccessMutation(adapter_with_orders, FailingAuditLogger())
+        result = mutation.run_execute(
+            {"order_id": 1},
+            skill_name="test-audit-failure",
+            mode="execute",
+        )
+
+        assert result["success"] is True
+        assert result["_audit_logged"] is False
+
+    def test_run_execute_rejects_unhandled_execution_binding(
+        self,
+        adapter_with_orders,
+        mock_audit_logger,
+    ):
+        """A skill must explicitly honor any non-empty preview-state binding."""
+        from mutation_base import MutationBase
+        from fastmcp.exceptions import ToolError
+
+        class UnboundMutation(MutationBase):
+            def validate(self, params):
+                return {"valid": True}
+
+            def preview(self, params):
+                return {}
+
+            def execute(self, params):
+                return {"success": True, "rowcount": 1}
+
+        mutation = UnboundMutation(adapter_with_orders, mock_audit_logger)
+        with pytest.raises(ToolError, match="does not implement execute_with_binding"):
+            mutation.run_execute(
+                {"order_id": 1},
+                skill_name="test-unhandled-binding",
+                execution_binding={"expected_status": "pending"},
+            )
 
     def test_run_execute_logs_toolerror_from_execute(self, adapter_with_orders, tmp_path):
         """run_execute() audit-logs ToolError raised by execute() before re-raising."""

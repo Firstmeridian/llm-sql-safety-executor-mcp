@@ -28,11 +28,14 @@ Design References:
 
 Security:
 - Skill names validated via ^[a-z0-9][a-z0-9-]*$ regex (path traversal prevention)
+- Frontmatter skill names must match their directory names (identity integrity)
 - Source filenames validated via _validate_source_filename() (traversal, suffix, charset)
 - Resolved path containment: symlinks cannot escape skill directory (_is_path_within)
 - Query SQL templates pre-validated with is_sql_safe() at startup (fail-fast)
+- Mutation source modules must export a concrete MutationBase subclass
 - SQL and mutation classes cached in memory — runtime never touches disk
 - validate_params() rejects extra parameters not defined in schema
+- validate_params() fails closed on unsupported schema types
 - SKILLS_DIR path constrained to project root (prevents .env poisoning)
 """
 
@@ -41,9 +44,10 @@ from __future__ import annotations
 import re
 import logging
 import importlib.util
+import inspect
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Literal, TYPE_CHECKING
+from typing import Any, Callable, Literal, TYPE_CHECKING
 
 import yaml
 
@@ -70,6 +74,8 @@ _SOURCE_SUFFIX_MAP: dict[str, str] = {
     "query": ".sql",
     "mutation": ".py",
 }
+_SUPPORTED_PARAM_TYPES = {"int", "float", "str", "bool"}
+_JSON_BOOL_STRING_MAP = {"true": True, "false": False}
 
 
 def _is_path_within(target: Path, parent: Path) -> bool:
@@ -121,12 +127,24 @@ class SkillMetadata:
 _skills_cache: dict[str, SkillMetadata] = {}
 _skills_dir: Path | None = None
 
+QueryValidator = Callable[[str], tuple[bool, str | None]]
+
+
+def _default_query_validator(sql: str) -> tuple[bool, str | None]:
+    """Fallback query validator for direct skill_loader use outside MCP."""
+    if is_sql_safe(sql):
+        return True, None
+    return False, "only SELECT/SHOW/DESCRIBE/EXPLAIN allowed"
+
 
 # =============================================================================
 # Public API — Startup
 # =============================================================================
 
-def discover(skills_dir: Path) -> dict[str, SkillMetadata]:
+def discover(
+    skills_dir: Path,
+    query_validator: QueryValidator | None = None,
+) -> dict[str, SkillMetadata]:
     """
     Scan skills/ directory, parse all skill_def.md frontmatter, and return
     metadata for enabled skills.
@@ -135,15 +153,17 @@ def discover(skills_dir: Path) -> dict[str, SkillMetadata]:
     file (e.g. source: query.sql). The source filename is validated for
     security (no path traversal, suffix must match type).
 
-    For type: query skills, reads the source SQL file and runs is_sql_safe()
-    validation at startup (defense-in-depth). Unsafe SQL causes the skill
-    to be skipped with an error log — ensuring only safe templates register.
+    For type: query skills, reads the source SQL file and runs query_validator
+    at startup (defense-in-depth). MCP passes the same policy used by query(sql);
+    direct skill_loader callers fall back to is_sql_safe(). Unsafe SQL causes
+    the skill to be skipped with an error log.
 
     Validated SQL templates are cached in SkillMetadata._sql_template.
     Table names are extracted and stored in SkillMetadata.tables.
 
     Args:
         skills_dir: Path to the skills/ directory
+        query_validator: Optional SQL safety policy callback.
 
     Returns:
         Dict mapping skill_name -> SkillMetadata for enabled skills
@@ -151,6 +171,7 @@ def discover(skills_dir: Path) -> dict[str, SkillMetadata]:
     global _skills_cache, _skills_dir
     _skills_dir = skills_dir
     discovered: dict[str, SkillMetadata] = {}
+    validate_query = query_validator or _default_query_validator
 
     if not skills_dir.is_dir():
         logger.warning(f"Skills directory not found: {skills_dir}")
@@ -202,10 +223,11 @@ def discover(skills_dir: Path) -> dict[str, SkillMetadata]:
                 continue
 
             # Defense-in-depth: validate SQL safety at startup (fail-fast)
-            if not is_sql_safe(sql_template):
+            is_valid_sql, validation_error = validate_query(sql_template)
+            if not is_valid_sql:
                 logger.error(
-                    f"Skill '{metadata.name}': '{metadata.source}' failed is_sql_safe() check, "
-                    "skipping (only SELECT/SHOW/DESCRIBE/EXPLAIN allowed)"
+                    f"Skill '{metadata.name}': '{metadata.source}' failed SQL safety policy, "
+                    f"skipping ({validation_error})"
                 )
                 continue
 
@@ -330,6 +352,34 @@ def validate_name(skill_name: str) -> None:
             f"Invalid skill name '{skill_name}': must match pattern "
             f"^[a-z0-9][a-z0-9-]*$ (lowercase alphanumeric and hyphens only)"
         )
+
+
+def _validate_skill_identity(raw_name: Any, dir_name: str, path: Path) -> str:
+    """Validate that frontmatter name is a valid skill name matching the directory."""
+    try:
+        validate_name(dir_name)
+    except ValueError as e:
+        raise ValueError(
+            f"Invalid skill directory name '{dir_name}' for {path}: {e}"
+        ) from e
+
+    if not isinstance(raw_name, str):
+        raise ValueError(f"Invalid field 'name' in {path}: must be a string")
+
+    try:
+        validate_name(raw_name)
+    except ValueError as e:
+        raise ValueError(
+            f"Invalid frontmatter field 'name' in {path}: {e}"
+        ) from e
+
+    if raw_name != dir_name:
+        raise ValueError(
+            f"Skill name mismatch in {path}: frontmatter name '{raw_name}' "
+            f"must match directory name '{dir_name}'"
+        )
+
+    return raw_name
 
 
 def load_query(skill_name: str) -> tuple[str, dict]:
@@ -670,11 +720,13 @@ def _parse_skill_md(path: Path, dir_name: str) -> SkillMetadata:
         raise ValueError(f"YAML frontmatter must be a mapping in {path}")
 
     # Validate required fields
-    for required_field in ("type", "risk", "source"):
+    for required_field in ("name", "type", "risk", "source"):
         if required_field not in front:
             raise ValueError(
                 f"Missing required field '{required_field}' in {path}"
             )
+
+    skill_name = _validate_skill_identity(front["name"], dir_name, path)
 
     skill_type = front["type"]
     if skill_type not in ("query", "mutation"):
@@ -693,12 +745,12 @@ def _parse_skill_md(path: Path, dir_name: str) -> SkillMetadata:
     _validate_source_filename(source, skill_type, path)
 
     return SkillMetadata(
-        name=front.get("name", dir_name),
+        name=skill_name,
         type=skill_type,
         source=source,
         risk=risk,
         description=front.get("description", "").strip(),
-        params=front.get("params", {}),
+        params=_validate_param_schema(front.get("params", {}), path),
         triggers=front.get("triggers", []),
         version=str(front.get("version", "1.0")),
         enabled=front.get("enabled", True),
@@ -738,6 +790,7 @@ def _load_mutation_class(skill_name: str, mutation_path: Path) -> type:
     Raises:
         ImportError: If the source module cannot be imported
         AttributeError: If the source module doesn't export 'Mutation' class
+        TypeError: If Mutation is not a concrete MutationBase subclass
     """
     spec = importlib.util.spec_from_file_location(
         f"skills.{skill_name}.mutation",
@@ -750,13 +803,69 @@ def _load_mutation_class(skill_name: str, mutation_path: Path) -> type:
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
 
-    if not hasattr(module, "Mutation"):
+    mutation_class = getattr(module, "Mutation", None)
+    if mutation_class is None:
         raise AttributeError(
             f"Skill '{skill_name}': source module must export a class named "
             "'Mutation' (subclass of MutationBase)"
         )
 
-    return module.Mutation
+    if not inspect.isclass(mutation_class):
+        raise TypeError(
+            f"Skill '{skill_name}': source module export 'Mutation' must be a class"
+        )
+
+    from mutation_base import MutationBase
+
+    if not issubclass(mutation_class, MutationBase):
+        raise TypeError(
+            f"Skill '{skill_name}': Mutation must subclass MutationBase"
+        )
+
+    if inspect.isabstract(mutation_class):
+        raise TypeError(
+            f"Skill '{skill_name}': Mutation must implement all MutationBase "
+            "abstract methods"
+        )
+
+    return mutation_class
+
+
+def _validate_param_schema(raw_params: Any, path: Path) -> dict[str, dict]:
+    """
+    Validate the lightweight frontmatter params schema vocabulary.
+
+    This is not JSON Schema, but malformed skill definitions should still fail
+    closed instead of silently accepting unsupported type names.
+    """
+    if raw_params is None:
+        return {}
+
+    if not isinstance(raw_params, dict):
+        raise ValueError(f"'params' must be a mapping in {path}")
+
+    validated_params: dict[str, dict] = {}
+    for param_name, constraints in raw_params.items():
+        if not isinstance(param_name, str) or not param_name.strip():
+            raise ValueError(
+                f"'params' keys must be non-empty strings in {path}"
+            )
+
+        if not isinstance(constraints, dict):
+            raise ValueError(
+                f"Parameter '{param_name}' schema must be a mapping in {path}"
+            )
+
+        expected_type = constraints.get("type", "str")
+        if expected_type not in _SUPPORTED_PARAM_TYPES:
+            raise ValueError(
+                f"Unsupported param type '{expected_type}' for '{param_name}' in {path}. "
+                f"Supported: {sorted(_SUPPORTED_PARAM_TYPES)}"
+            )
+
+        validated_params[param_name] = constraints
+
+    return validated_params
 
 
 def _extract_table_names(sql: str) -> list[str]:
@@ -791,18 +900,31 @@ def _coerce_type(param_name: str, value, expected_type: str):
 
     Raises:
         TypeError: If coercion fails
+        ValueError: If schema declares an unsupported type name
     """
+    if expected_type not in _SUPPORTED_PARAM_TYPES:
+        raise ValueError(
+            f"Parameter '{param_name}': unsupported schema type '{expected_type}'. "
+            f"Supported: {sorted(_SUPPORTED_PARAM_TYPES)}"
+        )
+
+    if expected_type == "bool":
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, str) and value in _JSON_BOOL_STRING_MAP:
+            return _JSON_BOOL_STRING_MAP[value]
+        raise TypeError(
+            f"Parameter '{param_name}': expected type 'bool', "
+            f"got {type(value).__name__} ({value!r})"
+        )
+
     type_map = {
         "int": int,
         "float": float,
         "str": str,
-        "bool": bool,
     }
 
-    python_type = type_map.get(expected_type)
-    if python_type is None:
-        # Unknown type, accept as-is
-        return value
+    python_type = type_map[expected_type]
 
     if isinstance(value, python_type):
         return value

@@ -20,12 +20,16 @@ Changes in v2.0 (SQLite support):
 
 import sqlparse
 import logging
-from db_adapter import get_adapter, QUERY_TIMEOUT_SECONDS
+from db_adapter import get_adapter, get_connection_config
 
 logger = logging.getLogger(__name__)
 
 
-def execute_sql(sql_query: str, timeout_override: int | None = None) -> list | str:
+def execute_sql(
+    sql_query: str,
+    timeout_override: int | None = None,
+    connection_id: str | None = None,
+) -> list | str:
     """
     Executes a SQL query after checking if it is safe.
     
@@ -37,6 +41,8 @@ def execute_sql(sql_query: str, timeout_override: int | None = None) -> list | s
     Args:
         sql_query: The SQL query to execute.
         timeout_override: Optional timeout in seconds (overrides default QUERY_TIMEOUT_SECONDS)
+        connection_id: Optional configured connection id. Omit for the default
+            connection to preserve pre-v3.5 behavior.
 
     Returns:
         A list of tuples representing the rows of the result, or an error message string.
@@ -51,13 +57,18 @@ def execute_sql(sql_query: str, timeout_override: int | None = None) -> list | s
         - These are handled at the MCP tool level via adapter methods
         - Direct SHOW/DESCRIBE queries will fail on SQLite with syntax error
     """
+    try:
+        config = get_connection_config(connection_id)
+    except ValueError as e:
+        return f"Error: {e}"
+
     if not is_sql_safe(sql_query):
         return "Error: Only read-only queries are allowed (SELECT, SHOW, DESCRIBE, EXPLAIN)."
 
-    timeout = timeout_override if timeout_override is not None else QUERY_TIMEOUT_SECONDS
+    timeout = timeout_override if timeout_override is not None else config.query_timeout_seconds
     
     try:
-        adapter = get_adapter()
+        adapter = get_adapter(config.connection_id)
         result = adapter.execute(sql_query, timeout)
         return result
     except Exception as e:

@@ -24,12 +24,14 @@ import asyncio
 import importlib
 import sys
 
+from mcp.types import Tool
 import pytest
 
 
 # Expected annotations for every registered MCP tool.
 # Tuple format: (readOnlyHint, destructiveHint, idempotentHint, openWorldHint)
 _EXPECTED_ANNOTATIONS: dict[str, tuple[bool, bool, bool, bool]] = {
+    "list_connections":       (True,  False, True,  False),
     "query":                  (True,  False, True,  False),
     "check_connection":       (True,  False, True,  False),
     "list_tables":            (True,  False, True,  False),
@@ -77,7 +79,7 @@ def all_tools_server(monkeypatch):
         sys.modules.pop(mod_name, None)
 
 
-def _collect_tools(server_module) -> dict[str, object]:
+def _collect_tools(server_module) -> dict[str, Tool]:
     tools = asyncio.run(server_module.mcp.list_tools())
     return {tool.name: tool for tool in tools}
 
@@ -124,6 +126,7 @@ def test_registered_tools_match_expected_allowlist(all_tools_server):
     mismatches: list[str] = []
     for name, expected_tuple in _EXPECTED_ANNOTATIONS.items():
         annotations = tools[name].annotations
+        assert annotations is not None, f"{name}: missing ToolAnnotations"
         actual_tuple = (
             annotations.readOnlyHint,
             annotations.destructiveHint,

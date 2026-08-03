@@ -114,6 +114,7 @@ def _seed_orders_table(module):
 def _assert_common_meta(meta: dict, expected_tool: str) -> None:
     assert meta["tool_name"] == expected_tool, meta
     assert meta["db_type"] in ("sqlite", "mysql"), meta
+    assert isinstance(meta["connection_id"], str), meta
     assert isinstance(meta["execution_ms"], (int, float)), meta
     assert meta["execution_ms"] >= 0, meta
     assert isinstance(meta["success"], bool), meta
@@ -142,6 +143,13 @@ def test_meta_query_success(base_server):
     assert result.meta["row_count"] == 2
     assert result.meta["total_rows"] == 2
     assert result.meta["truncated"] is False
+
+
+def test_meta_list_connections(base_server):
+    result = asyncio.run(base_server.list_connections(ctx=_DummyContext()))
+    _assert_common_meta(result.meta, "list_connections")
+    assert result.meta["success"] is True
+    assert result.structured_content["default_connection_id"] == result.meta["connection_id"]
 
 
 def test_meta_query_rejected_unsafe(base_server):
@@ -239,13 +247,14 @@ def test_skill_tools_declare_output_schema(monkeypatch):
             sys.modules.pop(mod, None)
 
 
-def test_skill_tool_meta_has_uniform_fields(monkeypatch):
+def test_skill_tool_meta_has_uniform_fields(monkeypatch, tmp_path):
     """Skill tools participate in the same meta contract as base tools."""
     module = _reload_server(
         monkeypatch,
         ENABLE_SKILLS="1",
         SKILLS_DIR="skills/",
         SKILLS_ALLOW_MUTATIONS="1",
+        SKILLS_AUDIT_LOG=str(tmp_path / "skills-audit.jsonl"),
     )
     try:
         _seed_orders_table(module)
@@ -265,16 +274,37 @@ def test_skill_tool_meta_has_uniform_fields(monkeypatch):
         mutation_result = asyncio.run(
             module.execute_mutation_skill(
                 skill_name="update-order-status",
-                params={"order_id": 1, "new_status": "delivered"},
+                params={"order_id": 1, "new_status": "confirmed"},
                 ctx=_DummyContext(),
                 confirm=False,
             )
         )
         _assert_common_meta(mutation_result.meta, "execute_mutation_skill")
-        assert mutation_result.structured_content["success"] is False
-        assert mutation_result.meta["success"] is False
+        assert mutation_result.structured_content["success"] is True
+        assert mutation_result.meta["success"] is True
         assert mutation_result.meta["skill_name"] == "update-order-status"
         assert mutation_result.meta["mode"] == "preview"
+        assert mutation_result.meta["audit_logged"] is True
+        assert mutation_result.meta["preview_token_required"] is True
+        assert mutation_result.meta["preview_token_validated"] is False
+        assert mutation_result.meta["preview_token_consumed"] is False
+
+        mutation_execute_result = asyncio.run(
+            module.execute_mutation_skill(
+                skill_name="update-order-status",
+                params={"order_id": 1, "new_status": "confirmed"},
+                ctx=_DummyContext(),
+                confirm=True,
+                preview_token=mutation_result.structured_content["preview_token"],
+            )
+        )
+        assert mutation_execute_result.structured_content["success"] is True
+        assert mutation_execute_result.meta["success"] is True
+        assert mutation_execute_result.meta["mode"] == "execute"
+        assert mutation_execute_result.meta["audit_logged"] is True
+        assert mutation_execute_result.meta["preview_token_required"] is True
+        assert mutation_execute_result.meta["preview_token_validated"] is True
+        assert mutation_execute_result.meta["preview_token_consumed"] is True
     finally:
         for mod in ("mcp_sql_server", "db_adapter", "sql_safety_checker"):
             sys.modules.pop(mod, None)

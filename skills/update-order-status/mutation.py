@@ -123,6 +123,29 @@ class Mutation(MutationBase):
             "requires_confirmation": True,
         }
 
+    def build_execution_binding(
+        self,
+        params: dict,
+        validation: dict,
+        preview: dict,
+    ) -> dict:
+        """Bind execute to the order status shown during preview."""
+        expected_status = validation.get("current_status")
+        if not isinstance(expected_status, str) or not expected_status:
+            raise ToolError("Preview did not produce a valid expected order status")
+        return {"expected_status": expected_status}
+
+    def execute_with_binding(
+        self,
+        params: dict,
+        execution_binding: dict,
+    ) -> dict:
+        """Execute only if the status still matches the previewed state."""
+        expected_status = execution_binding.get("expected_status")
+        if not isinstance(expected_status, str) or not expected_status:
+            raise ToolError("Missing expected order status from mutation preview")
+        return self._execute_with_expected_status(params, expected_status)
+
     def execute(self, params: dict) -> dict:
         """
         Execute the status update within a transaction.
@@ -144,6 +167,17 @@ class Mutation(MutationBase):
 
         current_status = result[0].status  # type: ignore[union-attr]
 
+        return self._execute_with_expected_status(params, current_status)
+
+    def _execute_with_expected_status(
+        self,
+        params: dict,
+        expected_status: str,
+    ) -> dict:
+        """Apply the update using the previewed status as the lock value."""
+        order_id = params["order_id"]
+        new_status = params["new_status"]
+
         # Execute the update with optimistic locking
         write_result = self.adapter.execute_write(
             "UPDATE orders SET status = :new_status "
@@ -151,19 +185,19 @@ class Mutation(MutationBase):
             params={
                 "new_status": new_status,
                 "order_id": order_id,
-                "expected_status": current_status,
+                "expected_status": expected_status,
             },
         )
 
         if write_result["rowcount"] == 0:
             raise ToolError(
                 f"Optimistic lock failed: order {order_id} status has "
-                f"changed from '{current_status}' (concurrent modification)"
+                f"changed from '{expected_status}' (concurrent modification)"
             )
 
         return {
             "success": True,
             "rowcount": write_result["rowcount"],
-            "previous_status": current_status,
+            "previous_status": expected_status,
             "new_status": new_status,
         }

@@ -33,7 +33,7 @@ SKILLS_ENABLED = os.getenv("ENABLE_SKILLS", "0") == "1"
 TEST_SAMPLE_LIMIT = 3  # Number of sample rows to retrieve
 
 
-def print_result(title: str, data: dict, note: str = None):
+def print_result(title: str, data: dict, note: str | None = None):
     """Helper function to print test results consistently."""
     print("-" * 70)
     print(title)

@@ -15,7 +15,7 @@ Concurrency Safety:
 
 Design References:
 - DRAFTPLAN_final.md Step 7
-- SAFETY.md #10: Audit logging for all mutation operations
+- SAFETY.md #10: Best-effort audit logging for mutation operations
 """
 
 import json
@@ -69,7 +69,9 @@ class AuditLogger:
         mode: str,
         result: dict,
         client_id: str | None = None,
-    ) -> None:
+        connection_id: str | None = None,
+        db_type: str | None = None,
+    ) -> bool:
         """
         Append an audit entry to the JSONL log file.
 
@@ -79,6 +81,13 @@ class AuditLogger:
             mode: "query", "preview", or "execute"
             result: Result dict from the operation
             client_id: MCP client identity (from ctx.client_id if available)
+            connection_id: Optional configured connection id. This is a safe
+                alias, not a DSN or credential.
+            db_type: Optional actual database type for the selected connection.
+
+        Returns:
+            True when the audit entry was written, False when logging failed.
+            Logging failures are best-effort and do not raise.
         """
         entry = {
             "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -90,6 +99,10 @@ class AuditLogger:
             "rowcount": result.get("rowcount"),
             "error": result.get("error"),
         }
+        if connection_id is not None:
+            entry["connection_id"] = connection_id
+        if db_type is not None:
+            entry["db_type"] = db_type
         if "total_rows" in result:
             entry["total_rows"] = result.get("total_rows")
         if "truncated" in result:
@@ -100,9 +113,11 @@ class AuditLogger:
             with _write_lock:
                 with open(self.log_path, "a", encoding="utf-8") as f:
                     f.write(line)
+            return True
         except Exception as e:
             # Audit logging failure should not break the operation
             logger.error(f"Failed to write audit log: {e}")
+            return False
 
 
 def _sanitize_params(params: dict) -> dict:

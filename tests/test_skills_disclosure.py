@@ -562,7 +562,7 @@ def test_mysql_database_hides_sqlite_skill_by_default(monkeypatch):
     sys.modules.pop("sql_safety_checker", None)
     module = importlib.import_module("mcp_sql_server")
     try:
-        monkeypatch.setattr(module, "_get_skill_schema_table_names", lambda: {"orders"})
+        monkeypatch.setattr(module, "_get_skill_schema_table_names", lambda _connection: {"orders"})
         result = run_tool(module.list_skills(ctx=DummyContext()))
     finally:
         sys.modules.pop("mcp_sql_server", None)
@@ -629,6 +629,7 @@ def test_fastmcp_tool_schema_exposes_skill_parameters(monkeypatch):
     assert mutation_schema["properties"]["confirm"]["type"] == "boolean"
 
     for tool_name, annotation in annotations.items():
+        assert annotation is not None, tool_name
         assert annotation.openWorldHint is False, tool_name
 
 

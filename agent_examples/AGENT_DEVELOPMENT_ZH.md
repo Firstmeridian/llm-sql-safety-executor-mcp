@@ -46,11 +46,11 @@
 
 | 类别 | 工具 | 服务器配置条件 |
 |------|------|----------------|
-| 核心（始终可用） | `query`, `list_tables`, `describe_table`, `get_full_schema`, `check_connection` | — |
+| 核心（始终可用） | `list_connections`, `query`, `list_tables`, `describe_table`, `get_full_schema`, `check_connection` | — |
 | 可选 | `sample` | `ENABLE_SCHEMA_TOOLS=1` |
 | 可选 | `get_table_summary` | `ENABLE_TABLE_SUMMARY=1` |
-| Skills | `list_skills`, `execute_query_skill` | `ENABLE_SKILLS=1` |
-| Skills（变更） | `execute_mutation_skill` | `SKILLS_ALLOW_MUTATIONS=1` |
+| Skills | `list_skills`, `get_skill_detail`, `execute_query_skill` | `ENABLE_SKILLS=1` |
+| Skills（变更） | `execute_mutation_skill` | `ENABLE_SKILLS=1` 且 `SKILLS_ALLOW_MUTATIONS=1` |
 
 ### 1.4 LLM 后端支持
 
@@ -548,7 +548,7 @@ flowchart TD
 | 提示词构建 | 动态构建函数 + `ServerCapabilities` | 静态字符串常量 | 同一代码库兼容 ENABLE_SKILLS=0/1、ENABLE_SCHEMA_TOOLS=0/1 |
 | Agent 工厂 | `_create_agents()` 共享函数 | main/run_single_task 中重复代码 | DRY 原则；单一位置更新 Agent 配置 |
 | 数据库兼容性 | 移除 `SHOW`/`DESCRIBE` SQL 建议 | 保留仅 MySQL 提示 | 数据库可能是 MySQL 或 SQLite；MCP 工具抽象了差异 |
-| Mutation 工作流 | 两阶段：`confirm=false` 预览 → 用户批准 → `confirm=true` 执行 | 自动确认 | 人在回路中（Anthropic：可验证的中间输出） |
+| Mutation 工作流 | 两阶段：`confirm=false` 预览并返回 `preview_token` → 用户批准 → `confirm=true` 携带 token 执行 | 自动确认 | 人在回路中（Anthropic：可验证的中间输出） |
 | `APPROVE` 语义 | 批准继续执行当前流程 | 批准即终止会话 | 更贴近 AutoGen 官方 User Feedback / Human-in-the-Loop 示例 |
 | `run_single_task` 终止 | 仅 `MaxMessageTermination` | 包含 UserProxy | 非交互模式没有人可以输入 APPROVE |
 | `reflect_on_tool_use` | `False` | `True`（默认） | Gemini 思维模型间歇性违反 `tool_choice="none"` 约束 |
@@ -586,6 +586,6 @@ flowchart TD
 | Agent | v2.x（旧） | v3.0（新） |
 |-------|-----------|-----------|
 | PlanningAgent | 静态；无 Skills 感知 | 动态；检测到时包含 SKILLS WORKFLOW + MUTATION SAFETY 段落 |
-| SQLExecutorAgent | 静态；列出 5 个工具；提及 `SHOW, DESCRIBE` SQL | 动态；仅列出可用工具（5-11 个）；DATABASE COMPATIBILITY 说明；skills 使用指南 |
+| SQLExecutorAgent | 静态；列出 5 个工具；提及 `SHOW, DESCRIBE` SQL | 动态；仅列出可用工具（v3.5 起 6-12 个）；DATABASE COMPATIBILITY / `connection_id` 说明；skills 使用指南 |
 | AnalystAgent | 静态；通用 | 动态；添加 skill 结果格式说明 |
 | Selector | 静态 | 动态；添加 mutation 预览 → 用户批准路由 |

@@ -1,8 +1,8 @@
 # SQLite Adapter Design Document
 
-**Version:** 2.2  
-**Date:** January 15, 2026  
-**Related:** [REFACTORING_LOG.md](REFACTORING_LOG.md) - v2.2 Update
+**Version:** 3.6
+**Date:** May 30, 2026
+**Related:** [REFACTORING_LOG.md](REFACTORING_LOG.md) - v2.2 SQLite support and v3.5 named connections
 
 ---
 
@@ -32,7 +32,7 @@
 - IDE autocompletion and type checking support
 - Explicit `@abstractmethod` documentation
 
-**Convention:** All new database adapters MUST inherit from `DatabaseAdapter` and implement all 8 abstract methods plus the `db_type` property:
+**Convention:** All new database adapters MUST inherit from `DatabaseAdapter` and implement the abstract methods plus the `db_type` property. v3.5 also standardizes configured adapter creation through `DatabaseConfig` and named `connection_id` aliases; direct adapter construction remains supported for tests and backward compatibility.
 
 ```python
 from abc import ABC, abstractmethod
@@ -67,12 +67,17 @@ class DatabaseAdapter(ABC):
     def db_type(self) -> str: ...
 ```
 
-### 2. Query Timeout Implementation
+### 2. Read Query Timeout Implementation
 
 | Database | Mechanism | Implementation |
 |----------|-----------|----------------|
-| MySQL | `MAX_EXECUTION_TIME` | Session variable in milliseconds |
+| MySQL read queries | `MAX_EXECUTION_TIME` | Session variable in milliseconds |
 | SQLite | `set_progress_handler()` | Callback every N VM instructions |
+
+MySQL write operations do not rely on `MAX_EXECUTION_TIME`: `execute_write()`
+sets session `innodb_lock_wait_timeout` for InnoDB row-lock waits and keeps
+PyMySQL socket timeouts as connection-level I/O controls. Long-running DML that
+is not waiting on row locks may still require deployment-side statement limits.
 
 **SQLite Timeout Details:**
 ```python
@@ -94,7 +99,7 @@ raw_conn.set_progress_handler(timeout_handler, SQLITE_PROGRESS_HANDLER_INTERVAL)
 | Database | Pool Type | Reason |
 |----------|-----------|--------|
 | MySQL | QueuePool | Supports concurrent connections |
-| SQLite | StaticPool | Single process-local connection; SQLite file-level write locks still apply |
+| SQLite | StaticPool per configured connection | Single process-local connection per `connection_id`; SQLite file-level write locks still apply |
 
 **SQLite StaticPool Convention:**
 ```python
@@ -106,6 +111,12 @@ self._engine = create_engine(
 ```
 
 **`check_same_thread=False`:** Required because SQLAlchemy may access the connection from different threads. StaticPool ensures single connection, but thread safety is managed by SQLAlchemy.
+
+In v3.5 the adapter cache is keyed by configured `connection_id`. Two SQLite
+connection ids that point to the same database file will each get their own
+`StaticPool`/Engine, so SQLite's file-level locking is still the deployment's
+write-concurrency boundary. This is acceptable for read-heavy MCP usage and is
+documented as a risk for mutation-heavy SQLite deployments.
 
 ### 4. Metadata Query Mapping
 
@@ -255,8 +266,25 @@ def get_row_estimate(self, table_name: str) -> int:
 **Compromise:** SQLite has no schema concept like MySQL's `DATABASE()`.
 
 **Convention:** 
-- `get_database_name()` returns file path (or `:memory:`)
+- `SQLiteAdapter.get_database_name()` returns the file path (or `:memory:`) for
+    internal adapter compatibility
+- MCP tool payloads and logs must not expose that path; public database display
+    values use the safe alias `sqlite:<connection_id>`
 - All tables are in the single "main" schema
+
+### 5. Named Connection Registry Scope (v3.5)
+
+**Compromise:** v3.5 supports multiple configured SQLite/MySQL connections, but
+the registry is process-local and lazy. It does not implement credential refresh,
+adapter LRU eviction, or per-request engine construction.
+
+**Reason:** The existing server lifecycle already expects one long-lived adapter.
+Extending that model to one long-lived adapter per configured `connection_id`
+preserves compatibility while preventing cross-connection execution drift.
+
+**Convention:** Tools resolve the target connection first and then use that same
+adapter for quoting, schema discovery, SQL policy, execution, metadata, audit,
+and telemetry. Unknown connection ids fail closed.
 
 ---
 
@@ -302,6 +330,13 @@ SQLITE_PROGRESS_HANDLER_INTERVAL=1000
 
 **Risk Level:** Minimal for read-only workloads; operationally relevant when mutation skills are enabled.
 
+With named connections, this risk is per SQLite database file, not just per
+connection id. If two configured SQLite aliases point at the same file, write
+contention still occurs at the SQLite file-lock layer. v3.6 can authorize
+non-default SQLite mutation targets, so deployments must review aliases that
+share a file and should serialize writes or use a server database when write
+concurrency is expected.
+
 ### 4. No Connection Pooling Benefits for SQLite
 
 **Issue:** StaticPool maintains single connection, no concurrent query benefits.
@@ -329,6 +364,33 @@ SQLITE_PROGRESS_HANDLER_INTERVAL=1000
 | `SQLITE_DATABASE_PATH` | `:memory:` | SQLite file path or `:memory:` |
 | `SQLITE_PROGRESS_HANDLER_INTERVAL` | `100` | VM ops between timeout checks |
 
+### Named Connection Variables (v3.5)
+
+The legacy single-connection variables remain valid. Named connection variables
+are gated by `DB_CONNECTIONS`: when it is unset or empty, both `DB_<ID>_*`
+variables and `DEFAULT_DB_CONNECTION` are ignored so legacy `DB_TYPE` /
+`SQLITE_DATABASE_PATH` settings keep their historical behavior. When
+`DB_CONNECTIONS` is set, each listed connection id can define per-connection
+SQLite settings:
+
+| Variable | Example | Description |
+|----------|---------|-------------|
+| `DB_CONNECTIONS` | `mysql,analytics` | Comma-separated configured connection ids |
+| `DEFAULT_DB_CONNECTION` | `mysql` | Default target when tool calls omit `connection_id` (active only when `DB_CONNECTIONS` is set) |
+| `DB_<ID>_TYPE` | `DB_ANALYTICS_TYPE=sqlite` | DB type for a named connection |
+| `DB_<ID>_SQLITE_DATABASE_PATH` | `DB_ANALYTICS_SQLITE_DATABASE_PATH=./sample_data/demo.db` | SQLite file path or `:memory:` for that connection |
+| `DB_<ID>_QUERY_TIMEOUT_SECONDS` | `DB_ANALYTICS_QUERY_TIMEOUT_SECONDS=30` | Per-connection read-query timeout |
+| `DB_<ID>_CONNECT_TIMEOUT_SECONDS` | `DB_ANALYTICS_CONNECT_TIMEOUT_SECONDS=10` | Per-connection connection timeout |
+| `DB_<ID>_SQLITE_PROGRESS_HANDLER_INTERVAL` | `DB_ANALYTICS_SQLITE_PROGRESS_HANDLER_INTERVAL=100` | Per-connection timeout check interval |
+| `DB_<ID>_ALLOWED_TABLES` | `DB_ANALYTICS_ALLOWED_TABLES=orders` | Per-connection allowlist |
+| `DB_<ID>_ALLOW_UNION` | `DB_ANALYTICS_ALLOW_UNION=0` | Per-connection UNION policy |
+
+`connection_id` values must match `^[a-z][a-z0-9_]{0,63}$`. Tools and models
+cannot pass arbitrary DSNs; they can only select configured aliases.
+Use semantic aliases such as `mysql`, `analytics`, or `ops`; avoid using
+`default` as a connection id unless it is meaningful in your deployment, because
+the actual default target is already selected by `DEFAULT_DB_CONNECTION`.
+
 ### Example .env Configuration
 
 ```env
@@ -353,28 +415,34 @@ SQLITE_PROGRESS_HANDLER_INTERVAL=100
 
 ## Implementation Details
 
-### New Tool Response Field
+### Tool Response Fields
 
-All MCP tools now include `db_type` in responses:
+All database-targeted MCP tools include `db_type`; v3.5 also includes the safe
+`connection_id` alias in `ToolResult.meta` and many structured payloads:
 ```json
 {
   "success": true,
+    "connection_id": "analytics",
   "db_type": "sqlite",
   "data": [...]
 }
 ```
 
-**Convention:** LLM agents can use `db_type` to adjust their SQL dialect.
+**Convention:** LLM agents can use `db_type` to adjust their SQL dialect and
+`connection_id` to confirm which configured target was used. Responses and logs
+must not include DSNs, hosts, usernames, passwords, or SQLite file paths. If a
+public payload needs `database_name` for SQLite, use `sqlite:<connection_id>`.
 
 ### Adapter Factory Pattern
 ```python
-def create_adapter(db_type: str | None = None) -> DatabaseAdapter:
-    db_type = (db_type or DB_TYPE).lower()
+def create_adapter(db_type: str | None = None, *, config=None, connection_id=None) -> DatabaseAdapter:
+    config = config or get_connection_config(connection_id)
+    db_type = (db_type or config.db_type).lower()
     
     if db_type == "mysql":
         adapter = MySQLAdapter()
     elif db_type == "sqlite":
-        adapter = SQLiteAdapter(SQLITE_DATABASE_PATH)
+        adapter = SQLiteAdapter(config=config)
     else:
         raise ValueError(f"Unsupported database type: {db_type}")
     
@@ -382,23 +450,24 @@ def create_adapter(db_type: str | None = None) -> DatabaseAdapter:
     return adapter
 ```
 
-### Global Adapter with Lazy Initialization
+### Adapter Registry with Lazy Initialization
 ```python
-_adapter: DatabaseAdapter | None = None
+_adapters: dict[str, DatabaseAdapter] = {}
 
-def get_adapter() -> DatabaseAdapter:
-    global _adapter
-    if _adapter is None:
-        _adapter = create_adapter()
-    return _adapter
+def get_adapter(connection_id: str | None = None) -> DatabaseAdapter:
+    config = get_connection_config(connection_id)
+    if config.connection_id not in _adapters:
+        _adapters[config.connection_id] = create_adapter(config=config)
+    return _adapters[config.connection_id]
 
-def reset_adapter() -> None:
+def reset_adapter(connection_id: str | None = None) -> None:
     """Reset for testing or reconfiguration."""
-    global _adapter
-    if _adapter is not None:
-        _adapter.close()
-        _adapter = None
+    ...
 ```
+
+The older one-slot adapter snippet is now a legacy mental model. Calling
+`get_adapter()` with no argument still returns the default connection adapter,
+so existing direct callers retain their behavior.
 
 ### SQLite Timeout Handler
 ```python
@@ -457,14 +526,16 @@ def _handle_error(self, e: Exception) -> str:
 | Aspect | Status | Notes |
 |--------|--------|-------|
 | Existing MySQL config | ✅ Works | No changes needed |
-| `execute_sql()` signature | ✅ Unchanged | Same parameters, same return format |
+| Existing SQLite config | ✅ Works | No changes needed when `DB_CONNECTIONS` is unset |
+| `execute_sql()` signature | ✅ Compatible | Existing two-argument calls still work; optional `connection_id` added |
 | `is_sql_safe()` function | ✅ Unchanged | Database-agnostic validation |
-| MCP tool names | ✅ Unchanged | All tools work with both databases |
-| `.env` file | ✅ Compatible | New vars are optional, defaults to MySQL |
+| MCP tool names | ✅ Compatible | Existing tools keep names and add optional `connection_id`; v3.5 adds `list_connections` |
+| `.env` file | ✅ Compatible | Named connection vars are optional, defaults to legacy single-connection behavior |
 
 ### Breaking Changes
 
-None. All existing MySQL configurations continue to work without modification.
+None. All existing MySQL and SQLite single-connection configurations continue to
+work without modification. Omitted `connection_id` uses the default connection.
 
 ---
 
@@ -476,13 +547,14 @@ None. All existing MySQL configurations continue to work without modification.
 | `sql_safety_checker.py` | Modified | Now uses adapter; removed MySQL-specific code |
 | `mcp_sql_server.py` | Modified | Uses adapter methods; adds `db_type` to responses |
 | `.env.example` | Modified | Added SQLite configuration section |
-| `.env` | Modified | Added SQLite configuration section |
+| `.env` | User-local | Copy from `.env.example`; not modified by repository changes |
 | `README.md` | Modified | v2.2 changelog, SQLite config docs |
 | `README_ZH.md` | Modified | v2.2 changelog, SQLite config docs |
 | `tests/conftest.py` | Added in v2.2 | Pytest fixtures for SQLite/MySQL tests |
 | `tests/test_db_adapter.py` | Added in v2.2 | Unit tests for adapters |
 | `tests/test_sqlite_integration.py` | Added in v2.2 | SQLite integration tests |
 | `requirements.txt` | Modified | Added `pytest` dependency |
+| `tests/test_multi_connection_v35.py` | Added in v3.5 | Named connection registry and MCP/Skills consistency tests |
 
 ---
 
@@ -505,6 +577,10 @@ tests/
 ```
 
 **Total:** 53 new tests for SQLite support.
+
+v3.5 adds focused multi-connection coverage for connection registry behavior,
+fail-closed unknown ids, same-connection policy/execution, metadata/audit
+connection identity, and Skills display/execution alignment.
 
 ### Running Tests
 
@@ -550,6 +626,37 @@ DB_TYPE=sqlite
 ```
 
 Restart the MCP server after changing database type.
+
+### Adding a Second SQLite Connection
+
+```env
+DB_CONNECTIONS=mysql,analytics
+DEFAULT_DB_CONNECTION=mysql
+
+DB_MYSQL_TYPE=mysql
+DB_MYSQL_USER=your_database_user
+DB_MYSQL_PASSWORD=your_database_password
+DB_MYSQL_HOST=your_database_host
+DB_MYSQL_NAME=your_database_name
+
+DB_ANALYTICS_TYPE=sqlite
+DB_ANALYTICS_SQLITE_DATABASE_PATH=./sample_data/demo.db
+DB_ANALYTICS_ALLOWED_TABLES=orders
+DB_ANALYTICS_QUERY_TIMEOUT_SECONDS=30
+
+# Optional strict v3.6 mutation routing
+SKILLS_ALLOW_MUTATION_CONNECTIONS=mysql,analytics
+DB_MYSQL_ALLOW_MUTATIONS=1
+DB_MYSQL_MUTATION_SKILLS=update-order-status
+DB_ANALYTICS_ALLOW_MUTATIONS=1
+DB_ANALYTICS_MUTATION_SKILLS=update-order-status
+```
+
+Core read-only tools and query Skills can then pass `connection_id="analytics"`.
+Mutation Skills remain default-connection only when
+`SKILLS_ALLOW_MUTATION_CONNECTIONS` is omitted. When it is set, every target
+also requires its per-connection write switch and skill allowlist. Preview and
+execute must use the same connection-bound `preview_token`.
 
 ---
 
