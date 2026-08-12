@@ -1,11 +1,12 @@
-# v3.5-v3.6 命名连接与 Skills 易懂说明
+# v3.5-v3.6.1 命名连接与 Skills 易懂说明
 
 > 本文是面向使用者、Skill 作者和代码审查者的说明，不替代
 > [Skills 安全策略](../../skills/SAFETY.md)、[Skills 设计文档](../../MCP_AGENTS_SKILLS_DESIGN.md)
 > 或发布说明。
 >
 > 版本范围：v3.5 命名连接与只读 Skills，v3.6 命名 Mutation、preview-token
-> 和严格写策略。
+> 和严格写策略，以及 v3.6.1 的 preview/binding 修复与同进程部署契约定稿。
+> v3.6.1 仍沿用 `RELEASE_NOTES_v3_6.md`。
 
 ## 1. 先看总图
 
@@ -35,9 +36,26 @@ flowchart LR
 
     V36 --> W1["SKILLS_ALLOW_MUTATION_CONNECTIONS"]
     V36 --> W2["DB_<ID>_ALLOW_MUTATIONS\nDB_<ID>_MUTATION_SKILLS"]
-    V36 --> W3["preview-token\n绑定、过期、一次性消费"]
+    V36 --> W3["preview-token\n随机 jti + HMAC + 有界 memory store"]
     V36 --> W4["preview-state binding\n乐观锁"]
+    V36 --> W5["同进程原子消费\n顺序/并发 replay 拒绝"]
 ```
+
+### 1.2 v3.6 和 v3.6.1 的区别
+
+| 项目 | v3.6 基线 | v3.6.1 维护更新 |
+|------|------------|-----------------|
+| Preview token | 随机 `jti`、HMAC、参数/连接/版本绑定、有界进程内 store、原子一次性消费 | 保持格式和默认值不变 |
+| Preview 状态 | 引入 execution binding 与乐观锁 | binding 改为使用实际展示给调用方的 preview 状态 |
+| Preview 失败 | 已有两阶段协议 | `error` 字段或 `success=false` 一律不签发 token |
+| 写入路径 | MCP 路径使用 binding | 公开的无 binding `execute()` 也明确 fail closed |
+| 测试与部署 | 覆盖基本 token/binding 行为 | 加固 secret rotation、脱敏、数据库异常和工具层并发 replay；正式明确同进程边界 |
+| 配置与审计 | TTL、容量和 best-effort audit 基线 | 容量增加 `100000` 硬上限；启动时安全报告 key/policy 模式；token 消费后的动态 validation 拒绝尝试 execute audit |
+
+v3.6.1 没有改变 Mutation Skill API、token 格式、默认 TTL、默认容量或数据库
+写入语义，也没有新增共享 token backend。它修复正确性和测试证据，并把推荐
+部署定为客户端自有的 stdio 进程。受信任私有环境中的条件性 HTTP mutation
+只能运行一个启用 mutation 的进程；多用户认证 HTTP mutation 不属于本版本。
 
 ## 2. `DB_CONNECTIONS` 和 `connection_id`
 
@@ -454,7 +472,7 @@ preview-time execution binding 的 hash
     防止 preview 看到 confirmed，却覆盖后来已经变成 cancelled 的订单
 ```
 
-Token 由 HMAC 防篡改，并登记在进程内有界 store 中防止重复消费。
+Token 由 HMAC 防篡改，并登记在当前进程的有界原子 memory store 中防止重复消费。
 
 ### 8.3 为什么 execute 不再次调用 `preview()`？
 
@@ -519,7 +537,9 @@ HMAC 错误、格式错误
     -> preview_token has already been used ...
 ```
 
-这些错误不会执行写入。静态拒绝通常不会消费一个本来有效的 token，因此修正参数或连接后，原 token 仍可能使用；但应以服务端返回为准。
+这些错误不会执行写入。静态拒绝通常不会消费一个本来有效的 token；只有把请求
+恢复为该 token 原先绑定的参数、连接、Skill 和版本后，原 token 才可能继续使用，
+并且仍须满足有效期和进程内 store 状态。
 
 ### 10.2 “一次性”是什么意思？
 
@@ -536,17 +556,34 @@ HMAC 错误、格式错误
 
 这样做是保守策略：如果一次写请求结果不确定，系统不能凭旧 token 自动重试，以免重复写入。
 
+HMAC 与 memory store 不是同一层防护：HMAC 检测 token 篡改，并让参数、连接、
+Skill 或版本不匹配在消费前被拒绝；store 证明 token 确实由当前进程签发，保存
+canonical execution binding，并原子实施一次性消费。v3.6.1 不允许任意一层替代
+另一层。消费后的 binding compare 是内部一致性检查，不是第三个独立授权边界。
+
+Token 对调用方是 API-opaque，但内容并未加密；调用方不得解析或依赖其内部格式。
+Token 必然经过授权客户端，并可能进入模型上下文，因此应尽量减少持久保存和日志
+记录、限制上下文与日志访问。Bearer confidentiality 在 token 消费或过期前仍然
+重要；短 TTL、精确绑定和原子一次性消费只能限制、不能消除泄露影响。适用工具
+metadata 中的短 `preview_token_id` 只是客户端关联提示；audit 和 telemetry 不会
+持久化完整 token 或这个短标识。
+
 ### 10.3 MCP 的无状态性取舍
 
-只读请求可以接近无状态，但当前 Mutation token store 是进程内状态：
+只读请求可以接近无状态；Mutation token store 是当前进程内的有界 memory store：
 
 ```text
-preview 和 execute 必须到同一个 server process
-服务重启 -> 未消费 token 失效
-多 worker / 多副本 -> 可能找不到 token
+stdio -> preview/execute 必须在同一客户端启动的 MCP 子进程中完成
+HTTP  -> 仅限受信任私有边界，且只运行一个启用 mutation 的进程
 ```
 
-因此当前适用范围是 stdio 或单个 HTTP/SSE worker。多 worker/多副本需要共享的原子 store（例如具备原子 claim/delete 的 Redis 或数据库表），不能在 store 不可用时退回可重放的 stateless HMAC。
+stdio 是推荐基线。v3.6.1 不定义多用户认证 HTTP mutation 服务，程序也不会自动
+检测 worker 或 replica 数；部署配置必须保证 mutation 进程数为 1。不得把多个
+启用 mutation 的 memory worker 放在普通负载均衡器后。进程重启、
+滚动发布或请求进入其他进程时，旧 token 都会 fail closed，调用方必须重新
+preview；即使固定 `MUTATION_PREVIEW_TOKEN_SECRET` 也不能恢复 store 状态。
+只读容量只能通过独立的 read-only endpoint、profile 或 pool 横向扩展。
+v3.6.1 不提供共享 token backend，也不会退回可重放的 stateless HMAC-only 校验。
 
 ## 11. `mutation.py` 固定接口契约
 
@@ -611,7 +648,7 @@ loader 会在启动时要求 `Mutation` 是具体的 `MutationBase` 子类并缓
 sequenceDiagram
     participant Agent as LLM / MCP Client
     participant Server as MCP Server
-    participant Store as Process-local Token Store
+    participant Store as Atomic Token Store
     participant Skill as Mutation Skill
     participant DB as Database
 
@@ -633,10 +670,14 @@ sequenceDiagram
         Skill->>DB: 只读预览查询
         DB-->>Skill: 当前值 / 影响估计
         Skill-->>Server: preview result
-        Server->>Skill: build_execution_binding()
-        Skill-->>Server: 最小 preview 状态
-        Server->>Store: 登记 HMAC token digest + binding + expiry
-        Server-->>Agent: preview result + preview_token
+        alt preview 失败或返回 error
+            Server-->>Agent: success=false，不生成 token
+        else preview 成功
+            Server->>Skill: build_execution_binding()
+            Skill-->>Server: 与展示内容同源的最小 preview 状态
+            Server->>Store: 登记 HMAC token digest + binding + expiry
+            Server-->>Agent: preview result + preview_token
+        end
     end
 
     Agent->>Server: 第 2 次：confirm=true\n同一 skill + params + connection_id + token
@@ -695,10 +736,12 @@ ENABLE_SKILLS=1
 SKILLS_ALLOW_MUTATIONS=1
 SKILLS_ALLOW_MUTATION_CONNECTIONS=analytics
 
-MUTATION_PREVIEW_TOKEN_TTL_SECONDS=300
-MUTATION_PREVIEW_TOKEN_STORE_MAX_ENTRIES=10000
-# 只在服务端环境设置，不要交给 Agent
-# MUTATION_PREVIEW_TOKEN_SECRET=change_me_and_keep_private
+MUTATION_PREVIEW_TOKEN_TTL_SECONDS=300  # 有效范围 1-86400 秒
+MUTATION_PREVIEW_TOKEN_STORE_MAX_ENTRIES=10000  # 有效范围 1-100000
+# 可选：只在服务端环境设置，不要交给 Agent
+# 固定 secret 不会让 token 在进程重启或跨进程后恢复
+# 建议至少 32 个随机字节；启动日志只报告来源模式，不记录 secret
+# MUTATION_PREVIEW_TOKEN_SECRET=replace_with_at_least_32_random_bytes
 ```
 
 结果大小限制仍然是进程级配置，而不是连接级：
@@ -732,12 +775,12 @@ MySQL 和 SQLite 两端都使用临时订单完成 preview/execute/replay 测试
 清理临时数据。因此，“本节批次未执行远程 MySQL 写入”和“完整 fixture 批次验证了
 MySQL 写入”并不矛盾，不能把两批写入范围合并描述。
 
-真实联调不是穷尽式生产证明。尤其需要持续注意：MySQL 当前若配置 `ALLOWED_TABLES=*` 和 Mutation 写权限，会扩大真实数据库的 blast radius；进程内 token store 也不支持多 worker/多副本部署。
+真实联调不是穷尽式生产证明。尤其需要持续注意：MySQL 当前若配置 `ALLOWED_TABLES=*` 和 Mutation 写权限，会扩大真实数据库的 blast radius；v3.6.1 的 mutation endpoint 只支持单个启用 mutation 的进程，不能将多个 memory worker 放在普通负载均衡器后。
 
 ## 15. 相关文档
 
 - [v3.5 发布说明](../RELEASE_NOTES_v3_5.md)
-- [v3.6 发布说明](../RELEASE_NOTES_v3_6.md)
+- [v3.6/v3.6.1 发布说明](../RELEASE_NOTES_v3_6.md)
 - [Skills 设计文档](../../MCP_AGENTS_SKILLS_DESIGN.md)
 - [Skills 安全策略](../../skills/SAFETY.md)
 - [设计风险登记表](../../DESIGN_RISK_REGISTER_ZH.md)

@@ -1,6 +1,6 @@
 # MCP Client Test - Usage Guide
 
-**Updated:** August 4, 2026 (v3.6)
+**Updated:** August 10, 2026 (v3.6.1)
 
 ## Purpose
 
@@ -9,10 +9,13 @@
 **Supported Databases:** MySQL, SQLite (v2.2+), configured named connections (v3.5+)
 
 This is a manual/live smoke script, not part of the default pytest suite.
-`pytest.ini` limits default pytest collection to `tests/`, so `python -m pytest`
-does not start the MCP server against the current `.env`. Run this script only
-against a safe development or fixture database because it can list tables,
-execute count queries, describe tables, and print sampled rows.
+`pytest.ini` limits default pytest collection to `tests/`, and
+`tests/conftest.py` disables `.env` loading, so `python -m pytest` does not start
+the MCP server against or inherit credentials from the current `.env`. Optional
+MySQL integration tests require the explicit `RUN_MYSQL_INTEGRATION_TESTS=1`
+gate and credentials exported in the process environment. Run this manual
+script only against a safe development or fixture database because it can list
+tables, execute count queries, describe tables, and print sampled rows.
 
 ## Test Configuration
 
@@ -289,7 +292,7 @@ across all tools in v3.4.2.
     "skill_name": "update-order-status",
     "mode": "preview",
     "preview": { /* before/after diff produced by the mutation class */ },
-    "preview_token": "<opaque preview token>",
+    "preview_token": "<signed bearer token returned by preview>",
     "preview_token_expires_at": "2026-05-30T12:05:00+00:00",
     "preview_token_expires_in_seconds": 300,
     "idempotent": false,
@@ -386,7 +389,7 @@ result = await client.call_tool(
 # FastMCP clients can inspect result.meta for runtime diagnostics.
 ```
 
-Use `list_skills(search=..., category=..., available_only=true, connection_id=...)` for Agent-facing discovery and `get_skill_detail(..., connection_id=...)` for params before execution when the list response is not `full`. Use `available_only=false` for developer catalog review, including skills that are currently incompatible with the target connection's DB type, disabled by mutation switches, limited to the default connection in v3.5, blocked by connection policy, or marked `schema_ready=false` because required tables are missing. The discovery target should match the `connection_id` used for `execute_query_skill()`.
+Use `list_skills(search=..., category=..., available_only=true, connection_id=...)` for Agent-facing discovery and `get_skill_detail(..., connection_id=...)` for params before execution when the list response is not `full`. Use `available_only=false` for developer catalog review, including skills that are currently incompatible with the target connection's DB type, disabled by mutation switches, limited to the default connection when `SKILLS_ALLOW_MUTATION_CONNECTIONS` is omitted, blocked by connection policy, or marked `schema_ready=false` because required tables are missing. The discovery target should match the `connection_id` used for execution.
 
 ## Key Validation Points
 

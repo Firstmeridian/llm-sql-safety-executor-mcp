@@ -9,13 +9,15 @@ Each line is a self-contained JSON object with:
 - result: success/failure + rowcount
 
 Concurrency Safety:
-- stdio mode: Single client, no concurrency risk.
-- SSE multi-client mode: Uses threading.Lock to prevent JSON line corruption.
-  For high-throughput production, consider fcntl.flock() or database-backed audit.
+- A process-local threading.Lock prevents concurrent calls in this process from
+  interleaving JSONL writes, regardless of transport.
+- The lock does not coordinate multiple processes. The supported mutation
+  deployment uses one process; any future multi-process audit design needs an
+  external file lock or centralized audit sink.
 
 Design References:
-- DRAFTPLAN_final.md Step 7
-- SAFETY.md #10: Best-effort audit logging for mutation operations
+- skills/SAFETY.md #10: Best-effort audit logging for mutation operations
+- DESIGN_RISK_REGISTER.md DRR-2026-022: Audit completeness boundary
 """
 
 import json
@@ -27,7 +29,7 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-# Thread lock for concurrent JSONL writes (SSE multi-client safety)
+# Process-local lock for concurrent JSONL writes.
 _write_lock = threading.Lock()
 
 

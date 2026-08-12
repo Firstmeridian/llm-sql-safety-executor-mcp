@@ -1,11 +1,112 @@
 # MCP SQL Server Refactoring Log
 
-**Date:** December 2, 2025 (Updated: August 2, 2026)
+**Date:** December 2, 2025 (Updated: August 10, 2026)
 **Author:** Code Refactoring Session
 
 ## Overview
 
 This document records the major refactoring changes made to `mcp_sql_server.py` to follow FastMCP best practices and improve the overall design.
+
+---
+
+## Update v3.6.1 - Preview-Token Store and Execution Hardening (August 10, 2026)
+
+This v3.6.1 maintenance update belongs to the v3.6 release family and continues
+to use `RELEASE_NOTES/RELEASE_NOTES_v3_6.md`. It closes DRR-2026-003,
+DRR-2026-035, DRR-2026-037, DRR-2026-038, DRR-2026-039, DRR-2026-041,
+DRR-2026-045, and DRR-2026-047.
+
+The final architecture uses one bounded, locked, process-local memory store.
+The recommended deployment is stdio, where preview and execute stay in the same
+client-launched MCP process. Conditional HTTP mutation use is limited to one
+mutation-enabled process in a trusted private boundary; multi-user authenticated
+HTTP mutation is not a v3.6.1 deployment target. The application cannot enforce
+worker/replica counts. Restart invalidates outstanding tokens even with a fixed
+signing secret; callers must preview again.
+
+A shared external token backend was evaluated because it could coordinate state
+across workers. It is intentionally deferred: the repository primarily
+documents stdio/single-process use and does not yet define or validate a
+complete remote multi-replica profile. External services and persistence layers
+move rather than eliminate transaction, cleanup, failure, and operational
+complexity. The current design therefore requires no external token service,
+token table, or token file.
+
+The main token-store work and final-review follow-up were:
+
+1. **DRR-2026-045 deployment scope:** retained the v3.6 bounded memory store,
+   formalized a stdio-first same-process contract, and deferred shared external
+   state until a concrete remote mutation requirement exists.
+2. **DRR-2026-041 test signal:** completed signing-secret rotation with a real
+   reload/rejection assertion, replaced the tautological sanitization check,
+   and covered terminal token consumption after a database write exception.
+3. **DRR-2026-038 preview provenance:** `update-order-status` now builds its
+   binding from the status returned by the same query that produced the visible
+   preview. A preview carrying an `error` or reporting `success=false` returns a
+   failed result and receives no token, including empty/null error values.
+4. **DRR-2026-037 one write path:** the public unbound `execute()` method now
+   raises `ToolError`; all order-status writes go through
+   `execute_with_binding()` and the preview-derived optimistic-lock value.
+5. **DRR-2026-039 test isolation:** default pytest disables `.env` loading,
+   installs a safe SQLite/config baseline before application imports, and
+   requires explicit opt-in before the MySQL fixture can connect.
+6. **DRR-2026-035 fixture cleanup:** reverified that `sample_data/demo.db`
+   matches its tracked baseline and retained the rule that write tests use
+   disposable databases.
+7. **DRR-2026-003 dead helper cleanup:** removed two unreferenced availability
+   wrappers so `_skill_availability_state()` remains the only policy source.
+8. **Post-consume audit completeness:** dynamic validation rejection after
+   atomic token consumption now attempts a best-effort execute audit and reports
+   the actual `audit_logged` result without weakening terminal consumption. A
+   response-stage failure after a committed write preserves the existing
+   success audit instead of appending a contradictory execute failure.
+9. **Configuration bounds and visibility:** capped process-local capacity at
+   100000 entries, added generated/configured signing-key diagnostics without
+   logging key material, and summarized candidate and policy-enabled mutation
+   routing at startup without calling it final Skill/schema authorization.
+10. **Dead named SQLite alias:** removed the unreachable
+    `DB_<ID>_DATABASE_PATH` fallback; `DB_<ID>_SQLITE_DATABASE_PATH` remains the
+    only named SQLite path setting.
+
+The memory store preserves random `jti`, HMAC and execution-state binding,
+bounded issuance, expiry cleanup, atomic one-time consume, sequential/concurrent
+replay rejection, and terminal consumption. It does not support cross-worker
+preview/execute, mutation horizontal scaling, restart-surviving token state, or
+cross-process global capacity. Named database connections are unaffected;
+read-only scaling requires a separate read-only endpoint, profile, or pool.
+
+### Files and Configuration
+
+| File | Change |
+|------|--------|
+| `preview_token_store.py` | Extracted the v3.6 bounded, locked memory-store behavior into a focused module with a minimal token record |
+| `mcp_sql_server.py` | Registers/consumes preview tokens in one process, bounds TTL at 86400 seconds and capacity at 100000 entries, audits post-consume validation rejection, reports safe startup policy diagnostics, rejects every declared preview failure, and accurately describes optional mutation capability |
+| `db_adapter.py` | Keeps `DB_<ID>_SQLITE_DATABASE_PATH` as the sole named SQLite path and removes an unreachable alias fallback |
+| `skills/update-order-status/mutation.py` | Binds execution to the displayed preview read and disables direct unbound execution |
+| `tests/test_preview_token_store.py` | Covers memory capacity, expiry, mismatch, and concurrent one-winner semantics |
+| `tests/test_mutation_multi_connection_v36_design.py`, `tests/test_mutation_skills.py` | Cover DRR-2026-037/038/041/045, strict preview failures, TTL bounds, and tool-level concurrent replay with exactly one database write |
+| `tests/conftest.py` | Makes default pytest independent of local `.env` and gates optional live MySQL integration behind explicit opt-in |
+| `requirements.txt` | Requires `python-dotenv>=1.2.0`, the first release that implements the test suite's `.env` disable switch |
+
+The retained token settings are:
+
+```env
+MUTATION_PREVIEW_TOKEN_TTL_SECONDS=300
+# Valid range: 1-100000; invalid values fall back to 10000.
+MUTATION_PREVIEW_TOKEN_STORE_MAX_ENTRIES=10000
+# MUTATION_PREVIEW_TOKEN_SECRET=replace_with_at_least_32_random_bytes
+```
+
+### Validation
+
+- Syntax checks passed for the store, MCP server, and focused test modules.
+- Focused mutation/store regression:
+  `.venv/bin/python -m pytest -q tests/test_preview_token_store.py tests/test_mutation_multi_connection_v36_design.py tests/test_mutation_skills.py`
+  -> 67 passed.
+- Full repository suite: `.venv/bin/python -m pytest -q` -> 289 passed,
+  3 skipped.
+- `git diff --check` passed. Runtime Python, environment examples, and base
+  requirements contain no external token-store dependency or configuration.
 
 ---
 
@@ -167,14 +268,17 @@ readable table is not a writable table.
     default-connection-only mutation scope. Setting it enables strict mode and
     does not by itself grant write permission.
 - The token store is process-local. Preview and execute must reach the same
-    server process, so the supported deployment boundary is stdio or a single
-    HTTP/SSE worker. Restart invalidates outstanding tokens even when
+    server process. Client-owned stdio is the recommended deployment. If an
+    integrator conditionally exposes mutation over HTTP, it must use one process
+    in a trusted private boundary; multi-user authenticated HTTP mutation is not
+    supported. Restart invalidates outstanding tokens even when
     `MUTATION_PREVIEW_TOKEN_SECRET` is fixed, because store state is not
-    persisted. Multi-worker deployments require a shared atomic backend and must
-    not fall back to stateless HMAC acceptance.
-- `preview_token` is returned in the structured payload only. Metadata, audit
-    records, and telemetry carry a short `preview_token_id` digest prefix, never
-    the full token.
+    persisted. The application does not enforce worker/replica counts. A future
+    multi-worker design requires shared atomic state and must not fall back to
+    stateless HMAC acceptance.
+- `preview_token` is returned in the structured payload only. Applicable tool
+    metadata carries a short `preview_token_id` correlation hint. Audit and
+    telemetry persist neither the full token nor that short identifier.
 - `destructiveHint` and `requires_confirmation` remain advisory client hints.
     `confirm=true` proves the client requested execution; it does not prove a
     human approved it. Deployments needing human approval require a separate
@@ -908,16 +1012,16 @@ Code review following MCP Spec §7, Anthropic, Google Gemini, and Microsoft best
 | # | Topic | Note |
 |---|-------|------|
 | A | Error pattern inconsistency | Core tools return `{"success": False, "error": ...}`, Skills tools raise `ToolError`. MCP Spec §6 favors `isError: true` (which ToolError maps to), but changing core tools would break backward compatibility. |
-| B | Rate limiting | MCP Spec §7 requires "Rate limit tool invocations". Not implemented — acceptable for current single-agent deployment, recommended for production SSE multi-client mode. |
+| B | Rate limiting | Not implemented — acceptable for the current trusted single-operator/stdin-first mutation boundary. Any future remote or multi-user design must add ingress and/or per-principal limits rather than treating an HTTP transport as the control. |
 | C | CTE/WITH bypass | `_is_query_safe_extended` blocks `FROM (subquery)` but not `WITH ... AS` (CTE). Low risk since `is_sql_safe()` already restricts statement types to SELECT. |
 | D | Lifespan cleanup | `lifespan()` context manager doesn't call `reset_adapter()` on shutdown. Minor — Python process exit cleans up resources. |
 | E | `query.sql` MySQL-only functions | `monthly-sales-report/query.sql` uses `YEAR()`/`MONTH()` — MySQL-specific, not supported by SQLite. Acceptable as an example skill for a MySQL-primary project. `skill_def.md` Notes already marks it MySQL-only. Cross-database compatibility is the skill author's responsibility. |
 | F | `_extract_table_names()` ignores `schema.table` | `skill_loader.py`'s `_extract_table_names()` regex doesn't handle `schema.table` format, but this function is only used for generating the `SKILLS.md` overview document — not involved in security validation. The core security path `_extract_tables_from_sql()` in `mcp_sql_server.py` already handles `schema.table` correctly (fixed in Bug Fix 1). |
-| G | Mutation `execute()` duplicate SELECT | `mutation.py`'s `execute()` re-runs the same SELECT query as `validate()`. This is intentional security design — there may be a time gap between `validate()` (preview) and `execute()` (confirm) while the user reviews. The duplicate SELECT prevents TOCTOU (Time-of-Check-Time-of-Use) race conditions, ensuring data state still meets constraints at execution time. |
-| H | Mutation read-write transaction gap | `mutation.py execute()` uses `adapter.execute()` (read-only) for the SELECT check, then `adapter.execute_write()` for the UPDATE — two separate connections/transactions. A narrow TOCTOU window exists between them. Acceptable because: (1) optimistic locking `WHERE status = :expected` + `rowcount == 0` detection is the effective final safety net, (2) merging SELECT+UPDATE into a single SQL would add complexity with minimal gain in low-concurrency scenarios. |
-| I | `execute_mutation_skill` double audit risk | MCP tool layer `except` block and `run_execute()` both call `_audit_logger.log()`. Analysis shows no actual double-logging: `except ToolError: raise` skips the outer log, and only non-ToolError exceptions (which can't originate from `run_execute()`'s own ToolError raise) reach the outer catch. Code is correct as-is. |
+| G | Mutation `execute()` duplicate SELECT | Superseded in v3.6.1: the bundled state-sensitive Skill's unbound `execute()` fails closed. Preview displays and binds one state read; `execute_with_binding()` applies the optimistic lock to that bound value. |
+| H | Mutation read-write transaction gap | Superseded by the v3.6 preview-state binding contract for the bundled Skill. The preview read and later write remain separate operations by design, while the final `WHERE status = :expected_status` rejects execute-time drift from the displayed state. The narrower external-writer ABA boundary is tracked in DRR-2026-046. |
+| I | `execute_mutation_skill` double audit risk | Resolved in v3.6.1: `run_execute()` owns execution success/failure audit. After it returns successfully, the MCP layer marks the write complete; a later context/response failure no longer appends a contradictory execute-failure audit and instead tells the caller to verify current database state. |
 | J | `_sanitize_params()` flat-only | `audit.py`'s `_sanitize_params()` only truncates top-level `str` values >500 chars, does not recurse into nested `dict`/`list`. No impact — current skill frontmatter schema only defines atomic types (`int`/`float`/`str`/`bool`). If future skills add complex parameter types, this should be revisited. |
-| K | `_coerce_type()` bool conversion | `skill_loader.py`'s `_coerce_type()` uses `bool(value)` which makes `bool("false")` return `True` (any non-empty string is truthy in Python). No current skill uses `bool` parameters. If added, should use explicit mapping (`{"true": True, "false": False}`). |
+| K | `_coerce_type()` bool conversion | Resolved: bool parameters accept native booleans and explicit `"true"`/`"false"` strings; other values fail validation instead of using Python truthiness. Regression coverage is tracked under DRR-2026-020. |
 
 ### Live Integration Test Report (March 1, 2026)
 
@@ -1952,5 +2056,3 @@ Simpler prompts are easier to maintain and less likely to confuse LLM clients.
 | Cognitive complexity | High | Low | Easier to maintain |
 | Test surface area | Large | Small | Easier to test |
 | Type hints | Partial | Complete | Better IDE support |
-
-

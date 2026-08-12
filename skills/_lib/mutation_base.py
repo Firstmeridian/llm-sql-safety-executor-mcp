@@ -4,7 +4,7 @@ Mutation Base Module — Abstract Base Class for Write Operation Skills
 Implements the Anthropic "plan-validate-execute" pattern with three stages:
 1. validate(params): Pre-condition checks (e.g., record exists, status valid)
 2. preview(params):  Dry-run — returns SQL preview and impact estimate
-3. execute(params):  Actual write via adapter.execute_write() in a transaction
+3. execute(params) or execute_with_binding(...): actual transactional write
 
 Error Handling Chain:
     adapter.execute_write(sql, params)
@@ -21,7 +21,7 @@ Error Handling Chain:
            raise ToolError(sanitized)  → FastMCP passes through to Client
 
 Execution Constraints:
-    mutation.py execute() should ONLY call self.adapter.execute_write().
+    mutation.py write paths should ONLY call self.adapter.execute_write().
     Direct file I/O, network requests, or subprocess calls are prohibited.
     Enforced by code review (not runtime sandbox).
 
@@ -102,6 +102,10 @@ class MutationBase(ABC):
                 "warnings": ["..."],           # optional
                 "requires_confirmation": True
             }
+            On failure, return {"error": "safe reason", ...}, return
+            {"success": False, ...}, or raise ToolError. The server does not
+            issue a token for any declared failure, including an empty or null
+            error value.
         """
         pass
 
@@ -121,8 +125,10 @@ class MutationBase(ABC):
             {"success": True, "rowcount": N} on success
 
         Note:
-            Subclasses implement the SQL logic. Use run_execute() in the
-            MCP tool layer for automatic error handling and audit logging.
+            Subclasses implement the SQL logic. A Skill that requires preview
+            state may make this unbound method raise ToolError and implement
+            execute_with_binding() as its only write path. Use run_execute()
+            in the MCP tool layer for automatic error handling and audit.
         """
         pass
 
@@ -132,7 +138,7 @@ class MutationBase(ABC):
         validation: dict,
         preview: dict,
     ) -> dict:
-        """Return minimal preview-time state that execution must honor."""
+        """Return minimal displayed preview state that execution must honor."""
         return {}
 
     def execute_with_binding(

@@ -1,9 +1,13 @@
 # v3.6 MySQL + SQLite MCP 协议联调记录
 
 **日期：** 2026-07-31  
+**文档边界更新：** 2026-08-10
 **结果：** 通过  
 **范围：** 配置解析、MCP stdio 协议、命名连接、严格 mutation policy、一次性
 preview token、MySQL/SQLite 写路径和 replay 拒绝。
+
+本文记录的协议联调只验证 stdio；2026-08-10 补充的 v3.6.1 HTTP 文字是部署
+边界说明，不表示已经完成 HTTP transport 或多用户认证联调。
 
 **阅读顺序：** 正文优先呈现当前配置和当前完整测试结论；早期隔离 fixture
 协议 smoke 保留在文末“附录 A：历史协议基线”，用于审计和回溯，不作为当前配置
@@ -45,8 +49,11 @@ SKILLS_AUDIT_LOG=logs/mutation_audit.jsonl
   `SKILLS_ALLOW_MUTATION_CONNECTIONS` 移除 `mysql`。
 - `DB_MYSQL_ALLOWED_TABLES=*` 保留了原本的宽读权限；生产环境应收窄为明确表
   allowlist。
-- 一次性 preview-token store 是进程内状态，仅支持 stdio 或单个 HTTP/SSE worker。
-  多 worker/多副本 mutation 执行必须等待共享原子 store；不能依赖 sticky routing
+- 一次性 preview-token store 是进程内状态。推荐使用同一 MCP 子进程内的 stdio。
+  若集成方在受信任私有边界内通过 HTTP transport 暴露 mutation，只能运行一个
+  启用 mutation 的进程；v3.6.1 不定义多用户认证 HTTP mutation，程序也不会检测
+  worker/replica 数。不得把多个 mutation worker 放在普通负载均衡器后。未来若出现明确的多副本写入需求，
+  必须连同完整远程部署 profile 重新设计共享原子 store，不能依赖 sticky routing
   或退回 stateless HMAC。
 
 ## 3. 完全命名配置迁移验证

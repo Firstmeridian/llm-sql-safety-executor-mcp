@@ -105,12 +105,23 @@ class Mutation(MutationBase):
             }
 
         current_status = result[0].status  # type: ignore[union-attr]
+        allowed = VALID_TRANSITIONS.get(current_status, [])
+        if new_status not in allowed:
+            return {
+                "preview_sql": "N/A",
+                "current_status": current_status,
+                "error": (
+                    f"Order {order_id} changed to status '{current_status}'; "
+                    f"transition to '{new_status}' is no longer allowed"
+                ),
+            }
 
         return {
             "preview_sql": (
                 "UPDATE orders SET status = :new_status "
                 "WHERE id = :order_id AND status = :expected_status"
             ),
+            "current_status": current_status,
             "bound_params": {
                 "new_status": new_status,
                 "order_id": order_id,
@@ -130,7 +141,7 @@ class Mutation(MutationBase):
         preview: dict,
     ) -> dict:
         """Bind execute to the order status shown during preview."""
-        expected_status = validation.get("current_status")
+        expected_status = preview.get("current_status")
         if not isinstance(expected_status, str) or not expected_status:
             raise ToolError("Preview did not produce a valid expected order status")
         return {"expected_status": expected_status}
@@ -147,27 +158,11 @@ class Mutation(MutationBase):
         return self._execute_with_expected_status(params, expected_status)
 
     def execute(self, params: dict) -> dict:
-        """
-        Execute the status update within a transaction.
-
-        Uses optimistic locking: WHERE status = :expected_status
-        ensures no concurrent modification has occurred.
-        """
-        order_id = params["order_id"]
-        new_status = params["new_status"]
-
-        # Get current status for optimistic lock
-        result = self.adapter.execute(
-            "SELECT status FROM orders WHERE id = :order_id",
-            params={"order_id": order_id},
+        """Reject direct execution that lacks a preview-derived binding."""
+        raise ToolError(
+            "Direct unbound execution is disabled; use the preview-token "
+            "execution path."
         )
-
-        if not result or (isinstance(result, str) and result.startswith("Error:")):
-            raise ToolError(f"Order {order_id} not found or query failed")
-
-        current_status = result[0].status  # type: ignore[union-attr]
-
-        return self._execute_with_expected_status(params, current_status)
 
     def _execute_with_expected_status(
         self,

@@ -4,11 +4,14 @@ from __future__ import annotations
 
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
+import hashlib
 import importlib
 import json
+import logging
 import secrets
 import sqlite3
 import sys
+import threading
 from pathlib import Path
 from typing import Any, Coroutine
 
@@ -99,9 +102,10 @@ def _reload_server(
     allow_analytics_mutations: bool = True,
     mutation_connections: str = "mysql,analytics",
     analytics_mutation_skills: str = "update-order-status",
-    preview_token_secret: str | None = "test-preview-token-secret",
+    preview_token_secret: str | None = "test-preview-token-secret-0123456789",
     preview_token_ttl_seconds: int = 300,
     preview_token_store_max_entries: int = 10000,
+    check_schema_on_list: bool | None = None,
 ):
     monkeypatch.setenv("DB_CONNECTIONS", "mysql,analytics")
     monkeypatch.setenv("DEFAULT_DB_CONNECTION", "mysql")
@@ -123,10 +127,13 @@ def _reload_server(
     )
     monkeypatch.setenv("MAX_SQL_LENGTH", "20000")
     monkeypatch.setenv("MCP_TOOL_TIMEOUT_SECONDS", "120")
-    monkeypatch.setenv(
-        "MUTATION_PREVIEW_TOKEN_SECRET",
-        preview_token_secret or "",
-    )
+    if preview_token_secret is None:
+        monkeypatch.delenv("MUTATION_PREVIEW_TOKEN_SECRET", raising=False)
+    else:
+        monkeypatch.setenv(
+            "MUTATION_PREVIEW_TOKEN_SECRET",
+            preview_token_secret,
+        )
     monkeypatch.setenv(
         "MUTATION_PREVIEW_TOKEN_TTL_SECONDS",
         str(preview_token_ttl_seconds),
@@ -151,7 +158,13 @@ def _reload_server(
     )
     monkeypatch.delenv("SKILLS_LIST_DEFAULT_DETAIL", raising=False)
     monkeypatch.delenv("SKILLS_LIST_AVAILABLE_ONLY_DEFAULT", raising=False)
-    monkeypatch.delenv("SKILLS_CHECK_SCHEMA_ON_LIST", raising=False)
+    if check_schema_on_list is None:
+        monkeypatch.delenv("SKILLS_CHECK_SCHEMA_ON_LIST", raising=False)
+    else:
+        monkeypatch.setenv(
+            "SKILLS_CHECK_SCHEMA_ON_LIST",
+            "1" if check_schema_on_list else "0",
+        )
 
     import skill_loader
 
@@ -208,6 +221,233 @@ def test_default_execute_requires_preview_token(tmp_path, monkeypatch):
         _cleanup_modules()
 
 
+def test_server_instructions_describe_optional_mutations(tmp_path, monkeypatch):
+    mysql_db = tmp_path / "mysql.db"
+    analytics_db = tmp_path / "analytics.db"
+    _create_orders_db(mysql_db, "mysql")
+    _create_orders_db(analytics_db, "analytics")
+
+    module = _reload_server(monkeypatch, mysql_db, analytics_db)
+    try:
+        assert "READ-ONLY access" not in module.mcp.instructions
+        assert "read-only core SQL tools" in module.mcp.instructions
+        assert "controlled mutations" in module.mcp.instructions
+        assert "one-time token" in module.mcp.instructions
+    finally:
+        _cleanup_modules()
+
+
+def test_preview_token_ttl_above_max_falls_back_to_default(
+    tmp_path,
+    monkeypatch,
+):
+    mysql_db = tmp_path / "mysql.db"
+    analytics_db = tmp_path / "analytics.db"
+    _create_orders_db(mysql_db, "mysql")
+    _create_orders_db(analytics_db, "analytics")
+
+    module = _reload_server(
+        monkeypatch,
+        mysql_db,
+        analytics_db,
+        preview_token_ttl_seconds=86_401,
+    )
+    try:
+        assert module.MUTATION_PREVIEW_TOKEN_TTL_MAX_SECONDS == 86_400
+        assert module.MUTATION_PREVIEW_TOKEN_TTL_SECONDS == 300
+    finally:
+        _cleanup_modules()
+
+
+def test_preview_token_store_capacity_above_max_falls_back_to_default(
+    tmp_path,
+    monkeypatch,
+    caplog,
+):
+    mysql_db = tmp_path / "mysql.db"
+    analytics_db = tmp_path / "analytics.db"
+    _create_orders_db(mysql_db, "mysql")
+    _create_orders_db(analytics_db, "analytics")
+
+    with caplog.at_level(logging.WARNING, logger="mcp_sql_server"):
+        module = _reload_server(
+            monkeypatch,
+            mysql_db,
+            analytics_db,
+            preview_token_store_max_entries=100_001,
+        )
+    try:
+        assert module.MUTATION_PREVIEW_TOKEN_STORE_MAX_ENTRIES_MAX == 100_000
+        assert module.MUTATION_PREVIEW_TOKEN_STORE_MAX_ENTRIES == 10_000
+        assert any(
+            "MUTATION_PREVIEW_TOKEN_STORE_MAX_ENTRIES" in record.getMessage()
+            and "must be <= 100000" in record.getMessage()
+            for record in caplog.records
+        )
+    finally:
+        _cleanup_modules()
+
+
+def test_preview_token_store_capacity_accepts_maximum(tmp_path, monkeypatch):
+    mysql_db = tmp_path / "mysql.db"
+    analytics_db = tmp_path / "analytics.db"
+    _create_orders_db(mysql_db, "mysql")
+    _create_orders_db(analytics_db, "analytics")
+
+    module = _reload_server(
+        monkeypatch,
+        mysql_db,
+        analytics_db,
+        preview_token_store_max_entries=100_000,
+    )
+    try:
+        assert module.MUTATION_PREVIEW_TOKEN_STORE_MAX_ENTRIES == 100_000
+    finally:
+        _cleanup_modules()
+
+
+@pytest.mark.parametrize(
+    ("configured_secret", "required_fragments", "forbidden_fragments"),
+    [
+        (
+            None,
+            ("generated ephemeral", "is unset"),
+            ("explicitly empty", "shorter than 32"),
+        ),
+        (
+            "",
+            ("explicitly empty", "generated ephemeral"),
+            ("is unset", "shorter than 32"),
+        ),
+        (
+            "short-secret",
+            ("signing secret: configured", "shorter than 32 UTF-8 bytes"),
+            ("generated ephemeral",),
+        ),
+        (
+            "密" * 11,
+            ("signing secret: configured",),
+            ("generated ephemeral", "shorter than 32"),
+        ),
+    ],
+)
+def test_mutation_secret_startup_visibility_never_logs_secret_material(
+    tmp_path,
+    monkeypatch,
+    caplog,
+    configured_secret,
+    required_fragments,
+    forbidden_fragments,
+):
+    mysql_db = tmp_path / "mysql.db"
+    analytics_db = tmp_path / "analytics.db"
+    _create_orders_db(mysql_db, "mysql")
+    _create_orders_db(analytics_db, "analytics")
+
+    with caplog.at_level(logging.INFO, logger="mcp_sql_server"):
+        _reload_server(
+            monkeypatch,
+            mysql_db,
+            analytics_db,
+            preview_token_secret=configured_secret,
+        )
+    try:
+        all_messages = "\n".join(
+            record.getMessage() for record in caplog.records
+        )
+        messages = "\n".join(
+            record.getMessage()
+            for record in caplog.records
+            if (
+                "MUTATION_PREVIEW_TOKEN_SECRET" in record.getMessage()
+                or "preview-token signing secret" in record.getMessage()
+            )
+        )
+        for fragment in required_fragments:
+            assert fragment in messages
+        for fragment in forbidden_fragments:
+            assert fragment not in messages
+        if configured_secret:
+            assert configured_secret not in all_messages
+            secret_hash = hashlib.sha256(
+                configured_secret.encode("utf-8")
+            ).hexdigest()
+            assert secret_hash not in all_messages
+    finally:
+        _cleanup_modules()
+
+
+def test_mutation_authorization_startup_summary_strict_mode(
+    tmp_path,
+    monkeypatch,
+    caplog,
+):
+    mysql_db = tmp_path / "mysql.db"
+    analytics_db = tmp_path / "analytics.db"
+    _create_orders_db(mysql_db, "mysql")
+    _create_orders_db(analytics_db, "analytics")
+
+    with caplog.at_level(logging.INFO, logger="mcp_sql_server"):
+        _reload_server(
+            monkeypatch,
+            mysql_db,
+            analytics_db,
+            allow_analytics_mutations=False,
+        )
+    try:
+        messages = [
+            record.getMessage()
+            for record in caplog.records
+            if record.getMessage().startswith("Mutation routing policy:")
+        ]
+        assert len(messages) == 1
+        message = messages[0]
+        assert "mode=strict" in message
+        assert "candidate_targets=analytics,mysql" in message
+        assert "policy_enabled_targets=mysql" in message
+        assert "analytics=disabled" in message
+        assert "mysql=allowlist(update-order-status)" in message
+        assert str(mysql_db) not in message
+        assert str(analytics_db) not in message
+    finally:
+        _cleanup_modules()
+
+
+def test_mutation_authorization_startup_summary_default_only_mode(
+    tmp_path,
+    monkeypatch,
+    caplog,
+):
+    mysql_db = tmp_path / "mysql.db"
+    analytics_db = tmp_path / "analytics.db"
+    _create_orders_db(mysql_db, "mysql")
+    _create_orders_db(analytics_db, "analytics")
+
+    with caplog.at_level(logging.INFO, logger="mcp_sql_server"):
+        _reload_server(
+            monkeypatch,
+            mysql_db,
+            analytics_db,
+            mutation_connections="",
+        )
+    try:
+        messages = [
+            record.getMessage()
+            for record in caplog.records
+            if record.getMessage().startswith("Mutation routing policy:")
+        ]
+        assert len(messages) == 1
+        message = messages[0]
+        assert "mode=default-only" in message
+        assert "candidate_targets=mysql" in message
+        assert "policy_enabled_targets=mysql" in message
+        assert "target_policy=mysql=compatibility-default" in message
+        assert str(mysql_db) not in message
+        assert str(analytics_db) not in message
+    finally:
+        _cleanup_modules()
+
+
 def test_preview_returns_token_and_default_target_metadata(tmp_path, monkeypatch):
     mysql_db = tmp_path / "mysql.db"
     analytics_db = tmp_path / "analytics.db"
@@ -236,6 +476,37 @@ def test_preview_returns_token_and_default_target_metadata(tmp_path, monkeypatch
         assert meta["preview_token_validated"] is False
         assert str(mysql_db) not in str(payload)
         assert str(mysql_db) not in str(meta)
+    finally:
+        _cleanup_modules()
+
+
+def test_preview_validation_failure_reports_explicit_token_metadata(
+    tmp_path,
+    monkeypatch,
+):
+    mysql_db = tmp_path / "mysql.db"
+    analytics_db = tmp_path / "analytics.db"
+    _create_orders_db(mysql_db, "mysql")
+    _create_orders_db(analytics_db, "analytics")
+
+    module = _reload_server(monkeypatch, mysql_db, analytics_db)
+    try:
+        payload, meta = run_tool(
+            module.execute_mutation_skill(
+                skill_name="update-order-status",
+                params=_params(order_id=999),
+                ctx=DummyContext(),
+                confirm=False,
+            )
+        )
+
+        assert payload["success"] is False
+        assert payload["validation"]["valid"] is False
+        assert meta["audit_logged"] is False
+        assert meta["preview_token_required"] is False
+        assert meta["preview_token_validated"] is False
+        assert meta["preview_token_consumed"] is False
+        assert len(module._MUTATION_PREVIEW_TOKEN_STORE) == 0
     finally:
         _cleanup_modules()
 
@@ -421,7 +692,7 @@ def test_preview_token_can_execute_only_once(tmp_path, monkeypatch):
         _cleanup_modules()
 
 
-def test_memory_store_concurrent_consume_has_exactly_one_winner(
+def test_concurrent_execute_with_same_token_writes_exactly_once(
     tmp_path,
     monkeypatch,
 ):
@@ -429,21 +700,68 @@ def test_memory_store_concurrent_consume_has_exactly_one_winner(
     analytics_db = tmp_path / "analytics.db"
     _create_orders_db(mysql_db, "mysql")
     _create_orders_db(analytics_db, "analytics")
-    module = _reload_server(monkeypatch, mysql_db, analytics_db)
+    module = _reload_server(
+        monkeypatch,
+        mysql_db,
+        analytics_db,
+        check_schema_on_list=False,
+    )
     try:
-        store = module.InMemoryPreviewTokenStore(max_entries=1)
-        assert store.issue("digest", 2_000, "{}", now=1_000) is True
-
-        with ThreadPoolExecutor(max_workers=8) as executor:
-            results = list(
-                executor.map(
-                    lambda _index: store.consume("digest", 2_000, now=1_001),
-                    range(16),
-                )
+        preview, _ = run_tool(
+            module.execute_mutation_skill(
+                skill_name="update-order-status",
+                params=_params(),
+                ctx=DummyContext(),
+                confirm=False,
             )
+        )
+        # Keep the race focused on token redemption and the real write path.
+        # Schema-readiness discovery is an optional feature and SQLite's
+        # StaticPool shares one DBAPI connection, so this test disables that
+        # unrelated concurrent read via the supported configuration switch.
+        adapter = module.get_adapter("mysql")
+        original_execute_write = adapter.execute_write
+        write_count = 0
+        write_count_lock = threading.Lock()
+        start_barrier = threading.Barrier(2)
 
-        assert sum(result is not None for result in results) == 1
-        assert len(store) == 0
+        def counted_execute_write(*args, **kwargs):
+            nonlocal write_count
+            with write_count_lock:
+                write_count += 1
+            return original_execute_write(*args, **kwargs)
+
+        monkeypatch.setattr(adapter, "execute_write", counted_execute_write)
+
+        def execute_once(_index):
+            start_barrier.wait(timeout=5)
+            try:
+                payload, meta = run_tool(
+                    module.execute_mutation_skill(
+                        skill_name="update-order-status",
+                        params=_params(),
+                        ctx=DummyContext(),
+                        confirm=True,
+                        preview_token=preview["preview_token"],
+                    )
+                )
+                return "success", payload, meta
+            except module.ToolError as exc:
+                return "error", str(exc), {}
+
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            results = list(executor.map(execute_once, range(2)))
+
+        successes = [result for result in results if result[0] == "success"]
+        errors = [result for result in results if result[0] == "error"]
+        assert len(successes) == 1
+        assert successes[0][1]["success"] is True
+        assert successes[0][2]["preview_token_consumed"] is True
+        assert len(errors) == 1
+        assert "already been used" in errors[0][1]
+        assert write_count == 1
+        assert _order_status(mysql_db, 1) == "confirmed"
+        assert len(module._MUTATION_PREVIEW_TOKEN_STORE) == 0
     finally:
         _cleanup_modules()
 
@@ -680,6 +998,171 @@ def test_execute_uses_previewed_state_for_optimistic_lock(tmp_path, monkeypatch)
         _cleanup_modules()
 
 
+def test_binding_uses_state_read_by_preview_not_earlier_validation(
+    tmp_path,
+    monkeypatch,
+):
+    mysql_db = tmp_path / "mysql.db"
+    analytics_db = tmp_path / "analytics.db"
+    _create_orders_db(mysql_db, "mysql")
+    _create_orders_db(analytics_db, "analytics")
+
+    module = _reload_server(monkeypatch, mysql_db, analytics_db)
+    adapter = module.get_adapter("mysql")
+    original_execute = adapter.execute
+    state_changed = False
+
+    def execute_with_interleaving(sql, *args, **kwargs):
+        nonlocal state_changed
+        result = original_execute(sql, *args, **kwargs)
+        if "SELECT status FROM orders" in sql and not state_changed:
+            state_changed = True
+            _set_order_status(mysql_db, 1, "confirmed")
+        return result
+
+    monkeypatch.setattr(adapter, "execute", execute_with_interleaving)
+    params = _params(new_status="cancelled")
+    try:
+        preview, _ = run_tool(
+            module.execute_mutation_skill(
+                skill_name="update-order-status",
+                params=params,
+                ctx=DummyContext(),
+                confirm=False,
+            )
+        )
+        assert preview["preview"]["current_status"] == "confirmed"
+        assert (
+            preview["preview"]["bound_params"]["expected_status"]
+            == "confirmed"
+        )
+
+        payload, _ = run_tool(
+            module.execute_mutation_skill(
+                skill_name="update-order-status",
+                params=params,
+                ctx=DummyContext(),
+                confirm=True,
+                preview_token=preview["preview_token"],
+            )
+        )
+        assert payload["success"] is True
+        assert payload["result"]["previous_status"] == "confirmed"
+        assert _order_status(mysql_db, 1) == "cancelled"
+    finally:
+        _cleanup_modules()
+
+
+def test_preview_error_does_not_issue_token(tmp_path, monkeypatch):
+    mysql_db = tmp_path / "mysql.db"
+    analytics_db = tmp_path / "analytics.db"
+    _create_orders_db(mysql_db, "mysql")
+    _create_orders_db(analytics_db, "analytics")
+
+    module = _reload_server(monkeypatch, mysql_db, analytics_db)
+    adapter = module.get_adapter("mysql")
+    original_execute = adapter.execute
+
+    def fail_preview_lookup(sql, *args, **kwargs):
+        if "SELECT id, status FROM orders" in sql:
+            return []
+        return original_execute(sql, *args, **kwargs)
+
+    monkeypatch.setattr(adapter, "execute", fail_preview_lookup)
+    try:
+        payload, meta = run_tool(
+            module.execute_mutation_skill(
+                skill_name="update-order-status",
+                params=_params(),
+                ctx=DummyContext(),
+                confirm=False,
+            )
+        )
+        assert payload["success"] is False
+        assert payload["preview"]["error"]
+        assert "preview_token" not in payload
+        assert meta["preview_token_required"] is False
+        assert len(module._MUTATION_PREVIEW_TOKEN_STORE) == 0
+        assert _order_status(mysql_db, 1) == "pending"
+    finally:
+        _cleanup_modules()
+
+
+@pytest.mark.parametrize(
+    "preview_result",
+    [
+        {"error": ""},
+        {"error": None},
+        {"success": False},
+        {"success": 0},
+        {"success": None},
+        {"success": "false"},
+    ],
+)
+def test_declared_preview_failure_never_issues_token(
+    tmp_path,
+    monkeypatch,
+    preview_result,
+):
+    mysql_db = tmp_path / "mysql.db"
+    analytics_db = tmp_path / "analytics.db"
+    _create_orders_db(mysql_db, "mysql")
+    _create_orders_db(analytics_db, "analytics")
+
+    module = _reload_server(monkeypatch, mysql_db, analytics_db)
+    try:
+        mutation_class = module.get_skills_cache()[
+            "update-order-status"
+        ]._mutation_class
+        assert mutation_class is not None
+        monkeypatch.setattr(
+            mutation_class,
+            "preview",
+            lambda self, params: preview_result,
+        )
+
+        payload, meta = run_tool(
+            module.execute_mutation_skill(
+                skill_name="update-order-status",
+                params=_params(),
+                ctx=DummyContext(),
+                confirm=False,
+            )
+        )
+
+        assert payload["success"] is False
+        assert payload["error"] == "Mutation preview reported failure."
+        assert "preview_token" not in payload
+        assert meta["preview_token_required"] is False
+        assert len(module._MUTATION_PREVIEW_TOKEN_STORE) == 0
+        assert _order_status(mysql_db, 1) == "pending"
+    finally:
+        _cleanup_modules()
+
+
+def test_update_order_status_rejects_direct_unbound_execute(
+    tmp_path,
+    monkeypatch,
+):
+    mysql_db = tmp_path / "mysql.db"
+    analytics_db = tmp_path / "analytics.db"
+    _create_orders_db(mysql_db, "mysql")
+    _create_orders_db(analytics_db, "analytics")
+
+    module = _reload_server(monkeypatch, mysql_db, analytics_db)
+    try:
+        mutation = module.load_mutation(
+            "update-order-status",
+            module.get_adapter("mysql"),
+            module._audit_logger,
+        )
+        with pytest.raises(module.ToolError, match="unbound execution is disabled"):
+            mutation.execute(_params())
+        assert _order_status(mysql_db, 1) == "pending"
+    finally:
+        _cleanup_modules()
+
+
 def test_dynamic_validation_failure_still_consumes_token(tmp_path, monkeypatch):
     mysql_db = tmp_path / "mysql.db"
     analytics_db = tmp_path / "analytics.db"
@@ -709,6 +1192,7 @@ def test_dynamic_validation_failure_still_consumes_token(tmp_path, monkeypatch):
         )
         assert rejected["success"] is False
         assert rejected["validation"]["valid"] is False
+        assert rejected_meta["audit_logged"] is True
         assert rejected_meta["preview_token_consumed"] is True
 
         with pytest.raises(module.ToolError, match="already been used"):
@@ -721,6 +1205,145 @@ def test_dynamic_validation_failure_still_consumes_token(tmp_path, monkeypatch):
                     preview_token=preview["preview_token"],
                 )
             )
+
+        audit_text = (tmp_path / "mutation-audit.jsonl").read_text(
+            encoding="utf-8"
+        )
+        audit_entries = [json.loads(line) for line in audit_text.splitlines()]
+        assert len(audit_entries) == 2
+        assert audit_entries[0]["mode"] == "preview"
+        assert audit_entries[0]["success"] is True
+        assert audit_entries[1]["mode"] == "execute"
+        assert audit_entries[1]["success"] is False
+        assert "Validation failed" in audit_entries[1]["error"]
+        assert "preview_token_id" not in audit_entries[0]
+        assert "preview_token_id" not in audit_entries[1]
+    finally:
+        _cleanup_modules()
+
+
+def test_dynamic_validation_audit_failure_is_reported_in_meta(
+    tmp_path,
+    monkeypatch,
+):
+    mysql_db = tmp_path / "mysql.db"
+    analytics_db = tmp_path / "analytics.db"
+    _create_orders_db(mysql_db, "mysql")
+    _create_orders_db(analytics_db, "analytics")
+
+    module = _reload_server(monkeypatch, mysql_db, analytics_db)
+    try:
+        preview, _ = run_tool(
+            module.execute_mutation_skill(
+                skill_name="update-order-status",
+                params=_params(),
+                ctx=DummyContext(),
+                confirm=False,
+            )
+        )
+        _set_order_status(mysql_db, 1, "cancelled")
+        monkeypatch.setattr(module._audit_logger, "log", lambda **_kwargs: False)
+
+        rejected, rejected_meta = run_tool(
+            module.execute_mutation_skill(
+                skill_name="update-order-status",
+                params=_params(),
+                ctx=DummyContext(),
+                confirm=True,
+                preview_token=preview["preview_token"],
+            )
+        )
+        assert rejected["success"] is False
+        assert rejected_meta["audit_logged"] is False
+        assert rejected_meta["preview_token_consumed"] is True
+
+        with pytest.raises(module.ToolError, match="already been used"):
+            run_tool(
+                module.execute_mutation_skill(
+                    skill_name="update-order-status",
+                    params=_params(),
+                    ctx=DummyContext(),
+                    confirm=True,
+                    preview_token=preview["preview_token"],
+                )
+            )
+    finally:
+        _cleanup_modules()
+
+
+def test_dynamic_validation_toolerror_is_audited_once_after_consumption(
+    tmp_path,
+    monkeypatch,
+):
+    mysql_db = tmp_path / "mysql.db"
+    analytics_db = tmp_path / "analytics.db"
+    _create_orders_db(mysql_db, "mysql")
+    _create_orders_db(analytics_db, "analytics")
+
+    module = _reload_server(monkeypatch, mysql_db, analytics_db)
+    try:
+        preview, _ = run_tool(
+            module.execute_mutation_skill(
+                skill_name="update-order-status",
+                params=_params(),
+                ctx=DummyContext(),
+                confirm=False,
+            )
+        )
+        mutation_class = module.get_skills_cache()[
+            "update-order-status"
+        ]._mutation_class
+        assert mutation_class is not None
+
+        def fail_dynamic_validation(_self, _params):
+            raise module.ToolError("simulated dynamic validation failure")
+
+        monkeypatch.setattr(mutation_class, "validate", fail_dynamic_validation)
+        audit_calls: list[dict[str, Any]] = []
+        original_audit_log = module._audit_logger.log
+
+        def recording_audit_log(**kwargs):
+            audit_calls.append(kwargs)
+            return original_audit_log(**kwargs)
+
+        monkeypatch.setattr(module._audit_logger, "log", recording_audit_log)
+
+        with pytest.raises(
+            module.ToolError,
+            match=(
+                "simulated dynamic validation failure.*"
+                "preview_token has been consumed"
+            ),
+        ):
+            run_tool(
+                module.execute_mutation_skill(
+                    skill_name="update-order-status",
+                    params=_params(),
+                    ctx=DummyContext(),
+                    confirm=True,
+                    preview_token=preview["preview_token"],
+                )
+            )
+
+        assert len(audit_calls) == 1
+        assert audit_calls[0]["mode"] == "execute"
+        assert audit_calls[0]["result"] == {
+            "success": False,
+            "error": "simulated dynamic validation failure",
+        }
+        assert _order_status(mysql_db, 1) == "pending"
+
+        with pytest.raises(module.ToolError, match="already been used"):
+            run_tool(
+                module.execute_mutation_skill(
+                    skill_name="update-order-status",
+                    params=_params(),
+                    ctx=DummyContext(),
+                    confirm=True,
+                    preview_token=preview["preview_token"],
+                )
+            )
+        assert len(audit_calls) == 1
     finally:
         _cleanup_modules()
 
@@ -765,6 +1388,137 @@ def test_audit_failure_does_not_restore_consumed_token(tmp_path, monkeypatch):
                     preview_token=preview["preview_token"],
                 )
             )
+    finally:
+        _cleanup_modules()
+
+
+def test_database_write_failure_still_consumes_token(tmp_path, monkeypatch):
+    mysql_db = tmp_path / "mysql.db"
+    analytics_db = tmp_path / "analytics.db"
+    _create_orders_db(mysql_db, "mysql")
+    _create_orders_db(analytics_db, "analytics")
+
+    module = _reload_server(monkeypatch, mysql_db, analytics_db)
+    try:
+        preview, _ = run_tool(
+            module.execute_mutation_skill(
+                skill_name="update-order-status",
+                params=_params(),
+                ctx=DummyContext(),
+                confirm=False,
+            )
+        )
+        adapter = module.get_adapter("mysql")
+
+        def fail_write(*_args, **_kwargs):
+            raise RuntimeError("simulated database write failure")
+
+        monkeypatch.setattr(adapter, "execute_write", fail_write)
+        with pytest.raises(
+            module.ToolError,
+            match="preview_token has been consumed; run preview again",
+        ):
+            run_tool(
+                module.execute_mutation_skill(
+                    skill_name="update-order-status",
+                    params=_params(),
+                    ctx=DummyContext(),
+                    confirm=True,
+                    preview_token=preview["preview_token"],
+                )
+            )
+
+        with pytest.raises(module.ToolError, match="already been used"):
+            run_tool(
+                module.execute_mutation_skill(
+                    skill_name="update-order-status",
+                    params=_params(),
+                    ctx=DummyContext(),
+                    confirm=True,
+                    preview_token=preview["preview_token"],
+                )
+            )
+        assert _order_status(mysql_db, 1) == "pending"
+        audit_text = (tmp_path / "mutation-audit.jsonl").read_text(
+            encoding="utf-8"
+        )
+        audit_entries = [json.loads(line) for line in audit_text.splitlines()]
+        assert sum(entry["mode"] == "execute" for entry in audit_entries) == 1
+        assert audit_entries[-1]["success"] is False
+    finally:
+        _cleanup_modules()
+
+
+def test_response_failure_after_write_keeps_single_success_audit(
+    tmp_path,
+    monkeypatch,
+):
+    mysql_db = tmp_path / "mysql.db"
+    analytics_db = tmp_path / "analytics.db"
+    _create_orders_db(mysql_db, "mysql")
+    _create_orders_db(analytics_db, "analytics")
+
+    module = _reload_server(monkeypatch, mysql_db, analytics_db)
+
+    class FailAfterWriteContext(DummyContext):
+        def __init__(self) -> None:
+            self.info_calls = 0
+
+        async def info(self, message: str) -> None:
+            self.info_calls += 1
+            if self.info_calls == 2:
+                raise RuntimeError("simulated response notification failure")
+
+    try:
+        preview, _ = run_tool(
+            module.execute_mutation_skill(
+                skill_name="update-order-status",
+                params=_params(),
+                ctx=DummyContext(),
+                confirm=False,
+            )
+        )
+
+        with pytest.raises(
+            module.ToolError,
+            match=(
+                "Mutation execution completed, but the tool response failed.*"
+                "verify the current database state"
+            ),
+        ):
+            run_tool(
+                module.execute_mutation_skill(
+                    skill_name="update-order-status",
+                    params=_params(),
+                    ctx=FailAfterWriteContext(),
+                    confirm=True,
+                    preview_token=preview["preview_token"],
+                )
+            )
+
+        assert _order_status(mysql_db, 1) == "confirmed"
+        with pytest.raises(module.ToolError, match="already been used"):
+            run_tool(
+                module.execute_mutation_skill(
+                    skill_name="update-order-status",
+                    params=_params(),
+                    ctx=DummyContext(),
+                    confirm=True,
+                    preview_token=preview["preview_token"],
+                )
+            )
+
+        audit_entries = [
+            json.loads(line)
+            for line in (tmp_path / "mutation-audit.jsonl")
+            .read_text(encoding="utf-8")
+            .splitlines()
+        ]
+        execute_entries = [
+            entry for entry in audit_entries if entry["mode"] == "execute"
+        ]
+        assert len(execute_entries) == 1
+        assert execute_entries[0]["success"] is True
     finally:
         _cleanup_modules()
 
@@ -975,6 +1729,27 @@ def test_token_is_invalid_after_signing_secret_changes(tmp_path, monkeypatch):
     finally:
         _cleanup_modules()
 
+    module = _reload_server(
+        monkeypatch,
+        mysql_db,
+        analytics_db,
+        preview_token_secret="second-test-secret",
+    )
+    try:
+        with pytest.raises(module.ToolError, match="Invalid preview_token"):
+            run_tool(
+                module.execute_mutation_skill(
+                    skill_name="update-order-status",
+                    params=_params(),
+                    ctx=DummyContext(),
+                    confirm=True,
+                    preview_token=preview["preview_token"],
+                )
+            )
+        assert _order_status(mysql_db, 1) == "pending"
+    finally:
+        _cleanup_modules()
+
 
 def test_generated_process_secret_invalidates_token_after_reload(
     tmp_path,
@@ -1107,7 +1882,9 @@ def test_full_token_is_excluded_from_meta_and_audit(tmp_path, monkeypatch):
 
         assert preview_token not in str(execute_meta)
         assert execute_meta["preview_token_id"] == preview_meta["preview_token_id"]
-        assert preview_token not in audit_path.read_text(encoding="utf-8")
+        audit_text = audit_path.read_text(encoding="utf-8")
+        assert preview_token not in audit_text
+        assert preview_meta["preview_token_id"] not in audit_text
     finally:
         _cleanup_modules()
 

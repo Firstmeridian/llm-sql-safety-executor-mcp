@@ -30,13 +30,20 @@ name, skill version, canonical params hash, resolved `connection_id`, DB type,
 issue time, expiry, and a hash of minimal preview-time execution state. Missing,
 expired, tampered, or mismatched tokens fail closed before the write path runs.
 
-Preview tokens are registered in a bounded process-local store and atomically
-consumed before dynamic business validation and database writes. Consumption is
-terminal after every later outcome, including validation, database, timeout,
-audit, or response failure. Static request/policy/HMAC rejection happens before
-consumption. Process restart invalidates every outstanding token even when the
-HMAC key is fixed. Multi-worker deployments require a future shared atomic
-backend; they must not fall back to stateless token acceptance.
+Preview tokens are registered in a bounded atomic store and consumed before
+dynamic business validation and database writes. Consumption is terminal after
+every later outcome, including validation, database, timeout, audit, or response
+failure. Static request/policy/HMAC rejection happens before consumption. The
+memory store is process-local and loses outstanding tokens on restart. The
+recommended mutation deployment is the client-owned stdio MCP process. If an
+integrator exposes mutations through an HTTP transport, v3.6.1 supports only a
+trusted single-operator/private boundary with exactly one mutation-enabled
+process. It does not define a multi-user authenticated HTTP mutation service.
+The application does not detect worker or replica counts; deployment
+configuration must enforce this boundary. Do not place mutation-enabled memory
+workers behind a normal load balancer. Requests that reach another process fail
+closed, and the server never falls back to stateless token acceptance. Read-only
+capacity may scale only through a separate read-only endpoint, profile, or pool.
 
 State-sensitive mutation Skills should override `build_execution_binding()` and
 `execute_with_binding()` so execution uses the state shown during preview. A
@@ -87,9 +94,11 @@ Production recommendations:
 - For SQLite: use a separate database file for writes if possible
 - Grant only the minimum permissions required by each skill's SQL
 
-## 9. Server-Side Preview Token (v3.6)
+## 9. Server-Side Preview Token (v3.6-v3.6.1)
 
-Server-side preview-token protection is implemented in v3.6. The
+Server-side preview-token protection, including the bounded process-local
+memory store, was introduced in v3.6. v3.6.1 adds preview/binding correctness
+fixes and formalizes the same-process deployment boundary. The
 `destructiveHint` annotation remains only a client-facing hint and does not
 replace server-side authorization or token validation.
 
@@ -100,20 +109,42 @@ binds the Skill name, Skill version, canonical parameter hash, resolved
 minimal preview-time execution binding. Missing, expired, tampered, or
 mismatched tokens fail closed before the write path.
 
-The token is registered in a bounded process-local store and atomically
-consumed before dynamic validation and database writes. A consumed token cannot
-be retried, including after a later validation, database, timeout, audit, or
-response failure; the caller must preview again. Static request, policy, or
-HMAC rejection does not consume a matching valid token.
+HMAC and the server-side store have separate roles. HMAC detects tampering and
+lets static request mismatches fail before consuming a valid record. The store
+proves that this process issued the token, retains the canonical execution
+binding, and enforces one-time atomic consumption. Neither layer may replace the
+other in v3.6.1. The post-consume binding comparison is an internal consistency
+check, not a third independent authorization boundary.
+
+The token is API-opaque but not encrypted: clients must not parse it or depend
+on its internal format. It necessarily passes through the authorized client and
+may enter model context. Until it is consumed or expires, bearer confidentiality
+still matters: clients should minimize durable retention and logging, protect
+access to context and logs, and never expose the token to an unauthorized party.
+Short TTL, exact request/state binding, and atomic one-time consumption limit the
+impact of disclosure; they do not make disclosure harmless.
+
+The token is registered in a bounded atomic store and consumed before dynamic
+validation and database writes. A consumed token cannot be retried, including
+after a later validation, database, timeout, audit, or response failure; the
+caller must preview again. Static request, policy, or HMAC rejection does not
+consume a matching valid token. A preview result containing `error` or reporting
+`success=false` fails and does not receive a token.
 
 This mechanism proves that the execute request matches a server-issued preview
 and prevents replay. It does not prove that a human personally clicked an
 approval button: `confirm=true` may be produced by an Agent or client. A
 separate human approval workflow is required when that policy is mandatory.
 
-The store is process-local. Restart invalidates outstanding tokens, and
-multi-worker or multi-replica deployments require a future shared atomic
-backend; the server must not silently fall back to stateless HMAC acceptance.
+The memory store is process-local, so restart invalidates outstanding tokens.
+The supported baseline is stdio in one client-owned process. Conditional HTTP
+mutation use is limited to a trusted private boundary and one mutation-enabled
+process; multi-user authenticated HTTP mutation is outside v3.6.1. Preview and
+execute must reach that same process. Even a fixed signing secret cannot recover
+or share store state. The application does not enforce worker or replica counts.
+Requests reaching the wrong process fail closed and require a new preview.
+Read-only capacity may scale only through a separate read-only endpoint,
+profile, or pool. The server never falls back to stateless HMAC acceptance.
 
 ## 10. Audit Log
 
@@ -126,10 +157,24 @@ Mutation preview/execute paths attempt best-effort JSONL audit logging via `audi
 Log path: `SKILLS_AUDIT_LOG` env var (default: `skills/_audit.jsonl`).
 
 Audit write failures are logged by the server but do not block the mutation
-operation or roll back already completed data changes. Validation failures and
-audit write failures can return normal tool metadata with `audit_logged=false`.
-Treat the audit file as a visibility aid, not as a fail-closed transaction
-control.
+operation or roll back already completed data changes. Pre-token
+parameter/validation rejection and audit write failures can return normal tool
+metadata with `audit_logged=false`. Once execute atomically consumes a valid
+token, a later dynamic validation rejection attempts a best-effort execute
+audit. Treat the audit file as a visibility aid, not as a fail-closed
+transaction control.
+
+`MutationBase.run_execute()` owns the audit outcome for the database execution.
+If the write commits and later context notification or response construction
+fails, the server preserves the success audit rather than appending a
+contradictory execute failure. The client receives an indeterminate-response
+error and must verify current database state before attempting another mutation;
+the consumed token is never restored.
+
+The full `preview_token` is never written to audit or tool telemetry. A short
+`preview_token_id` correlation hint is returned in applicable `ToolResult`
+metadata for the client, but v3.6.1 does not persist that short identifier in
+the audit or telemetry JSONL files.
 
 Read-only query skills can be audited with `SKILLS_AUDIT_QUERIES=1`.
 This records skill name, truncated params, row counts, success/failure,
@@ -152,11 +197,15 @@ Discovery imports `mutation.py` as trusted local project code and requires it
 to export a concrete `Mutation` class that subclasses `MutationBase`. This is
 a structural loader invariant, not a sandbox for untrusted plugins.
 
-Concrete `Mutation.execute()` implementations should perform writes only
-through `self.adapter.execute_write()`; `MutationBase.execute()` itself is the
-abstract method contract, not the concrete implementation. Direct file I/O,
-network requests, or subprocess calls are prohibited. Code reviewers must
-verify that `mutation.py` uses only the base class API
+Concrete write implementations should perform writes only through
+`self.adapter.execute_write()`. `MutationBase.execute()` remains abstract so a
+Skill that implements neither execution contract fails during discovery. A
+state-sensitive Skill may satisfy that interface with an `execute()` method
+that fails closed and place its only write path in `execute_with_binding()`.
+Revisit the base-class shape only when multiple binding-only Skills justify a
+loader invariant requiring an override of at least one execution method.
+Direct file I/O, network requests, or subprocess calls are prohibited. Code
+reviewers must verify that `mutation.py` uses only the base class API
 (`self.adapter.execute()`, `self.adapter.execute_write()`).
 
 ## 12. Error Sanitization
@@ -169,10 +218,10 @@ LLM agent.
 ## 13. Rate Limiting
 
 The server does not currently implement explicit per-skill, per-client, or
-global rate limiting. The stdio/SSE transport choice is not a server-side
-rate-limit or authorization boundary by itself. If the service is exposed via
-HTTP or to untrusted callers, enforce appropriate limits at ingress and/or add
-per-skill or global rate limiting (per MCP Spec §7).
+global rate limiting. A transport choice is not a rate-limit or authorization
+boundary by itself. v3.6.1 does not support mutation HTTP exposure to untrusted
+or multi-user callers. For future remote designs, enforce limits at ingress
+and/or add per-principal, per-skill, and global quotas.
 
 ## 14. ALLOWED_TABLES Interaction
 

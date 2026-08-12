@@ -38,7 +38,6 @@ import logging
 import math
 import secrets
 import time
-import threading
 import sqlparse
 from dataclasses import dataclass
 from contextlib import asynccontextmanager
@@ -61,6 +60,7 @@ from db_adapter import (
     list_connection_configs,
     DB_TYPE,
 )
+from preview_token_store import InMemoryPreviewTokenStore
 
 logger = logging.getLogger(__name__)
 
@@ -77,74 +77,6 @@ class ConnectionContext:
     @property
     def db_type(self) -> str:
         return self.config.db_type
-
-
-@dataclass(frozen=True)
-class PreviewTokenRecord:
-    """Minimal server-side state needed for one-time mutation execution."""
-
-    expires_at: int
-    execution_binding_json: str
-
-
-class InMemoryPreviewTokenStore:
-    """Bounded process-local preview-token store with atomic consumption."""
-
-    def __init__(self, max_entries: int):
-        if max_entries < 1:
-            raise ValueError("Preview token store max_entries must be positive")
-        self._max_entries = max_entries
-        self._entries: dict[str, PreviewTokenRecord] = {}
-        self._lock = threading.Lock()
-
-    def _purge_expired_locked(self, now: int) -> None:
-        expired = [
-            token_digest
-            for token_digest, record in self._entries.items()
-            if record.expires_at <= now
-        ]
-        for token_digest in expired:
-            self._entries.pop(token_digest, None)
-
-    def issue(
-        self,
-        token_digest: str,
-        expires_at: int,
-        execution_binding_json: str,
-        *,
-        now: int,
-    ) -> bool:
-        """Register one issued token, returning False on collision/capacity."""
-        with self._lock:
-            self._purge_expired_locked(now)
-            if expires_at <= now or token_digest in self._entries:
-                return False
-            if len(self._entries) >= self._max_entries:
-                return False
-            self._entries[token_digest] = PreviewTokenRecord(
-                expires_at=expires_at,
-                execution_binding_json=execution_binding_json,
-            )
-            return True
-
-    def consume(
-        self,
-        token_digest: str,
-        expires_at: int,
-        *,
-        now: int,
-    ) -> PreviewTokenRecord | None:
-        """Atomically claim and remove one unexpired matching token."""
-        with self._lock:
-            self._purge_expired_locked(now)
-            record = self._entries.get(token_digest)
-            if record is None or record.expires_at != expires_at:
-                return None
-            return self._entries.pop(token_digest)
-
-    def __len__(self) -> int:
-        with self._lock:
-            return len(self._entries)
 
 
 def _parse_env_bool(name: str, default: bool) -> bool:
@@ -178,8 +110,14 @@ def _parse_env_csv_set(name: str) -> set[str]:
     }
 
 
-def _parse_env_int(name: str, default: int, *, min_value: int = 1) -> int:
-    """Parse a positive integer environment variable with a safe fallback."""
+def _parse_env_int(
+    name: str,
+    default: int,
+    *,
+    min_value: int = 1,
+    max_value: int | None = None,
+) -> int:
+    """Parse a bounded integer environment variable with a safe fallback."""
     raw = os.getenv(name)
     if raw is None:
         return default
@@ -199,7 +137,17 @@ def _parse_env_int(name: str, default: int, *, min_value: int = 1) -> int:
             default,
         )
         return default
+    if max_value is not None and value > max_value:
+        logger.warning(
+            "Invalid %s=%r; must be <= %s. Falling back to %s",
+            name,
+            raw,
+            max_value,
+            default,
+        )
+        return default
     return value
+
 
 # =============================================================================
 # Configuration
@@ -265,20 +213,34 @@ SKILLS_ENABLED = os.getenv("ENABLE_SKILLS", "0") == "1"
 # Default: disabled — only query skills are available
 SKILLS_ALLOW_MUTATIONS = os.getenv("SKILLS_ALLOW_MUTATIONS", "0") == "1"
 
-# v3.6 core: every mutation execute requires a preview token. If no explicit
-# secret is configured, tokens are valid only for this server process lifetime.
+# Every mutation execute requires a preview token registered in this process.
+# The bounded memory store intentionally fails closed across process restarts.
+MUTATION_PREVIEW_TOKEN_TTL_MAX_SECONDS = 86400
 MUTATION_PREVIEW_TOKEN_TTL_SECONDS = _parse_env_int(
     "MUTATION_PREVIEW_TOKEN_TTL_SECONDS",
     300,
     min_value=1,
+    max_value=MUTATION_PREVIEW_TOKEN_TTL_MAX_SECONDS,
 )
-_MUTATION_PREVIEW_TOKEN_SECRET = (
-    os.getenv("MUTATION_PREVIEW_TOKEN_SECRET") or secrets.token_urlsafe(32)
-).encode("utf-8")
+_mutation_preview_token_secret_raw = os.getenv("MUTATION_PREVIEW_TOKEN_SECRET")
+if _mutation_preview_token_secret_raw is None:
+    _MUTATION_PREVIEW_TOKEN_SECRET_SOURCE = "generated-unset"
+    _MUTATION_PREVIEW_TOKEN_SECRET = secrets.token_urlsafe(32).encode("utf-8")
+elif _mutation_preview_token_secret_raw == "":
+    _MUTATION_PREVIEW_TOKEN_SECRET_SOURCE = "generated-explicit-empty"
+    _MUTATION_PREVIEW_TOKEN_SECRET = secrets.token_urlsafe(32).encode("utf-8")
+else:
+    _MUTATION_PREVIEW_TOKEN_SECRET_SOURCE = "configured"
+    _MUTATION_PREVIEW_TOKEN_SECRET = _mutation_preview_token_secret_raw.encode(
+        "utf-8"
+    )
+del _mutation_preview_token_secret_raw
+MUTATION_PREVIEW_TOKEN_STORE_MAX_ENTRIES_MAX = 100_000
 MUTATION_PREVIEW_TOKEN_STORE_MAX_ENTRIES = _parse_env_int(
     "MUTATION_PREVIEW_TOKEN_STORE_MAX_ENTRIES",
     10000,
     min_value=1,
+    max_value=MUTATION_PREVIEW_TOKEN_STORE_MAX_ENTRIES_MAX,
 )
 MUTATION_PREVIEW_BINDING_MAX_BYTES = 4096
 _MUTATION_PREVIEW_TOKEN_STORE = InMemoryPreviewTokenStore(
@@ -303,6 +265,75 @@ if MUTATION_CONNECTION_POLICY_EXPLICIT:
         get_connection_config(_mutation_connection_id)
 else:
     _mutation_connection_allowlist = frozenset({get_default_connection_id()})
+
+
+def _mutation_routing_startup_summary() -> tuple[str, str, str, str]:
+    """Return a deterministic, non-sensitive mutation-policy summary."""
+    mode = "strict" if MUTATION_CONNECTION_POLICY_EXPLICIT else "default-only"
+    candidate_targets = sorted(_mutation_connection_allowlist)
+    policy_enabled_targets: list[str] = []
+    target_policy: list[str] = []
+
+    for connection_id in candidate_targets:
+        if not MUTATION_CONNECTION_POLICY_EXPLICIT:
+            policy_enabled_targets.append(connection_id)
+            target_policy.append(f"{connection_id}=compatibility-default")
+            continue
+
+        policy = get_connection_config(connection_id).policy
+        if not policy.allow_mutations:
+            target_policy.append(f"{connection_id}=disabled")
+            continue
+        if not policy.mutation_skills:
+            target_policy.append(f"{connection_id}=deny-all")
+            continue
+
+        policy_enabled_targets.append(connection_id)
+        if "*" in policy.mutation_skills:
+            target_policy.append(f"{connection_id}=explicit-all")
+        else:
+            skills = ",".join(sorted(policy.mutation_skills))
+            target_policy.append(f"{connection_id}=allowlist({skills})")
+
+    return (
+        mode,
+        ",".join(candidate_targets) or "none",
+        ",".join(policy_enabled_targets) or "none",
+        ";".join(target_policy) or "none",
+    )
+
+
+def _log_mutation_security_startup() -> None:
+    """Log mutation security posture without secret material or database DSNs."""
+    mode, candidates, policy_enabled_targets, target_policy = (
+        _mutation_routing_startup_summary()
+    )
+    logger.info(
+        "Mutation routing policy: mode=%s; candidate_targets=%s; "
+        "policy_enabled_targets=%s; target_policy=%s",
+        mode,
+        candidates,
+        policy_enabled_targets,
+        target_policy,
+    )
+
+    if _MUTATION_PREVIEW_TOKEN_SECRET_SOURCE == "generated-unset":
+        logger.info(
+            "Mutation preview-token signing secret: generated ephemeral "
+            "per-process value (MUTATION_PREVIEW_TOKEN_SECRET is unset)"
+        )
+    elif _MUTATION_PREVIEW_TOKEN_SECRET_SOURCE == "generated-explicit-empty":
+        logger.warning(
+            "MUTATION_PREVIEW_TOKEN_SECRET is explicitly empty; using a "
+            "generated ephemeral per-process signing secret"
+        )
+    else:
+        logger.info("Mutation preview-token signing secret: configured")
+        if len(_MUTATION_PREVIEW_TOKEN_SECRET) < 32:
+            logger.warning(
+                "Configured MUTATION_PREVIEW_TOKEN_SECRET is shorter than 32 "
+                "UTF-8 bytes; use at least 32 random bytes"
+            )
 
 # Skills directory path (relative to project root or absolute)
 SKILLS_DIR = os.getenv("SKILLS_DIR", "skills/")
@@ -345,8 +376,8 @@ SKILLS_CHECK_SCHEMA_ON_LIST = _parse_env_bool(
 # the catalog entry for developer review.
 SKILLS_EXCLUDE_PROFILES = _parse_env_csv_set("SKILLS_EXCLUDE_PROFILES")
 
-# Optional audit trail for read-only query skills. Mutation skills remain audited
-# unconditionally when mutation execution is enabled.
+# Optional audit trail for read-only query skills. Mutation audit is best-effort;
+# pre-token parameter/validation rejection may have no JSONL record.
 SKILLS_AUDIT_QUERIES = _parse_env_bool("SKILLS_AUDIT_QUERIES", False)
 
 SKILLS_SEARCH_MAX_LENGTH = 128
@@ -382,40 +413,6 @@ def _parse_telemetry_sample_rate(raw: str | None) -> float:
 TOOL_TELEMETRY_SAMPLE_RATE = _parse_telemetry_sample_rate(
     os.getenv("TOOL_TELEMETRY_SAMPLE_RATE")
 )
-
-# =============================================================================
-# Table Allowlist Configuration (P1 Security: Restrict table access)
-# Reference: Microsoft "Least Privilege Principle" - only allow access to necessary tables
-# Reference: Anthropic MCP Security - "Implement proper access controls"
-# =============================================================================
-
-def _parse_table_allowlist() -> set[str] | None:
-    """
-    Parse ALLOWED_TABLES environment variable into a set.
-    
-    Format: Comma-separated table names (case-insensitive)
-    Special value: "*" means allow all tables (explicit opt-in for UNION)
-    Example: ALLOWED_TABLES=products,orders,customers
-    
-    Returns:
-        Set of allowed table names (lowercase), None if not configured,
-        or {"*"} if explicitly set to allow all
-    """
-    allowed_tables_env = os.getenv("ALLOWED_TABLES", "").strip()
-    if not allowed_tables_env:
-        return None  # No allowlist configured - allow all tables
-    
-    # Special case: "*" means explicitly allow all tables
-    if allowed_tables_env == "*":
-        logger.info("Table allowlist set to '*' - all tables allowed (explicit)")
-        return {"*"}  # Special marker for "allow all"
-    
-    # Parse comma-separated list, normalize to lowercase
-    tables = {t.strip().lower() for t in allowed_tables_env.split(",") if t.strip()}
-    if tables:
-        logger.info(f"Table allowlist enabled: {len(tables)} tables allowed")
-    return tables if tables else None
-
 
 # Load allowlist at startup for the default connection. Per-call tools use the
 # selected ConnectionContext policy instead of this legacy module-level value.
@@ -586,9 +583,9 @@ async def lifespan(mcp_server: FastMCP) -> AsyncIterator[dict[str, Any]]:
 # not prescribe workflow (let LLM decide based on task context)
 mcp = FastMCP(
     name="sql-safety-executor",
-    instructions="""Database query assistant with READ-ONLY access.
-Use query() for all data requests. Use describe_table() or get_full_schema() first if structure unknown.
-For single-table queries, if schema/columns unknown, call describe_table(table_name) before query().""",
+    instructions="""Database safety gateway with read-only core SQL tools and configured connection routing.
+Use query() for free-form reads. Use describe_table() or get_full_schema() first if structure is unknown.
+Optional Skills provide reviewed queries and, when enabled, controlled mutations that require preview plus a matching one-time token.""",
     lifespan=lifespan,
     mask_error_details=True,
 )
@@ -893,8 +890,9 @@ _CONNECTION_ID_FIELD = Field(
 
 _MUTATION_PREVIEW_TOKEN_FIELD = Field(
     description=(
-        "Preview token returned by execute_mutation_skill(confirm=false). "
-        "Required when confirm=true."
+        "API-opaque, signed but unencrypted bearer token returned by "
+        "execute_mutation_skill(confirm=false). Required when confirm=true; "
+        "do not parse it or depend on its internal format."
     ),
     min_length=1,
     max_length=4096,
@@ -1083,12 +1081,13 @@ def _register_mutation_preview_token(
     execution_binding_json: str,
 ) -> None:
     now = int(time.time())
-    if not _MUTATION_PREVIEW_TOKEN_STORE.issue(
+    issued = _MUTATION_PREVIEW_TOKEN_STORE.issue(
         _preview_token_digest(preview_token),
         int(payload["exp"]),
         execution_binding_json,
         now=now,
-    ):
+    )
+    if not issued:
         raise ToolError(
             "Mutation preview token could not be registered; retry preview later."
         )
@@ -2284,26 +2283,6 @@ if SKILLS_ENABLED:
         }
 
 
-    def _skill_executable_state(
-        meta: SkillMetadata,
-        schema_table_names: set[str] | None,
-        connection: ConnectionContext,
-    ) -> tuple[bool, str | None]:
-        """Compatibility wrapper for executable state and reason."""
-        state = _skill_availability_state(meta, schema_table_names, connection)
-        return state["executable"], state["disabled_reason"]
-
-
-    def _skill_is_executable(
-        meta: SkillMetadata,
-        schema_table_names: set[str] | None,
-        connection: ConnectionContext,
-    ) -> bool:
-        """Return True when the skill can execute in the current server state."""
-        executable, _disabled_reason = _skill_executable_state(meta, schema_table_names, connection)
-        return executable
-
-
     def _ensure_skill_schema_ready(meta: SkillMetadata, connection: ConnectionContext) -> None:
         """Raise a ToolError if the current database is missing required tables."""
         if not SKILLS_CHECK_SCHEMA_ON_LIST or not meta.tables:
@@ -2954,7 +2933,10 @@ if SKILLS_ENABLED:
                     },
                     "preview_token": {
                         "type": "string",
-                        "description": "Opaque token returned by preview and required for execute.",
+                        "description": (
+                            "API-opaque, signed but unencrypted bearer token "
+                            "returned by preview and required for execute."
+                        ),
                     },
                     "preview_token_expires_at": {"type": "string"},
                     "preview_token_expires_in_seconds": {"type": "integer"},
@@ -3077,9 +3059,66 @@ if SKILLS_ENABLED:
                             start_time=start_time,
                             connection=connection,
                             audit_logged=False,
+                            preview_token_required=False,
+                            preview_token_validated=False,
+                            preview_token_consumed=False,
                         )
 
                     preview_result = mutation.preview(validated_params)
+                    if not isinstance(preview_result, dict):
+                        raise ToolError(
+                            "Mutation preview returned an invalid result; no "
+                            "preview token was issued."
+                        )
+                    if (
+                        "error" in preview_result
+                        or (
+                            "success" in preview_result
+                            and preview_result["success"] is not True
+                        )
+                    ):
+                        raw_preview_error = preview_result.get("error")
+                        preview_error = (
+                            str(raw_preview_error).strip()
+                            if raw_preview_error is not None
+                            else ""
+                        )
+                        if not preview_error:
+                            preview_error = "Mutation preview reported failure."
+                        await ctx.warning(f"Preview failed: {preview_error}")
+                        audit_logged = _audit_logger.log(
+                            skill_name=skill_name,
+                            params=validated_params,
+                            mode="preview",
+                            result={
+                                "success": False,
+                                "preview": False,
+                                "error": preview_error,
+                            },
+                            client_id=client_id,
+                            connection_id=connection.connection_id,
+                            db_type=connection.db_type,
+                        )
+                        payload = {
+                            "success": False,
+                            "skill_name": skill_name,
+                            "mode": "preview",
+                            "connection_id": connection.connection_id,
+                            "db_type": connection.db_type,
+                            "preview": preview_result,
+                            "error": preview_error,
+                        }
+                        return _skill_tool_result(
+                            payload,
+                            meta,
+                            mode="preview",
+                            start_time=start_time,
+                            connection=connection,
+                            audit_logged=audit_logged,
+                            preview_token_required=False,
+                            preview_token_validated=False,
+                            preview_token_consumed=False,
+                        )
                     execution_binding = mutation.build_execution_binding(
                         validated_params,
                         validation,
@@ -3109,7 +3148,6 @@ if SKILLS_ENABLED:
                         result={
                             "success": True,
                             "preview": True,
-                            "preview_token_id": token_id,
                         },
                         client_id=client_id,
                         connection_id=connection.connection_id,
@@ -3159,6 +3197,7 @@ if SKILLS_ENABLED:
             else:
                 # Phase 2: validate + execute (commits to database)
                 token_consumed = False
+                write_completed = False
                 try:
                     verified_token_payload = _verify_mutation_preview_token(
                         preview_token,
@@ -3174,10 +3213,37 @@ if SKILLS_ENABLED:
                     )
                     token_consumed = True
 
-                    validation = mutation.validate(validated_params)
+                    try:
+                        validation = mutation.validate(validated_params)
+                    except ToolError as validation_error:
+                        _audit_logger.log(
+                            skill_name=skill_name,
+                            params=validated_params,
+                            mode="execute",
+                            result={
+                                "success": False,
+                                "error": str(validation_error),
+                            },
+                            client_id=client_id,
+                            connection_id=connection.connection_id,
+                            db_type=connection.db_type,
+                        )
+                        raise
                     if not validation.get("valid", False):
                         errors = validation.get("errors", ["Validation failed"])
                         await ctx.warning(f"Validation failed: {errors}")
+                        audit_logged = _audit_logger.log(
+                            skill_name=skill_name,
+                            params=validated_params,
+                            mode="execute",
+                            result={
+                                "success": False,
+                                "error": f"Validation failed: {errors}",
+                            },
+                            client_id=client_id,
+                            connection_id=connection.connection_id,
+                            db_type=connection.db_type,
+                        )
                         payload = {
                             "success": False,
                             "skill_name": skill_name,
@@ -3192,7 +3258,7 @@ if SKILLS_ENABLED:
                             mode="execute",
                             start_time=start_time,
                             connection=connection,
-                            audit_logged=False,
+                            audit_logged=audit_logged,
                             preview_token_required=True,
                             preview_token_validated=True,
                             preview_token_consumed=True,
@@ -3208,6 +3274,7 @@ if SKILLS_ENABLED:
                         db_type=connection.db_type,
                         execution_binding=execution_binding,
                     )
+                    write_completed = True
                     audit_logged = bool(result.pop("_audit_logged", True))
 
                     await ctx.info(
@@ -3236,6 +3303,17 @@ if SKILLS_ENABLED:
                         preview_token_id=token_id,
                     )
                 except ToolError as e:
+                    if write_completed:
+                        logger.error(
+                            "Mutation response handling failed after a "
+                            "successful write: %s",
+                            e.__class__.__name__,
+                        )
+                        raise ToolError(
+                            "Mutation execution completed, but the tool response "
+                            "failed. The preview_token has been consumed; verify "
+                            "the current database state before another mutation."
+                        ) from e
                     if token_consumed:
                         raise ToolError(
                             f"{e} The preview_token has been consumed; run "
@@ -3243,6 +3321,17 @@ if SKILLS_ENABLED:
                         ) from e
                     raise
                 except Exception as e:
+                    if write_completed:
+                        logger.error(
+                            "Mutation response handling failed after a "
+                            "successful write: %s",
+                            e.__class__.__name__,
+                        )
+                        raise ToolError(
+                            "Mutation execution completed, but the tool response "
+                            "failed. The preview_token has been consumed; verify "
+                            "the current database state before another mutation."
+                        ) from e
                     sanitized = adapter._handle_error(e)
                     if token_consumed:
                         sanitized = (
@@ -3261,6 +3350,7 @@ if SKILLS_ENABLED:
                     raise ToolError(sanitized) from e
 
         logger.info("Mutation skills enabled (SKILLS_ALLOW_MUTATIONS=1)")
+        _log_mutation_security_startup()
     else:
         logger.info("Mutation skills disabled (SKILLS_ALLOW_MUTATIONS=0)")
 

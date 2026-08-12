@@ -24,12 +24,83 @@ from unittest.mock import patch
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-# Keep the default pytest suite hermetic even when a developer's local .env
-# enables named connections or mutation routing for live smoke testing.
-# Individual tests that exercise these policies set the variables explicitly
-# with monkeypatch.
-os.environ["DB_CONNECTIONS"] = ""
-os.environ["SKILLS_ALLOW_MUTATION_CONNECTIONS"] = ""
+# Keep the default pytest suite hermetic even when a developer's shell or local
+# .env configures a live database, mutation routing, Skills, or telemetry.
+# python-dotenv honors PYTHON_DOTENV_DISABLED, so module reloads cannot silently
+# restore values that a test removed to exercise configuration defaults.
+_MYSQL_INTEGRATION_REQUESTED = (
+    os.environ.get("RUN_MYSQL_INTEGRATION_TESTS", "").strip() == "1"
+)
+_NAMED_CONNECTION_SUFFIXES = (
+    "TYPE",
+    "QUERY_TIMEOUT_SECONDS",
+    "CONNECT_TIMEOUT_SECONDS",
+    "ALLOW_UNION",
+    "ALLOWED_TABLES",
+    "ALLOW_MUTATIONS",
+    "MUTATION_SKILLS",
+    "USER",
+    "PASSWORD",
+    "HOST",
+    "NAME",
+    "SQLITE_DATABASE_PATH",
+    "SQLITE_PROGRESS_HANDLER_INTERVAL",
+)
+for _env_name in tuple(os.environ):
+    if not _env_name.startswith("DB_"):
+        continue
+    _env_remainder = _env_name[3:]
+    if any(
+        _env_remainder.endswith(f"_{suffix}")
+        for suffix in _NAMED_CONNECTION_SUFFIXES
+    ):
+        os.environ.pop(_env_name, None)
+
+_SAFE_PYTEST_ENV = {
+    "PYTHON_DOTENV_DISABLED": "1",
+    "DB_CONNECTIONS": "",
+    "DEFAULT_DB_CONNECTION": "",
+    "DB_TYPE": "sqlite",
+    "SQLITE_DATABASE_PATH": ":memory:",
+    "QUERY_TIMEOUT_SECONDS": "30",
+    "CONNECT_TIMEOUT_SECONDS": "10",
+    "SQLITE_PROGRESS_HANDLER_INTERVAL": "100",
+    "ALLOW_UNION": "0",
+    "ALLOWED_TABLES": "",
+    "ENABLE_SCHEMA_TOOLS": "1",
+    "ENABLE_TABLE_SUMMARY": "0",
+    "LARGE_TABLE_THRESHOLD": "1000",
+    "MAX_RESULT_ROWS": "100",
+    "MAX_RESULT_CHARS": "16000",
+    "MAX_SQL_LENGTH": "20000",
+    "MAX_SCHEMA_TABLES": "50",
+    "MAX_OVERVIEW_TABLES": "100",
+    "MCP_TOOL_TIMEOUT_SECONDS": "120",
+    "ENABLE_SKILLS": "0",
+    "SKILLS_ALLOW_MUTATIONS": "0",
+    "SKILLS_ALLOW_MUTATION_CONNECTIONS": "",
+    "SKILLS_DIR": "skills/",
+    "SKILLS_LIST_DEFAULT_DETAIL": "summary",
+    "SKILLS_LIST_AVAILABLE_ONLY_DEFAULT": "1",
+    "SKILLS_CHECK_SCHEMA_ON_LIST": "1",
+    "SKILLS_EXCLUDE_PROFILES": "",
+    "SKILLS_AUDIT_QUERIES": "0",
+    "MUTATION_PREVIEW_TOKEN_SECRET": "",
+    "MUTATION_PREVIEW_TOKEN_TTL_SECONDS": "300",
+    "MUTATION_PREVIEW_TOKEN_STORE_MAX_ENTRIES": "10000",
+    "ENABLE_TOOL_TELEMETRY": "0",
+    "TOOL_TELEMETRY_SAMPLE_RATE": "1.0",
+}
+if not _MYSQL_INTEGRATION_REQUESTED:
+    _SAFE_PYTEST_ENV.update(
+        {
+            "DB_USER": "",
+            "DB_PASSWORD": "",
+            "DB_HOST": "",
+            "DB_NAME": "",
+        }
+    )
+os.environ.update(_SAFE_PYTEST_ENV)
 
 
 # =============================================================================
@@ -294,11 +365,17 @@ def mysql_adapter():
     """
     Create a MySQLAdapter connected to test database.
     
-    Requires MySQL to be running and configured in .env
+    Requires explicit RUN_MYSQL_INTEGRATION_TESTS=1 opt-in plus exported MySQL
+    credentials. The default pytest process intentionally does not load .env.
     
     Returns:
         Connected MySQLAdapter instance
     """
+    if not _MYSQL_INTEGRATION_REQUESTED:
+        pytest.skip(
+            "MySQL integration tests require RUN_MYSQL_INTEGRATION_TESTS=1"
+        )
+
     from db_adapter import MySQLAdapter
 
     required_env = {

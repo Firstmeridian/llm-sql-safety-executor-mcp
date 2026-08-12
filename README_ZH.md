@@ -1,6 +1,6 @@
 # 面向 AI Agent 的数据库安全访问入口 - MCP 服务
 
-![Version](https://img.shields.io/badge/version-3.6-blue)
+![Version](https://img.shields.io/badge/version-3.6.1-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Python](https://img.shields.io/badge/python-3.12+-blue?logo=python)
 ![MCP](https://img.shields.io/badge/MCP-Protocol-orange)
@@ -173,7 +173,7 @@ Skills 场景：list_skills(search/category/detail_level/available_only) → get
 3. 生成SQL的查询准确性、查询质量和查询效率
 
 **关于问题1：**  
-此场景实际上并非“前端直接传递SQL给后端使用”的情况，LLM(Agents)在这里更类似于运行服务端在服务端的程序。所有的SQL，都是在服务端可控的环境下生成，通过stdio模式（当然也可以在安全的内网环境下使用HTTP方式）与其它后端服务通信。此场景中的Agents是可约束输入/输出的程序，与前端（外部用户）仅通过Prompt对接。而在2025年末的当下，防止Prompt注入已经是十分广泛且成熟的实践，Agents的编写者可以很轻松的用多种方法来避免外部Prompt注入。  
+此场景并非“前端直接传递 SQL 给后端执行”。LLM（Agent）更接近运行在服务端的程序，SQL 在受控服务端环境中生成；Mutation 推荐使用 stdio。条件性私有 HTTP 使用必须遵守后文的单进程和信任边界，v3.6.1 不定义多用户认证 HTTP mutation。Agent 的输入/输出仍需约束，但 prompt injection 防护只能补充、不能替代服务端 policy 与授权检查。
 **关于问题2：**  
 LLM的生成具有不确定性。即便有极小概率，这也会导致生成SQL的安全性无法得到保障。需要有SQL安全检查工具对生成的SQL进行检查和过滤。  
 **关于问题3：**  
@@ -512,7 +512,7 @@ cp .env.example .env
 python start_server.py
 
 # 运行默认 hermetic pytest 套件
-# 该命令只收集 tests/，不会使用当前配置的 live database。
+# 该命令只收集 tests/、忽略 .env，并使用安全的 SQLite 默认值。
 python -m pytest -q
 
 # 可选 live/manual smoke 检查：内部函数会连接当前配置的 DB
@@ -637,6 +637,7 @@ v3.5 的连接约定与妥协：
 - 服务器会先解析目标连接，再做 SQL policy、schema readiness、执行、结果元数据、审计和遥测。未知 `connection_id` 会 fail closed，不会回退到默认连接。
 - 工具和 Skills 不接受模型传入的任意 DSN；数据库 URL 与凭据只能来自环境配置。
 - per-connection policy 当前覆盖 `ALLOW_UNION`、`ALLOWED_TABLES`、查询超时、连接超时和 SQLite progress interval。结果大小限制（`MAX_RESULT_ROWS`、`MAX_RESULT_CHARS`、schema 概览上限）仍是进程级配置。
+- 读写 allowlist 的空值语义有意不同：`DB_<ID>_ALLOWED_TABLES` 为空时，为兼容旧行为，允许读取所有可见表；`DB_<ID>_MUTATION_SKILLS` 为空时拒绝所有写入。生产环境应显式配置读表 allowlist。
 - 查询 Skills 是 connection-scoped：`list_skills(connection_id=...)`、`get_skill_detail(connection_id=...)`、`execute_query_skill(..., connection_id=...)` 会用同一个目标连接做 DB 兼容性、表 readiness、allowlist、执行、`ToolResult.meta`、可选查询审计和遥测。
 - 未设置 `SKILLS_ALLOW_MUTATION_CONNECTIONS` 时，Mutation Skills 保持仅默认连接的兼容模式。设置后进入 v3.6 严格路由：每个目标必须同时出现在该列表、设置 `DB_<ID>_ALLOW_MUTATIONS=1`，并通过 `DB_<ID>_MUTATION_SKILLS` 允许对应 Skill。Preview token 会把预览和执行绑定到同一连接、参数、Skill 版本和 DB 类型。
 - `list_connections()` 只返回连接 id、db type、超时值和 policy 摘要，不暴露 DSN、host、用户名、密码或 SQLite 文件路径。
@@ -682,9 +683,9 @@ MAX_OVERVIEW_TABLES=100  # list_tables 返回的最大表数（0=不限制）
 ENABLE_SKILLS=0          # 主开关：启用 Skills 层（1=启用，0=禁用）
 SKILLS_ALLOW_MUTATIONS=0 # 允许写操作技能（需要 ENABLE_SKILLS=1）
 # SKILLS_ALLOW_MUTATION_CONNECTIONS=mysql,analytics # 启用严格命名写策略
-MUTATION_PREVIEW_TOKEN_TTL_SECONDS=300 # Preview token 有效期
+MUTATION_PREVIEW_TOKEN_TTL_SECONDS=300 # Preview token 有效期（1-86400 秒）
 MUTATION_PREVIEW_TOKEN_STORE_MAX_ENTRIES=10000 # 未过期 token 容量
-# MUTATION_PREVIEW_TOKEN_SECRET=change_me # 可选固定 HMAC key
+# MUTATION_PREVIEW_TOKEN_SECRET=replace_with_at_least_32_random_bytes
 SKILLS_LIST_DEFAULT_DETAIL=summary # list_skills 默认元数据粒度：compact、summary 或 full
 SKILLS_LIST_AVAILABLE_ONLY_DEFAULT=1 # list_skills 默认仅展示当前可执行 Skill
 SKILLS_CHECK_SCHEMA_ON_LIST=1 # list_skills 默认隐藏缺少所需表的 Skill
@@ -706,9 +707,9 @@ Skills 层允许你将常用的 SQL 查询和数据变更操作封装为可复�
 | `SKILLS_ALLOW_MUTATION_CONNECTIONS` | 空 | 可选 mutation 目标连接 allowlist。为空时保持仅默认连接的兼容模式；非空时进入严格模式，并要求匹配的 per-connection 写策略 |
 | `DB_<ID>_ALLOW_MUTATIONS` | `0` | 严格模式下的 per-connection 写开关；每个允许写入的目标都必须设为 `1` |
 | `DB_<ID>_MUTATION_SKILLS` | 空 | 严格模式下的 mutation Skill allowlist。空值 deny-all；`*` 表示显式允许所有仍通过其他检查的 mutation Skills |
-| `MUTATION_PREVIEW_TOKEN_TTL_SECONDS` | `300` | Mutation preview token 的正整数有效期（秒） |
-| `MUTATION_PREVIEW_TOKEN_STORE_MAX_ENTRIES` | `10000` | 进程内 store 允许的未过期 preview token 上限。容量满时 fail closed，不驱逐有效 token |
-| `MUTATION_PREVIEW_TOKEN_SECRET` | 每进程生成 | 可选固定 HMAC 签名 key，必须保密。Memory-store 签发状态属于当前进程，因此即使固定该值，重启仍会使所有 token 失效 |
+| `MUTATION_PREVIEW_TOKEN_TTL_SECONDS` | `300` | Mutation preview token 有效期（秒）；有效范围 `1-86400`，无效值回退到 `300` |
+| `MUTATION_PREVIEW_TOKEN_STORE_MAX_ENTRIES` | `10000` | 每进程未过期 preview token 上限（有效范围 `1-100000`）。容量满时 fail closed，不驱逐有效 token |
+| `MUTATION_PREVIEW_TOKEN_SECRET` | 每进程生成 | 可选私密 HMAC 签名 key，建议至少 32 个随机字节。启用 mutation 时，启动日志只说明 generated/configured 模式，并对空值或过短配置告警，不记录 secret；即使固定此值，memory store 仍会在重启时使未消费 token 失效 |
 | `SKILLS_LIST_DEFAULT_DETAIL` | `summary` | `list_skills` 默认元数据粒度：`compact`、`summary` 或 `full`。单次调用的 `detail_level` 会覆盖该值 |
 | `SKILLS_LIST_AVAILABLE_ONLY_DEFAULT` | `1` | `list_skills` 默认可用性过滤。设为 `1` 时，Agent 发现面会隐藏目标 `connection_id` 下因 DB 类型、mutation 开关/写策略、未设置 `SKILLS_ALLOW_MUTATION_CONNECTIONS` 时的仅默认连接兼容模式、查询连接 allowlist 或 schema readiness 不可执行的 Skill；开发者可传 `available_only=false` 查看完整目录 |
 | `SKILLS_CHECK_SCHEMA_ON_LIST` | `1` | 在 Skills 可用性元数据中加入实时表存在性检查。开启后，缺少所需表的 Skill 会显示 `schema_ready=false`，并被 `available_only=true` 隐藏 |
@@ -718,12 +719,28 @@ Skills 层允许你将常用的 SQL 查询和数据变更操作封装为可复�
 | `SKILLS_AUDIT_QUERIES` | `0` | 可选查询 Skill 审计。记录 Skill 名、参数、行数、状态、错误、`connection_id` 和实际 `db_type`，不记录返回数据或连接串 |
 | `AGENT_ID` | `unknown` | 审计日志中标识调用者的 Agent ID |
 
+**Preview-token 部署边界（v3.6.1）**：
+
+- Preview-token 状态保存在单个有界进程内 memory store。stdio 下，preview 与
+  execute 必须留在同一客户端启动的 server 进程；这是推荐的 mutation 部署方式。
+- 若集成方通过 HTTP transport 暴露 mutation，v3.6.1 只支持受信任的单操作者/
+  私有边界，并且只能运行一个启用 mutation 的进程；不定义多用户认证 HTTP
+  mutation 服务。程序不会检测或强制 worker/replica 数，部署配置必须都保持为 1。
+- 即使固定 signing secret，进程重启仍会使全部未消费 token 失效。这是有意的
+  fail-closed 连续性边界；重启或进程结果不确定后必须重新 preview。
+- 不得把多个启用 mutation 的 worker 放在普通负载均衡器后。只读容量只能通过
+  独立的 read-only endpoint、profile 或 pool 扩展；v3.6.1 不支持跨 worker 或
+  跨副本 mutation。
+- 不存在 stateless HMAC-only fallback，也不提供 SQLite、SQL 表或其他外部共享
+  token backend。
+
 **隐私与日志运维说明**：
 
 - Skill audit params 只做长度截断，不按 key/value 脱敏。请把 Skill 参数视为业务审计数据，不要把 secret、token、凭据或敏感个人数据作为 Skill 参数传入。
 - 开启 mutation skills 后，mutation audit 会自动尝试记录，但审计写入失败不会阻断操作；query skill audit 仍保持 opt-in（`SKILLS_AUDIT_QUERIES=0` 默认关闭），避免意外记录读查询参数。v3.5 审计条目可包含安全别名 `connection_id` 和实际 `db_type`，仍不包含 DSN、host、密码、SQLite 文件路径、SQL 文本或返回行。
-- 参数校验失败和审计写入失败可能返回 `audit_logged=false` 的正常工具结果。JSONL audit 是 best-effort 可见性辅助，不是 fail-closed 事务控制。
-- 一次性 preview-token store 属于当前进程，只支持默认 stdio 和单个 HTTP/SSE worker。在共享原子 store 实现前，不要让 mutation execute 运行在多 worker/多副本部署中；sticky routing 不是 replay 安全边界，store miss 会 fail closed，不会回退到 stateless HMAC。
+- Token 前的参数/validation 拒绝和审计写入失败可能返回 `audit_logged=false` 的正常工具结果。有效 token 一旦被 execute 消费，后续动态 validation 拒绝会尝试 best-effort execute audit。JSONL audit 仍是可见性辅助，不是 fail-closed 事务控制。
+- 如果数据库写入已经提交，但随后 context 通知或响应构造失败，系统会保留已有 success audit，不再追加矛盾的 failure。客户端在再次 mutation 前必须核查当前数据库状态；token 仍保持已消费。
+- 进程本地 preview-token store 支持推荐的 stdio 路径，以及有条件的单个受信任私有 HTTP mutation 进程；多用户认证 HTTP、跨 worker/跨副本 mutation 不属于 v3.6.1，且绝不回退到 stateless HMAC。
 - `SKILLS_AUDIT_LOG`、`TOOL_TELEMETRY_LOG_PATH` 和 `logs/sql_safety_checker_*.log` 都是本地文件。生产环境应放在可信存储上，限制文件权限，并使用外部轮转/保留机制，例如 `logrotate`、平台日志、cron cleanup 或托管日志 sink。常见起点是按天或按大小轮转、压缩，并根据合规需求保留 14-90 天。
 
 **典型配置场景**：
@@ -791,14 +808,22 @@ SKILLS_AUDIT_QUERIES=1
 
 ## 更新日志
 
+### v3.6.1 Preview-Token 加固（2026年8月）
+
+- 保留 v3.6 的有界进程内 memory store，通过原子 issue/consume 实施一次性消费，
+  并正式明确同进程部署边界。
+- Execution binding 改为使用 preview 真正展示的状态；失败 preview 不再签发
+  token；内置状态敏感 Skill 的公开无绑定 `execute()` 路径已禁用。
+- 加固 secret 轮换、脱敏、数据库失败后消费、并发消费与 memory store 测试。
+
 ### v3.6 Mutation Preview Token 与命名写策略（2026年5月）
 
 本版本增加强制 preview-token 绑定，以及跨配置化命名连接的 opt-in 严格 mutation 路由：
 
-- `execute_mutation_skill(confirm=false)` 现在返回不透明的 `preview_token`、token 过期字段和 token 相关 `_meta` 字段。
+- `execute_mutation_skill(confirm=false)` 现在返回对 API 调用方不透明、已签名但未加密的 bearer `preview_token`、token 过期字段和 token 相关 `_meta` 字段。
 - `execute_mutation_skill(confirm=true)` 必须携带匹配的 `preview_token`；缺失、过期、篡改，或 params/skill/connection 不匹配都会在写入前 fail closed。
 - Token 使用 HMAC 签名，并绑定 skill name、skill version、规范化 params hash、解析后的 `connection_id`、`db_type`、签发时间和过期时间。
-- 每个 token 都有随机 `jti` 并登记在有界进程内 store；execute 会在动态 validation/write 前原子消费，因此 replay 和并发复用都会 fail closed。
+- 每个 token 都有随机 `jti` 并登记在有界进程内原子 store；execute 会在动态 validation/write 前消费，因此签发进程内的 replay 和并发复用都会 fail closed。
 - Preview 敏感状态可以独立绑定；内置订单 mutation 会用 preview 时展示的状态做乐观锁。
 - `execute_mutation_skill` 接受可选 `connection_id`；严格路由要求全局目标 allowlist、per-connection 开关和 Skill allowlist 同时通过。
 - `MUTATION_PREVIEW_TOKEN_TTL_SECONDS` 控制有效期，`MUTATION_PREVIEW_TOKEN_STORE_MAX_ENTRIES` 限制未消费 token 数量；memory store 使所有 token 在进程重启后失效，即使配置固定签名 key 也一样。
@@ -1440,7 +1465,8 @@ returned   → (终态，不可转换)
  "params": {"order_id": 42, "new_status": "shipped"},
  "confirm": false}
 ```
-返回将要执行的 SQL、预期影响和不透明的 `preview_token`，不实际修改数据。
+返回将要执行的 SQL、预期影响，以及对 API 调用方不透明、已签名但未加密的
+bearer `preview_token`，不实际修改数据。
 
 2. **执行**（`confirm=true`）—— 确认并验证 token 后写入：
 ```json
@@ -1451,13 +1477,21 @@ returned   → (终态，不可转换)
 ```
 
 Preview token 会绑定 skill name、skill version、规范化后的 params、解析后的
-`connection_id`、DB 类型、过期时间，以及最小 preview-time execution state 的 hash。Token 只能使用一次：execute 会在动态 validation 和数据库写入前原子消费；此后的 validation、数据库、timeout、audit 或响应失败都要求重新 preview。静态 request/policy/HMAC 不匹配不会消耗原 token。默认有效期为 `MUTATION_PREVIEW_TOKEN_TTL_SECONDS=300`；签发状态保存在进程内，因此即使设置固定 `MUTATION_PREVIEW_TOKEN_SECRET`，服务重启后 token 仍会失效。
+`connection_id`、DB 类型、过期时间，以及最小 preview-time execution state 的 hash。Token 只能使用一次：execute 会在动态 validation 和数据库写入前原子消费；此后的 validation、数据库、timeout、audit 或响应失败都要求重新 preview。静态 request/policy/HMAC 不匹配不会消耗原 token。默认有效期为 `MUTATION_PREVIEW_TOKEN_TTL_SECONDS=300`，有效范围是 `1-86400` 秒。进程内 memory store 在重启时丢失全部未消费 token，即使固定签名 secret 也一样。Preview 与 execute 必须到达同一进程；跨 worker/跨副本 mutation 不受支持，且绝不会开放 stateless token replay。
+
+客户端不得解析 token 或依赖其内部格式。Token 必然经过授权客户端，并可能进入
+模型上下文；客户端应尽量避免持久保存和日志记录，并保护上下文与日志的访问。
+Bearer confidentiality 在 token 消费或过期前仍然重要；短 TTL、精确绑定和一次性
+消费只能限制、不能消除泄露影响。适用工具 metadata 中的短
+`preview_token_id` 仅用于客户端关联；audit 和 telemetry 既不持久化完整 token，
+也不持久化这个短标识。
 
 **安全机制**：
 - **状态机验证**：`validate()` 检查当前状态是否允许转换到目标状态
 - **Preview token 绑定**：`confirm=true` 必须携带匹配预览调用返回的 token
 - **一次性消费**：一个 token 最多授权一次 execute 尝试；结果不确定时不自动重试
 - **Preview 状态绑定**：状态敏感 Skill 可实现 `build_execution_binding()` / `execute_with_binding()`，确保执行遵守用户审阅时的状态
+- **失败 preview 处理**：preview 结果含 `error` 或报告 `success=false` 时不签发 token
 - **乐观锁**：执行时使用 `WHERE status = :expected_status`，如果在预览和执行之间状态被其他人修改，则更新失败（返回 rowcount=0）
 - **事务保护**：写操作在数据库事务中执行，失败时自动回滚
 - **审计日志**：mutation preview/execute 路径尝试 best-effort 写入 JSONL 审计文件；审计写入失败不会回滚数据变更
@@ -1625,11 +1659,15 @@ execute_query_skill("monthly-sales-report", {"year": 2026, "month": 1})
 
 - Python 3.12+
 - MySQL 或 SQLite 数据库
-- 依赖：`sqlparse`、`SQLAlchemy>=2.0`、`PyMySQL`、`fastMCP`、`python-dotenv`、`pyyaml`
+- 依赖：`sqlparse`、`SQLAlchemy>=2.0`、`PyMySQL`、`fastMCP`、`python-dotenv>=1.2.0`、`pyyaml`
 
 ## 测试
 
-默认 pytest 套件是 hermetic 的，并通过 `pytest.ini` 限定为只收集 `tests/`：
+默认 pytest 套件是 hermetic 的，并通过 `pytest.ini` 限定为只收集 `tests/`。
+`tests/conftest.py` 会在应用模块导入前禁用 `python-dotenv`，并设置安全的
+SQLite、policy、Skills 和 telemetry 默认值，因此本地 `.env` 不能把测试重定向到
+live database。可选 MySQL integration fixture 还要求显式设置
+`RUN_MYSQL_INTEGRATION_TESTS=1`，并在进程环境中导出 MySQL 凭据；`.env` 仍不会加载：
 
 ```bash
 python -m pytest -q
@@ -1671,14 +1709,13 @@ python test_mcp_client.py
 
 - [Skills 设计文档](MCP_AGENTS_SKILLS_DESIGN.md)：v3.0 Skills 扩展层架构和设计决策
 - [Skills 安全策略](skills/SAFETY.md)：面向技能作者的安全治理
-- [v3.5-v3.6 命名连接与 Skills 说明](RELEASE_NOTES/GUIDE/V3_5_V3_6_SKILLS_GUIDE_ZH.md)：用 Q&A 和 Mermaid 图解释命名连接、Mutation 写策略、preview-token 与 Skill 生命周期
+- [v3.5-v3.6.1 命名连接与 Skills 说明](RELEASE_NOTES/GUIDE/V3_5_V3_6_SKILLS_GUIDE_ZH.md)：用 Q&A 和 Mermaid 图解释命名连接、Mutation 写策略、preview-token、单 mutation worker 部署边界与 Skill 生命周期
 - [v3.5 发布说明](RELEASE_NOTES/RELEASE_NOTES_v3_5.md)：命名多连接版本摘要、兼容性、限制和验证证据
-- [v3.6 发布说明](RELEASE_NOTES/RELEASE_NOTES_v3_6.md)：Mutation preview-token 与命名写策略
-- [v3.6 多连接 Mutation 草案](DRAFTPLAN_v36_mutation_multi_connection.md)：后续 connection-scoped mutation Skills 的设计草案
+- [v3.6/v3.6.1 发布说明](RELEASE_NOTES/RELEASE_NOTES_v3_6.md)：Mutation preview-token、命名写策略、execution binding 修复与同进程部署边界定稿
 - [设计风险登记表](DESIGN_RISK_REGISTER_ZH.md)：长期维护的设计、安全与运维风险登记
 - [可行性分析](LLM_TO_MCP_FEASIBILITY_ANALYSIS.md)：LLM 到 MCP 转换的详细分析
 - [原始上下文](GEMINI.md)：项目背景和开发指南
-- [重构日志](REFACTORING_LOG.md)：重构变更文档（v2.0 — v3.6）
+- [重构日志](REFACTORING_LOG.md)：重构变更文档（v2.0 — v3.6.1）
 - [MCP 客户端测试指南](TEST_MCP_CLIENT_GUIDE.md)：通过客户端测试 MCP 服务器的指南
 - [提示工程最佳实践](PROMPT_ENGINEERING_BEST_PRACTICES.md)：MCP 工具描述和提示的指南
 - [Agent 示例开发日志](agent_examples/AGENT_DEVELOPMENT_ZH.md)：AutoGen 多智能体示例的设计与决策

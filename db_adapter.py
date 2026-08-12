@@ -368,13 +368,6 @@ def _build_database_config(
             use_legacy_fallback=use_legacy_fallback,
             use_connection_value=use_connection_env,
         )
-        if sqlite_path is None:
-            sqlite_path = _connection_env(
-                connection_id,
-                "DATABASE_PATH",
-                default=":memory:",
-                use_connection_value=use_connection_env,
-            )
         progress_interval = _parse_int_value(
             _connection_env(
                 connection_id,

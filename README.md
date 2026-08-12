@@ -1,6 +1,6 @@
 # LLM Database Safety Gateway - MCP Service
 
-![Version](https://img.shields.io/badge/version-3.6-blue)
+![Version](https://img.shields.io/badge/version-3.6.1-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Python](https://img.shields.io/badge/python-3.12+-blue?logo=python)
 ![MCP](https://img.shields.io/badge/MCP-Protocol-orange)
@@ -173,7 +173,7 @@ However, three key issues need to be considered:
 3. The accuracy, quality, and efficiency of the generated SQL queries.
 
 **Regarding Issue 1:**
-This is not a case of a frontend directly sending SQL to a backend for execution. Here, LLMs (Agents) behave more like server-side programs. All SQL is generated in a controllable server environment and communicates with other backend services over stdio (or over HTTP inside a secure intranet). In this setup, Agents are programs with constrained inputs and outputs that interface with external users only through prompts. As of late 2025, defending against prompt injection is already a widespread and mature practice, and Agent authors can use multiple techniques to reduce that risk.
+This is not a case of a frontend directly sending SQL to a backend for execution. Here, LLMs (Agents) behave more like server-side programs. SQL is generated in a controlled server environment, with stdio as the recommended mutation transport. Conditional private HTTP use has the single-process and trust-boundary limits documented below; v3.6.1 does not define multi-user authenticated HTTP mutation. Agents remain programs with constrained inputs and outputs, but prompt injection defenses complement rather than replace server-side policy and authorization.
 
 **Regarding Issue 2:**
 LLM generation is uncertain. Even with a very low probability, this can lead to generated SQL safety not being guaranteed. A SQL safety check tool is needed to inspect and filter generated SQL.
@@ -515,7 +515,7 @@ cp .env.example .env
 python start_server.py
 
 # Run the default hermetic pytest suite
-# This collects tests/ only and does not use the configured live database.
+# This collects tests/ only, ignores .env, and uses safe SQLite defaults.
 python -m pytest -q
 
 # Optional live/manual smoke check: internal functions against configured DB
@@ -650,6 +650,10 @@ v3.5 connection guarantees and compromises:
   timeout, connect timeout, and SQLite progress interval. Result-size limits
   (`MAX_RESULT_ROWS`, `MAX_RESULT_CHARS`, schema overview caps) remain
   process-wide.
+- Empty read and write allowlists intentionally have different meanings: an
+  empty `DB_<ID>_ALLOWED_TABLES` permits reads from all visible tables for
+  compatibility, while an empty `DB_<ID>_MUTATION_SKILLS` denies all writes.
+  Configure an explicit read allowlist for production.
 - Query Skills are connection-scoped: `list_skills(connection_id=...)`,
   `get_skill_detail(connection_id=...)`, and `execute_query_skill(...,
   connection_id=...)` use the same target connection for DB compatibility,
@@ -708,9 +712,9 @@ MAX_OVERVIEW_TABLES=100  # Max tables returned by list_tables (0=unlimited)
 ENABLE_SKILLS=0          # Master switch: enable Skills layer (1=enabled, 0=disabled)
 SKILLS_ALLOW_MUTATIONS=0 # Allow mutation (write) skills (requires ENABLE_SKILLS=1)
 # SKILLS_ALLOW_MUTATION_CONNECTIONS=mysql,analytics # Enables strict named-write policy
-MUTATION_PREVIEW_TOKEN_TTL_SECONDS=300 # Preview token lifetime
+MUTATION_PREVIEW_TOKEN_TTL_SECONDS=300 # Preview token lifetime (1-86400 seconds)
 MUTATION_PREVIEW_TOKEN_STORE_MAX_ENTRIES=10000 # Outstanding token capacity
-# MUTATION_PREVIEW_TOKEN_SECRET=change_me # Optional fixed HMAC key
+# MUTATION_PREVIEW_TOKEN_SECRET=replace_with_at_least_32_random_bytes
 SKILLS_LIST_DEFAULT_DETAIL=summary  # list_skills default: compact, summary, or full
 SKILLS_LIST_AVAILABLE_ONLY_DEFAULT=1  # list_skills default availability filter
 SKILLS_CHECK_SCHEMA_ON_LIST=1  # hide schema-unready skills from default discovery
@@ -732,9 +736,9 @@ The Skills layer lets you package common SQL queries and data mutations as reusa
 | `SKILLS_ALLOW_MUTATION_CONNECTIONS` | empty | Optional configured connection-id allowlist for mutation routing. Empty keeps compatibility mode (default connection only). Non-empty enables strict mode and requires matching per-connection write policy |
 | `DB_<ID>_ALLOW_MUTATIONS` | `0` | Strict-mode per-connection write switch. Must be `1` for each authorized mutation target |
 | `DB_<ID>_MUTATION_SKILLS` | empty | Strict-mode per-connection mutation skill allowlist. Empty denies all; `*` explicitly permits all discovered mutation skills allowed by other checks |
-| `MUTATION_PREVIEW_TOKEN_TTL_SECONDS` | `300` | Positive lifetime in seconds for mutation preview tokens |
-| `MUTATION_PREVIEW_TOKEN_STORE_MAX_ENTRIES` | `10000` | Maximum outstanding unexpired preview tokens in the process-local store. Full capacity fails closed without evicting valid tokens |
-| `MUTATION_PREVIEW_TOKEN_SECRET` | generated per process | Optional fixed HMAC signing key. Keep it private. Memory-store issuance state is process-local, so restart invalidates all tokens even when this value is fixed |
+| `MUTATION_PREVIEW_TOKEN_TTL_SECONDS` | `300` | Preview-token lifetime in seconds; valid range `1-86400`, invalid values fall back to `300` |
+| `MUTATION_PREVIEW_TOKEN_STORE_MAX_ENTRIES` | `10000` | Per-process maximum outstanding unexpired preview tokens (valid range `1-100000`). Full capacity fails closed without eviction |
+| `MUTATION_PREVIEW_TOKEN_SECRET` | generated per process | Optional private HMAC signing key; at least 32 random bytes are recommended. When mutation is enabled, startup reports generated/configured mode and warns about empty or short configured values without logging the secret. The memory store still invalidates outstanding tokens on restart even when this value is fixed |
 | `SKILLS_LIST_DEFAULT_DETAIL` | `summary` | Default metadata projection for `list_skills`: `compact`, `summary`, or `full`. Per-call `detail_level` overrides this value |
 | `SKILLS_LIST_AVAILABLE_ONLY_DEFAULT` | `1` | Default availability filter for `list_skills`. When `1`, Agent-facing discovery hides skills that cannot execute for the target `connection_id` because of DB type compatibility, mutation switch, default-only compatibility mode when `SKILLS_ALLOW_MUTATION_CONNECTIONS` is omitted, connection allowlist, or schema readiness. Pass `available_only=false` for the full developer catalog |
 | `SKILLS_CHECK_SCHEMA_ON_LIST` | `1` | Include live table-existence checks in Skills availability metadata. When enabled, skills with missing required tables get `schema_ready=false` and are hidden by `available_only=true` |
@@ -744,12 +748,33 @@ The Skills layer lets you package common SQL queries and data mutations as reusa
 | `SKILLS_AUDIT_QUERIES` | `0` | Optional query skill audit. Records skill name, params, row counts, status, errors, `connection_id`, and actual `db_type`, but not returned data or connection strings |
 | `AGENT_ID` | `unknown` | Identifies the calling agent in audit logs |
 
+**Preview-token deployment boundary (v3.6.1)**:
+
+- Preview-token state is held in one bounded process-local memory store. For
+  stdio, preview and execute must remain in the same client-launched server
+  process. This is the recommended mutation deployment.
+- If an integrator exposes mutations through an HTTP transport, v3.6.1 limits
+  that use to a trusted single-operator/private boundary with exactly one
+  mutation-enabled process. It does not define a multi-user authenticated HTTP
+  mutation service. The application does not detect or enforce worker/replica
+  counts; deployment configuration must keep both values at one.
+- Process restart invalidates all outstanding tokens, even with a fixed signing
+  secret. This is a deliberate fail-closed continuity boundary: run preview
+  again after restart or an unknown process outcome.
+- Do not place multiple mutation-enabled workers behind ordinary load balancing.
+  Read-only capacity may scale only through a separate read-only endpoint,
+  profile, or pool. Cross-worker or cross-replica mutation execution is not
+  supported in v3.6.1.
+- There is no stateless HMAC-only fallback and no SQLite, SQL-table, or external
+  shared token backend.
+
 **Privacy and log operations notes**:
 
 - Skill audit params are truncated for log size, not key/value redacted. Treat skill parameters as business audit data and do not pass secrets, tokens, credentials, or sensitive personal data as skill params.
 - Mutation audit is attempted automatically when mutation skills are enabled, but audit write failures do not block the operation. Query skill audit remains opt-in (`SKILLS_AUDIT_QUERIES=0` by default) to avoid surprising read-query parameter logs. v3.5 audit entries may include a safe `connection_id` alias and actual `db_type`; they still do not contain DSNs, hosts, passwords, SQLite file paths, SQL text, or returned rows.
-- Validation failures and audit write failures can return a normal tool result with `audit_logged=false`. The JSONL audit file is a best-effort visibility aid, not a fail-closed transaction control.
-- The one-time preview-token store is process-local. It supports the default stdio deployment and a single HTTP/SSE worker. Do not enable mutation execution across multiple workers or replicas until a shared atomic store exists; sticky routing is not a replay boundary, and store misses fail closed without stateless HMAC fallback.
+- Pre-token parameter/validation rejection and audit write failures can return a normal tool result with `audit_logged=false`. Once execute has consumed a valid token, later dynamic validation rejection attempts a best-effort execute audit. The JSONL file remains a visibility aid, not a fail-closed transaction control.
+- If a write commits but context notification or response construction later fails, the existing success audit is retained without a contradictory failure record. The client must verify current database state before another mutation; the token remains consumed.
+- The process-local preview-token store supports the recommended stdio path and, conditionally, one trusted private HTTP mutation process. Multi-user authenticated HTTP mutation, cross-worker execution, and cross-replica execution are outside v3.6.1; the server never falls back to stateless HMAC acceptance.
 - `SKILLS_AUDIT_LOG`, `TOOL_TELEMETRY_LOG_PATH`, and `logs/sql_safety_checker_*.log` are local files. In production, place them on trusted storage with restricted permissions and external rotation/retention, such as `logrotate`, platform logging, cron cleanup, or a managed log sink. A typical starting point is daily or size-based rotation, compression, and 14-90 days retention depending on compliance needs.
 
 **Typical configuration scenarios**:
@@ -817,15 +842,25 @@ For a complete client configuration example, please refer to `mcp_config.json`.
 
 ## Changelog
 
+### v3.6.1 Preview-Token Hardening (August 2026)
+
+- Retained the v3.6 bounded process-local memory store with atomic issue/consume
+  and formalized its same-process deployment boundary.
+- Made preview execution bindings come from the state actually displayed by
+  preview, stopped issuing tokens for failed previews, and disabled the
+  bundled state-sensitive Skill's direct unbound `execute()` path.
+- Strengthened secret-rotation, sanitization, database-failure consumption,
+  concurrent-consumption, and memory-store regression coverage.
+
 ### v3.6 Mutation Preview Tokens and Named Write Policy (May 2026)
 
 Adds mandatory preview-token binding and opt-in strict mutation routing across
 configured named connections:
 
-- `execute_mutation_skill(confirm=false)` now returns an opaque `preview_token`, token expiry fields, and token-related `_meta` fields
+- `execute_mutation_skill(confirm=false)` now returns an API-opaque, signed but unencrypted bearer `preview_token`, token expiry fields, and token-related `_meta` fields
 - `execute_mutation_skill(confirm=true)` requires the matching `preview_token`; missing, expired, tampered, or params/skill/connection mismatched tokens fail closed before writes
 - Tokens are HMAC-signed and bind skill name, skill version, canonical params hash, resolved `connection_id`, `db_type`, issue time, and expiry
-- Every preview token has a random `jti` and is registered in a bounded process-local store; execute atomically consumes it before dynamic validation/write, so replay and concurrent reuse fail closed
+- Every preview token has a random `jti` and is registered in a bounded process-local atomic store; execute consumes it before dynamic validation/write, so replay and concurrent reuse in the issuing process fail closed
 - Preview-sensitive state can be bound separately from params; the bundled order mutation executes its optimistic lock against the status shown during preview
 - `execute_mutation_skill` accepts optional `connection_id`; strict routing requires the global target allowlist plus per-connection switch and skill allowlist
 - `MUTATION_PREVIEW_TOKEN_TTL_SECONDS` controls token lifetime and `MUTATION_PREVIEW_TOKEN_STORE_MAX_ENTRIES` bounds outstanding tokens; process restart invalidates all memory-store tokens even with a fixed signing key
@@ -1472,8 +1507,8 @@ returned   → (terminal state)
  "params": {"order_id": 42, "new_status": "shipped"},
  "confirm": false}
 ```
-Returns the SQL that would be executed, its expected impact, and an opaque
-`preview_token`, without modifying data.
+Returns the SQL that would be executed, its expected impact, and an API-opaque,
+signed but unencrypted bearer `preview_token`, without modifying data.
 
 2. **Execute** (`confirm=true`) — write after confirmation and token validation:
 ```json
@@ -1489,15 +1524,26 @@ execution state. It is one-time: execute atomically consumes it before dynamic
 validation and the database write. Any later outcome, including validation,
 database, timeout, audit, or response failure, requires a new preview. Static
 request/policy/HMAC mismatches do not consume the valid token. Tokens default to
-`MUTATION_PREVIEW_TOKEN_TTL_SECONDS=300`; process restart invalidates every
-outstanding token because issuance state is held in memory, even with a fixed
-`MUTATION_PREVIEW_TOKEN_SECRET`.
+`MUTATION_PREVIEW_TOKEN_TTL_SECONDS=300`, with a valid range of `1-86400`.
+The process-local memory store loses
+all outstanding tokens on process restart, even with a fixed signing secret.
+Preview and execute must reach the same process; cross-worker/cross-replica
+mutation execution is unsupported and never enables stateless token replay.
+Clients must not parse the token or depend on its internal format. Because it
+necessarily passes through the authorized client and may enter model context,
+clients should minimize durable retention and logging and protect access to
+context and logs. Bearer confidentiality matters until consumption or expiry;
+short TTL, exact binding, and one-time use limit but do not eliminate the impact
+of disclosure. The short `preview_token_id` in applicable tool metadata is only
+a client correlation hint; audit and telemetry persist neither the full token
+nor that short identifier.
 
 **Safety mechanisms**:
 - **State machine validation**: `validate()` checks if current status allows transition to target status
 - **Preview-token binding**: `confirm=true` must include the token returned by the matching preview call
 - **One-time consumption**: a token can authorize at most one execute attempt; uncertain outcomes are not automatically retried
 - **Preview-state binding**: state-sensitive Skills can implement `build_execution_binding()` / `execute_with_binding()` so execution honors the state the user reviewed
+- **Failed-preview handling**: a preview result containing `error` or reporting `success=false` receives no token
 - **Optimistic locking**: Uses `WHERE status = :expected_status` at execution time; if the status was modified between preview and execute, the update fails (rowcount=0)
 - **Transaction protection**: Write operations run inside a database transaction; automatic rollback on failure
 - **Audit logging**: Mutation preview/execute paths attempt best-effort JSONL audit logging; audit write failures do not roll back data changes
@@ -1667,11 +1713,16 @@ For complete design details, execution flow diagrams, and industry best practice
 
 - Python 3.12+
 - MySQL or SQLite Database
-- Dependencies: `sqlparse`, `SQLAlchemy>=2.0`, `PyMySQL`, `fastMCP`, `python-dotenv`, `pyyaml`
+- Dependencies: `sqlparse`, `SQLAlchemy>=2.0`, `PyMySQL`, `fastMCP`, `python-dotenv>=1.2.0`, `pyyaml`
 
 ## Testing
 
-The default pytest suite is hermetic and limited to `tests/` by `pytest.ini`:
+The default pytest suite is hermetic and limited to `tests/` by `pytest.ini`.
+`tests/conftest.py` disables `python-dotenv` loading and supplies safe SQLite,
+policy, Skills, and telemetry defaults before application imports, so a local
+`.env` cannot redirect the suite to a live database. The optional MySQL
+integration fixture also requires `RUN_MYSQL_INTEGRATION_TESTS=1` plus MySQL
+credentials exported in the process environment; `.env` remains ignored:
 
 ```bash
 python -m pytest -q
@@ -1716,12 +1767,11 @@ This script:
 - [Skills Design](MCP_AGENTS_SKILLS_DESIGN.md): v3.0 Skills extension layer architecture and design decisions
 - [Skills Security Policy](skills/SAFETY.md): security governance for skill authors
 - [Release Notes v3.5](RELEASE_NOTES/RELEASE_NOTES_v3_5.md): named multi-connection release summary, compatibility notes, limits, and validation evidence
-- [Release Notes v3.6](RELEASE_NOTES/RELEASE_NOTES_v3_6.md): mutation preview tokens and named-write policy
-- [v3.6 Mutation Multi-Connection Plan](DRAFTPLAN_v36_mutation_multi_connection.md): implemented preview-token and named-write design plus remaining hardening work
+- [Release Notes v3.6/v3.6.1](RELEASE_NOTES/RELEASE_NOTES_v3_6.md): mutation preview tokens, named-write policy, execution binding fixes, and the formalized same-process deployment boundary
 - [Design Risk Register](DESIGN_RISK_REGISTER.md): Long-term design, security, and operations risk register
 - [Feasibility Analysis](LLM_TO_MCP_FEASIBILITY_ANALYSIS.md): Detailed analysis of LLM to MCP conversion
 - [Original Context](GEMINI.md): Project background and development guide
-- [Refactoring Log](REFACTORING_LOG.md): Refactoring change documentation (v2.0 — v3.6)
+- [Refactoring Log](REFACTORING_LOG.md): Refactoring change documentation (v2.0 — v3.6.1)
 - [MCP Client Test Guide](TEST_MCP_CLIENT_GUIDE.md): Guide for testing MCP Server via client
 - [Prompt Engineering Best Practices](PROMPT_ENGINEERING_BEST_PRACTICES.md): Guide for MCP tool descriptions and prompts
 - [Agent Examples Development Log (Chinese)](agent_examples/AGENT_DEVELOPMENT_ZH.md): AutoGen multi-agent example design and decisions

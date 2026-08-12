@@ -32,6 +32,10 @@ related_skills:
 2. Review the preview result
 3. Call with `confirm=true` and the returned `preview_token` → atomically consumes the token and executes only if the previewed status still matches
 
+If the preview lookup fails or the transition becomes invalid during preview,
+the call returns `success=false` and no token. Direct unbound `execute()` calls
+are rejected; writes must use the preview-token binding path.
+
 ## Status Transition Rules
 
 See [status-transitions.md](references/status-transitions.md)

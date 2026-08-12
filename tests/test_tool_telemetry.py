@@ -45,7 +45,12 @@ async def test_telemetry_logs_successful_call(telemetry_module):
 
     async def fake_call_next(_ctx):
         return SimpleNamespace(
-            meta={"tool_name": "query", "execution_ms": 1.0, "success": True}
+            meta={
+                "tool_name": "query",
+                "execution_ms": 1.0,
+                "success": True,
+                "preview_token_id": "0123456789abcdef",
+            }
         )
 
     ctx = SimpleNamespace(message=SimpleNamespace(name="query"))
@@ -61,7 +66,15 @@ async def test_telemetry_logs_successful_call(telemetry_module):
     assert "timestamp" in record
     assert "execution_ms" in record
     # Sanitization invariants
-    for forbidden in ("sql", "params", "data", "rows", "password", "credentials"):
+    for forbidden in (
+        "sql",
+        "params",
+        "data",
+        "rows",
+        "password",
+        "credentials",
+        "preview_token_id",
+    ):
         assert forbidden not in record
 
 

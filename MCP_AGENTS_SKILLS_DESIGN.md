@@ -1,9 +1,9 @@
 # MCP Agents Skills Design Document
 
-> **Version**: 3.6
+> **Version**: 3.6.1
 > **Status**: Implemented
-> **Date**: 2026-05
-> **Reference**: DRAFTPLAN_final.md, DRAFTPLAN_final_addendum.md, DRAFTPLAN_0529_NEW.md
+> **Date**: 2026-08-10
+> **References**: [Skills safety policy](skills/SAFETY.md), [design risk register](DESIGN_RISK_REGISTER.md), and [v3.6 release-family notes](RELEASE_NOTES/RELEASE_NOTES_v3_6.md)
 
 ## 1. Overview
 
@@ -779,9 +779,9 @@ clear policy switch.
 | `SKILLS_ALLOW_MUTATION_CONNECTIONS` | empty | Optional mutation target allowlist. Empty keeps default-connection-only compatibility; non-empty enables strict named-write policy |
 | `DB_<ID>_ALLOW_MUTATIONS` | `0` | Strict-mode per-connection mutation switch |
 | `DB_<ID>_MUTATION_SKILLS` | empty | Strict-mode per-connection skill allowlist; empty denies all and `*` explicitly allows all |
-| `MUTATION_PREVIEW_TOKEN_TTL_SECONDS` | `300` | Positive preview-token lifetime in seconds |
-| `MUTATION_PREVIEW_TOKEN_STORE_MAX_ENTRIES` | `10000` | Bound on outstanding unexpired process-local tokens; capacity exhaustion fails closed without eviction |
-| `MUTATION_PREVIEW_TOKEN_SECRET` | generated per process | Optional fixed HMAC key; must remain server-side and private. Memory-store state is not persisted, so restart invalidates tokens even with a fixed key |
+| `MUTATION_PREVIEW_TOKEN_TTL_SECONDS` | `300` | Preview-token lifetime in seconds; valid range `1-86400`, invalid values fall back to `300` |
+| `MUTATION_PREVIEW_TOKEN_STORE_MAX_ENTRIES` | `10000` | Per-process bound on outstanding tokens; valid range `1-100000`; exhaustion fails closed without evicting valid entries |
+| `MUTATION_PREVIEW_TOKEN_SECRET` | generated per process | Optional private HMAC secret; at least 32 random bytes are recommended. When mutation is enabled, startup reports only generated/configured mode and warns about empty/short values. A fixed value does not preserve or share memory-store state |
 | `SKILLS_LIST_DEFAULT_DETAIL` | `summary` | Default `list_skills()` metadata projection: `compact`, `summary`, or `full` |
 | `SKILLS_LIST_AVAILABLE_ONLY_DEFAULT` | `1` | Default `list_skills()` availability filter; `1` hides currently non-executable skills from Agent discovery, while `available_only=false` exposes the full developer catalog |
 | `SKILLS_CHECK_SCHEMA_ON_LIST` | `1` | Include live table-existence checks in Skills readiness metadata; missing tables set `schema_ready=false` and are hidden by `available_only=true` |
@@ -828,18 +828,30 @@ timestamp, and expiry so mismatched execute calls fail closed. Multi-connection
 mutation routing additionally enforces the implemented global target allowlist,
 per-connection write switch, and per-connection skill allowlist.
 
-**One-time token store (memory backend implemented):** each token has a
-cryptographically random `jti`; the server registers its full digest, expiry,
-and bounded canonical execution binding in a process-local store. Execute
-atomically consumes that record after static request/policy/HMAC checks but
-before dynamic validation and database writes.
+**v3.6 process-local token-store baseline:** each token has a cryptographically
+random `jti`; the server registers its full digest, expiry, and bounded canonical
+execution binding in a bounded store. Execute consumes that record after static
+request/policy/HMAC checks but before dynamic validation and database writes.
 Consumption remains final after validation, database, audit, timeout, or process
-failure, so uncertain writes require a new preview. The current single-process
-stdio deployment uses a bounded locked in-memory store. State-sensitive Skills
-must explicitly implement `build_execution_binding()` and
-`execute_with_binding()`; the bundled order mutation binds the previewed status.
-Multi-worker deployments still require a future shared atomic backend and must
-never fall back to stateless HMAC when the store is unavailable.
+failure, so uncertain writes require a new preview.
+
+**v3.6.1 hardening and deployment boundary:** state-sensitive Skills explicitly
+implement `build_execution_binding()` and `execute_with_binding()`; the bundled
+order mutation binds the state read and displayed by preview, and its unbound
+`execute()` rejects direct calls. A preview containing `error` or reporting
+`success=false` receives no token. The recommended deployment is client-owned
+stdio. Conditional HTTP mutation is limited to a trusted private boundary and
+one mutation-enabled process; multi-user authenticated HTTP mutation is outside
+this release. Worker/replica counts are deployment responsibilities, not runtime
+enforcement. Restart or cross-process lookup failures fail closed without
+stateless HMAC fallback. Read-only capacity may scale only through a separate
+read-only endpoint, profile, or pool.
+
+The token is API-opaque to clients but is signed, not encrypted. It remains a
+bearer secret until consumption or expiry. Clients must not depend on its
+internal format and should minimize durable context/log retention. Applicable
+ToolResult metadata includes a short correlation hint; audit and telemetry
+persist neither the full token nor that short identifier in v3.6.1.
 
 ## 10. Design Decisions
 
@@ -850,10 +862,10 @@ never fall back to stateless HMAC when the store is unavailable.
 | Skill search | Case-insensitive substring + exact category filter | Regex/BM25 search | Deterministic, dependency-free, and avoids ReDoS from model-generated regex |
 | v3.5 Named connections | Resolve `ConnectionContext` before policy, readiness, execution, metadata, audit, and telemetry | Let each tool independently read global adapter/config state | Prevents cross-connection mismatches and keeps tool display/execution bound to the same target connection |
 | v3.5 Query Skills scope | `list_skills`, `get_skill_detail`, and `execute_query_skill` accept optional `connection_id` | Keep Skills bound to startup `DB_TYPE` only | Preserves legacy default behavior while allowing configured read-only multi-db workflows |
-| v3.5 Mutation scope | Mutation Skills remain default-connection only | Allow `connection_id` for writes immediately | Avoids preview/execute target drift and missing per-connection write permissions; multi-connection writes are deferred until explicit policy exists |
+| v3.5 Mutation scope | Mutation Skills remained default-connection only in v3.5 | Allow `connection_id` for writes immediately | Avoided preview/execute target drift until v3.6 introduced explicit named-write policy and token binding |
 | v3.6 Mutation preview-token core | Require preview token for every mutation execute, including the default connection | Keep default-connection no-token compatibility | Gives higher-stakes writes one consistent protocol and makes preview/execute target binding explicit before enabling non-default writes |
 | v3.6 Mutation multi-connection policy | Require global target allowlist plus per-connection write switch and skill allowlist | Reuse read allowlists for writes | Keeps read policy and write authorization separate, deny-by-default, and auditable |
-| v3.6 One-time preview token store | Atomically consume a bounded process-local token record before dynamic validation/write and bind preview-sensitive execution state | Keep HMAC tokens replayable until expiry or consume only after successful commit | Prevents sequential/concurrent replay, preserves reviewed state, and treats uncertain outcomes conservatively; shared atomic state remains required for multi-worker deployments |
+| v3.6.1 Preview-token hardening | Retain the v3.6 bounded process-local store, fix preview/binding correctness, and formalize the same-process deployment boundary | Add shared external state, a local persistence layer, or stateless HMAC-only validation | Matches the current stdio-first deployment need with no new service or schema; preserves same-process replay protection while explicitly declining multi-user HTTP and cross-worker mutation support |
 | v3.5 Runtime allowlist | Query Skill startup validation checks structural/read-only safety; per-connection allowlists are enforced at runtime | Validate every skill against every configured connection at startup | Runtime enforcement is the authoritative policy because allowlists are connection-scoped and connections may differ by deployment |
 | v3.5 Metadata privacy | Expose safe `connection_id` alias and `db_type`; never expose DSNs/hosts/credentials/paths | Include full connection details for debugging | Operators can correlate calls without leaking database internals to clients or logs |
 | Availability filtering | `available_only` filters by target `connection_id`, DB type compatibility, mutation switch/default-only scope, connection policy, and schema readiness | Always return full discovered catalog | Aligns with conditional tool enabling and reduces Agent selection errors; developers retain full catalog access with `available_only=false` |

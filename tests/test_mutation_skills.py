@@ -269,7 +269,7 @@ class TestErrorSanitization:
         error_msg = str(exc_info.value)
         assert "Error:" in error_msg
         # Should NOT contain internal details like file paths
-        assert "sqlalchemy" not in error_msg.lower() or "Error:" in error_msg
+        assert "sqlalchemy" not in error_msg.lower()
 
 
 # =============================================================================
