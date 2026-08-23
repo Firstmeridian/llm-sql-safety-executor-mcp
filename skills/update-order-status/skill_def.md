@@ -1,26 +1,65 @@
 ---
+# Stable public identifier; it must match this Skill directory name.
 name: update-order-status
+# Skill implementation version, independent from the server release version.
 version: "1.0"
+# Short catalog description shown to Agents and operators.
 description: >
   Safely update an order's status with state machine constraints
   to prevent illegal transitions.
+# Natural-language discovery hints; they do not grant execution permission.
 triggers:
   - update order status
   - ship order
   - confirm order
   - cancel order
   - deliver order
+# Execution kind: mutation Skills may write only through reviewed Python code.
 type: mutation
+# Execution file relative to this directory; paths and suffixes are validated.
 source: mutation.py
+# Review classification shown in discovery metadata.
 risk: medium
+# The host must explicitly confirm after preview; this flag alone does not
+# prove that a human approved the operation.
 requires_confirmation: true
+# Reusing the same request is not promised to return the same outcome.
 idempotent: false
+# Compatible database types. Alias/type conflicts fail closed at runtime.
+databases: [mysql, sqlite]
+# Optional deployment scope. Prefer semantic aliases; mysql/sqlite are legal
+# but easy to confuse with database types. Multiple aliases support reuse, but
+# their order has no routing or failover meaning.
+# connection_ids: [orders_us, orders_eu]
+# Operational tags used by SKILLS_EXCLUDE_PROFILES and catalog filtering.
 profiles: [demo]
+# Tables required for readiness checks and documentation; database grants and
+# server allowlists remain authoritative.
 tables: [orders]
+# Strict input schema; undeclared params and invalid values are rejected.
 params:
-  order_id: {type: int, required: true, description: "Order ID to update"}
-  new_status: {type: str, required: true, enum: [pending, confirmed, shipped, delivered, cancelled, returned], description: "Target status"}
+  # Primary key of the order whose status may change.
+  order_id:
+    # Coerce and validate the value as an integer.
+    type: int
+    # The caller must supply this parameter.
+    required: true
+    # Human-readable parameter guidance shown in Skill metadata.
+    description: "Order ID to update"
+  # Requested target status; the mutation implementation also validates the
+  # current-to-target state transition.
+  new_status:
+    # Coerce and validate the value as a string.
+    type: str
+    # The caller must supply this parameter.
+    required: true
+    # Closed set accepted before the state-machine check.
+    enum: [pending, confirmed, shipped, delivered, cancelled, returned]
+    # Human-readable parameter guidance shown in Skill metadata.
+    description: "Target status"
+# Catalog grouping only; it is not an authorization boundary.
 category: order-management
+# Related catalog entries for navigation; this does not invoke them.
 related_skills:
   - monthly-sales-report
   - monthly-sales-report-sqlite

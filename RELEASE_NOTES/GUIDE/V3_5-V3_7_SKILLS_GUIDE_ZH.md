@@ -1,12 +1,12 @@
-# v3.5-v3.6.1 命名连接与 Skills 易懂说明
+# v3.5-v3.7 命名连接、Skills 与批准流程易懂说明
 
 > 本文是面向使用者、Skill 作者和代码审查者的说明，不替代
 > [Skills 安全策略](../../skills/SAFETY.md)、[Skills 设计文档](../../MCP_AGENTS_SKILLS_DESIGN.md)
 > 或发布说明。
 >
 > 版本范围：v3.5 命名连接与只读 Skills，v3.6 命名 Mutation、preview-token
-> 和严格写策略，以及 v3.6.1 的 preview/binding 修复与同进程部署契约定稿。
-> v3.6.1 仍沿用 `RELEASE_NOTES_v3_6.md`。
+> 和严格写策略，v3.6.1 的 preview/binding 修复与同进程部署契约定稿，
+> 以及 v3.7 的可选 Skill 连接范围、人工批准 host 和跨数据库 demo reset。
 
 ## 1. 先看总图
 
@@ -57,20 +57,37 @@ v3.6.1 没有改变 Mutation Skill API、token 格式、默认 TTL、默认容�
 部署定为客户端自有的 stdio 进程。受信任私有环境中的条件性 HTTP mutation
 只能运行一个启用 mutation 的进程；多用户认证 HTTP mutation 不属于本版本。
 
+### 1.3 v3.6.1 和 v3.7 的区别
+
+| 项目 | v3.6.1 | v3.7.0 |
+|------|---------|--------|
+| Skill 连接范围 | `databases` 只表达数据库类型；工具调用选择连接 | 新增可选 `connection_ids`，把 Skill 收窄到一个或多个合法别名标识符；仅当前部署已配置成员可执行 |
+| 兼容性 | 未声明 Skill 级别名范围 | 使用已文档字段并省略 `connection_ids` 时路由行为不变；未知/重复字段改为 fail closed；运行时参数仍是单个 `connection_id` |
+| 路由 | 省略 `connection_id` 使用全局默认连接 | 仍使用全局默认连接，不会自动选择 `connection_ids` 第一项 |
+| 冲突处理 | DB 类型、policy、schema 分别检查 | `connection_ids ∩ databases ∩ 既有 policy`；冲突目标 fail closed，其它有效成员不受影响 |
+| 人工批准 | 文档明确 token 不等于人类批准 | 新增 stdio 一次性 host 示例，只在精确输入 `APPROVE` 后执行 |
+| Demo reset mutation | 只有跨 MySQL/SQLite 的通用业务状态 Skill | 新增跨 MySQL/SQLite 的 `reset-demo-order-to-pending`，显式检查测试产生的来源状态并固定恢复为 `pending` |
+| SQL 方言加固 | DRR-013 尚未作为 v3.6.1 功能关闭 | 拒绝执行型 ANALYZE explain、嵌套写 DML、MySQL 可执行注释与非空白 `--` 形式 |
+
+v3.7 没有改变 preview-token 格式、store、TTL、容量或既有写授权协议，但有意
+收紧了 raw SQL grammar 与畸形 Skill metadata。它没有增加 HTTP 认证、服务端
+批准人身份或 token 撤销 API。新增 reset mutation 只使用既有 MySQL/SQLite demo
+`orders` schema，不代表完整生产订单生命周期或事务性回滚能力。
+
 ## 2. `DB_CONNECTIONS` 和 `connection_id`
 
 ### 2.1 `DB_CONNECTIONS` 做什么？
 
 ```dotenv
-DB_CONNECTIONS=mysql,analytics
-DEFAULT_DB_CONNECTION=mysql
+DB_CONNECTIONS=trade_analysis_mysql,analytics_demo_sqlite
+DEFAULT_DB_CONNECTION=trade_analysis_mysql
 ```
 
 `DB_CONNECTIONS` 是命名连接模式的开关，同时注册两个连接 ID：
 
 ```text
-mysql
-analytics
+trade_analysis_mysql
+analytics_demo_sqlite
 ```
 
 这两个名字都是 `connection_id`。它们可以叫别的名字：
@@ -90,27 +107,27 @@ DEFAULT_DB_CONNECTION=production
 ### 2.2 每个 ID 对应一组服务端配置
 
 ```dotenv
-DB_MYSQL_TYPE=mysql
-DB_MYSQL_HOST=your_mysql_host
-DB_MYSQL_NAME=trade_data_analysis
-DB_MYSQL_ALLOWED_TABLES=orders,customers
+DB_TRADE_ANALYSIS_MYSQL_TYPE=mysql
+DB_TRADE_ANALYSIS_MYSQL_HOST=your_mysql_host
+DB_TRADE_ANALYSIS_MYSQL_NAME=trade_data_analysis
+DB_TRADE_ANALYSIS_MYSQL_ALLOWED_TABLES=orders,customers
 
-DB_ANALYTICS_TYPE=sqlite
-DB_ANALYTICS_SQLITE_DATABASE_PATH=./sample_data/demo.db
-DB_ANALYTICS_ALLOWED_TABLES=orders
+DB_ANALYTICS_DEMO_SQLITE_TYPE=sqlite
+DB_ANALYTICS_DEMO_SQLITE_SQLITE_DATABASE_PATH=./sample_data/demo.db
+DB_ANALYTICS_DEMO_SQLITE_ALLOWED_TABLES=orders
 ```
 
 关系是：
 
 ```text
-DB_MYSQL_*     -> connection_id=mysql
-DB_ANALYTICS_* -> connection_id=analytics
+DB_TRADE_ANALYSIS_MYSQL_*       -> connection_id=trade_analysis_mysql
+DB_ANALYTICS_DEMO_SQLITE_*      -> connection_id=analytics_demo_sqlite
 ```
 
-`mysql` 这个连接 ID 恰好和数据库类型 `mysql` 同名，但二者概念不同：
+连接 ID 与数据库类型是两个独立概念：
 
 ```text
-connection_id=mysql -> 某一个已配置的 MySQL 目标
+connection_id=trade_analysis_mysql -> 某一个已配置的 MySQL 目标
  db_type=mysql      -> 该目标使用 MySQL 方言
 ```
 
@@ -125,15 +142,15 @@ hr           -> MySQL 人事库
 ### 2.3 `DEFAULT_DB_CONNECTION`
 
 ```dotenv
-DEFAULT_DB_CONNECTION=mysql
+DEFAULT_DB_CONNECTION=trade_analysis_mysql
 ```
 
-表示工具调用省略 `connection_id` 时使用 `mysql`。
+表示工具调用省略 `connection_id` 时使用 `trade_analysis_mysql`。
 
 ```text
 query(sql="SELECT ...")
     等价于
-query(sql="SELECT ...", connection_id="mysql")
+query(sql="SELECT ...", connection_id="trade_analysis_mysql")
 ```
 
 命名模式下，默认 ID 必须出现在 `DB_CONNECTIONS` 中。未知 ID 不会悄悄回退到默认连接，而是直接失败。
@@ -167,14 +184,14 @@ flowchart TD
 
 ```dotenv
 DB_ORDERS_PROD_ALLOWED_TABLES=orders,customers
-DB_ANALYTICS_ALLOWED_TABLES=orders
+DB_ANALYTICS_DEMO_SQLITE_ALLOWED_TABLES=orders
 ```
 
 效果：
 
 ```text
 connection_id=orders_prod -> 允许 orders、customers
-connection_id=analytics   -> 只允许 orders
+connection_id=analytics_demo_sqlite   -> 只允许 orders
 ```
 
 因此相同的表名在不同数据库中可以有不同策略。服务端会先解析连接，再使用该连接自己的：
@@ -188,12 +205,36 @@ connection_id=analytics   -> 只允许 orders
 表白名单控制“能访问哪些表”，不是 Mutation 写权限。Mutation 写权限另由下列配置控制：
 
 ```dotenv
-SKILLS_ALLOW_MUTATION_CONNECTIONS=analytics
-DB_ANALYTICS_ALLOW_MUTATIONS=1
-DB_ANALYTICS_MUTATION_SKILLS=update-order-status
+SKILLS_ALLOW_MUTATION_CONNECTIONS=analytics_demo_sqlite
+DB_ANALYTICS_DEMO_SQLITE_ALLOW_MUTATIONS=1
+DB_ANALYTICS_DEMO_SQLITE_MUTATION_SKILLS=update-order-status,reset-demo-order-to-pending
 ```
 
-当前本地 `.env` 中 MySQL 使用 `DB_MYSQL_ALLOWED_TABLES=*`，这适合联调但扩大了读权限；生产环境应改成实际需要的明确列表。
+当前本地 `.env` 中 MySQL 使用 `DB_TRADE_ANALYSIS_MYSQL_ALLOWED_TABLES=*`，这适合联调但扩大了读权限；生产环境应改成实际需要的明确列表。
+
+表 allowlist 是应用层的保守 guard，不是数据库授权边界，也不能证明所有外层
+`SELECT` 都没有副作用。MySQL stored function 和 `GET_LOCK()` 等函数可以产生
+statement type 看不出的效果。生产只读连接应只授予实际对象的 `SELECT`，撤销
+不需要的 `EXECUTE`、`FILE`、`PROCESS`、管理权限和跨 schema 权限；可行时应
+使用独立读写凭据。不要用不断扩大的函数 denylist 代替数据库最小权限。
+
+v3.7 的完整 MCP raw-query policy 进一步收窄为：每次只接受一条 `SELECT`、
+`DESCRIBE` 或非 ANALYZE `EXPLAIN`。raw `SHOW` 全部拒绝，schema discovery 使用
+`list_tables()`/`describe_table()`；跨 session 的 `EXPLAIN ... FOR CONNECTION`
+也拒绝。限制性 `ALLOWED_TABLES` 会解析 FROM/JOIN、comma join、nested query、
+CTE 和 EXPLAIN child table；`schema.table` 必须由完整 qualified allowlist entry
+授权，basename 不会授权另一 schema 的同名表。无法可靠识别的 table-valued/
+derived target 会 fail closed；`ALLOWED_TABLES=*` 仍是显式 allow-all。
+非 ANALYZE 的 EXPLAIN/DESCRIBE/DESC 仍可检查
+`UPDATE`/`INSERT`/`REPLACE`/`DELETE`；限制性 allowlist 会同时校验被解释的 DML
+target、全部 read source、CTE alias 的底层表及 multi-table
+`DELETE ... USING` source table，无法可靠识别目标时 fail closed。
+ANALYZE 与 FOR CONNECTION 形式继续拒绝。
+
+在普通注释规范化前，policy 会拒绝 MySQL `/*! ... */`、optimizer hint
+`/*+ ... */`、MariaDB `/*M! ... */` 和不符合 MySQL 空白规则的 `--`。项目声明的
+方言运行边界仍是 Oracle MySQL 与 SQLite；MariaDB 没有单独的兼容性承诺，拒绝
+其 executable comment 是对 `DB_TYPE=mysql` 可能连到 MariaDB 的保守处理。
 
 ## 4. `skill_def.md` 中各字段是什么？
 
@@ -214,6 +255,13 @@ params:
   new_status: {type: str, required: true, enum: [pending, confirmed, shipped, delivered, cancelled, returned]}
 ```
 
+v3.7 对已知 metadata 的“值”也 fail closed：`enabled`、`idempotent`、
+`requires_confirmation` 必须是真正的 YAML boolean；`triggers` 与
+`related_skills` 必须是字符串列表；声明 `category` 时必须是非空字符串。参数
+定义只允许 `type`、`required`、`min`、`max`、`enum`、`description`，约束值
+必须匹配参数类型，`enum` 必须是非空列表，数值边界必须有序。这仍是有意保持
+轻量的自定义 DSL，不是完整 JSON Schema。
+
 ### 4.1 `databases`：数据库类型兼容性
 
 ```yaml
@@ -222,19 +270,51 @@ databases: [mysql, sqlite]
 
 表示 Skill 支持 MySQL 和 SQLite 两种数据库类型，不表示连接 ID。
 
-这里是可选字段的通用示例；当前仓库的 `update-order-status/skill_def.md`
-实际没有声明 `databases`，因此其 `SkillMetadata.databases` 为 `None`，不会仅因
-`db_type` 不同而被运行时拒绝。它仍然必须通过目标连接的表、policy、业务校验和
-Mutation 写策略；是否真的适用于某个库不能只由省略该字段推出。
+这里是可选字段的通用示例；当前仓库的 `update-order-status/skill_def.md` 和
+`reset-demo-order-to-pending/skill_def.md` 都显式声明
+`databases: [mysql, sqlite]`。二者仍必须通过目标连接的表、policy、业务校验和
+Mutation 写策略；数据库类型兼容本身不授予执行权限。
 
-当前没有把 `connection_id` 写进 Skill 元数据的强制字段：
+v3.7 新增一个可选、限制性的别名列表：
 
 ```yaml
-# 当前版本不要依赖这个字段做连接授权
-connections: [mysql, analytics]
+databases: [mysql]
+connection_ids: [orders_primary, orders_reporting]
 ```
 
-连接目标由工具调用的 `connection_id` 选择，连接级写授权由服务端环境策略控制。
+二者含义不能混淆，但可以同时配置并取交集：`databases` 是数据库类型兼容性，
+`connection_ids` 是连接别名标识符的 Skill 级范围。只有当前部署已配置的成员可
+执行，portable Skill 中未配置的成员会保留并显示 unavailable。单个元素可表达
+直接绑定，多个元素支持同一 Skill 复用。
+省略 `connection_ids` 时完全保持 v3.6.1 行为。
+
+该字段必须是非空 YAML list；空值、字符串标量、重复别名、DSN、URL、路径、通配符
+和单数形式 `connection_id` 都会让 Skill 在 discovery 时失败。未知顶层字段和任何
+重复 YAML mapping key 也会被拒绝，避免 `connections_ids` 之类 typo 静默变成
+unrestricted Skill。列表会规范化并排序，
+但顺序没有路由含义。工具调用仍然只接收一个 `connection_id`；省略时仍先解析全局
+默认连接，再检查它是否属于该 Skill 范围，绝不会自动挑选唯一项或第一项。
+
+有效目标是交集，而不是授权捷径：
+
+```text
+connection_ids（如声明）
+∩ databases（如声明）
+∩ profile / schema / table / query policy
+∩ mutation 全局目标、连接写开关和 Skill 写 allowlist
+```
+
+未在当前部署配置的别名会显示为 unavailable，并产生启动 warning，但不会动态创建
+连接。已配置别名若与 `databases` 类型冲突，该目标 fail closed 并记录启动 error；
+同一列表中的其它有效目标仍可用，这样才能保留多连接复用语义。执行期会在创建
+adapter 前重做 `connection_ids` 与 `databases` 检查；profile、schema、table、
+query 与 mutation policy 仍会在实际查询或写入前独立校验。`available_only`
+过滤不是授权边界。
+
+建议别名使用 `orders_primary`、`trade_analysis_mysql`、
+`analytics_demo_sqlite` 等业务语义。`mysql`、`sqlite`
+虽然合法，但容易与 `databases` 的类型值混淆。直接在 Python 中调用 loader 或
+Mutation class 会绕过 MCP 路由层，嵌入方必须自行实施等价策略。
 
 如果两个 MySQL 库的 `orders` 表业务含义不同，不能只靠 `databases: [mysql]` 证明它们都适用。应通过独立 Skill、连接 allowlist、schema 检查和 Skill 自己的业务校验来区分；当前版本的 schema readiness 主要检查表是否存在，不会完整证明每一列的语义相同。
 
@@ -280,6 +360,25 @@ tables: [orders]
 
 也不能证明不同数据库中的 `orders` 表业务含义完全一致。真正的写授权仍在连接 policy 中。
 
+### 4.4 v3.7 的跨数据库 Demo Reset Mutation
+
+`reset-demo-order-to-pending` 是刻意收窄的 demo/test 补偿操作：输入包含
+`order_id` 和前一项测试应产生的非 `pending` `expected_status`，目标状态固定为
+`pending`。只有 preview 实际读到相同来源状态时才会签发 token。其 frontmatter
+明确写 `databases: [mysql, sqlite]`，可选的
+`connection_ids: [orders_demo_mysql, orders_demo_sqlite]` 保持注释状态；
+部署者取消注释后才会增加 alias 限制。该字段不授予权限，仍需通过下节全部写策略。
+
+受支持 schema 必须把 `orders.id` 声明为 `PRIMARY KEY` 或 `UNIQUE`。Skill 的
+read-side cardinality 检查能诊断已经损坏的 fixture，但不是原子 constraint，不能
+替代数据库唯一约束。该调用是第二次提交的 mutation，不是前一项写入的事务回滚；
+清理仍可能失败。它会刻意形成 `pending -> X -> pending`，因此应使用专用测试记录、
+避免重叠 preview，并优先为每个 live-test 场景使用新的 stdio 进程。
+
+仓库四个示例 `skill_def.md` 都在各顶层属性前加入说明注释。注释解释 discovery、
+兼容性、profile、readiness 和授权的区别，但 parser 不依赖注释，真实约束仍来自
+frontmatter 值与运行时 policy。
+
 ## 5. Mutation 写权限配置
 
 ### 5.1 全局与连接级开关
@@ -287,13 +386,13 @@ tables: [orders]
 ```dotenv
 ENABLE_SKILLS=1
 SKILLS_ALLOW_MUTATIONS=1
-SKILLS_ALLOW_MUTATION_CONNECTIONS=mysql,analytics
+SKILLS_ALLOW_MUTATION_CONNECTIONS=trade_analysis_mysql,analytics_demo_sqlite
 
-DB_MYSQL_ALLOW_MUTATIONS=1
-DB_MYSQL_MUTATION_SKILLS=update-order-status
+DB_TRADE_ANALYSIS_MYSQL_ALLOW_MUTATIONS=1
+DB_TRADE_ANALYSIS_MYSQL_MUTATION_SKILLS=update-order-status
 
-DB_ANALYTICS_ALLOW_MUTATIONS=1
-DB_ANALYTICS_MUTATION_SKILLS=update-order-status
+DB_ANALYTICS_DEMO_SQLITE_ALLOW_MUTATIONS=1
+DB_ANALYTICS_DEMO_SQLITE_MUTATION_SKILLS=update-order-status,reset-demo-order-to-pending
 ```
 
 各配置解决不同问题：
@@ -460,7 +559,7 @@ preview-time execution binding 的 hash
 
 ```text
 绑定 connection_id
-    防止在 analytics preview、在 mysql execute
+    防止在 analytics_demo_sqlite preview、在 trade_analysis_mysql execute
 
 绑定 params
     防止 preview order_id=42、execute order_id=99
@@ -476,7 +575,9 @@ Token 由 HMAC 防篡改，并登记在当前进程的有界原子 memory store 
 
 ### 8.3 为什么 execute 不再次调用 `preview()`？
 
-`preview()` 是第一次预览时对用户展示的计划。如果 execute 前重新 preview，数据库可能已经变了，重新生成的结果可能不是用户看到的那份计划。
+`preview()` 是第一次调用返回给客户端的计划；只有 host 实际展示时，它才成为用户
+看到的计划。如果 execute 前重新 preview，数据库可能已经变了，重新生成的结果可能
+不是第一次返回/展示的那份计划。
 
 因此当前做法是：
 
@@ -486,6 +587,33 @@ execute 阶段验证 token，并使用这份 binding
 ```
 
 但 execute 仍会再次 `validate()`，因为它需要检查当前业务状态是否还允许执行。
+
+### 8.4 v3.7 人工批准 host 示例能证明什么？
+
+`examples/manual_mutation_approval.py` 在同一个 stdio Client context 中完成
+preview 与 execute，并保持同一个 server 子进程。它显式继承操作者当前进程的完整环境，避免
+导出的 `DB_*`/Skill policy 被另一个项目 `.env` 静默替换；server script 固定为
+本仓库的可信 `start_server.py`，不接受 CLI 覆盖。它展示 Skill、有限 JSON 参数
+快照、实际
+解析的连接、DB 类型、业务
+preview、过期时间和幂等标志，并且只接受精确文本 `APPROVE`。审批截止时间由
+workflow 自身强制，而不是只信任 UI provider；自定义 provider 仍须配合 async
+取消；若 provider 修改已展示的 params/preview，workflow 会 fail closed，恶意
+provider 的硬终止仍需要进程隔离。token 不进入批准视图或该示例的输出；
+异常返回若在其它字符串回显精确 bearer 值也会被替换。execute 超时/异常不会自动
+重试，因为 token 可能已经消费，写结果也可能未知。
+
+它证明的是“这个 host 按流程要求了一次显式输入”，不是服务端可验证的人类身份：
+
+- 其它客户端仍可绕过示例直接调用 MCP 工具；
+- deny、timeout、EOF 或取消不会调用 execute，也不会通知服务端撤销 token；未用
+  record 会保留到 TTL 过期，服务端只有普通 preview audit；
+- token 必然经过 FastMCP/client 内存，Python 无法承诺安全擦除，payload debug
+  日志仍可能泄露它；
+- 完整环境继承会把所有导出 secret/Python 控制变量纳入子进程/Skill 信任边界；
+  这是可信本地示例避免换用另一 `.env` 的妥协，产品化 host 应维护专用 allowlist；
+- 参数、preview 与打印的 execute result 都可能是敏感业务数据；
+- 多用户、批准人认证、职责分离和合规审计需要产品自己的批准服务，本版本没有提供。
 
 ## 9. 数据库状态变化与乐观锁
 
@@ -656,8 +784,9 @@ sequenceDiagram
     Agent->>Server: 第 1 次：confirm=false\nskill + params + connection_id
 
     Note over Server,Skill: 对内：validate + preview
-    Server->>Server: 解析 ConnectionContext
-    Server->>Server: 检查参数、policy、db_type、schema
+    Server->>Server: 解析 DatabaseConfig
+    Server->>Server: 先检查 connection_ids + db_type
+    Server->>Server: 构造 ConnectionContext，再检查参数、policy、schema
     Server->>Skill: validate(params)
     Skill->>DB: 只读业务检查
     DB-->>Skill: 当前状态
@@ -681,7 +810,7 @@ sequenceDiagram
     end
 
     Agent->>Server: 第 2 次：confirm=true\n同一 skill + params + connection_id + token
-    Server->>Server: 重新解析 ConnectionContext
+    Server->>Server: 重新解析配置并检查 connection_ids / db_type / 写策略
     Server->>Server: 验证 token 的签名、Skill、版本、参数、连接、DB 类型
 
     alt token 缺失、错误、过期或不匹配
@@ -715,26 +844,26 @@ sequenceDiagram
 ## 13. 当前配置示例（不含真实凭据）
 
 ```dotenv
-DB_CONNECTIONS=mysql,analytics
-DEFAULT_DB_CONNECTION=mysql
+DB_CONNECTIONS=trade_analysis_mysql,analytics_demo_sqlite
+DEFAULT_DB_CONNECTION=trade_analysis_mysql
 
-DB_MYSQL_TYPE=mysql
-DB_MYSQL_USER=your_user
-DB_MYSQL_PASSWORD=your_password
-DB_MYSQL_HOST=your_host
-DB_MYSQL_NAME=your_database
-DB_MYSQL_ALLOWED_TABLES=orders,customers
-DB_MYSQL_ALLOW_MUTATIONS=0
+DB_TRADE_ANALYSIS_MYSQL_TYPE=mysql
+DB_TRADE_ANALYSIS_MYSQL_USER=your_user
+DB_TRADE_ANALYSIS_MYSQL_PASSWORD=your_password
+DB_TRADE_ANALYSIS_MYSQL_HOST=your_host
+DB_TRADE_ANALYSIS_MYSQL_NAME=your_database
+DB_TRADE_ANALYSIS_MYSQL_ALLOWED_TABLES=orders,customers
+DB_TRADE_ANALYSIS_MYSQL_ALLOW_MUTATIONS=0
 
-DB_ANALYTICS_TYPE=sqlite
-DB_ANALYTICS_SQLITE_DATABASE_PATH=./sample_data/demo.db
-DB_ANALYTICS_ALLOWED_TABLES=orders
-DB_ANALYTICS_ALLOW_MUTATIONS=1
-DB_ANALYTICS_MUTATION_SKILLS=update-order-status
+DB_ANALYTICS_DEMO_SQLITE_TYPE=sqlite
+DB_ANALYTICS_DEMO_SQLITE_SQLITE_DATABASE_PATH=./sample_data/demo.db
+DB_ANALYTICS_DEMO_SQLITE_ALLOWED_TABLES=orders
+DB_ANALYTICS_DEMO_SQLITE_ALLOW_MUTATIONS=1
+DB_ANALYTICS_DEMO_SQLITE_MUTATION_SKILLS=update-order-status,reset-demo-order-to-pending
 
 ENABLE_SKILLS=1
 SKILLS_ALLOW_MUTATIONS=1
-SKILLS_ALLOW_MUTATION_CONNECTIONS=analytics
+SKILLS_ALLOW_MUTATION_CONNECTIONS=analytics_demo_sqlite
 
 MUTATION_PREVIEW_TOKEN_TTL_SECONDS=300  # 有效范围 1-86400 秒
 MUTATION_PREVIEW_TOKEN_STORE_MAX_ENTRIES=10000  # 有效范围 1-100000
@@ -742,6 +871,13 @@ MUTATION_PREVIEW_TOKEN_STORE_MAX_ENTRIES=10000  # 有效范围 1-100000
 # 固定 secret 不会让 token 在进程重启或跨进程后恢复
 # 建议至少 32 个随机字节；启动日志只报告来源模式，不记录 secret
 # MUTATION_PREVIEW_TOKEN_SECRET=replace_with_at_least_32_random_bytes
+```
+
+Skill 作者可选地在 `skill_def.md` 中再收窄目标（这不是环境变量，也不授予权限）：
+
+```yaml
+databases: [sqlite]
+connection_ids: [analytics_demo_sqlite]
 ```
 
 结果大小限制仍然是进程级配置，而不是连接级：
@@ -759,7 +895,7 @@ MAX_OVERVIEW_TABLES=100
 本地/业务配置的保守验证批次；链接的完整 live fixture 记录则是另一批使用临时
 订单并清理数据的协议测试。两批结果相互印证，但写入范围不同。
 
-真实 MCP 配置联调验证了：
+历史真实 MCP 配置联调使用当时的 `mysql`/`analytics` 别名，验证了：
 
 - `mysql`、`analytics` 均可连接；
 - `connection_id` 正确影响表可见性、Skill 方言和执行目标；
@@ -770,18 +906,19 @@ MAX_OVERVIEW_TABLES=100
 - 远程 MySQL 写入在该批次中未执行。
 
 补充的完整 live fixture 批次见
-[真实 MCP 联调记录](../LIVE_MCP_TSET/LIVE_MCP_TEST_V36_ZH.md)：该批次在
+[真实 MCP 联调记录](../LIVE_MCP_TSET/LIVE_MCP_TEST_V36-V37_ZH.md)：该批次在
 MySQL 和 SQLite 两端都使用临时订单完成 preview/execute/replay 测试，并在结束后
 清理临时数据。因此，“本节批次未执行远程 MySQL 写入”和“完整 fixture 批次验证了
 MySQL 写入”并不矛盾，不能把两批写入范围合并描述。
 
-真实联调不是穷尽式生产证明。尤其需要持续注意：MySQL 当前若配置 `ALLOWED_TABLES=*` 和 Mutation 写权限，会扩大真实数据库的 blast radius；v3.6.1 的 mutation endpoint 只支持单个启用 mutation 的进程，不能将多个 memory worker 放在普通负载均衡器后。
+真实联调不是穷尽式生产证明。尤其需要持续注意：MySQL 当前若配置 `ALLOWED_TABLES=*` 和 Mutation 写权限，会扩大真实数据库的 blast radius；v3.6.1-v3.7 的 mutation endpoint 只支持单个启用 mutation 的进程，不能将多个 memory worker 放在普通负载均衡器后。v3.7 的 in-memory FastMCP contract 和 2026-08-21 的 subprocess stdio 复验均已通过；2026-08-13、2026-08-19/20 的 initialize 阻塞保留为历史环境观察，不能与最新通过结果混淆。
 
 ## 15. 相关文档
 
 - [v3.5 发布说明](../RELEASE_NOTES_v3_5.md)
 - [v3.6/v3.6.1 发布说明](../RELEASE_NOTES_v3_6.md)
+- [v3.7.0 发布说明](../RELEASE_NOTES_v3_7.md)
 - [Skills 设计文档](../../MCP_AGENTS_SKILLS_DESIGN.md)
 - [Skills 安全策略](../../skills/SAFETY.md)
 - [设计风险登记表](../../DESIGN_RISK_REGISTER_ZH.md)
-- [真实 MCP 联调记录](../LIVE_MCP_TSET/LIVE_MCP_TEST_V36_ZH.md)
+- [真实 MCP 联调记录](../LIVE_MCP_TSET/LIVE_MCP_TEST_V36-V37_ZH.md)

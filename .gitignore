@@ -107,3 +107,6 @@ logs/
 
 # Markdown files starting with DRAFTPLAN
 DRAFTPLAN*.md
+
+# SQLite test db
+local_data/live-test.db

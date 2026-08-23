@@ -1,6 +1,6 @@
 # MCP Client Test - Usage Guide
 
-**Updated:** August 10, 2026 (v3.6.1)
+**Updated:** August 22, 2026 (v3.7.0)
 
 ## Purpose
 
@@ -16,6 +16,13 @@ MySQL integration tests require the explicit `RUN_MYSQL_INTEGRATION_TESTS=1`
 gate and credentials exported in the process environment. Run this manual
 script only against a safe development or fixture database because it can list
 tables, execute count queries, describe tables, and print sampled rows.
+
+v3.7 also provides `examples/manual_mutation_approval.py` as a separate
+stdio-only, one-shot approval-host example. Pytest does not start its
+interactive CLI; deterministic tests cover the workflow state machine and a
+real in-memory FastMCP client/server contract. The subprocess stdio interaction
+still requires manual/live verification because it waits for human input and
+can write to the selected database.
 
 ## Test Configuration
 
@@ -46,6 +53,22 @@ python -m pytest -q
 For the live MCP protocol smoke check, continue with the setup below and run the
 script explicitly.
 
+For an explicit mutation approval flow against a safe fixture/development
+database, put parameters in a JSON object file and run from the active venv:
+
+```bash
+.venv/bin/python examples/manual_mutation_approval.py \
+  --skill update-order-status \
+  --params-file /path/to/update-order.json \
+  --connection-id orders_primary
+```
+
+The host accepts only `APPROVE`, keeps preview and execute in one Client context
+and server subprocess, explicitly inherits the caller's exported DB/policy
+environment, enforces its own approval deadline, and does not retry an uncertain
+execute. It is a client example, not proof of authenticated human identity; see
+`RELEASE_NOTES/RELEASE_NOTES_v3_7.md`.
+
 ### Prerequisites
 
 1. Install dependencies:
@@ -75,25 +98,25 @@ script explicitly.
 
   **Optional named connections (v3.5):**
   ```bash
-  DB_CONNECTIONS=mysql,analytics
-  DEFAULT_DB_CONNECTION=mysql
+  DB_CONNECTIONS=trade_analysis_mysql,analytics_demo_sqlite
+  DEFAULT_DB_CONNECTION=trade_analysis_mysql
 
-  DB_MYSQL_TYPE=mysql
-  DB_MYSQL_USER=your_db_user
-  DB_MYSQL_PASSWORD=your_db_password
-  DB_MYSQL_HOST=your_db_host
-  DB_MYSQL_NAME=your_db_name
+  DB_TRADE_ANALYSIS_MYSQL_TYPE=mysql
+  DB_TRADE_ANALYSIS_MYSQL_USER=your_db_user
+  DB_TRADE_ANALYSIS_MYSQL_PASSWORD=your_db_password
+  DB_TRADE_ANALYSIS_MYSQL_HOST=your_db_host
+  DB_TRADE_ANALYSIS_MYSQL_NAME=your_db_name
 
-  DB_ANALYTICS_TYPE=sqlite
-  DB_ANALYTICS_SQLITE_DATABASE_PATH=./sample_data/demo.db
-  DB_ANALYTICS_ALLOWED_TABLES=orders
+  DB_ANALYTICS_DEMO_SQLITE_TYPE=sqlite
+  DB_ANALYTICS_DEMO_SQLITE_SQLITE_DATABASE_PATH=./sample_data/demo.db
+  DB_ANALYTICS_DEMO_SQLITE_ALLOWED_TABLES=orders
 
   # Optional strict mutation routing (all three layers are required)
-  SKILLS_ALLOW_MUTATION_CONNECTIONS=mysql,analytics
-  DB_MYSQL_ALLOW_MUTATIONS=1
-  DB_MYSQL_MUTATION_SKILLS=update-order-status
-  DB_ANALYTICS_ALLOW_MUTATIONS=1
-  DB_ANALYTICS_MUTATION_SKILLS=update-order-status
+  SKILLS_ALLOW_MUTATION_CONNECTIONS=trade_analysis_mysql,analytics_demo_sqlite
+  DB_TRADE_ANALYSIS_MYSQL_ALLOW_MUTATIONS=1
+  DB_TRADE_ANALYSIS_MYSQL_MUTATION_SKILLS=update-order-status
+  DB_ANALYTICS_DEMO_SQLITE_ALLOW_MUTATIONS=1
+  DB_ANALYTICS_DEMO_SQLITE_MUTATION_SKILLS=update-order-status,reset-demo-order-to-pending
   ```
 
   Core read-only tools and query Skills accept optional `connection_id`.
@@ -152,11 +175,11 @@ TEST 0: list_connections
 ----------------------------------------------------------------------
 {
   "success": true,
-  "default_connection_id": "mysql",
+  "default_connection_id": "trade_analysis_mysql",
   "connection_count": 2,
   "connections": [
-    {"connection_id": "mysql", "db_type": "mysql", "is_default": true},
-    {"connection_id": "analytics", "db_type": "sqlite", "is_default": false}
+    {"connection_id": "trade_analysis_mysql", "db_type": "mysql", "is_default": true},
+    {"connection_id": "analytics_demo_sqlite", "db_type": "sqlite", "is_default": false}
   ]
 }
 
@@ -166,7 +189,7 @@ TEST 1: check_connection
 {
   "connected": true,
   "message": "Database connection successful",
-  "connection_id": "mysql",
+  "connection_id": "trade_analysis_mysql",
   "db_type": "mysql"
 }
 
@@ -175,7 +198,7 @@ TEST 2: list_tables
 ----------------------------------------------------------------------
 {
   "success": true,
-  "connection_id": "mysql",
+  "connection_id": "trade_analysis_mysql",
   "db_type": "mysql",
   "database_name": "mydb",
   "returned_table_count": 2,
@@ -196,7 +219,7 @@ TEST 3: query (Primary Tool)
 Query 1: SELECT 1 as test
 {
   "success": true,
-  "connection_id": "mysql",
+  "connection_id": "trade_analysis_mysql",
   "db_type": "mysql",
   "data": [{"test": 1}],
   "row_count": 1,
@@ -220,7 +243,7 @@ The script tests the following tools:
 6. ✅ `get_full_schema` - Visible schema overview in one call; may be truncated
 7. ✅ `get_table_summary` - Table statistics with optional exact count (requires `ENABLE_TABLE_SUMMARY=1`)
 8. ✅ `sample` - Sample data retrieval (requires `ENABLE_SCHEMA_TOOLS=1`)
-9. ✅ `list_skills` - List/search skills with `compact`/`summary`/`full` metadata, optional `available_only` filtering, connection-scoped policy/readiness fields, and schema readiness fields (requires `ENABLE_SKILLS=1`)
+9. ✅ `list_skills` - List/search skills with `compact`/`summary`/`full` metadata, optional `available_only` filtering, v3.7 Skill `connection_ids` scope, connection-scoped policy/readiness fields, and schema readiness fields (requires `ENABLE_SKILLS=1`)
 10. ✅ `get_skill_detail` - Fetch one skill's cached parameter schema and target connection readiness (requires `ENABLE_SKILLS=1`)
 11. ✅ `execute_query_skill` - Execute a parameterized query skill against the resolved target connection (requires `ENABLE_SKILLS=1`)
 12. ✅ `execute_mutation_skill` - Preview or execute a mutation skill on an authorized configured connection (requires `ENABLE_SKILLS=1` + `SKILLS_ALLOW_MUTATIONS=1`; execute also requires `preview_token`)
@@ -276,7 +299,7 @@ across all tools in v3.4.2.
     "total_rows": 2,
     "truncated": false,
     "audit_logged": false,
-    "connection_id": "mysql",
+    "connection_id": "trade_analysis_mysql",
     "db_type": "mysql",
     "idempotent": true
   }
@@ -308,7 +331,7 @@ across all tools in v3.4.2.
     "execution_ms": 4.7,
     "row_count": 1,
     "audit_logged": true,
-    "connection_id": "mysql",
+    "connection_id": "trade_analysis_mysql",
     "db_type": "mysql",
     "idempotent": false,
     "preview_token_required": true,
@@ -339,7 +362,7 @@ across all tools in v3.4.2.
     "mode": "execute",
     "execution_ms": 8.5,
     "audit_logged": true,
-    "connection_id": "mysql",
+    "connection_id": "trade_analysis_mysql",
     "db_type": "mysql",
     "idempotent": false,
     "preview_token_required": true,
@@ -380,11 +403,11 @@ To create the demo MySQL table used by `monthly-sales-report` and `update-order-
 The script refuses to modify an existing `orders` table unless `--drop-existing` or `--seed-existing` is passed explicitly.
 
 ```python
-skills = await client.call_tool("list_skills", {"detail_level": "compact", "connection_id": "analytics"})
-detail = await client.call_tool("get_skill_detail", {"skill_name": "monthly-sales-report-sqlite", "connection_id": "analytics"})
+skills = await client.call_tool("list_skills", {"detail_level": "compact", "connection_id": "analytics_demo_sqlite"})
+detail = await client.call_tool("get_skill_detail", {"skill_name": "monthly-sales-report-sqlite", "connection_id": "analytics_demo_sqlite"})
 result = await client.call_tool(
   "execute_query_skill",
-  {"skill_name": "monthly-sales-report-sqlite", "params": {"year": 2026, "month": 1}, "connection_id": "analytics"},
+  {"skill_name": "monthly-sales-report-sqlite", "params": {"year": 2026, "month": 1}, "connection_id": "analytics_demo_sqlite"},
 )
 # FastMCP clients can inspect result.meta for runtime diagnostics.
 ```
@@ -400,13 +423,18 @@ Use `list_skills(search=..., category=..., available_only=true, connection_id=..
 
 ### Unsafe Query Rejection
 
-```json
-{
-  "success": false,
-  "error": "Only SELECT queries are allowed",
-  "query": "DELETE FROM users"
-}
-```
+Verify that `DELETE FROM users` is rejected. v3.7 full MCP policy also rejects:
+
+- more than one non-empty statement;
+- raw `SHOW` (use `list_tables`/`describe_table`);
+- executing ANALYZE or cross-session `EXPLAIN ... FOR CONNECTION` forms;
+- executable/optimizer/MariaDB comments; and
+- out-of-allowlist qualified, comma-joined, nested, CTE, or ambiguous table
+  targets.
+
+Do not assert a legacy exact error string; assert rejection and absence of a
+database write/result. The low-level compatibility helper still recognizes
+SHOW-shaped input, but the full MCP `query` policy does not execute it.
 
 ## Troubleshooting
 

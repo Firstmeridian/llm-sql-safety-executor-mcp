@@ -1,10 +1,17 @@
-# v3.6 MySQL + SQLite MCP 协议联调记录
+# v3.6-v3.7 MySQL + SQLite MCP 协议联调记录
 
-**日期：** 2026-07-31  
-**文档边界更新：** 2026-08-10
-**结果：** 通过  
-**范围：** 配置解析、MCP stdio 协议、命名连接、严格 mutation policy、一次性
-preview token、MySQL/SQLite 写路径和 replay 拒绝。
+**日期：** 2026-07-31
+
+**文档边界更新：** 2026-08-22
+
+**结果：** 2026-07-31 联调通过；2026-08-13、2026-08-19 与 2026-08-20
+的隔离 subprocess stdio 阻塞保留为历史尝试；2026-08-21 的 v3.7
+人工批准 host、完整 server subprocess stdio 和拒绝路径复验通过
+
+**范围：** v3.6 基线配置解析、MCP stdio 协议、命名连接、严格 mutation policy、
+一次性 preview token、MySQL/SQLite 写路径和 replay 拒绝；以及 v3.7 人工批准
+host 的 in-memory contract 与 subprocess stdio 复验边界。2026-08-22 新增的
+跨数据库 demo reset 当前只有自动化回归证据，尚未追加真实 MySQL/stdio live 结论。
 
 本文记录的协议联调只验证 stdio；2026-08-10 补充的 v3.6.1 HTTP 文字是部署
 边界说明，不表示已经完成 HTTP transport 或多用户认证联调。
@@ -13,46 +20,64 @@ preview token、MySQL/SQLite 写路径和 replay 拒绝。
 协议 smoke 保留在文末“附录 A：历史协议基线”，用于审计和回溯，不作为当前配置
 的主要结论。
 
-## 1. 配置状态
+## 1. v3.7 推荐配置与历史快照边界
 
-当前本地 `.env` 已启用 v3.6 命名连接和严格 mutation policy：
+以下是 `reset-demo-order-to-pending` 定稿后用于下一轮本地 live 测试的严格配置摘要；
+它不表示 reset 已完成真实 live 验证：
 
 ```env
-DB_CONNECTIONS=mysql,analytics
-DEFAULT_DB_CONNECTION=mysql
-SKILLS_ALLOW_MUTATION_CONNECTIONS=mysql,analytics
-DB_MYSQL_ALLOW_MUTATIONS=1
-DB_MYSQL_MUTATION_SKILLS=update-order-status
-DB_ANALYTICS_ALLOW_MUTATIONS=1
-DB_ANALYTICS_MUTATION_SKILLS=update-order-status
+DB_CONNECTIONS=trade_analysis_mysql,analytics_demo_sqlite,live_test_sqlite
+DEFAULT_DB_CONNECTION=trade_analysis_mysql
+DB_LIVE_TEST_SQLITE_TYPE=sqlite
+DB_LIVE_TEST_SQLITE_SQLITE_DATABASE_PATH=./local_data/live-test.db
+DB_LIVE_TEST_SQLITE_ALLOWED_TABLES=orders
+DB_LIVE_TEST_SQLITE_ALLOW_MUTATIONS=1
+DB_LIVE_TEST_SQLITE_MUTATION_SKILLS=update-order-status,reset-demo-order-to-pending
+SKILLS_ALLOW_MUTATION_CONNECTIONS=live_test_sqlite
 MUTATION_PREVIEW_TOKEN_TTL_SECONDS=300
 MUTATION_PREVIEW_TOKEN_STORE_MAX_ENTRIES=100
 SKILLS_AUDIT_LOG=logs/mutation_audit.jsonl
 ```
 
-配置解析确认：默认连接是 `mysql`；`mysql` 和 `analytics` 都只授权
-`update-order-status` mutation Skill；token store 上限为 100。
+该配置让三个连接同时保持可选，省略 `connection_id` 时仍默认路由到
+`trade_analysis_mysql`；但全局 mutation allowlist 只包含可丢弃的
+`live_test_sqlite`，所以 MySQL 与跟踪的 demo SQLite 在 preview 前拒绝写入。
+`local_data/live-test.db` 当前只包含最小 `orders(id, status)` schema，适合订单
+mutation live 测试，不满足 monthly-sales query Skill 所需列。reset 虽然声明兼容
+MySQL，但应只在另建或明确选择的专用 MySQL 测试 alias 上授权，且仍必须通过其它
+mutation policy 层。修改 `.env` 后需要重启 MCP server 才会重新加载连接注册表。
+
+2026-08-20 的配置快照与 2026-08-21 的 live 证据早于 reset Skill 定稿；对应
+真实写路径使用的是 `update-order-status`，数据库恢复依赖临时 fixture 或快照。
+下文 2026-07-31 的真实联调仍使用当时的 `mysql`/`analytics` 别名，并按历史事实
+保留。不得把这些结果改写成 reset 或真实 MySQL reset 已通过。
 
 ### Legacy 兼容层
 
 `default` alias、`DB_DEFAULT_*` 和 legacy `DB_TYPE`、`DB_USER`、
 `DB_PASSWORD`、`DB_HOST`、`DB_NAME`、`SQLITE_DATABASE_PATH`、`ALLOW_UNION`、
 `ALLOWED_TABLES` 已从本地 `.env` 的活动配置中移除。MySQL 与 SQLite 的实际
-设置现在完全由 `DB_MYSQL_*` 与 `DB_ANALYTICS_*` 承载。
+设置现在完全由 `DB_TRADE_ANALYSIS_MYSQL_*` 与
+`DB_ANALYTICS_DEMO_SQLITE_*` 承载。
 
 凭据仍只保存在 ignored local `.env`，不会写入本文档、聊天记录或提交历史。
 
 ## 2. 当前运维边界
 
-- `.env` 当前仍允许 MySQL 和 analytics 对 `update-order-status` 写入。若日常
-  运行不需要 MySQL 写入，应将 `DB_MYSQL_ALLOW_MUTATIONS=0`，并从
-  `SKILLS_ALLOW_MUTATION_CONNECTIONS` 移除 `mysql`。
-- `DB_MYSQL_ALLOWED_TABLES=*` 保留了原本的宽读权限；生产环境应收窄为明确表
+- `.env` 当前注册 MySQL、demo SQLite 与 live-test SQLite 三个连接；三者都可按各自
+  read policy 访问，但全局 mutation 目标只有 `live_test_sqlite`。MySQL 与 demo
+  SQLite 即使保留连接级 mutation 开关，也会因不在全局 allowlist 中 fail closed。
+- `DB_TRADE_ANALYSIS_MYSQL_ALLOWED_TABLES=*` 保留了原本的宽读权限；生产环境应收窄为明确表
   allowlist。
+- v3.7 完整 MCP raw-query policy 每次只接受一条 statement，并拒绝 raw SHOW；
+  metadata discovery 改用 `list_tables`/`describe_table`。限制性 allowlist 的
+  comma/nested/CTE/qualified/ambiguous target 与 executable comment/hint 已有
+  自动化回归，但本文件没有把它们记成真实 subprocess stdio 通过。
 - 一次性 preview-token store 是进程内状态。推荐使用同一 MCP 子进程内的 stdio。
   若集成方在受信任私有边界内通过 HTTP transport 暴露 mutation，只能运行一个
   启用 mutation 的进程；v3.6.1 不定义多用户认证 HTTP mutation，程序也不会检测
-  worker/replica 数。不得把多个 mutation worker 放在普通负载均衡器后。未来若出现明确的多副本写入需求，
+  worker/replica 数。不得把多个 mutation worker 放在普通负载均衡器后。
+  未来若出现明确的多副本写入需求，
   必须连同完整远程部署 profile 重新设计共享原子 store，不能依赖 sticky routing
   或退回 stateless HMAC。
 
@@ -69,7 +94,7 @@ SKILLS_AUDIT_LOG=logs/mutation_audit.jsonl
   和 `check_connection(connection_id="analytics")` 验证两端均已连接成功。
 - 该验证没有执行 SQL query、Skill preview 或 mutation write。
 
-## 4. 当前配置下的完整真实功能测试
+## 4. 2026-07-31 当时配置下的完整真实功能测试
 
 **执行时间：** 2026-07-31  
 **入口：** 当前聊天连接的 `mcp_sql-safety-ex_*` 工具  
@@ -136,7 +161,11 @@ mutation policy、preview token、状态绑定、正确连接执行、跨连接�
 数据库异常分支。当前 MySQL 仍配置 `DB_MYSQL_ALLOWED_TABLES=*` 和 mutation 写
 授权，日常生产使用应按实际需要收窄。
 
-## 5. Web、官方文档与 GitHub 实践复审
+## 5. 基于 2026-07-31 快照的 Web、官方文档与 GitHub 实践复审
+
+本节的“当前”均指 2026-07-31 当时的 `mysql`/`analytics` 配置与实现快照，不是
+v3.7 当前能力声明，也不是当前 backlog。后续已处理或接受的项目以最新风险登记表
+和 v3.7 发布说明为准。
 
 **复审日期：** 2026-08-01  
 **复审结论：** 当前结果符合 v3.6 已启用功能的预期；编排和安全方向基本符合
@@ -260,6 +289,183 @@ GitHub 项目只属于次要实现旁证。最终判断优先采用官方协议�
 - [FastMCP Tools](https://gofastmcp.com/servers/tools)
 - [FastMCP GitHub](https://github.com/PrefectHQ/fastmcp)
 - [MCP Python SDK GitHub](https://github.com/modelcontextprotocol/python-sdk)
+
+## 6. v3.6.1 临时 SQLite stdio 复验
+
+**执行日期：** 2026-08-13
+**状态：** 当前自动化执行环境中阻塞于 MCP initialize，未形成新的通过结论。
+
+本次按批准范围创建了 `/tmp` 下的一次性 SQLite `orders` 数据库、audit 文件和
+stdio transport log，并通过环境变量禁用 `.env`，计划验证：连接/表发现、Skill
+可用性、`pending -> confirmed` preview/execute、replay 拒绝、最终状态与完整 token
+不进入 audit。未使用 tracked `sample_data/demo.db` 或真实 MySQL。
+
+当前项目 `.venv` 中的 FastMCP 3.0.2 / MCP Python SDK 1.26.0 能启动
+`start_server.py`，日志到达 `transport='stdio'`，但客户端未完成 initialize，因而
+没有发出任何 `tools/call`；临时订单保持 `pending`，也没有生成 mutation audit。
+相同行为可由不导入本项目代码的最小 FastMCP server 复现。为排除旧 FastMCP
+版本因素，又在 `/tmp` 隔离安装 FastMCP 3.4.5 及其 client/server 依赖进行最小
+对照，仍停在 initialize。项目 `.venv`、requirements 和 tracked 数据均未因此
+修改。
+
+因此，该现象目前只能判定为本次自动化执行环境中的 subprocess stdio/框架交互
+阻塞，不能归因于 mutation 业务代码，也不能把本次尝试记为 stdio 通过。正文与
+附录记录的 2026-07-31 历史真实 stdio 结果仍然有效，但不替代当前版本复验。
+下一步应在普通本地终端或实际 MCP host 中运行同一临时 SQLite 流程；若在那里也
+可复现，再单独登记为 runtime/dependency compatibility 风险并保留初始化 trace。
+
+## 7. v3.7 人工批准 host 验证
+
+**历史执行日期：** 2026-08-19；环境传递修复后复验：2026-08-20
+**自动化合约结果：** 通过
+**截至 2026-08-20 的 subprocess stdio 结果：** 当前执行环境中再次阻塞于 initialize，未执行写入
+
+v3.7 为 `examples/manual_mutation_approval.py` 增加了两层验证。默认 pytest 使用
+真实 `Client(module.mcp)` in-memory transport，对临时 SQLite `orders` 表完成
+`pending -> confirmed` preview、批准、execute 和最终状态核对。这不是 fake client
+路径，也不会接触 `.env` 或 tracked sample database；同时还有 fake client
+状态机测试覆盖 deny、timeout、EOF/cancel、workflow 强制截止时间、畸形/过期
+preview、参数快照、实际解析连接固定、完整 stdio 环境传递、精确 token 输出替换，
+以及 execute 结果不确定时不重试。
+
+最初的 2026-08-19 live 尝试暴露出 MCP SDK 的 stdio transport 在未显式提供
+`env` 时只传递少量系统变量：shell 中导出的 `DB_*`、Skill policy 和
+`PYTHON_DOTENV_DISABLED` 不会自动进入子进程。该问题会让子进程转而读取另一套
+项目 `.env`，因此不能把那次尝试当作正确 fixture 配置下的有效协议证据；不过它在
+initialize 前已失败，没有发出工具调用或写入。
+
+2026-08-20 修复为显式传递当前进程完整环境后，再次创建 `/tmp` 一次性 SQLite
+数据库和 JSON params，禁用 `.env`，并使用当前 `.venv` Python 启动 CLI。15 秒与
+最终 20 秒两次复验中，server 子进程均成功到达 FastMCP 3.0.2 的
+`transport='stdio'` 启动日志，但 client 仍未在 init timeout 内完成 initialize，
+CLI 以 `RuntimeError` fail closed 退出。没有
+展示批准界面、没有发出 preview/execute、没有创建 audit；临时订单复核仍为
+`pending`，随后 fixture 已清理。该次复验确认阻塞在正确环境传递之后仍存在。
+
+该结果与第 6 节 2026-08-13 现象一致，不能把 in-memory 合约通过写成 subprocess
+stdio live 通过，也没有证据说明阻塞由 v3.7 connection scope、批准状态机或 mutation
+业务逻辑引起。真实 host/普通本地终端仍是下一次 stdio 复验位置。
+
+本轮最终自动化回归（它不是 subprocess stdio live）为：默认仓库测试套件
+`462 passed, 3 skipped`，其中聚焦 SQL/query/SQLite 套件为 `115 passed`；由于
+`pytest.ini` 有意只收集 `tests/`，另行显式运行根目录
+legacy `test_bug_fixes.py`，结果为 `2 passed`；`git diff --check` 通过。该结果验证
+v3.7 policy/Skill/mutation regression；该结果记录的是 2026-08-20 之前的自动化
+基线，真实 subprocess stdio 的 2026-08-21 最新结果见下方第 7.1 节。
+
+### 7.1 v3.7.0 Live Validation（2026-08-21）
+
+本节更新第 7 节前文的状态判断；第 7 节前文保留为 2026-08-19/20
+的历史记录，不代表当前 subprocess 仍然 blocked。
+
+**环境与版本：** 使用当前仓库和 `.venv`，确认：
+
+```text
+Python 3.12.3
+fastmcp 3.0.2
+mcp 1.26.0
+```
+
+在 `local_data/live-test.db` 建立了 `orders(id INTEGER PRIMARY KEY,
+status TEXT NOT NULL)`，插入 `id=1, status=pending`。Host live 流程按批准范围另用
+一个位于临时目录的一次性 SQLite fixture，其结构和初始数据相同；临时参数文件
+包含 `order_id=1`、`new_status=confirmed`。
+子进程仅收到 `env -i` 临时配置，设置
+`PYTHON_DOTENV_DISABLED=1`、`stdio_test_sqlite` SQLite 连接、`orders` allowlist、
+`update-order-status` mutation allowlist 和独立临时 audit 路径，未读取项目
+`.env`。本次 live 完成后，一次性 fixture 已恢复为 `pending`，供拒绝结果复核；
+`local_data/live-test.db` 仍为 `pending`。
+
+**真实 MCP 基础检查：** 当前聊天 MCP 的 `list_connections` 显示默认连接
+`trade_analysis_mysql` 和 SQLite `analytics_demo_sqlite`；默认 MySQL、显式
+`analytics_demo_sqlite` 的 `check_connection` 均成功，旧别名 `analytics` 明确
+拒绝。SQLite 的 schema/query 检查成功；MySQL 的只读 `SELECT COUNT(*) FROM
+orders` 成功返回 8 行总数，`update-order-status` detail 显示 schema、连接和
+mutation policy 均允许。
+
+本节的直接 MCP 检查验证的是当前已运行 MCP 服务的配置和连接状态；它不单独证明
+一个全新 subprocess 已从本地 `.env` 重新加载配置。若需要验证 `.env` 加载本身，
+应在不设置 `PYTHON_DOTENV_DISABLED=1` 且不从父环境传入 `DB_*` 覆盖项的条件下，
+启动 fresh subprocess，并只调用 `list_connections`、`list_skills` 等只读工具。
+
+**批准流程：** 使用用户给定的 `env -i` 配置运行
+`examples/manual_mutation_approval.py` 并输入精确的 `APPROVE`，进程退出码为 0。
+Host 完成 initialize，显示了不含 bearer token 的批准视图；execute 使用 preview
+返回并固定的 `connection_id=stdio_test_sqlite`，返回 `rowcount=1`、
+`previous_status=pending`、`new_status=confirmed`。数据库状态变为
+`confirmed`，独立 audit 文件存在并包含 preview、execute 各一条记录。stdout、
+Host stderr、批准视图和 audit 均没有完整 token；stdout 中出现的
+`preview_token_expires_at` 只是过期时间字段，不是 token 值，audit 不包含 token
+字段。
+
+**拒绝流程：** 将同一数据库重置为 `pending`，输入 `NO`，进程退出码为 3。stdout
+只有 preview 和 `deny` 结果，明确返回“execute was not called”；audit 只有一条
+preview 记录，没有 execute 记录，数据库仍为 `pending`。同一 Host 调用序列只有
+一次 preview，没有自动重试，也没有 token 输出。
+
+**in-memory 与 subprocess 分类：**
+
+- **in-memory contract passed：** `test_workflow_contract_via_in_memory_fastmcp_client`
+  通过（1 passed）；完整 `tests/test_manual_mutation_approval.py` 为 46 passed。
+- **subprocess stdio passed：** APPROVE 写入、非 APPROVE 拒绝，以及后述最小 echo、
+  `start_server.py`、完整 `mcp_sql_server` 三路 initialize 探针均通过。
+- **subprocess stdio blocked at initialize：** 本次 2026-08-21 未复现；2026-08-13
+  和 2026-08-19/20 的阻塞仍按历史结果保留，不能与本次通过混写。
+
+**最小 FastMCP 二分：** 三路均使用当前 `.venv`、相同临时环境、仓库 cwd、
+`StdioTransport(command=sys.executable, env=dict(os.environ), keep_alive=False)`
+和 15 秒 initialize timeout：
+
+| Target | Result |
+|---|---|
+| 最小 echo server（一个 `echo` tool，`mcp.run(transport="stdio")`） | initialize 和 tool call 通过 |
+| `start_server.py` | initialize 通过 |
+| 直接导入完整 `mcp_sql_server` 并 `mcp.run(transport="stdio")` | initialize 通过 |
+
+第一次完整 server 探针曾因临时 wrapper 不在 Python import path 得到
+`ModuleNotFoundError: No module named 'mcp_sql_server'`；改为从仓库 cwd 使用
+`python -c` 导入后通过，因此不计为 MCP/stdio 失败。三路均观察到 FastMCP
+3.0.2 banner 和 `transport='stdio'` 启动日志。临时 stdout、stderr 和 audit 文件
+未作为持久证据保留。当前结论是：**Host 状态机已实现，且 subprocess live
+validation 已通过；不登记本次为 FastMCP/stdio 运行兼容性阻塞。**
+
+### 7.2 2026-08-21 当前 MCP 连接的直接 Skill live smoke
+
+本节记录另一条与 7.1 不同的证据：直接使用当前聊天已连接的
+`mcp_sql-safety-ex_*` MCP 工具完成 Skill 调用，没有启动本地 subprocess，也不是
+in-memory contract。当前配置中的 `analytics_demo_sqlite` 实际连接到
+`sample_data/demo.db`；它不是 7.1 使用的一次性 fixture，也不是
+`local_data/live-test.db`。因此本节只使用现有测试订单 `id=5`，并在测试前备份、
+测试后恢复 `sample_data/demo.db`。
+
+**调用链与结果：**
+
+1. `list_skills(detail_level="full", available_only=true,
+  connection_id="analytics_demo_sqlite")` 成功，SQLite query Skill 和两个
+  mutation Skill 均报告可执行。
+2. `get_skill_detail` 成功返回 `monthly-sales-report-sqlite` 和
+  `update-order-status` 的完整参数/策略信息。
+3. `execute_query_skill` 执行
+  `monthly-sales-report-sqlite(year=2026, month=8)` 成功，返回 0 行，属于当前
+  测试数据结果，不是 Skill 执行失败。
+4. 只读 query 确认 `orders.id=5` 的初始状态为 `pending`。
+5. `execute_mutation_skill(confirm=false)` 成功返回 pending -> confirmed preview
+  和一次性 token；`confirm=true` 携带该 token 后真实写入成功，返回
+  `rowcount=1`、`previous_status=pending`、`new_status=confirmed`。
+6. 只读 query 确认状态为 `confirmed`；同一个 token 再次执行被拒绝，证明 replay
+  保护生效。
+7. 恢复数据库快照后再次 query 确认 `id=5` 回到 `pending`，并验证
+  `sample_data/demo.db` 的 git diff clean。
+
+完整 bearer token 出现在本次 MCP mutation preview 的工具响应中，但没有写入本文；
+这说明直接让模型/聊天层承载 token 会扩大聊天记录、调试日志或上下文持久化的
+泄露面。服务端 audit/meta 不记录完整 token；需要更强隔离时应优先使用 7.1 的
+Host，或由 host 维护 token，而不是让模型直接读取和回显 bearer token。
+
+**分类：** 本节是 **direct MCP Skill live smoke passed**；它补充验证了当前命名
+连接下的 Skill discovery、query execution、mutation write、状态核验和 replay
+拒绝，但不替代 7.1 的 subprocess stdio 或人工批准 Host 验证，也不证明
+`local_data/live-test.db` 已通过当前聊天 MCP 路径。
 
 ## 附录 A：历史协议基线
 

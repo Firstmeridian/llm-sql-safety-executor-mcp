@@ -204,5 +204,5 @@ must first call `execute_mutation_skill(confirm=false)` and pass the returned
 - `skills/SAFETY.md`
 - `skills/update-order-status/skill_def.md`
 - `.env.example`, `.env.example_ZH`, and local configuration guidance
-- `RELEASE_NOTES/GUIDE/V3_5_V3_6_SKILLS_GUIDE_ZH.md`
-- `RELEASE_NOTES/LIVE_MCP_TSET/LIVE_MCP_TEST_V36_ZH.md`
+- `RELEASE_NOTES/GUIDE/V3_5-V3_7_SKILLS_GUIDE_ZH.md` (renamed and extended in v3.7)
+- `RELEASE_NOTES/LIVE_MCP_TSET/LIVE_MCP_TEST_V36-V37_ZH.md`

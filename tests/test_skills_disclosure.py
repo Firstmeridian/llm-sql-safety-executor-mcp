@@ -115,12 +115,12 @@ def test_list_default_summary_uses_env_default(skills_server):
     assert result["current_database_type"] == "sqlite"
     assert result["schema_check_enabled"] is True
     assert result["schema_check_available"] is True
-    assert result["total_skills"] == 3
-    assert result["matched_catalog_skills"] == 3
+    assert result["total_skills"] == 4
+    assert result["matched_catalog_skills"] == 4
     assert result["matched_skills"] == 1
     assert result["available_skills"] == 1
-    assert result["unavailable_skills"] == 2
-    assert result["filtered_unavailable_skills"] == 2
+    assert result["unavailable_skills"] == 3
+    assert result["filtered_unavailable_skills"] == 3
     assert result["schema_unready_skills"] == 0
     assert result["hint"]
 
@@ -163,8 +163,8 @@ def test_default_availability_hides_missing_required_tables(monkeypatch):
     assert result["available_only"] is True
     assert result["matched_skills"] == 0
     assert result["available_skills"] == 0
-    assert result["schema_unready_skills"] == 3
-    assert result["filtered_unavailable_skills"] == 3
+    assert result["schema_unready_skills"] == 4
+    assert result["filtered_unavailable_skills"] == 4
 
 
 def test_list_compact_excludes_summary_fields(skills_server):
@@ -224,7 +224,7 @@ def test_list_search_no_match_returns_empty(skills_server):
         )
     )
 
-    assert result["total_skills"] == 3
+    assert result["total_skills"] == 4
     assert result["matched_catalog_skills"] == 0
     assert result["matched_skills"] == 0
     assert result["skills"] == []
@@ -348,14 +348,22 @@ def test_available_only_false_returns_full_catalog(skills_server):
     assert names == [
         "monthly-sales-report",
         "monthly-sales-report-sqlite",
+        "reset-demo-order-to-pending",
         "update-order-status",
     ]
     assert result["available_only"] is False
-    assert result["matched_catalog_skills"] == 3
-    assert result["matched_skills"] == 3
+    assert result["matched_catalog_skills"] == 4
+    assert result["matched_skills"] == 4
     assert result["available_skills"] == 1
-    assert result["unavailable_skills"] == 2
+    assert result["unavailable_skills"] == 3
     assert result["filtered_unavailable_skills"] == 0
+
+    reset = next(
+        skill
+        for skill in result["skills"]
+        if skill["name"] == "reset-demo-order-to-pending"
+    )
+    assert reset["databases"] == ["mysql", "sqlite"]
 
     mysql_report = next(skill for skill in result["skills"] if skill["name"] == "monthly-sales-report")
     assert mysql_report["executable"] is False
@@ -396,9 +404,9 @@ def test_excluded_profiles_hide_demo_skills_by_default(monkeypatch):
         sys.modules.pop("sql_safety_checker", None)
 
     assert result["excluded_profiles"] == ["demo"]
-    assert result["profile_excluded_skills"] == 3
+    assert result["profile_excluded_skills"] == 4
     assert result["matched_skills"] == 0
-    assert result["filtered_unavailable_skills"] == 3
+    assert result["filtered_unavailable_skills"] == 4
 
     sqlite_report = next(
         skill for skill in full_catalog["skills"]
@@ -540,7 +548,7 @@ def test_env_available_only_default_can_show_full_catalog(monkeypatch):
         sys.modules.pop("sql_safety_checker", None)
 
     assert result["available_only"] is False
-    assert result["matched_skills"] == 3
+    assert result["matched_skills"] == 4
 
 
 def test_mysql_database_hides_sqlite_skill_by_default(monkeypatch):

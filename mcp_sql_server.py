@@ -39,6 +39,8 @@ import math
 import secrets
 import time
 import sqlparse
+from sqlparse import tokens as sql_tokens
+from sqlparse.sql import Function, Identifier, IdentifierList, Parenthesis, TokenList
 from dataclasses import dataclass
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
@@ -49,7 +51,11 @@ from mcp.types import ToolAnnotations
 from fastmcp import FastMCP, Context
 from fastmcp.exceptions import ToolError
 from fastmcp.tools.tool import ToolResult
-from sql_safety_checker import is_sql_safe, execute_sql
+from sql_safety_checker import (
+    execute_sql,
+    has_unsafe_mysql_comment_semantics,
+    is_sql_safe,
+)
 from db_adapter import (
     ConnectionPolicy,
     DatabaseAdapter,
@@ -181,13 +187,19 @@ _MCP_TOOL_TIMEOUT = MCP_TOOL_TIMEOUT_SECONDS if MCP_TOOL_TIMEOUT_SECONDS > 0 els
 
 if MAX_SQL_LENGTH > 0:
     _SQL_QUERY_FIELD = Field(
-        description="Read-only SQL query to execute (SELECT, SHOW, DESCRIBE, or EXPLAIN).",
+        description=(
+            "Read-only SQL query to execute (SELECT, DESCRIBE, or "
+            "non-ANALYZE EXPLAIN)."
+        ),
         min_length=1,
         max_length=MAX_SQL_LENGTH,
     )
 else:
     _SQL_QUERY_FIELD = Field(
-        description="Read-only SQL query to execute (SELECT, SHOW, DESCRIBE, or EXPLAIN).",
+        description=(
+            "Read-only SQL query to execute (SELECT, DESCRIBE, or "
+            "non-ANALYZE EXPLAIN)."
+        ),
         min_length=1,
     )
 
@@ -455,14 +467,6 @@ def _is_table_allowed(table_name: str, policy: ConnectionPolicy | None = None) -
     return table_name.lower() in allowed_tables
 
 
-_SQL_IDENTIFIER_PATTERN = (
-    r'(?:`[^`]+`|"[^"]+"|\[[^\]]+\]|[a-zA-Z_\u4e00-\u9fff][a-zA-Z0-9_\u4e00-\u9fff]*)'
-)
-_SQL_TABLE_REFERENCE_PATTERN = (
-    rf'(?:{_SQL_IDENTIFIER_PATTERN}\s*\.\s*)?({_SQL_IDENTIFIER_PATTERN})'
-)
-
-
 def _normalize_sql_identifier(identifier: str) -> str:
     """Remove common SQL identifier quoting without treating it as authorization."""
     value = identifier.strip()
@@ -476,36 +480,314 @@ def _normalize_sql_identifier(identifier: str) -> str:
     return value
 
 
-def _extract_tables_from_sql(sql: str) -> list[str]:
+def _significant_sql_tokens(token_list: TokenList) -> list[Any]:
+    """Return non-whitespace, non-comment children of one parsed token list."""
+    return [
+        token
+        for token in token_list.tokens
+        if not token.is_whitespace and token.ttype not in sql_tokens.Comment
+    ]
+
+
+def _cte_names(statement: TokenList) -> set[str]:
+    """Collect top-level CTE aliases so they are not treated as base tables."""
+    tokens = _significant_sql_tokens(statement)
+    with_index = next(
+        (
+            index
+            for index, token in enumerate(tokens)
+            if token.ttype in sql_tokens.Keyword.CTE
+            and token.normalized.upper() == "WITH"
+        ),
+        None,
+    )
+    if with_index is None:
+        return set()
+
+    index = with_index + 1
+    if index < len(tokens) and tokens[index].normalized.upper() == "RECURSIVE":
+        index += 1
+    if index >= len(tokens):
+        raise ValueError("Incomplete WITH clause")
+
+    definitions = tokens[index]
+    identifiers = (
+        list(definitions.get_identifiers())
+        if isinstance(definitions, IdentifierList)
+        else [definitions]
+    )
+    names: set[str] = set()
+    for identifier in identifiers:
+        if not isinstance(identifier, Identifier):
+            raise ValueError("Unsupported WITH clause")
+        name = identifier.get_real_name()
+        if not name:
+            raise ValueError("Unnamed CTE")
+        names.add(_normalize_sql_identifier(name).lower())
+    return names
+
+
+def _table_references_from_target(
+    token: Any,
+    cte_names: set[str],
+    *,
+    allow_column_list: bool = False,
+) -> list[str]:
+    """Extract complete table references from one FROM/JOIN target token."""
+    if isinstance(token, IdentifierList):
+        references: list[str] = []
+        for identifier in token.get_identifiers():
+            references.extend(
+                _table_references_from_target(
+                    identifier,
+                    cte_names,
+                    allow_column_list=allow_column_list,
+                )
+            )
+        return references
+
+    if isinstance(token, Identifier):
+        # Derived tables are rejected by the extended policy. Refuse other
+        # parenthesized/function-shaped targets here rather than guessing which
+        # object an allowlist should authorize.
+        if any(isinstance(child, Parenthesis) for child in token.tokens) or (
+            not allow_column_list
+            and any(isinstance(child, Function) for child in token.tokens)
+        ):
+            raise ValueError("Parenthesized table target is unsupported")
+        table_name = token.get_real_name()
+        if not table_name:
+            raise ValueError("Table target has no resolvable name")
+        table_name = _normalize_sql_identifier(table_name)
+        schema_name = token.get_parent_name()
+        if schema_name:
+            schema_name = _normalize_sql_identifier(schema_name)
+            return [f"{schema_name}.{table_name}".lower()]
+        if table_name.lower() in cte_names:
+            return []
+        return [table_name.lower()]
+
+    if isinstance(token, Function) and allow_column_list:
+        table_name = token.get_real_name()
+        if not table_name:
+            raise ValueError("DML table target has no resolvable name")
+        return [_normalize_sql_identifier(table_name).lower()]
+
+    if token.ttype in sql_tokens.Name:
+        table_name = _normalize_sql_identifier(token.value)
+        if table_name.lower() in cte_names:
+            return []
+        return [table_name.lower()]
+
+    raise ValueError(f"Unsupported table target: {token.value!r}")
+
+
+_EXPLAIN_UPDATE_MODIFIERS = {"LOW_PRIORITY", "IGNORE"}
+_EXPLAIN_INSERT_MODIFIERS = {
+    "LOW_PRIORITY",
+    "DELAYED",
+    "HIGH_PRIORITY",
+    "IGNORE",
+}
+_EXPLAIN_REPLACE_MODIFIERS = {"LOW_PRIORITY", "DELAYED"}
+_EXPLAIN_DELETE_MODIFIERS = {"LOW_PRIORITY", "QUICK", "IGNORE"}
+
+
+def _explained_dml_table_references(
+    top_level: list[Any],
+    cte_names: set[str],
+) -> list[str]:
+    """Extract a write target from non-executing MySQL EXPLAIN-family SQL."""
+    dml_index = next(
+        (
+            index
+            for index, token in enumerate(top_level[1:], start=1)
+            if token.ttype is sql_tokens.DML
+        ),
+        None,
+    )
+    if dml_index is None:
+        return []
+
+    command = top_level[dml_index].normalized.upper()
+    if command == "DELETE":
+        # MySQL's second multi-table form is:
+        # DELETE [modifiers] FROM target_list USING table_references ...
+        # Restrict USING-as-tables to this primary DELETE context so ordinary
+        # SELECT/JOIN ... USING(column) is never interpreted as a table list.
+        from_index = dml_index + 1
+        while (
+            from_index < len(top_level)
+            and top_level[from_index].normalized.upper()
+            in _EXPLAIN_DELETE_MODIFIERS
+        ):
+            from_index += 1
+        if (
+            from_index >= len(top_level)
+            or top_level[from_index].normalized.upper() != "FROM"
+        ):
+            return []
+        using_index = next(
+            (
+                index
+                for index in range(from_index + 1, len(top_level))
+                if top_level[index].ttype in sql_tokens.Keyword
+                and top_level[index].normalized.upper() == "USING"
+            ),
+            None,
+        )
+        if using_index is None:
+            return []
+        if using_index + 1 >= len(top_level):
+            raise ValueError("EXPLAIN DELETE USING has no table target")
+        return _table_references_from_target(
+            top_level[using_index + 1],
+            cte_names,
+        )
+
+    modifiers_by_command = {
+        "UPDATE": _EXPLAIN_UPDATE_MODIFIERS,
+        "INSERT": _EXPLAIN_INSERT_MODIFIERS,
+        "REPLACE": _EXPLAIN_REPLACE_MODIFIERS,
+    }
+    if command not in modifiers_by_command:
+        # SELECT sources and DELETE ... FROM targets are collected by the
+        # normal FROM/JOIN traversal.
+        return []
+
+    target_index = dml_index + 1
+    modifiers = modifiers_by_command[command]
+    while (
+        target_index < len(top_level)
+        and top_level[target_index].normalized.upper() in modifiers
+    ):
+        target_index += 1
+    if (
+        command in {"INSERT", "REPLACE"}
+        and target_index < len(top_level)
+        and top_level[target_index].normalized.upper() == "INTO"
+    ):
+        target_index += 1
+    if target_index >= len(top_level):
+        raise ValueError(f"EXPLAIN {command} has no table target")
+
+    return _table_references_from_target(
+        top_level[target_index],
+        cte_names,
+        allow_column_list=command in {"INSERT", "REPLACE"},
+    )
+
+
+def _collect_table_references(
+    token_list: TokenList,
+    cte_names: set[str],
+    *,
+    strict: bool,
+) -> list[str]:
+    """Walk parsed SQL and collect every FROM/JOIN base-table reference."""
+    references: list[str] = []
+    tokens = _significant_sql_tokens(token_list)
+    for index, token in enumerate(tokens):
+        normalized = token.normalized.upper()
+        if token.ttype in sql_tokens.Keyword and (
+            normalized == "FROM" or normalized == "JOIN" or normalized.endswith(" JOIN")
+        ):
+            if index + 1 >= len(tokens):
+                if strict:
+                    raise ValueError(f"{normalized} has no table target")
+                continue
+            try:
+                references.extend(
+                    _table_references_from_target(tokens[index + 1], cte_names)
+                )
+            except ValueError:
+                if strict:
+                    raise
+
+        if isinstance(token, TokenList):
+            references.extend(
+                _collect_table_references(token, cte_names, strict=strict)
+            )
+    return references
+
+
+def _extract_tables_from_sql(sql: str, *, strict: bool = True) -> list[str]:
+    """Extract complete base-table references for restrictive allowlists.
+
+    This intentionally supports a conservative subset rather than pretending
+    to be a validating SQL parser. Ambiguous table-valued functions or derived
+    targets raise ``ValueError`` so a configured allowlist fails closed.
+    Schema-qualified references remain qualified and therefore require an
+    exact qualified allowlist entry; a basename cannot authorize another
+    schema's table.
     """
-    Extract table names from a SQL query.
-    
-    Handles common patterns:
-    - FROM table_name
-    - JOIN table_name
-    - UPDATE table_name (blocked by safety check, but included for completeness)
-    - INTO table_name
-    
-    Args:
-        sql: SQL query string
-        
-    Returns:
-        List of table names found in the query
-    """
-    tables = []
-    
-    # Handles: FROM table, FROM `table`, FROM "table", FROM [table],
-    # FROM schema.table, and quoted schema-qualified forms.
-    from_join_pattern = rf'(?:FROM|JOIN)\s+{_SQL_TABLE_REFERENCE_PATTERN}'
-    matches = re.findall(from_join_pattern, sql, re.IGNORECASE)
-    tables.extend(_normalize_sql_identifier(match) for match in matches)
-    
-    # Pattern for table in DESCRIBE/EXPLAIN (also handles schema.table)
-    describe_pattern = rf'(?:DESCRIBE|DESC|EXPLAIN)\s+{_SQL_TABLE_REFERENCE_PATTERN}'
-    matches = re.findall(describe_pattern, sql, re.IGNORECASE)
-    tables.extend(_normalize_sql_identifier(match) for match in matches)
-    
-    return list(set(tables))  # Remove duplicates
+    normalized_sql = _normalize_sql_for_policy(sql)
+    statements = [
+        statement
+        for statement in sqlparse.parse(normalized_sql)
+        if str(statement).strip(" \t\r\n;")
+    ]
+    if len(statements) != 1 and strict:
+        raise ValueError("Expected exactly one SQL statement")
+    if len(statements) != 1:
+        return []
+
+    statement = statements[0]
+    try:
+        cte_names = _cte_names(statement)
+    except ValueError:
+        if strict:
+            raise
+        cte_names = set()
+    references = _collect_table_references(
+        statement,
+        cte_names,
+        strict=strict,
+    )
+    top_level = _significant_sql_tokens(statement)
+
+    if top_level:
+        command = top_level[0].normalized.upper()
+        has_explained_dml = (
+            command in {"EXPLAIN", "DESCRIBE", "DESC"}
+            and any(token.ttype is sql_tokens.DML for token in top_level[1:])
+        )
+        if has_explained_dml:
+            try:
+                references.extend(
+                    _explained_dml_table_references(top_level, cte_names)
+                )
+            except ValueError:
+                if strict:
+                    raise
+        elif command in {"DESCRIBE", "DESC"}:
+            if len(top_level) < 2:
+                if strict:
+                    raise ValueError(f"{command} has no table target")
+            else:
+                try:
+                    references.extend(
+                        _table_references_from_target(top_level[1], cte_names)
+                    )
+                except ValueError:
+                    if strict:
+                        raise
+        elif command == "EXPLAIN":
+            # MySQL also supports EXPLAIN tbl_name. EXPLAIN SELECT/DELETE/etc.
+            # is already covered by the FROM/JOIN traversal and must not treat
+            # SELECT itself as a table.
+            if len(top_level) != 2 and strict:
+                raise ValueError("Unsupported EXPLAIN table form")
+            if len(top_level) == 2:
+                try:
+                    references.extend(
+                        _table_references_from_target(top_level[1], cte_names)
+                    )
+                except ValueError:
+                    if strict:
+                        raise
+
+    return sorted(set(references))
 
 
 def _check_table_allowlist(
@@ -524,8 +806,16 @@ def _check_table_allowlist(
     allowed_tables = _effective_policy(policy).allowed_tables
     if allowed_tables is None:
         return True, None  # No allowlist configured
-    
-    tables = _extract_tables_from_sql(sql)
+    if "*" in allowed_tables:
+        return True, None  # Explicit allow-all; structural policy still applies
+
+    try:
+        tables = _extract_tables_from_sql(sql)
+    except (AttributeError, TypeError, ValueError) as exc:
+        logger.info("Table allowlist rejected ambiguous SQL shape: %s", exc)
+        return False, (
+            "Table allowlist could not safely determine every referenced table"
+        )
     blocked_tables = [t for t in tables if not _is_table_allowed(t, policy)]
     
     if blocked_tables:
@@ -540,7 +830,10 @@ def _validate_sql_query_policy(
 ) -> tuple[bool, str | None]:
     """Apply the full read-query policy used by raw queries and query skills."""
     if not is_sql_safe(sql):
-        return False, "Only read-only queries allowed (SELECT, SHOW, DESCRIBE, EXPLAIN)"
+        return False, (
+            "Only read-only queries allowed "
+            "(SELECT, DESCRIBE, non-ANALYZE EXPLAIN)"
+        )
 
     is_safe, error_msg = _is_query_safe_extended(sql, policy)
     if not is_safe:
@@ -557,7 +850,10 @@ def _validate_sql_template_startup_policy(sql: str) -> tuple[bool, str | None]:
     execution re-applies the full policy for the resolved target connection.
     """
     if not is_sql_safe(sql):
-        return False, "Only read-only queries allowed (SELECT, SHOW, DESCRIBE, EXPLAIN)"
+        return False, (
+            "Only read-only queries allowed "
+            "(SELECT, DESCRIBE, non-ANALYZE EXPLAIN)"
+        )
     return _is_query_safe_extended(sql, _DEFAULT_CONNECTION_POLICY, require_union_allowlist=False)
 
 
@@ -727,20 +1023,6 @@ def _is_valid_identifier(name: str) -> bool:
     return True
 
 
-# Blocked SHOW commands that leak sensitive info
-BLOCKED_SHOW_PATTERNS = [
-    r'SHOW\s+VARIABLES',
-    r'SHOW\s+GRANTS',
-    r'SHOW\s+PROCESSLIST',
-    r'SHOW\s+MASTER',
-    r'SHOW\s+SLAVE',
-    r'SHOW\s+BINARY',
-    r'SHOW\s+ENGINE',
-    r'SHOW\s+PLUGINS',
-    r'SHOW\s+PRIVILEGES',
-    r'SHOW\s+STATUS',  # Can leak sensitive metrics
-]
-
 MYSQL_FILE_OPERATION_PATTERNS = [
     r'\bINTO\s+(?:OUTFILE|DUMPFILE)\b',
     r'\bLOAD_FILE\s*\(',
@@ -768,14 +1050,22 @@ def _is_query_safe_extended(
     Returns:
         (is_safe, error_message)
     """
+    if has_unsafe_mysql_comment_semantics(sql):
+        return False, "Ambiguous or executable MySQL comment syntax is not allowed"
+
     normalized_sql = _normalize_sql_for_policy(sql)
     sql_upper = normalized_sql.upper().strip()
     effective_policy = _effective_policy(policy)
     
-    # Check blocked SHOW commands
-    for pattern in BLOCKED_SHOW_PATTERNS:
-        if re.match(pattern, sql_upper, re.IGNORECASE):
-            return False, "This SHOW command is not allowed for security reasons"
+    # Raw SHOW has a large, privilege-dependent grammar. Several forms disclose
+    # accounts, sessions, configuration, or tables outside ALLOWED_TABLES, and
+    # safely filtering every result would duplicate the metadata tools. Keep
+    # the raw gate small and fail closed; use list_tables()/describe_table().
+    if re.match(r"^SHOW\b", sql_upper, re.IGNORECASE):
+        return False, (
+            "SHOW statements are not allowed in raw queries. "
+            "Use list_tables() or describe_table() instead."
+        )
     
     # Block MySQL server-side file reads/writes. These are SELECT-shaped but can
     # touch files if the DB account has FILE privilege.
@@ -783,15 +1073,17 @@ def _is_query_safe_extended(
         if re.search(pattern, normalized_sql, re.IGNORECASE):
             return False, "MySQL server-side file operations are not allowed"
 
-    # Block access to system databases in SELECT
-    # Includes INFORMATION_SCHEMA to prevent ALLOWED_TABLES bypass
-    # (users could query INFORMATION_SCHEMA.TABLES to see all table names)
-    system_table_pattern = (
-        r'(?<![A-Za-z0-9_`])`?\s*'
-        r'(?:mysql|performance_schema|information_schema)'
-        r'\s*`?\s*\.'
-    )
-    if re.search(system_table_pattern, normalized_sql, re.IGNORECASE):
+    # Block access to system schemas using parsed table targets, not a raw-text
+    # regex that could mistake a string literal such as 'mysql.user' for a
+    # table. Non-strict extraction keeps any unambiguous references even when
+    # another FROM target is intentionally unsupported by the allowlist parser.
+    system_schemas = {"mysql", "performance_schema", "information_schema", "sys"}
+    table_references = _extract_tables_from_sql(normalized_sql, strict=False)
+    if any(
+        "." in reference
+        and reference.split(".", 1)[0].lower() in system_schemas
+        for reference in table_references
+    ):
         return False, "Access to system databases not allowed. Use list_tables() or describe_table() instead."
     
     # UNION handling: Configurable based on ALLOW_UNION setting
@@ -1304,7 +1596,8 @@ async def query(
     
     This is the PRIMARY tool for all database queries.
     Safety validation is automatic - only read-only statements are allowed.
-    Supported: SELECT, SHOW, DESCRIBE, EXPLAIN.
+    Supported: SELECT, DESCRIBE, and non-ANALYZE EXPLAIN. Use list_tables()
+    and describe_table() instead of raw SHOW statements.
     Returned payloads may be truncated for context safety; truncation does not
     limit database work. Add WHERE/LIMIT/ORDER BY in SQL when needed.
     
@@ -1318,7 +1611,6 @@ async def query(
         query("SELECT * FROM users LIMIT 10")
         query("SELECT name, email FROM users WHERE active = 1")
         query("SELECT COUNT(*) as total FROM orders")
-        query("SHOW TABLES")
         query("DESCRIBE users")
         query("EXPLAIN SELECT * FROM products WHERE id = 1")
     """
@@ -2019,6 +2311,15 @@ if SCHEMA_TOOLS_ENABLED:
 _project_root = Path(__file__).parent.resolve()
 _skills_dir = _project_root / SKILLS_DIR
 
+
+def _is_path_within(child: Path, parent: Path) -> bool:
+    """Return whether a resolved child path is contained by resolved parent."""
+    try:
+        child.resolve().relative_to(parent.resolve())
+        return True
+    except ValueError:
+        return False
+
 if SKILLS_ENABLED:
     # Resolve skills directory with path safety check
     _skills_dir = Path(SKILLS_DIR)
@@ -2028,9 +2329,7 @@ if SKILLS_ENABLED:
 
     # Security: SKILLS_DIR must be within project root (prevent .env poisoning)
     # Reference: SAFETY.md #15
-    try:
-        _skills_dir.relative_to(_project_root)
-    except ValueError:
+    if not _is_path_within(_skills_dir, _project_root):
         logger.error(
             f"SKILLS_DIR '{_skills_dir}' is outside project root '{_project_root}'. "
             "Refusing to load skills for security (SAFETY.md #15)."
@@ -2060,6 +2359,43 @@ if SKILLS_ENABLED:
         query_validator=_validate_sql_template_startup_policy,
     )
     _audit_logger = AuditLogger()
+
+    _configured_skill_connection_types = {
+        config.connection_id: config.db_type
+        for config in list_connection_configs()
+    }
+    for _skill_meta in _discovered_skills.values():
+        if _skill_meta.connection_ids is None:
+            continue
+        _unconfigured_scope_ids = [
+            connection_id
+            for connection_id in _skill_meta.connection_ids
+            if connection_id not in _configured_skill_connection_types
+        ]
+        if _unconfigured_scope_ids:
+            logger.warning(
+                "Skill '%s' declares connection_ids not configured in this "
+                "deployment: %s. They remain unavailable and no connection "
+                "is created dynamically.",
+                _skill_meta.name,
+                _unconfigured_scope_ids,
+            )
+        if _skill_meta.databases:
+            for _scope_connection_id in _skill_meta.connection_ids:
+                _scope_db_type = _configured_skill_connection_types.get(
+                    _scope_connection_id
+                )
+                if _scope_db_type and _scope_db_type not in _skill_meta.databases:
+                    logger.error(
+                        "Skill '%s' connection scope conflict: connection '%s' "
+                        "has database type '%s', but the Skill supports %s. "
+                        "That target will fail closed; other valid targets are "
+                        "not disabled.",
+                        _skill_meta.name,
+                        _scope_connection_id,
+                        _scope_db_type,
+                        _skill_meta.databases,
+                    )
 
     # Generate SKILLS.md overview for human review
     if _discovered_skills:
@@ -2119,6 +2455,98 @@ if SKILLS_ENABLED:
             for profile in meta.profiles
             if profile.lower() in SKILLS_EXCLUDE_PROFILES
         ]
+
+
+    def _skill_connection_scope_state(
+        meta: SkillMetadata,
+        connection: ConnectionContext,
+    ) -> dict[str, Any]:
+        """Return the restrictive Skill metadata scope for one target.
+
+        This metadata never grants access. It is evaluated in addition to DB
+        type compatibility and all query/mutation server policies.
+        """
+        declared = meta.connection_ids
+        configured_ids = (
+            [
+                connection_id
+                for connection_id in declared
+                if connection_id in _configured_skill_connection_types
+            ]
+            if declared is not None
+            else []
+        )
+        unconfigured_ids = (
+            [
+                connection_id
+                for connection_id in declared
+                if connection_id not in _configured_skill_connection_types
+            ]
+            if declared is not None
+            else []
+        )
+        type_conflicts = (
+            [
+                {
+                    "connection_id": connection_id,
+                    "actual_db_type": _configured_skill_connection_types[connection_id],
+                    "supported_db_types": list(meta.databases),
+                }
+                for connection_id in configured_ids
+                if meta.databases
+                and _configured_skill_connection_types[connection_id]
+                not in meta.databases
+            ]
+            if declared is not None
+            else []
+        )
+        return {
+            "connection_scope_allowed": (
+                declared is None or connection.connection_id in declared
+            ),
+            "configured_connection_ids": configured_ids,
+            "unconfigured_connection_ids": unconfigured_ids,
+            "connection_type_conflicts": type_conflicts,
+        }
+
+
+    def _ensure_skill_connection_allowed(
+        meta: SkillMetadata,
+        config: DatabaseConfig,
+    ) -> None:
+        """Fail closed unless target alias and DB type satisfy Skill metadata."""
+        if (
+            meta.connection_ids is not None
+            and config.connection_id not in meta.connection_ids
+        ):
+            raise ToolError(
+                f"Skill '{meta.name}' cannot run on connection "
+                f"'{config.connection_id}'; allowed connection_ids: "
+                f"{meta.connection_ids}. Pass an allowed configured connection_id."
+            )
+        if meta.databases and config.db_type not in meta.databases:
+            raise ToolError(
+                f"Skill '{meta.name}' is not compatible with target connection "
+                f"database type '{config.db_type}'. Supported: {meta.databases}"
+            )
+
+
+    def _resolve_skill_connection(
+        meta: SkillMetadata,
+        requested_connection_id: str | None,
+    ) -> ConnectionContext:
+        """Apply Skill scope before creating or accessing a database adapter."""
+        try:
+            config = get_connection_config(requested_connection_id)
+        except ValueError as exc:
+            raise ToolError(str(exc)) from exc
+        _ensure_skill_connection_allowed(meta, config)
+        return ConnectionContext(
+            connection_id=config.connection_id,
+            config=config,
+            adapter=get_adapter(config.connection_id),
+            policy=config.policy,
+        )
 
 
     def _get_skill_schema_table_names(connection: ConnectionContext) -> set[str] | None:
@@ -2213,6 +2641,7 @@ if SKILLS_ENABLED:
         missing_tables: list[str] = []
         blocked_tables: list[str] = []
         excluded_profiles = _skill_excluded_profiles(meta)
+        connection_scope = _skill_connection_scope_state(meta, connection)
         db_compatible = not meta.databases or connection.db_type in meta.databases
         mutation_enabled = meta.type != "mutation" or SKILLS_ALLOW_MUTATIONS
         (
@@ -2231,6 +2660,12 @@ if SKILLS_ENABLED:
             reasons.append(
                 "Skill profile(s) are excluded by SKILLS_EXCLUDE_PROFILES: "
                 f"{excluded_profiles}."
+            )
+
+        if not connection_scope["connection_scope_allowed"]:
+            reasons.append(
+                f"Target connection '{connection.connection_id}' is outside "
+                f"the Skill connection_ids scope: {meta.connection_ids}."
             )
 
         if meta.databases and connection.db_type not in meta.databases:
@@ -2269,6 +2704,7 @@ if SKILLS_ENABLED:
             "executable": executable,
             "disabled_reason": " ".join(reasons) if reasons else None,
             "db_compatible": db_compatible,
+            **connection_scope,
             "mutation_enabled": mutation_enabled,
             "mutation_connection_supported": mutation_connection_supported,
             "mutation_policy_allowed": mutation_policy_allowed,
@@ -2412,6 +2848,8 @@ if SKILLS_ENABLED:
         ]
         if meta.databases:
             haystack_parts.extend(meta.databases)
+        if meta.connection_ids:
+            haystack_parts.extend(meta.connection_ids)
         haystack = "\n".join(str(part).lower() for part in haystack_parts if part)
         return search.lower() in haystack
 
@@ -2431,6 +2869,9 @@ if SKILLS_ENABLED:
             "executable": availability["executable"],
             "profile_allowed": availability["profile_allowed"],
             "db_compatible": availability["db_compatible"],
+            "connection_scope_allowed": availability[
+                "connection_scope_allowed"
+            ],
             "policy_allowed": availability["policy_allowed"],
             "schema_ready": availability["schema_ready"],
         }
@@ -2457,6 +2898,16 @@ if SKILLS_ENABLED:
                 "triggers": meta.triggers,
                 "idempotent": meta.idempotent,
                 "databases": meta.databases,
+                "connection_ids": meta.connection_ids,
+                "configured_connection_ids": availability[
+                    "configured_connection_ids"
+                ],
+                "unconfigured_connection_ids": availability[
+                    "unconfigured_connection_ids"
+                ],
+                "connection_type_conflicts": availability[
+                    "connection_type_conflicts"
+                ],
                 "profiles": meta.profiles,
             })
             if meta.related_skills:
@@ -2504,7 +2955,7 @@ if SKILLS_ENABLED:
                 description=(
                     "Optional case-insensitive substring search over skill names, "
                     "descriptions, triggers, category, type, risk, profiles, "
-                    "tables, and related skills."
+                    "tables, connection_ids, and related skills."
                 ),
                 max_length=SKILLS_SEARCH_MAX_LENGTH,
             ),
@@ -2528,9 +2979,9 @@ if SKILLS_ENABLED:
             Field(
                 description=(
                     "When true, return only skills executable for the target "
-                    "connection, including DB compatibility, mutation switch, "
-                    "connection policy, and schema readiness. Pass false to "
-                    "inspect the full catalog."
+                    "connection, including Skill connection_ids scope, DB "
+                    "compatibility, mutation switch, connection policy, and "
+                    "schema readiness. Pass false to inspect the full catalog."
                 ),
             ),
         ] = None,
@@ -2605,6 +3056,19 @@ if SKILLS_ENABLED:
             1 for meta in matched_catalog
             if not availability_by_name[meta.name]["policy_allowed"]
         )
+        connection_scope_blocked_count = sum(
+            1 for meta in matched_catalog
+            if not availability_by_name[meta.name]["connection_scope_allowed"]
+        )
+        connection_type_conflict_count = sum(
+            1 for meta in matched_catalog
+            if any(
+                conflict["connection_id"] == connection.connection_id
+                for conflict in availability_by_name[meta.name][
+                    "connection_type_conflicts"
+                ]
+            )
+        )
         matched = [
             meta
             for meta in matched_catalog
@@ -2638,6 +3102,8 @@ if SKILLS_ENABLED:
             "filtered_unavailable_skills": unavailable_count if resolved_available_only else 0,
             "schema_unready_skills": schema_unready_count,
             "policy_blocked_skills": policy_blocked_count,
+            "connection_scope_blocked_skills": connection_scope_blocked_count,
+            "connection_type_conflict_skills": connection_type_conflict_count,
             "profile_excluded_skills": profile_excluded_count,
             "query_skills": query_count,
             "mutation_skills": mutation_count,
@@ -2655,8 +3121,9 @@ if SKILLS_ENABLED:
         }
         if resolved_detail_level != "full":
             result["hint"] = (
-                "Call get_skill_detail(skill_name) to retrieve params before "
-                "calling execute_query_skill or execute_mutation_skill."
+                "Call get_skill_detail(skill_name, connection_id) with the same "
+                "target connection to retrieve params before calling "
+                "execute_query_skill or execute_mutation_skill."
             )
         return _tool_result(
             result, tool_name="list_skills", start_time=start_time, success=True,
@@ -2706,16 +3173,23 @@ if SKILLS_ENABLED:
         meta = skills[skill_name]
         schema_table_names = _get_skill_schema_table_names(connection)
         availability = _skill_availability_state(meta, schema_table_names, connection)
-        if meta.type == "query":
-            usage_hint = "Call execute_query_skill(skill_name, params) with params matching this schema."
+        if meta.type == "query" and availability["executable"]:
+            usage_hint = (
+                "Call execute_query_skill(skill_name, params, connection_id) "
+                "with this same target connection and params matching the schema."
+            )
         elif availability["executable"]:
             usage_hint = (
-                "Call execute_mutation_skill(skill_name, params, confirm=false) "
+                "Call execute_mutation_skill(skill_name, params, confirm=false, "
+                "connection_id=connection_id) "
                 "to preview, then pass the returned preview_token with "
                 "confirm=true on the same connection."
             )
         else:
-            usage_hint = availability["disabled_reason"] or "Mutation execution is unavailable."
+            usage_hint = (
+                availability["disabled_reason"]
+                or "Skill execution is unavailable on this connection."
+            )
 
         return _tool_result({
             "success": True,
@@ -2782,45 +3256,41 @@ if SKILLS_ENABLED:
             Query results (same format as query() tool, plus skill_name)
         """
         start_time = time.perf_counter()
-        connection = _resolve_connection_context(connection_id)
+
+        try:
+            validate_name(skill_name)
+            meta = get_skills_cache().get(skill_name)
+            if meta is None:
+                raise FileNotFoundError(f"Skill '{skill_name}' not found")
+            if meta.type != "query":
+                raise TypeError(
+                    f"Skill '{skill_name}' is type '{meta.type}', expected 'query'"
+                )
+            # Preserve the global default-connection contract when omitted,
+            # then fail closed against the Skill metadata scope before adapter
+            # construction or any database access.
+            connection = _resolve_skill_connection(meta, connection_id)
+            sql_template, param_schema = load_query(skill_name)
+            validated_params = validate_params(params, param_schema)
+        except (ValueError, TypeError, FileNotFoundError, ToolError) as e:
+            await ctx.warning(f"Query skill error: {e}")
+            if isinstance(e, ToolError):
+                raise
+            raise ToolError(str(e)) from e
+
         await ctx.info(
-            f"Executing query skill on connection '{connection.connection_id}': {skill_name}"
+            f"Executing query skill on connection "
+            f"'{connection.connection_id}': {skill_name}"
         )
         client_id = _context_client_id(ctx)
 
         try:
-            validate_name(skill_name)
-            sql_template, param_schema = load_query(skill_name)
-            validated_params = validate_params(params, param_schema)
-        except (ValueError, TypeError, FileNotFoundError) as e:
-            await ctx.warning(f"Query skill error: {e}")
-            raise ToolError(str(e)) from e
-
-        # Check database compatibility
-        meta = get_skills_cache().get(skill_name)
-        if meta is None:
-            msg = f"Skill '{skill_name}' metadata not found"
-            await ctx.warning(msg)
-            raise ToolError(msg)
-        if meta and meta.databases and connection.db_type not in meta.databases:
-            msg = (
-                f"Skill '{skill_name}' is not compatible with target connection "
-                f"database type '{connection.db_type}'. Supported: {meta.databases}"
-            )
-            await ctx.warning(msg)
-            raise ToolError(msg)
-        if meta:
-            try:
-                _ensure_skill_profile_allowed(meta)
-            except ToolError as e:
-                await ctx.warning(str(e))
-                raise
-            try:
-                _ensure_skill_schema_ready(meta, connection)
-                _ensure_query_skill_policy_ready(meta, connection)
-            except ToolError as e:
-                await ctx.warning(str(e))
-                raise
+            _ensure_skill_profile_allowed(meta)
+            _ensure_skill_schema_ready(meta, connection)
+            _ensure_query_skill_policy_ready(meta, connection)
+        except ToolError as e:
+            await ctx.warning(str(e))
+            raise
 
         is_safe, safety_error = _validate_sql_query_policy(sql_template, connection.policy)
         if not is_safe:
@@ -2991,8 +3461,6 @@ if SKILLS_ENABLED:
             mode = "execute" if confirm else "preview"
             await ctx.info(f"Mutation skill '{skill_name}' mode={mode}")
             start_time = time.perf_counter()
-            connection = _resolve_connection_context(connection_id)
-            client_id = _context_client_id(ctx)
 
             try:
                 validate_name(skill_name)
@@ -3006,6 +3474,10 @@ if SKILLS_ENABLED:
                     raise TypeError(
                         f"Skill '{skill_name}' is type '{meta.type}', expected 'mutation'"
                     )
+                # Resolve the ordinary explicit/default target, then enforce
+                # connection_ids and databases before adapter construction.
+                # Skill metadata only narrows scope; it never grants writes.
+                connection = _resolve_skill_connection(meta, connection_id)
                 _, mutation_policy_allowed, mutation_policy_reason = (
                     _mutation_connection_policy_state(meta, connection)
                 )
@@ -3016,19 +3488,13 @@ if SKILLS_ENABLED:
                     )
                 validated_params = validate_params(params, meta.params)
 
-                # Check database compatibility
-                if meta.databases and connection.db_type not in meta.databases:
-                    msg = (
-                        f"Skill '{skill_name}' is not compatible with current database "
-                        f"type '{connection.db_type}'. Supported: {meta.databases}"
-                    )
-                    raise ValueError(msg)
                 _ensure_skill_profile_allowed(meta)
                 _ensure_skill_schema_ready(meta, connection)
 
                 # Load mutation module
                 adapter = connection.adapter
                 mutation = load_mutation(skill_name, adapter, _audit_logger)
+                client_id = _context_client_id(ctx)
 
             except (ValueError, TypeError, FileNotFoundError, AttributeError,
                     ImportError, SyntaxError, ToolError) as e:
@@ -3394,7 +3860,7 @@ def sql_assistant() -> str:
 
 Tools (choose based on need):
 - list_connections(): Show configured connection ids; omit connection_id to use default
-- query(sql, connection_id): Execute SELECT/SHOW/DESCRIBE/EXPLAIN
+- query(sql, connection_id): Execute conservative read queries; EXPLAIN ANALYZE is rejected
 - list_tables(connection_id): Visible table overview with row estimates; may be truncated
 - describe_table(name, connection_id): Single table columns + row estimate + is_large hint
 - get_full_schema(connection_id): Visible schema overview; may be truncated; use for multi-table JOINs

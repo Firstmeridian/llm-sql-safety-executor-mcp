@@ -14,6 +14,7 @@ Usage:
     pytest tests/test_mutation_skills.py -v
 """
 
+import importlib.util
 import sys
 import pytest
 from pathlib import Path
@@ -56,6 +57,35 @@ def adapter_with_orders():
                 (1, 'pending', 100.00),
                 (2, 'confirmed', 250.00),
                 (3, 'shipped', 75.50)
+            """))
+
+    yield adapter
+    adapter.close()
+
+
+@pytest.fixture
+def adapter_with_duplicate_orders():
+    """Create a deliberately invalid schema with duplicate order IDs."""
+    from db_adapter import SQLiteAdapter
+    from sqlalchemy import text
+
+    adapter = SQLiteAdapter(":memory:")
+    adapter.connect()
+    assert adapter._engine is not None
+
+    with adapter._engine.connect() as conn:
+        with conn.begin():
+            conn.execute(text("""
+                CREATE TABLE orders (
+                    id INTEGER NOT NULL,
+                    status TEXT NOT NULL DEFAULT 'pending',
+                    amount REAL NOT NULL
+                )
+            """))
+            conn.execute(text("""
+                INSERT INTO orders (id, status, amount) VALUES
+                (7, 'confirmed', 100.00),
+                (7, 'confirmed', 250.00)
             """))
 
     yield adapter
@@ -107,6 +137,133 @@ class SimpleMutation:
                 "expected": params.get("expected", "pending"),
             },
         )
+
+
+def _load_demo_reset_mutation(adapter, audit_logger):
+    mutation_path = (
+        Path(__file__).parent.parent
+        / "skills"
+        / "reset-demo-order-to-pending"
+        / "mutation.py"
+    )
+    spec = importlib.util.spec_from_file_location(
+        "test_reset_demo_order_to_pending_mutation",
+        mutation_path,
+    )
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.Mutation(adapter, audit_logger)
+
+
+class TestResetDemoOrderToPending:
+    """Coverage for the portable demo/test compensating mutation."""
+
+    def test_preview_binds_explicit_expected_state_without_write(
+        self, adapter_with_orders, mock_audit_logger
+    ):
+        mutation = _load_demo_reset_mutation(
+            adapter_with_orders, mock_audit_logger
+        )
+        params = {"order_id": 2, "expected_status": "confirmed"}
+
+        validation = mutation.validate(params)
+        preview = mutation.preview(params)
+        binding = mutation.build_execution_binding(params, validation, preview)
+
+        assert validation["valid"] is True
+        assert preview["current_status"] == "confirmed"
+        assert preview["new_status"] == "pending"
+        assert "SELECT COUNT(*)" not in preview["preview_sql"]
+        assert binding == {"expected_status": "confirmed"}
+        current = adapter_with_orders.execute(
+            "SELECT status FROM orders WHERE id = :order_id",
+            params={"order_id": 2},
+        )
+        assert current[0].status == "confirmed"
+
+    def test_bound_execute_resets_expected_order_to_pending(
+        self, adapter_with_orders, mock_audit_logger
+    ):
+        mutation = _load_demo_reset_mutation(
+            adapter_with_orders, mock_audit_logger
+        )
+        params = {"order_id": 2, "expected_status": "confirmed"}
+
+        result = mutation.execute_with_binding(
+            params, {"expected_status": "confirmed"}
+        )
+
+        assert result["success"] is True
+        assert result["rowcount"] == 1
+        assert result["previous_status"] == "confirmed"
+        assert result["new_status"] == "pending"
+        current = adapter_with_orders.execute(
+            "SELECT status FROM orders WHERE id = :order_id",
+            params={"order_id": 2},
+        )
+        assert current[0].status == "pending"
+
+    def test_expected_status_mismatch_and_stale_binding_fail_closed(
+        self, adapter_with_orders, mock_audit_logger
+    ):
+        from fastmcp.exceptions import ToolError
+
+        mutation = _load_demo_reset_mutation(
+            adapter_with_orders, mock_audit_logger
+        )
+        assert mutation.validate(
+            {"order_id": 1, "expected_status": "confirmed"}
+        )["valid"] is False
+
+        adapter_with_orders.execute_write(
+            "UPDATE orders SET status = 'shipped' WHERE id = :order_id",
+            {"order_id": 2},
+        )
+        with pytest.raises(ToolError, match="no longer.*confirmed"):
+            mutation.execute_with_binding(
+                {"order_id": 2, "expected_status": "confirmed"},
+                {"expected_status": "confirmed"},
+            )
+
+    def test_direct_unbound_execute_is_rejected(
+        self, adapter_with_orders, mock_audit_logger
+    ):
+        from fastmcp.exceptions import ToolError
+
+        mutation = _load_demo_reset_mutation(
+            adapter_with_orders, mock_audit_logger
+        )
+        with pytest.raises(ToolError, match="Direct unbound execution"):
+            mutation.execute(
+                {"order_id": 2, "expected_status": "confirmed"}
+            )
+
+    def test_duplicate_order_id_is_rejected_during_validation(
+        self, adapter_with_duplicate_orders, mock_audit_logger
+    ):
+        """Portable read-side defense diagnoses a violated schema contract."""
+        mutation = _load_demo_reset_mutation(
+            adapter_with_duplicate_orders,
+            mock_audit_logger,
+        )
+
+        validation = mutation.validate(
+            {"order_id": 7, "expected_status": "confirmed"}
+        )
+        preview = mutation.preview(
+            {"order_id": 7, "expected_status": "confirmed"}
+        )
+
+        assert validation["valid"] is False
+        assert "not uniquely identified" in validation["errors"][0]
+        assert "not uniquely identified" in preview["error"]
+
+        rows = adapter_with_duplicate_orders.execute(
+            "SELECT status FROM orders WHERE id = :order_id",
+            params={"order_id": 7},
+        )
+        assert [row.status for row in rows] == ["confirmed", "confirmed"]
 
 
 # =============================================================================

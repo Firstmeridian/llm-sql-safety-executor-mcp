@@ -140,7 +140,8 @@ Guidance (not mandatory):
 - Unknown structure: get_full_schema() or list_tables()/describe_table() first
 - Potentially large tables or uncertain result size: use describe_table() estimates; use explicit COUNT(*) or get_table_summary(exact_count=True) only when exact counts are required
 
-Safe statements: SELECT, SHOW, DESCRIBE, EXPLAIN."""
+Safe raw statements: one SELECT, DESCRIBE, or non-ANALYZE EXPLAIN.
+Use list_tables()/describe_table() instead of raw SHOW."""
 ```
 
 **Key principles:**
@@ -296,7 +297,7 @@ LLMs can infer usage from context. Examples should go in tool docstrings, not sy
 Database query assistant with READ-ONLY access.
 
 TOOLS:
-1. query(sql) - PRIMARY. Execute SELECT, SHOW, DESCRIBE, EXPLAIN.
+1. query(sql) - PRIMARY. Execute one SELECT, DESCRIBE, or non-ANALYZE EXPLAIN; use schema tools instead of raw SHOW.
 2. list_tables() - List available tables...
 [... 20+ lines ...]
 ```

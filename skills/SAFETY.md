@@ -94,7 +94,7 @@ Production recommendations:
 - For SQLite: use a separate database file for writes if possible
 - Grant only the minimum permissions required by each skill's SQL
 
-## 9. Server-Side Preview Token (v3.6-v3.6.1)
+## 9. Server-Side Preview Token (v3.6-v3.7)
 
 Server-side preview-token protection, including the bounded process-local
 memory store, was introduced in v3.6. v3.6.1 adds preview/binding correctness
@@ -139,12 +139,53 @@ separate human approval workflow is required when that policy is mandatory.
 The memory store is process-local, so restart invalidates outstanding tokens.
 The supported baseline is stdio in one client-owned process. Conditional HTTP
 mutation use is limited to a trusted private boundary and one mutation-enabled
-process; multi-user authenticated HTTP mutation is outside v3.6.1. Preview and
+process; multi-user authenticated HTTP mutation is outside v3.6.1-v3.7. Preview and
 execute must reach that same process. Even a fixed signing secret cannot recover
 or share store state. The application does not enforce worker or replica counts.
 Requests reaching the wrong process fail closed and require a new preview.
 Read-only capacity may scale only through a separate read-only endpoint,
 profile, or pool. The server never falls back to stateless HMAC acceptance.
+
+### v3.7 host-side approval example
+
+`examples/manual_mutation_approval.py` demonstrates a one-shot stdio host that
+keeps preview and execute in one Client context and the same server subprocess,
+explicitly passes the operator's complete process environment to that subprocess,
+and displays the exact Skill, finite-JSON parameter snapshot, resolved connection
+alias, DB type, business preview,
+expiry, and idempotency flag, and executes only after the literal response
+`APPROVE`. The bearer token is kept out of the approval view and the example's
+terminal output. Execute exceptions and timeouts are never retried because the
+token may already be consumed and the write result may be unknown.
+
+The workflow, rather than only the UI provider, enforces the approval deadline
+and rejects a late approval. It also fingerprints the displayed view and fails
+closed if a custom provider changes params or preview data before returning its
+decision. Custom providers must still cooperate with async
+cancellation; an actively hostile provider requires process isolation for a
+hard termination guarantee. The complete inherited environment is intentional
+for this trusted local host so exported `DB_*` and Skill policy cannot be
+silently replaced by a different project `.env`. The example fixes the child
+path to this repository's trusted `start_server.py` and does not expose a CLI
+override. This also forwards every exported secret and Python control variable
+into the child/Skill trust boundary. A productized host should use a maintained
+project-specific environment allowlist.
+
+This is a reference host workflow, not a server-side identity or authorization
+mechanism. A caller that bypasses the host can still call the MCP tool directly,
+and the server cannot prove that a particular human reviewed the preview. Deny,
+timeout, EOF, or cancellation does not revoke the server record: the unused
+record occupies one bounded entry until token expiry/lazy cleanup, and only the
+preview audit exists. The raw token necessarily passes through FastMCP/client
+memory; Python cannot guarantee secure erasure, and payload-level protocol/debug
+logging can still expose it. Do not enable such logging around real mutations.
+The approval screen intentionally renders exact params and business preview,
+and the CLI prints the execute result. All may be sensitive; use a trusted
+terminal and protect parameter files, screen sharing, terminal capture, and
+session retention.
+Use a product-owned authenticated approval service and audit trail when approver
+identity, role separation, durable denial records, or compliance evidence is
+required. Multi-user HTTP approval remains outside this release.
 
 ## 10. Audit Log
 
@@ -219,7 +260,7 @@ LLM agent.
 
 The server does not currently implement explicit per-skill, per-client, or
 global rate limiting. A transport choice is not a rate-limit or authorization
-boundary by itself. v3.6.1 does not support mutation HTTP exposure to untrusted
+boundary by itself. v3.6.1-v3.7 do not support mutation HTTP exposure to untrusted
 or multi-user callers. For future remote designs, enforce limits at ingress
 and/or add per-principal, per-skill, and global quotas.
 
@@ -235,6 +276,15 @@ before comparing against the allowlist. Security still comes from code review
 validation, and execution-time policy checks. `generate_skills_md()`
 automatically extracts and lists table names used by each skill in `SKILLS.md`
 for reviewer audit.
+
+The SQL checker and table allowlist are application-layer guards, not the
+database authorization boundary and not proof that every SELECT-shaped form
+has no side effect. MySQL stored functions and functions such as `GET_LOCK()`
+can have effects that are not visible from the outer statement type. Production
+read connections should receive object-level `SELECT` only and should not have
+unneeded `EXECUTE`, `FILE`, `PROCESS`, administrative, or cross-schema
+privileges. Use separate read/write credentials where practical. Do not replace
+database least privilege with an ever-growing SQL function denylist.
 
 Mutation skill write policy is independent from query table policy. Without
 `SKILLS_ALLOW_MUTATION_CONNECTIONS`, mutation skills remain default-connection
@@ -261,7 +311,7 @@ is **conventional**, not enforced at runtime. Security comes from:
 - SQLAlchemy 2.0 implicit transactions: `execute()` path has no
   `commit()`, so accidental write SQL won't persist (auto-rollback)
 
-## 17. Connection Scope (v3.5-v3.6)
+## 17. Connection Scope (v3.5-v3.7)
 
 Core read-only tools and query skills may accept optional `connection_id`, but
 the server only accepts ids configured via `DB_CONNECTIONS` (or the legacy
@@ -275,9 +325,64 @@ variables and `DEFAULT_DB_CONNECTION`. This prevents local named-connection
 settings from silently changing legacy `DB_TYPE` / `SQLITE_DATABASE_PATH`
 behavior.
 
-`SkillMetadata.databases` is a DB type compatibility field, not a connection id
-allowlist. Query skills must be listed, detailed, and executed against the same
-target connection so the Agent's visible availability matches executability.
+`SkillMetadata.databases` is a DB type compatibility field. Starting in v3.7,
+optional `connection_ids` is a separate restrictive list of valid connection
+alias identifiers; only members configured in the current deployment can run:
+
+```yaml
+databases: [mysql]
+connection_ids: [orders_primary, orders_reporting]
+```
+
+Omitting `connection_ids` preserves v3.6.1 behavior. When present it must be a
+non-empty YAML list of unique valid aliases; a scalar `connection_id`, wildcard,
+DSN, URL, or path is rejected during discovery. Unknown top-level frontmatter
+fields and duplicate YAML mapping keys are also rejected, so a typo cannot
+silently remove a restriction. Multiple entries intentionally
+support Skill reuse. Their order has no routing meaning: an omitted runtime
+`connection_id` still resolves the global default and is then checked against
+the list; the server never auto-selects the only/first member.
+
+Known metadata values are strict as well: declared boolean fields must be YAML
+booleans, catalog lists must be lists of strings, and category must be a
+non-empty string. Parameter definitions accept only the documented
+`type`/`required`/`min`/`max`/`enum`/`description` vocabulary; constraint values
+must match the declared type, enum is a non-empty list, and numeric bounds must
+be ordered. This is a deliberately small custom schema, not JSON Schema.
+
+The effective target is the intersection of `connection_ids`, `databases`, and
+all existing profile, schema, table, query, and mutation policies. Skill
+metadata can only remove targets and never creates a connection or grants
+permission. An alias declared by a portable Skill but absent in the current
+deployment is reported as unavailable. A configured alias whose actual DB type
+conflicts with `databases` fails closed for that target and produces a startup
+diagnostic; other valid list members remain usable rather than disabling the
+entire reusable Skill. Discovery filtering is only guidance. Query and mutation
+execution repeat `connection_ids` and `databases` checks before adapter
+construction; profile, schema, table, query, and mutation policy remains
+independently enforced before query execution or writes. Query skills must still be listed, detailed, and executed against the
+same target connection so visible availability matches executability.
+
+Prefer semantic aliases such as `trade_analysis_mysql`,
+`analytics_demo_sqlite`, and `orders_primary`.
+`mysql`/`sqlite` are syntactically valid aliases but are easily confused with
+the `databases` DB-type values. Direct Python consumers of `skill_loader` or a
+Mutation class bypass the MCP routing layer and must enforce an equivalent
+connection policy themselves.
+
+The bundled `reset-demo-order-to-pending` demo supports MySQL and SQLite. It
+requires an explicit non-pending `expected_status` while reviewed code fixes the
+target to `pending`; its commented `connection_ids` example is inactive until
+an operator enables it. Database type and alias metadata remain restrictions,
+not permissions. This is a test compensation call, not a production order
+reopen or an atomic rollback of an earlier call.
+
+The demo requires `orders.id` to be `PRIMARY KEY`/`UNIQUE`. Its portable
+read-side cardinality check diagnoses an already malformed fixture but cannot
+replace the database constraint or close a concurrent duplicate-insert race.
+The deliberate `pending -> X -> pending` cycle can make an older status-only
+preview appear current again. Use dedicated demo/test data, avoid overlapping
+previews for one order, and prefer a fresh stdio process per live-test scenario.
 
 Mutation tools accept only configured `connection_id` aliases. If
 `SKILLS_ALLOW_MUTATION_CONNECTIONS` is empty, only the default connection is a

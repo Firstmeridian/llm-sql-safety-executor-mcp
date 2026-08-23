@@ -1,9 +1,9 @@
 # MCP Agents Skills Design Document
 
-> **Version**: 3.6.1
+> **Version**: 3.7.0
 > **Status**: Implemented
-> **Date**: 2026-08-10
-> **References**: [Skills safety policy](skills/SAFETY.md), [design risk register](DESIGN_RISK_REGISTER.md), and [v3.6 release-family notes](RELEASE_NOTES/RELEASE_NOTES_v3_6.md)
+> **Date**: 2026-08-22
+> **References**: [Skills safety policy](skills/SAFETY.md), [design risk register](DESIGN_RISK_REGISTER.md), [v3.6 release-family notes](RELEASE_NOTES/RELEASE_NOTES_v3_6.md), and [v3.7 release notes](RELEASE_NOTES/RELEASE_NOTES_v3_7.md)
 
 ## 1. Overview
 
@@ -17,6 +17,8 @@ Skills are discoverable, auditable, and controlled by environment variables.
 - **Progressive disclosure** — MCP-level catalog/detail/execute workflow for token efficiency
 - **Write operation safety** — Plan-validate-execute pattern with mandatory preview-token binding
 - **Connection-scoped discovery/execution** — Read tools, query Skills, and explicitly authorized mutation Skills resolve a configured target `connection_id` before policy, schema readiness, and execution
+- **Optional Skill target scope** — v3.7 `connection_ids` metadata can only narrow configured targets and is rechecked before adapter construction
+- **Approval-ready host flow** — A stdio reference host can display exact previews and collect explicit approval without claiming server-verifiable human identity
 - **Full backward compatibility** — Zero impact when disabled (`ENABLE_SKILLS=0`)
 - **Minimal dependency footprint** — Only adds `pyyaml` to requirements
 
@@ -27,6 +29,7 @@ Skills are discoverable, auditable, and controlled by environment variables.
 - Runtime SQL sandboxing (security via code review + template whitelist)
 - Arbitrary DSN routing from tools or models; all database endpoints must be configured server-side
 - Dynamic or model-provided connection endpoints; mutation targets must use configured aliases and explicit server-side write policy.
+- Multi-user authenticated HTTP approval, server-side approver identity, or compliance-grade approval audit.
 
 ## 2. Architecture
 
@@ -81,6 +84,11 @@ checks, dialect-specific helper SQL, adapter execution, result metadata, audit,
 or telemetry. Unknown connection ids fail closed and never fall back to the
 default connection.
 
+v3.7 adds an optional `SkillMetadata.connection_ids` restriction. The ordinary
+explicit/default target is resolved first, then checked against this list and
+`databases` before adapter construction. The list has no default/failover order
+and never grants access; every existing policy still applies.
+
 ### Shared Infrastructure and Skill Structure
 
 The following diagram shows the relationship between the shared
@@ -101,6 +109,7 @@ flowchart TD
     C --> C1[monthly-sales-report<br/>skill_def.md + query.sql]
     C --> C2[monthly-sales-report-sqlite<br/>skill_def.md + query.sql]
     C --> C3[update-order-status<br/>skill_def.md + mutation.py]
+    C --> C4[reset-demo-order-to-pending<br/>skill_def.md + mutation.py]
 
     B2 --> D[mcp_sql_server.py startup discover]
     D --> E[In-memory skill cache]
@@ -263,14 +272,16 @@ sequenceDiagram
     participant DB as Database
 
     Agent->>MCP: execute_query_skill(name, params, connection_id?)
-    MCP->>Adapter: resolve ConnectionContext(connection_id or default)
     MCP->>Loader: validate_name(name)
     Loader-->>MCP: ✓ name valid
+    MCP->>Loader: read cached metadata
+    MCP->>MCP: resolve config; enforce connection_ids + databases
+    MCP->>Adapter: construct ConnectionContext(connection_id or default)
     MCP->>Loader: load_query(name)
     Loader-->>MCP: cached {sql_template, metadata}
     MCP->>Loader: validate_params(params, metadata)
     Loader-->>MCP: ✓ params coerced & validated
-    MCP->>MCP: enforce target connection DB compatibility and policy
+    MCP->>MCP: enforce profile/schema/table/query policy
     MCP->>Adapter: execute(sql_template, params=params)
     Adapter->>DB: Parameterized query (SQLAlchemy text())
     DB-->>Adapter: result rows
@@ -279,9 +290,10 @@ sequenceDiagram
 ```
 
   `SkillMetadata.databases` remains a DB type compatibility field (`mysql`,
-  `sqlite`, or omitted for all supported DB types). It is not a connection-id
-  allowlist. Per-connection table allowlists are enforced at runtime against the
-  resolved target connection.
+  `sqlite`, or omitted for all supported DB types). Optional v3.7
+  `SkillMetadata.connection_ids` is the separate restrictive alias scope.
+  Per-connection table allowlists are still enforced at runtime against the
+  resolved target connection; neither metadata field grants permission.
 
 > **Design reference**: Parameters are bound via SQLAlchemy `text()` +
 > parameter dict, never via string concatenation. This follows the
@@ -290,9 +302,11 @@ sequenceDiagram
 
 ### Mutation Skill Two-Phase Execution Flow
 
-The two-phase execution pattern implements Anthropic's
+The two-phase execution pattern provides a verifiable intermediate result, in
+the spirit of Anthropic's
 ["verifiable intermediate outputs"](https://docs.anthropic.com/en/docs/build-with-claude/agentic-systems#practices-for-effective-agentic-systems)
-principle — the agent (and user) can review planned changes before committing.
+principle. The Agent can inspect the preview; a user reviews it only when a
+client/host actually renders it and collects a decision, as in the v3.7 example.
 
 ```mermaid
 sequenceDiagram
@@ -306,7 +320,11 @@ sequenceDiagram
 
     Note over Agent,DB: Phase 1: Preview (confirm=false)
     Agent->>MCP: execute_mutation_skill(name, params, confirm=false)
-    MCP->>Loader: validate_name(name) + validate_params(params)
+    MCP->>Loader: validate_name(name) + read cached metadata
+    MCP->>MCP: resolve config; enforce connection_ids + databases
+    MCP->>Adapter: construct authorized ConnectionContext
+    MCP->>MCP: enforce profile/schema/table/mutation policy before write
+    MCP->>Loader: validate_params(params)
     MCP->>Loader: load_mutation(name, adapter, audit_logger)
     Loader-->>MCP: Mutation instance (from cached class)
     MCP->>Mutation: validate(params)
@@ -341,12 +359,53 @@ sequenceDiagram
     MCP--xAgent: error (no sensitive details leaked)
 ```
 
+The base protocol flow above does not prove a human approved it: an Agent can
+copy the token into the execute call. v3.7 therefore includes a separate
+reference host flow without changing the MCP server API:
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Host as Manual Approval Host
+    participant MCP as Same stdio MCP process
+    participant DB
+
+    Host->>MCP: preview(skill, snapshotted params, optional connection)
+    MCP-->>Host: exact preview + resolved connection + private bearer token
+    Host-->>User: display operation/preview/expiry (never display token)
+    alt exact APPROVE before expiry
+        User->>Host: APPROVE
+        Host->>MCP: execute(same params, resolved connection, private token)
+        MCP->>DB: validate + one transactional write
+        DB-->>MCP: result
+        MCP-->>Host: execute result
+    else deny / timeout / EOF / cancel
+        Host-->>Host: stop; do not call execute
+    end
+```
+
+The host does not authenticate the approver to the server, cannot prevent
+another client from bypassing it, and does not revoke unused tokens on denial.
+It explicitly inherits the trusted operator process environment so stdio does
+not silently switch to a different `.env`, and the workflow itself enforces a
+monotonic approval deadline. Parameters and preview data are canonical finite
+JSON snapshots; the workflow rejects a provider that changes the displayed
+view before returning approval. Complete environment inheritance also forwards
+all exported secrets and Python control variables into the child/Skill trust
+boundary; a productized host should use a maintained project allowlist. Custom
+approval providers must cooperate with
+async cancellation; hostile-provider hard termination needs process isolation.
+It never retries an execute exception because consumption/commit may be
+ambiguous. Product deployments needing approver identity, separation of duties,
+or durable approval/denial audit need a separate approval service.
+
 > **Design references**:
 > - *"Give models less freedom for higher-stakes operations."* — Anthropic,
 >   ["Building effective agents" (2024)](https://docs.anthropic.com/en/docs/build-with-claude/agentic-systems#practices-for-effective-agentic-systems).
 >   Mutation operations use constrained code paths, not free-form agent code.
 > - *"Verifiable intermediate outputs"* — ibid.
->   The preview phase allows the agent (and user) to verify planned changes.
+>   The preview phase lets the Agent verify planned changes and lets a client
+>   present them to a user; the server alone cannot prove that this happened.
 > - The `validate()` call in Phase 2 is **intentionally duplicated** to defend
 >   against TOCTOU: the data state may have changed between preview and confirm.
 
@@ -367,11 +426,14 @@ skills/
 ├── monthly-sales-report-sqlite/       # Example SQLite query skill
 │   ├── skill_def.md                   # YAML frontmatter + documentation
 │   └── query.sql                      # Parameterized SQL template
-└── update-order-status/               # Example mutation skill
+├── update-order-status/               # General example mutation skill
     ├── skill_def.md                   # YAML frontmatter + documentation
     ├── mutation.py                    # validate/preview/execute logic
     └── references/
         └── status-transitions.md      # State machine documentation
+└── reset-demo-order-to-pending/       # Portable demo/test reset mutation
+    ├── skill_def.md                   # Explicit source state, fixed pending target
+    └── mutation.py                    # Preview binding + optimistic lock
 ```
 
 ## 4. skill_def.md Format
@@ -391,6 +453,9 @@ type: query                   # query | mutation
 source: query.sql             # Required: execution file (validated filename)
 risk: low                     # low | medium | high
 databases: [mysql, sqlite]    # Optional: supported DB types (default: all)
+connection_ids:              # Optional v3.7 valid-alias restriction
+  - orders_primary           # One binds directly; multiple allow reuse
+  - analytics_demo_sqlite
 enabled: true                 # Optional, default true
 idempotent: false             # Optional, default false
 requires_confirmation: true   # Optional, for mutations
@@ -409,6 +474,17 @@ related_skills:               # Optional, discovery hints
 
 Markdown body with usage instructions (< 500 lines recommended).
 ```
+
+Unknown top-level frontmatter fields and duplicate YAML mapping keys fail
+discovery. This strictness prevents a typo in a restrictive field such as
+`connection_ids` from silently changing policy; future custom metadata requires
+an explicitly supported extension field or namespace.
+Known values are strict too: declared boolean fields must be YAML booleans,
+`triggers`/`related_skills` must be string lists, and category must be a
+non-empty string. Each parameter accepts only the documented
+`type`/`required`/`min`/`max`/`enum`/`description` keys; constraints must match
+the declared type, enum must be a non-empty list, and bounds must be ordered.
+This is one small custom schema, not a parallel JSON Schema implementation.
 
 ### Design Rationale
 
@@ -525,7 +601,7 @@ flowchart TB
 
         subgraph S1["Layer 1: Input Validation"]
           V0["resolve ConnectionContext<br/>configured ids only"]
-            V1["is_sql_safe()<br/>Allow only SELECT/SHOW/DESCRIBE/EXPLAIN"]
+            V1["is_sql_safe()<br/>Read forms only; no EXPLAIN ANALYZE"]
             V2["_is_query_safe_extended()<br/>Block system tables/UNION/subqueries"]
             V3["_check_table_allowlist()<br/>Table-level access control"]
             V4["validate_name()<br/>^a-z0-9- prevent path traversal"]
@@ -587,6 +663,7 @@ flowchart TB
 | 3 | Dry-run default | `confirm=False` returns preview only |
 | 4 | Dual-layer switches | `ENABLE_SKILLS` + `SKILLS_ALLOW_MUTATIONS` |
 | 5 | Connection binding first | Resolve configured `connection_id` before SQL policy, readiness, and execution |
+| 6 | Restrictive Skill alias scope | Optional `connection_ids` and `databases` are checked before adapter construction; every existing policy remains an independent pre-query/pre-write gate; omission preserves prior behavior |
 
 **Three-Level Permission Progression:**
 
@@ -594,7 +671,7 @@ flowchart TB
 |:---:|------|:---:|:---:|------|------|
 | L0 | Default | `0` | — | Base tools (query, list_tables, etc.) | Read-only queries |
 | L1 | Skills enabled | `1` | `0` | + list_skills, get_skill_detail, execute_query_skill | + Pre-defined read-only skills |
-| L2 | Mutations enabled | `1` | `1` | + execute_mutation_skill | + Controlled writes (two-phase confirm) |
+| L2 | Mutations enabled | `1` | `1` | + execute_mutation_skill | + Controlled writes (two-phase preview/execute gate) |
 
 | 7 | Trust boundary | skills/ = source code, changes via code review |
 | 12 | Error sanitization | `_handle_error()` → `ToolError` (no leaks) |
@@ -602,6 +679,7 @@ flowchart TB
 | 15 | Path constraint | SKILLS_DIR must be within project root |
 | 16 | Skill identity/type integrity | `name` must match directory; mutation `Mutation` must be a concrete `MutationBase` subclass |
 | 17 | v3.6 mutation scope | Mutation Skills may target configured connections only when the global target allowlist, per-connection write switch, per-connection Skill allowlist, and preview-token checks all pass; omitting the global allowlist preserves default-connection-only compatibility |
+| 18 | v3.7 approval ownership | Preview tokens prove a matching server preview, not human identity; explicit approval belongs to the client/host, and the example remains stdio-only |
 
 ### Error Handling Chain
 
@@ -798,8 +876,12 @@ clear policy switch.
 Named connections are configured outside the Skills layer with `DB_CONNECTIONS`
 and per-connection `DB_<ID>_*` variables. Query Skills consume only the resolved
 `ConnectionContext`; they never accept or construct DSNs. `SkillMetadata.databases`
-continues to describe supported DB types, while `connection_id` is a runtime
-selection among configured server-side aliases.
+continues to describe supported DB types, `SkillMetadata.connection_ids` is an
+optional restrictive list of valid alias identifiers, and singular
+`connection_id` remains the runtime selection. Only members configured in the
+current deployment can execute; portable unconfigured members are unavailable
+metadata. Omitted runtime selection still uses the global
+default and never auto-selects a metadata-list member.
 When `DB_CONNECTIONS` is unset or empty, legacy single-connection mode ignores
 both `DB_<ID>_*` variables and `DEFAULT_DB_CONNECTION` so local named-connection
 configuration cannot silently override legacy `DB_TYPE` / `SQLITE_DATABASE_PATH`
@@ -817,9 +899,19 @@ Configuration activation order is intentionally explicit:
 4. Non-default connections should be configured explicitly because omitted
   fields may still receive process defaults loaded at startup.
 
-Examples should prefer semantic aliases such as `mysql`, `analytics`, or `ops`.
-Using `default` as a connection id is legal but discouraged in documentation
-because the default role is already expressed by `DEFAULT_DB_CONNECTION`.
+Examples should prefer semantic aliases such as `trade_analysis_mysql`,
+`analytics_demo_sqlite`, and `orders_primary`. `mysql` and `sqlite` are legal aliases but can be confused
+with `databases` type values. Using `default` as a connection id is legal but
+discouraged because the default role is already expressed by
+`DEFAULT_DB_CONNECTION`.
+
+**v3.7 Skill connection scope:** `connection_ids` must be a non-empty list of
+unique normalized aliases. Singular `connection_id`, scalars, wildcards, DSNs,
+paths, unknown frontmatter fields, and duplicate YAML keys fail discovery.
+Unconfigured aliases remain unavailable rather than
+creating targets. A configured DB-type conflict fails only that target so other
+valid members remain reusable. Discovery exposes scope state, but query and
+mutation execution authoritatively recheck it before adapter construction.
 
 **v3.6 preview-token core:** mutation execute now requires the `preview_token`
 returned by preview, including the default connection. The token binds skill
@@ -866,9 +958,14 @@ persist neither the full token nor that short identifier in v3.6.1.
 | v3.6 Mutation preview-token core | Require preview token for every mutation execute, including the default connection | Keep default-connection no-token compatibility | Gives higher-stakes writes one consistent protocol and makes preview/execute target binding explicit before enabling non-default writes |
 | v3.6 Mutation multi-connection policy | Require global target allowlist plus per-connection write switch and skill allowlist | Reuse read allowlists for writes | Keeps read policy and write authorization separate, deny-by-default, and auditable |
 | v3.6.1 Preview-token hardening | Retain the v3.6 bounded process-local store, fix preview/binding correctness, and formalize the same-process deployment boundary | Add shared external state, a local persistence layer, or stateless HMAC-only validation | Matches the current stdio-first deployment need with no new service or schema; preserves same-process replay protection while explicitly declining multi-user HTTP and cross-worker mutation support |
+| v3.7 Skill connection scope | Optional strict `connection_ids` list intersected with DB type and all existing policies; omitted means no new restriction | Singular auto-routing field or dynamic DSN binding | Supports direct business binding and reuse without changing default routing or turning metadata into authorization |
+| v3.7 approval example | One-shot stdio host, exact `APPROVE`, token-free view/output, no execute retry | Treat `confirm=true` as human proof or add server Elicitation/auth in the same release | Demonstrates a real client-owned approval loop while keeping identity, remote auth, and compliance claims outside the server's implemented boundary |
+| v3.7 demo reset mutation | MySQL/SQLite compensation with required non-pending `expected_status`, fixed `pending` target, preview binding, optimistic lock, and a database-enforced unique `orders.id` contract | Add reverse transitions to the production-like status machine or build a framework-wide schema DSL | Exercises and cleans up live mutation fixtures without redefining business transitions; documents non-atomic cleanup and the deliberate ABA cycle |
+| v3.7 SQL grammar boundary | One full-policy statement; reject raw SHOW/cross-session EXPLAIN, executable/optimizer/MariaDB comments, and ambiguous restrictive-allowlist targets; preserve qualified identity and validate explained DML targets/read sources/CTE aliases plus multi-table `DELETE ... USING` sources | Trust generic parser classification or claim a complete cross-dialect AST policy | Closes demonstrated scope bypasses while retaining useful non-ANALYZE DML plan inspection in a conservative, testable Oracle MySQL/SQLite grammar |
+| Database authorization boundary | Treat SQL shape/table checks as application guards; require least-privilege read accounts without unnecessary EXECUTE/FILE/PROCESS/admin/cross-schema grants | Maintain an unbounded function denylist for SELECT-shaped stored functions and locks | Database grants remain authoritative for effects the outer SQL form cannot prove absent |
 | v3.5 Runtime allowlist | Query Skill startup validation checks structural/read-only safety; per-connection allowlists are enforced at runtime | Validate every skill against every configured connection at startup | Runtime enforcement is the authoritative policy because allowlists are connection-scoped and connections may differ by deployment |
 | v3.5 Metadata privacy | Expose safe `connection_id` alias and `db_type`; never expose DSNs/hosts/credentials/paths | Include full connection details for debugging | Operators can correlate calls without leaking database internals to clients or logs |
-| Availability filtering | `available_only` filters by target `connection_id`, DB type compatibility, mutation switch/default-only scope, connection policy, and schema readiness | Always return full discovered catalog | Aligns with conditional tool enabling and reduces Agent selection errors; developers retain full catalog access with `available_only=false` |
+| Availability filtering | `available_only` filters by optional Skill `connection_ids`, target `connection_id`, DB type compatibility, mutation switch/default-only scope, connection policy, and schema readiness | Always return full discovered catalog | Aligns with conditional tool enabling and reduces Agent selection errors; developers retain full catalog access with `available_only=false`; execution still rechecks authorization |
 | Schema readiness scope | Table existence only | Full column/type compatibility check | Catches the common wrong-schema case with low overhead; reviewed SQL/mutation code still provides the precise execution-time validation |
 | Demo skills | `profiles: [demo]` plus optional `SKILLS_EXCLUDE_PROFILES=demo` | Delete or disable bundled examples by default | Keeps examples usable for local demos while allowing production deployments to hide and block them explicitly |
 | Query skill audit | Optional `SKILLS_AUDIT_QUERIES=1`; params are logged as business audit data and must not contain secrets | Audit every read skill by default, or build a redaction policy engine now | Avoids surprising sensitive parameter logs while providing an opt-in compliance trail; returned data is never logged. Runtime redaction is deferred until real skills require sensitive params |
@@ -1125,7 +1222,7 @@ flowchart TB
 | **TOCTOU prevention** | `discover()` reads all files into memory at startup; runtime = zero disk I/O | Agent reads files via bash on every invocation; files may have been tampered with between reads |
 | **Mutation type/transaction safety** | Loader accepts only concrete `MutationBase` subclasses; `MutationBase` enforces BEGIN → UPDATE → verify rowcount → COMMIT/ROLLBACK | Agent writes its own transaction code; may omit rollback or error handling |
 | **Audit logging** | Mutation preview/execute paths attempt best-effort writes to `_audit.jsonl`; normal tool results report `audit_logged` | Depends on agent voluntarily calling logging — unreliable |
-| **Confirmation mechanism** | `requires_confirmation: true` + two-phase execution (preview → confirm) enforced by server | Agent decides whether to confirm — can be bypassed by prompt injection |
+| **Confirmation mechanism** | Server enforces preview → one-time bound token → execute; optional v3.7 host displays the preview and collects exact `APPROVE`. The server still cannot prove human identity | Agent decides whether to confirm, with no hard server-side preview/replay boundary |
 
 ### 11.6 Summary
 

@@ -211,7 +211,7 @@ Available tools:
 1. check_connection - Verify database connectivity (use only on connection errors)
 2. list_tables - Database overview with table names and row estimates
 3. describe_table - Single table columns + row estimate + is_large hint
-4. query - Execute read-only SQL queries (SELECT, SHOW, DESCRIBE, EXPLAIN)
+4. query - Execute read-only SQL queries (SELECT, SHOW, DESCRIBE, or non-ANALYZE EXPLAIN)
 5. get_full_schema - All tables with columns (use for multi-table JOINs)
 
 Note: describe_table returns row_count (estimated) and is_large flag. Use is_large hint to decide if LIMIT is needed.

@@ -122,6 +122,26 @@ def discovered_skills(skills_dir):
     return discover(skills_dir)
 
 
+def _write_minimal_query_skill(tmp_path, frontmatter_lines):
+    """Create one query Skill for focused frontmatter validation tests."""
+    skills_dir = tmp_path / "skills"
+    skills_dir.mkdir()
+    skill_dir = skills_dir / "schema-test"
+    skill_dir.mkdir()
+    (skill_dir / "skill_def.md").write_text(
+        "---\n"
+        "name: schema-test\n"
+        "type: query\n"
+        "source: query.sql\n"
+        "risk: low\n"
+        + "\n".join(frontmatter_lines)
+        + "\n---\n\nSchema validation test.\n",
+        encoding="utf-8",
+    )
+    (skill_dir / "query.sql").write_text("SELECT 1", encoding="utf-8")
+    return skills_dir
+
+
 # =============================================================================
 # test_validate_name_valid (#24)
 # =============================================================================
@@ -459,6 +479,45 @@ class TestDiscover:
         skills = discover(sd)
         assert "disabled-skill" not in skills
 
+    @pytest.mark.parametrize(
+        "field",
+        ["enabled", "idempotent", "requires_confirmation"],
+    )
+    def test_policy_booleans_require_yaml_boolean(self, tmp_path, field):
+        """Quoted booleans must not become truthy policy metadata."""
+        from skill_loader import discover
+
+        skills_dir = _write_minimal_query_skill(
+            tmp_path,
+            [f'{field}: "false"'],
+        )
+
+        assert "schema-test" not in discover(skills_dir)
+
+    @pytest.mark.parametrize(
+        "frontmatter_lines",
+        [
+            ["triggers: one trigger"],
+            ["triggers:"],
+            ["triggers: [valid, 2]"],
+            ["related_skills: another-skill"],
+            ["related_skills: null"],
+            ["related_skills: [valid-skill, false]"],
+            ["category: [reporting]"],
+            ["category: null"],
+            ['category: ""'],
+        ],
+    )
+    def test_catalog_fields_reject_wrong_types(
+        self, tmp_path, frontmatter_lines
+    ):
+        """Catalog fields retain predictable list/string shapes."""
+        from skill_loader import discover
+
+        skills_dir = _write_minimal_query_skill(tmp_path, frontmatter_lines)
+
+        assert "schema-test" not in discover(skills_dir)
+
     def test_malformed_skill_md(self, tmp_path):
         """#20: Malformed YAML frontmatter is skipped with error."""
         from skill_loader import discover
@@ -477,6 +536,56 @@ class TestDiscover:
 
         skills = discover(sd)
         assert "bad-skill" not in skills
+
+    @pytest.mark.parametrize(
+        "unknown_field",
+        ["connection_id", "connections_ids", "connection-ids"],
+    )
+    def test_unknown_frontmatter_fields_fail_closed(
+        self, tmp_path, unknown_field
+    ):
+        """A scope typo must not silently turn into an unrestricted Skill."""
+        from skill_loader import discover
+
+        sd = tmp_path / "skills"
+        sd.mkdir()
+        q = sd / "scope-typo"
+        q.mkdir()
+        (q / "skill_def.md").write_text(
+            "---\n"
+            "name: scope-typo\n"
+            "type: query\n"
+            "source: query.sql\n"
+            "risk: low\n"
+            f"{unknown_field}: [analytics]\n"
+            "---\n\nBad scope field.\n",
+            encoding="utf-8",
+        )
+        (q / "query.sql").write_text("SELECT 1", encoding="utf-8")
+
+        assert "scope-typo" not in discover(sd)
+
+    def test_duplicate_frontmatter_key_fails_closed(self, tmp_path):
+        from skill_loader import discover
+
+        sd = tmp_path / "skills"
+        sd.mkdir()
+        q = sd / "duplicate-scope"
+        q.mkdir()
+        (q / "skill_def.md").write_text(
+            "---\n"
+            "name: duplicate-scope\n"
+            "type: query\n"
+            "source: query.sql\n"
+            "risk: low\n"
+            "connection_ids: [analytics]\n"
+            "connection_ids: [orders_primary]\n"
+            "---\n\nDuplicate scope.\n",
+            encoding="utf-8",
+        )
+        (q / "query.sql").write_text("SELECT 1", encoding="utf-8")
+
+        assert "duplicate-scope" not in discover(sd)
 
     def test_malformed_missing_required_field(self, tmp_path):
         """#20: Missing required field (type) is skipped."""
@@ -644,6 +753,61 @@ class TestDiscover:
         skills = discover(sd)
 
         assert "bad-param-schema" not in skills
+
+    @pytest.mark.parametrize(
+        ("param_type", "constraint"),
+        [
+            ("int", "requird: true"),
+            ("int", 'required: "true"'),
+            ("int", 'min: "1"'),
+            ("int", "min: 1.5"),
+            ("str", "min: 1"),
+            ("int", "min: 3\n    max: 2"),
+            ("int", "enum: pending"),
+            ("int", "enum: []"),
+            ("str", "enum: [1, 2]"),
+            ("int", "description: [not, text]"),
+        ],
+    )
+    def test_param_schema_constraints_fail_closed(
+        self, tmp_path, param_type, constraint
+    ):
+        """Constraint typos and incompatible values are rejected at startup."""
+        from skill_loader import discover
+
+        indented_constraint = constraint.replace("\n", "\n    ")
+        skills_dir = _write_minimal_query_skill(
+            tmp_path,
+            [
+                "params:",
+                "  value:",
+                f"    type: {param_type}",
+                f"    {indented_constraint}",
+            ],
+        )
+
+        assert "schema-test" not in discover(skills_dir)
+
+    def test_numeric_and_boolean_param_constraints_are_accepted(self, tmp_path):
+        """The lightweight schema accepts valid typed bounds and enums."""
+        from skill_loader import discover
+
+        skills_dir = _write_minimal_query_skill(
+            tmp_path,
+            [
+                "params:",
+                "  ratio:",
+                "    type: float",
+                "    min: 0",
+                "    max: 1.0",
+                "    enum: [0, 0.5, 1.0]",
+                "  enabled_flag:",
+                "    type: bool",
+                "    enum: [true, false]",
+            ],
+        )
+
+        assert "schema-test" in discover(skills_dir)
 
     def test_skills_dir_not_found(self, tmp_path):
         """#23: Non-existent skills dir returns empty, no crash."""
@@ -1266,3 +1430,72 @@ class TestDatabasesField:
 
         skills = discover(sd)
         assert "empty-db" not in skills
+
+
+class TestConnectionIdsField:
+    """Tests for the optional deployment-specific connection scope."""
+
+    @staticmethod
+    def _discover(tmp_path, frontmatter_line: str | None):
+        from skill_loader import discover
+
+        skills_dir = tmp_path / "skills"
+        skills_dir.mkdir()
+        skill_dir = skills_dir / "connection-scoped"
+        skill_dir.mkdir()
+        optional_line = f"{frontmatter_line}\n" if frontmatter_line else ""
+        (skill_dir / "skill_def.md").write_text(
+            "---\n"
+            "name: connection-scoped\n"
+            "type: query\n"
+            "source: query.sql\n"
+            "risk: low\n"
+            f"{optional_line}"
+            "description: Connection-scoped query\n"
+            "---\n\nConnection scope test.\n",
+            encoding="utf-8",
+        )
+        (skill_dir / "query.sql").write_text("SELECT 1", encoding="utf-8")
+        return discover(skills_dir)
+
+    def test_connection_ids_omitted_preserves_unrestricted_metadata(self, tmp_path):
+        skills = self._discover(tmp_path, None)
+        assert skills["connection-scoped"].connection_ids is None
+
+    def test_connection_id_grammar_matches_runtime_registry(self):
+        """Prevent parser/runtime alias syntax from drifting independently."""
+        import db_adapter
+        import skill_loader
+
+        assert (
+            skill_loader._CONNECTION_ID_PATTERN.pattern
+            == db_adapter.CONNECTION_ID_PATTERN.pattern
+        )
+
+    def test_connection_ids_one_or_many_are_normalized(self, tmp_path):
+        skills = self._discover(
+            tmp_path,
+            "connection_ids: [Sales_Primary, analytics]",
+        )
+        assert skills["connection-scoped"].connection_ids == [
+            "analytics",
+            "sales_primary",
+        ]
+
+    @pytest.mark.parametrize(
+        "frontmatter_line",
+        [
+            "connection_ids: analytics",
+            "connection_id: analytics",
+            "connection_ids:",
+            "connection_ids: null",
+            "connection_ids: []",
+            "connection_ids: [analytics, ANALYTICS]",
+            "connection_ids: [analytics, 'sqlite:/tmp/demo.db']",
+            "connection_ids: [1analytics]",
+            "connection_ids: [analytics, '']",
+        ],
+    )
+    def test_invalid_connection_ids_reject_skill(self, tmp_path, frontmatter_line):
+        skills = self._discover(tmp_path, frontmatter_line)
+        assert "connection-scoped" not in skills

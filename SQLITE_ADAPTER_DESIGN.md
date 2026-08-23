@@ -1,8 +1,8 @@
 # SQLite Adapter Design Document
 
-**Version:** 3.6
-**Date:** May 30, 2026
-**Related:** [REFACTORING_LOG.md](REFACTORING_LOG.md) - v2.2 SQLite support and v3.5 named connections
+**Version:** 3.7.0
+**Date:** August 22, 2026
+**Related:** [REFACTORING_LOG.md](REFACTORING_LOG.md) - v2.2 SQLite support, v3.5 named connections, and the v3.7 portable demo reset mutation
 
 ---
 
@@ -241,13 +241,16 @@ def get_row_estimate(self, table_name: str) -> int:
 
 **Future Improvement:** Consider aiosqlite if async performance becomes critical.
 
-### 2. SHOW/DESCRIBE Pass-through Limitation
+### 2. Raw SHOW/DESCRIBE Limitation
 
 **Compromise:** SQLite does not support `SHOW TABLES` or `DESCRIBE table` SQL syntax.
 
 **Handling:**
 - MCP tools (`list_tables`, `describe_table`) use adapter methods (work correctly)
-- Direct `query("SHOW TABLES")` on SQLite will fail with syntax error
+- The v3.7 full MCP policy rejects raw `SHOW` for every adapter and directs
+  schema discovery to those tools.
+- A raw SQLite `DESCRIBE` form is not portable SQLite syntax and may fail at the
+  adapter; prefer the dedicated tool.
 
 **Convention:** Users should use MCP tools for schema discovery, not raw SQL.
 
@@ -297,7 +300,9 @@ and telemetry. Unknown connection ids fail closed.
 **Mitigation:** 
 - `check_same_thread=False` allows cross-thread usage
 - SQLAlchemy handles connection lifecycle
-- MCP server typically handles one request at a time
+- MCP clients, including one stdio client, may issue concurrent calls. Do not
+  infer serialization from the transport; mutation-heavy deployments must
+  serialize writes at the application/deployment boundary.
 
 **Risk Level:** Low for typical MCP usage patterns.
 
@@ -337,6 +342,13 @@ non-default SQLite mutation targets, so deployments must review aliases that
 share a file and should serialize writes or use a server database when write
 concurrency is expected.
 
+The v3.7 `reset-demo-order-to-pending` demo is portable across MySQL and SQLite
+and assumes one business order per `orders.id`; supported schemas must enforce
+that with `PRIMARY KEY` or `UNIQUE`. Its read-side cardinality check diagnoses
+an already malformed fixture, but it is not an atomic replacement for the
+constraint or a generic schema migration framework. The reset is a second
+committed demo/test mutation, not a transactional rollback.
+
 ### 4. No Connection Pooling Benefits for SQLite
 
 **Issue:** StaticPool maintains single connection, no concurrent query benefits.
@@ -375,21 +387,22 @@ SQLite settings:
 
 | Variable | Example | Description |
 |----------|---------|-------------|
-| `DB_CONNECTIONS` | `mysql,analytics` | Comma-separated configured connection ids |
-| `DEFAULT_DB_CONNECTION` | `mysql` | Default target when tool calls omit `connection_id` (active only when `DB_CONNECTIONS` is set) |
-| `DB_<ID>_TYPE` | `DB_ANALYTICS_TYPE=sqlite` | DB type for a named connection |
-| `DB_<ID>_SQLITE_DATABASE_PATH` | `DB_ANALYTICS_SQLITE_DATABASE_PATH=./sample_data/demo.db` | SQLite file path or `:memory:` for that connection |
-| `DB_<ID>_QUERY_TIMEOUT_SECONDS` | `DB_ANALYTICS_QUERY_TIMEOUT_SECONDS=30` | Per-connection read-query timeout |
-| `DB_<ID>_CONNECT_TIMEOUT_SECONDS` | `DB_ANALYTICS_CONNECT_TIMEOUT_SECONDS=10` | Per-connection connection timeout |
-| `DB_<ID>_SQLITE_PROGRESS_HANDLER_INTERVAL` | `DB_ANALYTICS_SQLITE_PROGRESS_HANDLER_INTERVAL=100` | Per-connection timeout check interval |
-| `DB_<ID>_ALLOWED_TABLES` | `DB_ANALYTICS_ALLOWED_TABLES=orders` | Per-connection allowlist |
-| `DB_<ID>_ALLOW_UNION` | `DB_ANALYTICS_ALLOW_UNION=0` | Per-connection UNION policy |
+| `DB_CONNECTIONS` | `trade_analysis_mysql,analytics_demo_sqlite` | Comma-separated configured connection ids |
+| `DEFAULT_DB_CONNECTION` | `trade_analysis_mysql` | Default target when tool calls omit `connection_id` (active only when `DB_CONNECTIONS` is set) |
+| `DB_<ID>_TYPE` | `DB_ANALYTICS_DEMO_SQLITE_TYPE=sqlite` | DB type for a named connection |
+| `DB_<ID>_SQLITE_DATABASE_PATH` | `DB_ANALYTICS_DEMO_SQLITE_SQLITE_DATABASE_PATH=./sample_data/demo.db` | SQLite file path or `:memory:` for that connection |
+| `DB_<ID>_QUERY_TIMEOUT_SECONDS` | `DB_ANALYTICS_DEMO_SQLITE_QUERY_TIMEOUT_SECONDS=30` | Per-connection read-query timeout |
+| `DB_<ID>_CONNECT_TIMEOUT_SECONDS` | `DB_ANALYTICS_DEMO_SQLITE_CONNECT_TIMEOUT_SECONDS=10` | Per-connection connection timeout |
+| `DB_<ID>_SQLITE_PROGRESS_HANDLER_INTERVAL` | `DB_ANALYTICS_DEMO_SQLITE_SQLITE_PROGRESS_HANDLER_INTERVAL=100` | Per-connection timeout check interval |
+| `DB_<ID>_ALLOWED_TABLES` | `DB_ANALYTICS_DEMO_SQLITE_ALLOWED_TABLES=orders` | Per-connection allowlist |
+| `DB_<ID>_ALLOW_UNION` | `DB_ANALYTICS_DEMO_SQLITE_ALLOW_UNION=0` | Per-connection UNION policy |
 
 `connection_id` values must match `^[a-z][a-z0-9_]{0,63}$`. Tools and models
 cannot pass arbitrary DSNs; they can only select configured aliases.
-Use semantic aliases such as `mysql`, `analytics`, or `ops`; avoid using
-`default` as a connection id unless it is meaningful in your deployment, because
-the actual default target is already selected by `DEFAULT_DB_CONNECTION`.
+Use semantic aliases such as `trade_analysis_mysql`, `analytics_demo_sqlite`,
+or `orders_primary`. Bare `mysql`/`sqlite` are legal but are easy to confuse
+with database type values. Avoid `default` unless it is meaningful in the
+deployment, because `DEFAULT_DB_CONNECTION` already selects the actual default.
 
 ### Example .env Configuration
 
@@ -422,7 +435,7 @@ All database-targeted MCP tools include `db_type`; v3.5 also includes the safe
 ```json
 {
   "success": true,
-    "connection_id": "analytics",
+  "connection_id": "analytics_demo_sqlite",
   "db_type": "sqlite",
   "data": [...]
 }
@@ -630,29 +643,30 @@ Restart the MCP server after changing database type.
 ### Adding a Second SQLite Connection
 
 ```env
-DB_CONNECTIONS=mysql,analytics
-DEFAULT_DB_CONNECTION=mysql
+DB_CONNECTIONS=trade_analysis_mysql,analytics_demo_sqlite
+DEFAULT_DB_CONNECTION=trade_analysis_mysql
 
-DB_MYSQL_TYPE=mysql
-DB_MYSQL_USER=your_database_user
-DB_MYSQL_PASSWORD=your_database_password
-DB_MYSQL_HOST=your_database_host
-DB_MYSQL_NAME=your_database_name
+DB_TRADE_ANALYSIS_MYSQL_TYPE=mysql
+DB_TRADE_ANALYSIS_MYSQL_USER=your_database_user
+DB_TRADE_ANALYSIS_MYSQL_PASSWORD=your_database_password
+DB_TRADE_ANALYSIS_MYSQL_HOST=your_database_host
+DB_TRADE_ANALYSIS_MYSQL_NAME=your_database_name
 
-DB_ANALYTICS_TYPE=sqlite
-DB_ANALYTICS_SQLITE_DATABASE_PATH=./sample_data/demo.db
-DB_ANALYTICS_ALLOWED_TABLES=orders
-DB_ANALYTICS_QUERY_TIMEOUT_SECONDS=30
+DB_ANALYTICS_DEMO_SQLITE_TYPE=sqlite
+DB_ANALYTICS_DEMO_SQLITE_SQLITE_DATABASE_PATH=./sample_data/demo.db
+DB_ANALYTICS_DEMO_SQLITE_ALLOWED_TABLES=orders
+DB_ANALYTICS_DEMO_SQLITE_QUERY_TIMEOUT_SECONDS=30
 
-# Optional strict v3.6 mutation routing
-SKILLS_ALLOW_MUTATION_CONNECTIONS=mysql,analytics
-DB_MYSQL_ALLOW_MUTATIONS=1
-DB_MYSQL_MUTATION_SKILLS=update-order-status
-DB_ANALYTICS_ALLOW_MUTATIONS=1
-DB_ANALYTICS_MUTATION_SKILLS=update-order-status
+# Optional strict v3.6+ mutation routing
+SKILLS_ALLOW_MUTATION_CONNECTIONS=trade_analysis_mysql,analytics_demo_sqlite
+DB_TRADE_ANALYSIS_MYSQL_ALLOW_MUTATIONS=1
+DB_TRADE_ANALYSIS_MYSQL_MUTATION_SKILLS=update-order-status
+DB_ANALYTICS_DEMO_SQLITE_ALLOW_MUTATIONS=1
+DB_ANALYTICS_DEMO_SQLITE_MUTATION_SKILLS=update-order-status,reset-demo-order-to-pending
 ```
 
-Core read-only tools and query Skills can then pass `connection_id="analytics"`.
+Core read-only tools and query Skills can then pass
+`connection_id="analytics_demo_sqlite"`.
 Mutation Skills remain default-connection only when
 `SKILLS_ALLOW_MUTATION_CONNECTIONS` is omitted. When it is set, every target
 also requires its per-connection write switch and skill allowlist. Preview and

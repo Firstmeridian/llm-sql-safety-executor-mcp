@@ -1,11 +1,222 @@
 # MCP SQL Server Refactoring Log
 
-**Date:** December 2, 2025 (Updated: August 10, 2026)
+**Date:** December 2, 2025 (Updated: August 22, 2026)
 **Author:** Code Refactoring Session
 
 ## Overview
 
 This document records the major refactoring changes made to `mcp_sql_server.py` to follow FastMCP best practices and improve the overall design.
+
+---
+
+## Update v3.7.0 - Scoped Skills, Approval Host, and SQL Hardening (August 22, 2026)
+
+v3.7.0 is an incremental Skills release. It adds optional connection binding in
+Skill metadata, a portable demo/test reset mutation, an explicit stdio approval
+host, and supported-dialect SQL hardening without changing the
+v3.6 preview-token format/store, general write protocol, environment-variable
+schema, or routing behavior of documented-schema Skills that omit the
+new field. Previously ignored unknown/duplicate frontmatter is the intentional
+fail-closed compatibility tightening. Release details
+are in `RELEASE_NOTES/RELEASE_NOTES_v3_7.md`.
+
+### Optional `connection_ids` frontmatter
+
+`SkillMetadata` now accepts an optional plural list:
+
+```yaml
+databases: [mysql]
+connection_ids: [orders_primary, orders_reporting]
+```
+
+Unknown top-level fields and duplicate YAML mapping keys fail discovery so a
+security-relevant typo such as `connections_ids` cannot silently turn a scoped
+Skill into an unrestricted one. The singular `connection_id` field is therefore
+rejected together with other unsupported fields so metadata is not
+mistaken for the per-call routing argument. A declared value must be a non-empty
+YAML list of non-empty strings matching `^[a-z][a-z0-9_]{0,63}$` after lowercase
+normalization. Normalized duplicates, wildcards, DSNs, paths, and scalars fail
+discovery. Values are sorted for deterministic output; order never implies a
+default or failover sequence. The loader performs syntax-only validation and
+does not add a direct dependency on `db_adapter`; it already reaches runtime
+configuration indirectly through the SQL safety module. It therefore locally
+mirrors the connection-id regex; future syntax changes
+must update both definitions and their tests. Runtime availability uses the
+startup connection registry, like the rest of current configuration, so alias
+or DB-type changes require a server restart.
+
+The known metadata vocabulary is strict in both name and value. Declared
+`enabled`, `idempotent`, and `requires_confirmation` values must be YAML
+booleans; `triggers` and `related_skills` must be lists of strings; and
+`category` must be a non-empty string. Each parameter schema accepts only
+`type`, `required`, `min`, `max`, `enum`, and `description`. Constraint values
+must match the declared parameter type, enum must be a non-empty list, and
+numeric bounds must be ordered. This completes the repository's lightweight
+DSL rather than replacing it with JSON Schema.
+
+Omission is represented by `None` and preserves the prior unrestricted-by-Skill
+behavior. A list with one member provides direct binding; multiple members
+support reuse. Runtime tool arguments remain singular. When a call omits
+`connection_id`, the normal global default is resolved first and then checked;
+the server never auto-routes to the only/first metadata member.
+
+The MCP execution paths enforce the first two checks before adapter construction:
+
+```text
+target ∈ connection_ids (if declared)
+AND target.db_type ∈ databases (if declared)
+THEN every existing profile/schema/table/query/mutation policy passes before
+query execution or database writes
+```
+
+Metadata only restricts—it never creates a connection or grants a read/write
+permission. Unconfigured declared aliases remain portable metadata but are
+reported unavailable with a startup warning. A configured alias whose DB type
+conflicts with `databases` fails closed for that target and emits a startup
+error; other valid aliases on the same reusable Skill remain available. This
+per-target compromise is intentional: globally disabling the Skill would break
+the intersection/reuse model without improving the rejected target's safety.
+
+`list_skills()` and `get_skill_detail()` expose declared/configured/unconfigured
+ids, per-target scope state, and type conflicts at summary/full detail. Search
+includes declared aliases. `available_only` uses the scope state to reduce model
+selection errors but is not authorization; both query and mutation execution
+repeat the check. The query and mutation paths share the same resolver so scope
+rejection occurs before `get_adapter()`. Mutation policy remains a separate,
+additional deny-by-default layer, and preview tokens continue to bind exactly
+one resolved connection.
+
+Direct Python calls to `skill_loader` or a Mutation class bypass MCP routing and
+must enforce equivalent target policy in the embedding application. Built-in
+Skills contain commented alias examples only; v3.7 does not silently bind demo
+Skills to deployment-specific names. Documentation recommends semantic aliases
+such as `orders_primary`/`trade_analysis_mysql`/`analytics_demo_sqlite`;
+`mysql` and `sqlite` remain legal but
+are easy to confuse with `databases` type values.
+
+### One-shot manual approval host
+
+`examples/manual_mutation_approval.py` is deliberately outside the AutoGen demo
+and adds no dependency. It launches `start_server.py` with `sys.executable`, so
+the current venv is preserved, explicitly inherits the operator's complete
+process environment so exported DB/policy configuration is not replaced by a
+different `.env`, and keeps preview and execute in one stdio Client context and
+server subprocess as required by the process-local store. A canonical finite-JSON
+parameter snapshot is used for both calls. The workflow fingerprints the approval
+view and fails closed if a custom provider changes displayed params or preview
+data before returning its decision. If the original request omits a target, execute
+is pinned to the resolved `connection_id` returned by preview rather than
+resolving the default again.
+
+The host strictly requires a successful preview with matching Skill, valid
+resolved alias/DB type/business preview, boolean idempotency, non-empty token,
+and timezone-aware expiry. It derives approval timeout from the smaller of the
+CLI timeout and remaining token lifetime minus a safety margin, and the workflow
+itself enforces that monotonic deadline instead of trusting the UI provider. A
+custom provider must cooperate with async cancellation; hostile-provider hard
+termination would require process isolation. The approval
+view excludes the bearer token and displays the exact Skill, params, resolved
+connection, DB type, preview, expiry, and idempotency. Only literal `APPROVE`
+executes; denial, blank/other input, timeout, EOF, cancellation, malformed
+preview, or UI error fails closed. A daemon input thread avoids leaving
+`asyncio.run()` waiting for a non-cancellable `input()` executor task after a
+timeout; this is intentionally a one-shot CLI and does not reuse stdin.
+
+Execute is attempted once. Exceptions/timeouts are classified as an unknown
+write outcome and never retried because token consumption and database commit
+may already have occurred. Returned output removes the `preview_token` field and
+redacts the exact bearer value if an abnormal server echoes it elsewhere.
+`--params-file` avoids putting business params in shell history, but the file,
+rendered params/preview, and printed execute result may contain sensitive
+business data; operators
+must protect the file, terminal, screen sharing, and terminal capture/history.
+
+The example is not proof of an authenticated human approval. Any other MCP
+client can bypass it. Denial does not revoke the server-side token record or
+create a server denial audit; the record consumes one bounded entry until
+expiry/lazy cleanup and only normal preview audit exists. Token bytes necessarily
+pass through FastMCP/client memory, Python cannot guarantee secure erasure, and
+external payload/debug logging can still disclose them. A real multi-user or
+compliance workflow needs product-owned approver authentication, role policy,
+durable audit, and possibly an explicit cancellation protocol. These are not
+v3.7 HTTP capabilities. Passing `env=dict(os.environ)` is an intentional
+trusted-local-host compromise: it preserves the exact operator database/policy
+configuration but also places every exported secret and Python control variable
+inside the child/Skill trust boundary. A productized host should forward a
+maintained project-specific allowlist instead.
+
+### SQL safety and portable demo reset mutation
+
+The shared SQL gate accepts exactly one statement. The full MCP policy rejects
+raw `SHOW` and directs metadata discovery to `list_tables()`/`describe_table()`;
+adds `sys` to blocked system schemas; preserves schema qualification during
+allowlist checks; and extracts comma joins, nested queries, CTEs, ordinary
+comment-separated targets, and EXPLAIN child tables without treating keywords
+as tables. Non-ANALYZE EXPLAIN/DESCRIBE/DESC of
+`UPDATE`/`INSERT`/`REPLACE`/`DELETE` remains supported; restrictive allowlists
+check the DML target, all read sources, CTE aliases, and multi-table
+`DELETE ... USING` source tables. Ambiguous targets fail
+closed under a
+restrictive allowlist. MySQL executable comments (`/*! ... */`), optimizer hints
+(`/*+ ... */`), MariaDB executable comments (`/*M! ... */`), non-whitespace
+double-dash forms, executing ANALYZE explain, and nested write DML are rejected.
+These are conservative statement-shape/application-policy guards, not a claim
+of comprehensive SQL semantics or database authorization.
+
+`reset-demo-order-to-pending` is a deliberately low-freedom mutation example.
+It requires the caller to state the exact non-pending status expected after a
+preceding test, while reviewed code fixes the target to `pending`. It performs a
+second read for the visible preview, binds that displayed source state into the
+one-time token, and repeats it in the optimistic-lock predicate. The portable
+SQL supports `databases: [mysql, sqlite]`; optional `connection_ids` remains
+commented so deployments can bind it to their own dedicated demo aliases.
+
+This is both a mutation-path exercise and a compensating cleanup call, not a
+transactional rollback or production order-reopening operation. Supported
+schemas must enforce `orders.id` as `PRIMARY KEY` or `UNIQUE`; the Skill's
+read-side cardinality check is diagnostic only. Because the reset deliberately
+permits `pending -> X -> pending`, it makes the status-only ABA limitation in
+DRR-2026-046 reachable through bundled demo Skills. Live scenarios should use
+dedicated records, avoid overlapping previews, and preferably start a fresh
+stdio process per scenario.
+
+### Files and validation
+
+| File | Change |
+|------|--------|
+| `skills/_lib/skill_loader.py` | Parses, normalizes, caches, and discloses optional `connection_ids` without adding a direct connection-module dependency |
+| `mcp_sql_server.py` | Evaluates discovery availability on the resolved target and rechecks scope/type before adapter creation in query and mutation execution paths |
+| `examples/manual_mutation_approval.py` | Adds the stdio-only explicit approval reference host |
+| `sql_safety_checker.py`, `mcp_sql_server.py`, `tests/test_sql_policy.py` | Enforce one-statement/raw-SHOW/comment/system-schema boundaries and token-aware table scope, including EXPLAIN-family DML targets/read sources/CTE aliases and multi-table `DELETE ... USING` sources, while preserving ordinary comments/strings and non-ANALYZE plan inspection |
+| `skills/reset-demo-order-to-pending/` | Adds the MySQL/SQLite demo reset with explicit expected source state and fixed `pending` target |
+| `tests/test_skill_loader.py` | Covers omission, one/many normalization, malformed metadata rejection, and parser/runtime alias-grammar parity |
+| `tests/test_multi_connection_v35.py` | Covers query scope, default behavior, disclosure, pre-adapter denial, and real-frontmatter per-target type-conflict isolation |
+| `tests/test_mutation_multi_connection_v36_design.py` | Covers mutation scope, pre-adapter denial, policy intersection, target isolation, and token non-consumption before scope acceptance |
+| `tests/test_manual_mutation_approval.py` | Covers approval state, enforced deadlines, expiry, malformed results, finite-JSON snapshots, approval-view mutation rejection, resolved-target pinning, environment propagation, non-retry, and token non-output/redaction |
+| README/safety/design/guide/risk/release documents | Record v3.7 contracts, limits, compatibility, and best-practice rationale |
+
+Validation results:
+
+- Final default repository suite after adversarial SQL/Skill/mutation hardening:
+  462 passed, 3 skipped.
+- The August 22 portable reset follow-up retained 462 passed, 3 skipped; its
+  focused mutation/token/discovery selection passed 94 tests and the explicit
+  root regression smoke passed 2 tests. A real MySQL reset and reset-specific
+  subprocess stdio live run remain unclaimed.
+- Focused SQL/query/SQLite suites: 115 passed.
+- The root legacy smoke is outside default `pytest.ini` collection and was run
+  explicitly: `test_bug_fixes.py` passed 2 tests.
+- `git diff --check`, EN/ZH risk-register parity, and tracked Markdown
+  relative-link checks passed.
+- The approval workflow passed a real FastMCP `Client(module.mcp)` in-memory
+  contract test and changed a disposable SQLite order exactly once.
+- The 2026-08-13 and 2026-08-19/20 subprocess stdio attempts reached server
+  startup but did not complete MCP initialize before the client timeout. They
+  failed closed with no preview, audit, or DB write and remain historical
+  environment observations. A 2026-08-21 follow-up subsequently completed the
+  approval, denial, minimal-echo, `start_server.py`, and full-server subprocess
+  stdio checks; details are recorded in
+  `RELEASE_NOTES/LIVE_MCP_TSET/LIVE_MCP_TEST_V36-V37_ZH.md`.
 
 ---
 
@@ -131,7 +342,7 @@ v3.5 test aliases.
 
 ### Documentation Follow-up
 
-- Added `V3_5_V3_6_SKILLS_GUIDE_ZH.md`, an explanatory Chinese guide covering
+- Added `V3_5-V3_7_SKILLS_GUIDE_ZH.md` (originally the v3.5-v3.6 guide), an explanatory Chinese guide covering
     named connections, per-connection policy, Skill metadata, strict mutation
     routing, preview-token binding, state drift, and MutationBase contracts.
 - Updated `skills/SAFETY.md` for the implemented v3.6 server-side
@@ -292,7 +503,7 @@ readable table is not a writable table.
     issuance, execute with the matching token, one-time replay rejection,
     cross-connection token rejection without consuming the valid token, and
     `pending -> confirmed` writes with `rowcount=1`. Details and cleanup
-    evidence are in `RELEASE_NOTES/LIVE_MCP_TSET/LIVE_MCP_TEST_V36_ZH.md`.
+    evidence are in `RELEASE_NOTES/LIVE_MCP_TSET/LIVE_MCP_TEST_V36-V37_ZH.md`.
 
 ---
 
@@ -1549,7 +1760,7 @@ Significantly reduced `sql_assistant` prompt size following OpenAI/Google best p
 """Database query assistant with READ-ONLY access.
 
 TOOLS:
-1. query(sql) - PRIMARY. Execute SELECT, SHOW, DESCRIBE, EXPLAIN.
+1. query(sql) - PRIMARY. Execute SELECT, SHOW, DESCRIBE, or non-ANALYZE EXPLAIN. (Historical v2 wording; v3.7 full MCP policy rejects raw SHOW.)
 2. list_tables() - List available tables (use if structure unknown)
 3. describe_table(name) - Get single table columns
 4. get_full_schema() - Get ALL tables and columns in ONE call (recommended first)
@@ -1625,7 +1836,8 @@ Added support for additional read-only SQL statement types beyond SELECT:
 **Server Instructions Updated:**
 ```python
 instructions="""You are a database query assistant with READ-ONLY access.
-Use the query tool for most operations. Safe statements: SELECT, SHOW, DESCRIBE, EXPLAIN.
+Use the query tool for most operations. Safe statements: SELECT, SHOW,
+DESCRIBE, and non-ANALYZE EXPLAIN. (Historical v2 wording; v3.7 full MCP policy rejects raw SHOW.)
 Use list_tables first if you don't know the database structure.
 If first time querying or unsure about columns: list_tables() -> describe_table() -> query()
 If you already know the table structure: query directly"""
@@ -1791,7 +2003,8 @@ Workflow:
 - Known table structure: query directly
 - Unknown structure: list_tables first, then query
 
-Safe statements: SELECT, SHOW, DESCRIBE, EXPLAIN."""
+Safe statements: SELECT, SHOW, DESCRIBE, and non-ANALYZE EXPLAIN.
+(Historical v2 wording; v3.7 full MCP policy rejects raw SHOW.)"""
 ```
 
 **Design Rationale:**

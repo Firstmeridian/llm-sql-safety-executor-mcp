@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-This project is a Python-based tool designed to allow Large Language Models (LLMs) to safely execute read-only SQL queries. It provides functions to validate a given SQL query to ensure it is safe and read-only (i.e., only `SELECT` / `SHOW` / `DESCRIBE` / `EXPLAIN` are allowed), and then execute the validated query against a database.
+This project is a Python-based tool designed to allow Large Language Models (LLMs) to execute conservatively filtered read-only SQL queries against the supported MySQL and SQLite adapters. The full MCP policy accepts one `SELECT`, `DESCRIBE`, or non-ANALYZE `EXPLAIN` statement and directs metadata discovery to dedicated tools instead of raw `SHOW`. It rejects nested write DML and `EXPLAIN ANALYZE`, and does not claim comprehensive semantic analysis for arbitrary SQL dialects.
 
 **MCP Service Implementation** - The project includes a Model Context Protocol (MCP) service that wraps the original functionality, providing a standardized interface for AI models to interact with the SQL safety checker.
 
@@ -17,7 +17,7 @@ The primary technologies used are:
 ## Key Files
 
 *   `sql_safety_checker.py`: The core logic of the project resides here. It contains:
-    *   `is_sql_safe(sql_query)`: Validates whether a SQL query is read-only and safe (e.g., `SELECT` / `SHOW` / `DESCRIBE` / `EXPLAIN`).
+    *   `is_sql_safe(sql_query)`: Provides the low-level statement-shape compatibility check (`SELECT` / `SHOW` / `DESCRIBE` / non-ANALYZE `EXPLAIN`). The MCP server adds the authoritative full policy, including one-statement enforcement, table scope, and rejection of raw `SHOW`.
     *   `execute_sql(sql_query)`: Validates the query using `is_sql_safe` and then executes it against the database.
 *   `mcp_sql_server.py`: MCP (Model Context Protocol) server implementation that wraps the SQL safety checker functionality (refactored December 2025):
     *   `query(sql)`: Primary MCP tool for executing read-only SQL queries (with automatic validation)
@@ -204,6 +204,15 @@ DSNs from the model. Mutation Skills use the default connection unless strict
 named-write policy is configured with `SKILLS_ALLOW_MUTATION_CONNECTIONS` and
 matching per-connection mutation settings.
 
+v3.7 Skill frontmatter may optionally declare plural `connection_ids` to
+restrict a Skill to valid business-alias identifiers. Only currently configured
+members can execute; portable unconfigured members remain unavailable metadata.
+This scope only narrows the existing DB-type and server policy intersection; it
+never creates or authorizes a connection, and omission preserves prior behavior.
+The release also includes
+a one-shot stdio approval-host example. That client flow is not server-verifiable
+human identity and does not add multi-user HTTP mutation support.
+
 ### Available MCP Prompts
 
 The MCP service provides one prompt template:
@@ -223,7 +232,11 @@ The MCP conversion is **highly recommended** for organizations wanting to:
 - Scale SQL validation across multiple AI models
 - Maintain consistent interfaces for database operations
 
-The implementation preserves all original functionality while adding the benefits of a standardized AI-tool interaction protocol.
+The implementation is incremental and largely compatible, but security
+boundaries may intentionally narrow behavior. For example, v3.7 rejects raw
+SHOW and multiple statements in the full MCP policy and validates known Skill
+metadata values strictly. Do not describe compatibility more broadly than the
+current release notes and tests support.
 
 ## Development Conventions
 

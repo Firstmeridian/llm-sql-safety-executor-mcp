@@ -221,6 +221,79 @@ def test_default_execute_requires_preview_token(tmp_path, monkeypatch):
         _cleanup_modules()
 
 
+def test_reset_skill_completes_mutation_compensation_flow(tmp_path, monkeypatch):
+    """A mutation and its demo reset both use the real token/tool path."""
+    mysql_db = tmp_path / "mysql.db"
+    analytics_db = tmp_path / "analytics.db"
+    _create_orders_db(mysql_db, "mysql")
+    _create_orders_db(analytics_db, "analytics")
+
+    module = _reload_server(
+        monkeypatch,
+        mysql_db,
+        analytics_db,
+        analytics_mutation_skills=(
+            "update-order-status,reset-demo-order-to-pending"
+        ),
+    )
+    try:
+        update_preview, _ = run_tool(
+            module.execute_mutation_skill(
+                skill_name="update-order-status",
+                params={"order_id": 1, "new_status": "confirmed"},
+                connection_id="analytics",
+                ctx=DummyContext(),
+                confirm=False,
+            )
+        )
+        update_result, _ = run_tool(
+            module.execute_mutation_skill(
+                skill_name="update-order-status",
+                params={"order_id": 1, "new_status": "confirmed"},
+                connection_id="analytics",
+                ctx=DummyContext(),
+                confirm=True,
+                preview_token=update_preview["preview_token"],
+            )
+        )
+        assert update_result["success"] is True
+        assert _order_status(analytics_db, 1) == "confirmed"
+
+        reset_params = {"order_id": 1, "expected_status": "confirmed"}
+        preview, preview_meta = run_tool(
+            module.execute_mutation_skill(
+                skill_name="reset-demo-order-to-pending",
+                params=reset_params,
+                connection_id="analytics",
+                ctx=DummyContext(),
+                confirm=False,
+            )
+        )
+        assert preview["success"] is True
+        assert preview["preview"]["current_status"] == "confirmed"
+        assert preview["preview"]["new_status"] == "pending"
+        assert preview_meta["preview_token_required"] is True
+        assert _order_status(analytics_db, 1) == "confirmed"
+
+        executed, executed_meta = run_tool(
+            module.execute_mutation_skill(
+                skill_name="reset-demo-order-to-pending",
+                params=reset_params,
+                connection_id="analytics",
+                ctx=DummyContext(),
+                confirm=True,
+                preview_token=preview["preview_token"],
+            )
+        )
+        assert executed["success"] is True
+        assert executed["result"]["previous_status"] == "confirmed"
+        assert executed["result"]["new_status"] == "pending"
+        assert executed_meta["preview_token_consumed"] is True
+        assert _order_status(analytics_db, 1) == "pending"
+    finally:
+        _cleanup_modules()
+
+
 def test_server_instructions_describe_optional_mutations(tmp_path, monkeypatch):
     mysql_db = tmp_path / "mysql.db"
     analytics_db = tmp_path / "analytics.db"
@@ -1945,6 +2018,187 @@ def test_authorized_non_default_execute_updates_only_target_connection(
         assert meta["preview_token_validated"] is True
         assert _order_status(analytics_db, 1) == "confirmed"
         assert _order_status(mysql_db, 1) == "pending"
+    finally:
+        _cleanup_modules()
+
+
+def test_mutation_skill_connection_scope_narrows_without_auto_routing(
+    tmp_path,
+    monkeypatch,
+):
+    """v3.7 scope is restrictive and omitted still means global default."""
+    mysql_db = tmp_path / "mysql.db"
+    analytics_db = tmp_path / "analytics.db"
+    _create_orders_db(mysql_db, "mysql")
+    _create_orders_db(analytics_db, "analytics")
+
+    module = _reload_server(monkeypatch, mysql_db, analytics_db)
+    try:
+        meta = module.get_skills_cache()["update-order-status"]
+        meta.connection_ids = ["analytics"]
+
+        with pytest.raises(module.ToolError, match="allowed connection_ids"):
+            run_tool(
+                module.execute_mutation_skill(
+                    skill_name=meta.name,
+                    params=_params(),
+                    ctx=DummyContext(),
+                    confirm=False,
+                )
+            )
+
+        preview, _ = run_tool(
+            module.execute_mutation_skill(
+                skill_name=meta.name,
+                params=_params(),
+                ctx=DummyContext(),
+                confirm=False,
+                connection_id="analytics",
+            )
+        )
+        result, _ = run_tool(
+            module.execute_mutation_skill(
+                skill_name=meta.name,
+                params=_params(),
+                ctx=DummyContext(),
+                confirm=True,
+                preview_token=preview["preview_token"],
+                connection_id="analytics",
+            )
+        )
+
+        assert result["success"] is True
+        assert result["connection_id"] == "analytics"
+        assert _order_status(mysql_db, 1) == "pending"
+        assert _order_status(analytics_db, 1) == "confirmed"
+    finally:
+        _cleanup_modules()
+
+
+def test_mutation_scope_rejects_before_adapter_construction(
+    tmp_path,
+    monkeypatch,
+):
+    mysql_db = tmp_path / "mysql.db"
+    analytics_db = tmp_path / "analytics.db"
+    _create_orders_db(mysql_db, "mysql")
+    _create_orders_db(analytics_db, "analytics")
+
+    module = _reload_server(monkeypatch, mysql_db, analytics_db)
+    try:
+        meta = module.get_skills_cache()["update-order-status"]
+        meta.connection_ids = ["analytics"]
+
+        def unexpected_adapter(_connection_id):
+            raise AssertionError(
+                "Mutation scope rejection must precede adapter construction"
+            )
+
+        monkeypatch.setattr(module, "get_adapter", unexpected_adapter)
+        with pytest.raises(module.ToolError, match="allowed connection_ids"):
+            run_tool(
+                module.execute_mutation_skill(
+                    skill_name=meta.name,
+                    params=_params(),
+                    ctx=DummyContext(),
+                    confirm=False,
+                    connection_id="mysql",
+                )
+            )
+        assert len(module._MUTATION_PREVIEW_TOKEN_STORE) == 0
+    finally:
+        _cleanup_modules()
+
+
+def test_scope_rejection_before_token_validation_does_not_consume_token(
+    tmp_path,
+    monkeypatch,
+):
+    """A transient metadata-scope rejection must not redeem a valid token."""
+    mysql_db = tmp_path / "mysql.db"
+    analytics_db = tmp_path / "analytics.db"
+    _create_orders_db(mysql_db, "mysql")
+    _create_orders_db(analytics_db, "analytics")
+
+    module = _reload_server(monkeypatch, mysql_db, analytics_db)
+    try:
+        meta = module.get_skills_cache()["update-order-status"]
+        meta.connection_ids = ["analytics", "mysql"]
+        preview, _ = run_tool(
+            module.execute_mutation_skill(
+                skill_name=meta.name,
+                params=_params(),
+                ctx=DummyContext(),
+                confirm=False,
+                connection_id="mysql",
+            )
+        )
+
+        meta.connection_ids = ["analytics"]
+        with pytest.raises(module.ToolError, match="allowed connection_ids"):
+            run_tool(
+                module.execute_mutation_skill(
+                    skill_name=meta.name,
+                    params=_params(),
+                    ctx=DummyContext(),
+                    confirm=True,
+                    preview_token=preview["preview_token"],
+                    connection_id="mysql",
+                )
+            )
+        assert len(module._MUTATION_PREVIEW_TOKEN_STORE) == 1
+
+        meta.connection_ids = ["analytics", "mysql"]
+        result, result_meta = run_tool(
+            module.execute_mutation_skill(
+                skill_name=meta.name,
+                params=_params(),
+                ctx=DummyContext(),
+                confirm=True,
+                preview_token=preview["preview_token"],
+                connection_id="mysql",
+            )
+        )
+        assert result["success"] is True
+        assert result_meta["preview_token_consumed"] is True
+        assert _order_status(mysql_db, 1) == "confirmed"
+    finally:
+        _cleanup_modules()
+
+
+def test_mutation_connection_scope_never_grants_server_policy(
+    tmp_path,
+    monkeypatch,
+):
+    mysql_db = tmp_path / "mysql.db"
+    analytics_db = tmp_path / "analytics.db"
+    _create_orders_db(mysql_db, "mysql")
+    _create_orders_db(analytics_db, "analytics")
+
+    module = _reload_server(
+        monkeypatch,
+        mysql_db,
+        analytics_db,
+        allow_analytics_mutations=False,
+    )
+    try:
+        meta = module.get_skills_cache()["update-order-status"]
+        meta.connection_ids = ["analytics"]
+        with pytest.raises(
+            module.ToolError,
+            match="(?i)mutation.*policy|not authorized|not allowed",
+        ):
+            run_tool(
+                module.execute_mutation_skill(
+                    skill_name=meta.name,
+                    params=_params(),
+                    ctx=DummyContext(),
+                    confirm=False,
+                    connection_id="analytics",
+                )
+            )
+        assert len(module._MUTATION_PREVIEW_TOKEN_STORE) == 0
+        assert _order_status(analytics_db, 1) == "pending"
     finally:
         _cleanup_modules()
 

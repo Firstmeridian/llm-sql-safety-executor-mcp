@@ -84,8 +84,16 @@ def _reload_server(
     *,
     skills: bool = False,
     mutations: bool = False,
+    skills_dir: str = "skills/",
+    with_mysql_target: bool = False,
+    schema_check_on_list: bool | None = None,
 ):
-    monkeypatch.setenv("DB_CONNECTIONS", "default,analytics")
+    connection_ids = (
+        "default,analytics,mysql_target"
+        if with_mysql_target
+        else "default,analytics"
+    )
+    monkeypatch.setenv("DB_CONNECTIONS", connection_ids)
     monkeypatch.setenv("DEFAULT_DB_CONNECTION", "default")
     monkeypatch.setenv("DB_DEFAULT_TYPE", "sqlite")
     monkeypatch.setenv("DB_DEFAULT_SQLITE_DATABASE_PATH", str(default_db))
@@ -93,6 +101,13 @@ def _reload_server(
     monkeypatch.setenv("DB_ANALYTICS_SQLITE_DATABASE_PATH", str(analytics_db))
     monkeypatch.setenv("DB_DEFAULT_ALLOWED_TABLES", "items")
     monkeypatch.setenv("DB_ANALYTICS_ALLOWED_TABLES", "items,orders")
+    if with_mysql_target:
+        monkeypatch.setenv("DB_MYSQL_TARGET_TYPE", "mysql")
+        monkeypatch.setenv("DB_MYSQL_TARGET_USER", "fixture")
+        monkeypatch.setenv("DB_MYSQL_TARGET_PASSWORD", "fixture")
+        monkeypatch.setenv("DB_MYSQL_TARGET_HOST", "127.0.0.1")
+        monkeypatch.setenv("DB_MYSQL_TARGET_NAME", "fixture")
+        monkeypatch.setenv("DB_MYSQL_TARGET_ALLOWED_TABLES", "items")
     monkeypatch.setenv("ENABLE_SCHEMA_TOOLS", "1")
     monkeypatch.setenv("ENABLE_TABLE_SUMMARY", "1")
     monkeypatch.setenv("ENABLE_SKILLS", "1" if skills else "0")
@@ -101,14 +116,20 @@ def _reload_server(
     # An empty value prevents db_adapter.load_dotenv() from restoring a live
     # SKILLS_ALLOW_MUTATION_CONNECTIONS value during the module re-import.
     monkeypatch.setenv("SKILLS_ALLOW_MUTATION_CONNECTIONS", "")
-    monkeypatch.setenv("SKILLS_DIR", "skills/")
+    monkeypatch.setenv("SKILLS_DIR", skills_dir)
     monkeypatch.setenv("SKILLS_EXCLUDE_PROFILES", "")
     monkeypatch.setenv("SKILLS_AUDIT_QUERIES", "0")
     monkeypatch.setenv("MAX_SQL_LENGTH", "20000")
     monkeypatch.setenv("MCP_TOOL_TIMEOUT_SECONDS", "120")
     monkeypatch.delenv("SKILLS_LIST_DEFAULT_DETAIL", raising=False)
     monkeypatch.delenv("SKILLS_LIST_AVAILABLE_ONLY_DEFAULT", raising=False)
-    monkeypatch.delenv("SKILLS_CHECK_SCHEMA_ON_LIST", raising=False)
+    if schema_check_on_list is None:
+        monkeypatch.delenv("SKILLS_CHECK_SCHEMA_ON_LIST", raising=False)
+    else:
+        monkeypatch.setenv(
+            "SKILLS_CHECK_SCHEMA_ON_LIST",
+            "1" if schema_check_on_list else "0",
+        )
 
     if skills:
         import skill_loader
@@ -283,6 +304,205 @@ def test_query_skills_are_displayed_and_executed_for_target_connection(tmp_path,
                     params={"year": 2026, "month": 1},
                     ctx=DummyContext(),
                     connection_id="default",
+                )
+            )
+    finally:
+        _cleanup_modules()
+
+
+def test_query_skill_connection_scope_is_targeted_and_does_not_auto_route(
+    tmp_path,
+    monkeypatch,
+):
+    """v3.7 scope narrows targets without changing omitted=default semantics."""
+    default_db = tmp_path / "default.db"
+    analytics_db = tmp_path / "analytics.db"
+    _create_rows_db(default_db, "items", "default-row")
+    _create_orders_db(analytics_db)
+
+    module = _reload_server(monkeypatch, default_db, analytics_db, skills=True)
+    try:
+        meta = module.get_skills_cache()["monthly-sales-report-sqlite"]
+        meta.connection_ids = ["analytics", "not_configured_here"]
+
+        default_catalog, _ = run_tool(
+            module.list_skills(
+                ctx=DummyContext(),
+                connection_id="default",
+                available_only=False,
+            )
+        )
+        analytics_catalog, _ = run_tool(
+            module.list_skills(
+                ctx=DummyContext(),
+                connection_id="analytics",
+                available_only=False,
+            )
+        )
+        default_skill = next(
+            item for item in default_catalog["skills"]
+            if item["name"] == meta.name
+        )
+        analytics_skill = next(
+            item for item in analytics_catalog["skills"]
+            if item["name"] == meta.name
+        )
+
+        assert default_skill["connection_scope_allowed"] is False
+        assert analytics_skill["connection_scope_allowed"] is True
+        assert analytics_skill["connection_ids"] == [
+            "analytics",
+            "not_configured_here",
+        ]
+        assert analytics_skill["configured_connection_ids"] == ["analytics"]
+        assert analytics_skill["unconfigured_connection_ids"] == [
+            "not_configured_here"
+        ]
+
+        with pytest.raises(module.ToolError, match="allowed connection_ids"):
+            run_tool(
+                module.execute_query_skill(
+                    skill_name=meta.name,
+                    params={"year": 2026, "month": 1},
+                    ctx=DummyContext(),
+                )
+            )
+
+        result, _ = run_tool(
+            module.execute_query_skill(
+                skill_name=meta.name,
+                params={"year": 2026, "month": 1},
+                ctx=DummyContext(),
+                connection_id="analytics",
+            )
+        )
+        assert result["connection_id"] == "analytics"
+        assert result["data"][0]["date"] == "2026-01-15"
+    finally:
+        _cleanup_modules()
+
+
+def test_query_skill_scope_rejects_before_adapter_construction(
+    tmp_path,
+    monkeypatch,
+):
+    default_db = tmp_path / "default.db"
+    analytics_db = tmp_path / "analytics.db"
+    _create_rows_db(default_db, "items", "default-row")
+    _create_orders_db(analytics_db)
+
+    module = _reload_server(monkeypatch, default_db, analytics_db, skills=True)
+    try:
+        meta = module.get_skills_cache()["monthly-sales-report-sqlite"]
+        meta.connection_ids = ["analytics"]
+
+        def unexpected_adapter(_connection_id):
+            raise AssertionError("scope rejection must precede adapter construction")
+
+        monkeypatch.setattr(module, "get_adapter", unexpected_adapter)
+        with pytest.raises(module.ToolError, match="allowed connection_ids"):
+            run_tool(
+                module.execute_query_skill(
+                    skill_name=meta.name,
+                    params={"year": 2026, "month": 1},
+                    ctx=DummyContext(),
+                    connection_id="default",
+                )
+            )
+    finally:
+        _cleanup_modules()
+
+
+def test_frontmatter_scope_conflict_isolated_per_target_end_to_end(
+    tmp_path,
+    monkeypatch,
+    caplog,
+):
+    """Real frontmatter keeps valid aliases usable and rejects conflicts early."""
+    default_db = tmp_path / "default.db"
+    analytics_db = tmp_path / "analytics.db"
+    _create_rows_db(default_db, "items", "default-row")
+    _create_rows_db(analytics_db, "items", "analytics-row")
+    caplog.set_level("WARNING")
+
+    module = _reload_server(
+        monkeypatch,
+        default_db,
+        analytics_db,
+        skills=True,
+        skills_dir="tests/fixtures/v37_scoped_skills",
+        with_mysql_target=True,
+        schema_check_on_list=False,
+    )
+    try:
+        meta = module.get_skills_cache()["reusable-scoped-report"]
+        assert meta.connection_ids == [
+            "analytics",
+            "missing_target",
+            "mysql_target",
+        ]
+        assert meta.databases == ["sqlite"]
+        assert "not configured in this deployment" in caplog.text
+        assert "connection scope conflict" in caplog.text
+
+        analytics_catalog, _ = run_tool(
+            module.list_skills(
+                ctx=DummyContext(),
+                connection_id="analytics",
+                detail_level="full",
+                available_only=True,
+            )
+        )
+        assert [item["name"] for item in analytics_catalog["skills"]] == [
+            "reusable-scoped-report"
+        ]
+        disclosed = analytics_catalog["skills"][0]
+        assert disclosed["configured_connection_ids"] == [
+            "analytics",
+            "mysql_target",
+        ]
+        assert disclosed["unconfigured_connection_ids"] == ["missing_target"]
+        assert disclosed["connection_type_conflicts"] == [
+            {
+                "connection_id": "mysql_target",
+                "actual_db_type": "mysql",
+                "supported_db_types": ["sqlite"],
+            }
+        ]
+
+        result, _ = run_tool(
+            module.execute_query_skill(
+                skill_name=meta.name,
+                params={},
+                ctx=DummyContext(),
+                connection_id="analytics",
+            )
+        )
+        assert result["data"] == [{"label": "analytics-row"}]
+
+        conflict_catalog, _ = run_tool(
+            module.list_skills(
+                ctx=DummyContext(),
+                connection_id="mysql_target",
+                available_only=True,
+            )
+        )
+        assert conflict_catalog["skills"] == []
+        assert conflict_catalog["connection_type_conflict_skills"] == 1
+
+        def unexpected_adapter(_connection_id):
+            raise AssertionError(
+                "DB-type rejection must precede adapter construction"
+            )
+
+        monkeypatch.setattr(module, "get_adapter", unexpected_adapter)
+        with pytest.raises(module.ToolError, match="not compatible"):
+            run_tool(
+                module.execute_query_skill(
+                    skill_name=meta.name,
+                    params={},
+                    ctx=DummyContext(),
+                    connection_id="mysql_target",
                 )
             )
     finally:

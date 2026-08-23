@@ -18,79 +18,6 @@ def read_source_file():
         return f.read()
 
 
-def _verify_extract_tables_regex_fix():
-    """Test the fixed regex pattern for table extraction by running it directly."""
-    print("=" * 60)
-    print("TEST 1: _extract_tables_from_sql regex fix verification")
-    print("=" * 60)
-    
-    # Extract the fixed regex from source and test it
-    def _extract_tables_from_sql_fixed(sql: str) -> list[str]:
-        """Fixed implementation matching the updated code."""
-        tables = []
-        
-        # Fixed pattern: handle optional schema prefix
-        from_join_pattern = r'(?:FROM|JOIN)\s+(?:`?[a-zA-Z_\u4e00-\u9fff][a-zA-Z0-9_\u4e00-\u9fff]*`?\s*\.\s*)?`?([a-zA-Z_\u4e00-\u9fff][a-zA-Z0-9_\u4e00-\u9fff]*)`?'
-        matches = re.findall(from_join_pattern, sql, re.IGNORECASE)
-        tables.extend(matches)
-        
-        describe_pattern = r'(?:DESCRIBE|DESC|EXPLAIN)\s+(?:`?[a-zA-Z_\u4e00-\u9fff][a-zA-Z0-9_\u4e00-\u9fff]*`?\s*\.\s*)?`?([a-zA-Z_\u4e00-\u9fff][a-zA-Z0-9_\u4e00-\u9fff]*)`?'
-        matches = re.findall(describe_pattern, sql, re.IGNORECASE)
-        tables.extend(matches)
-        
-        return list(set(tables))
-    
-    test_cases = [
-        ("SELECT * FROM users", ["users"], "Simple FROM"),
-        ("SELECT * FROM `users`", ["users"], "Backtick quoted table"),
-        ("SELECT * FROM mydb.users", ["users"], "Schema.table format"),
-        ("SELECT * FROM `mydb`.`users`", ["users"], "Backtick schema.table"),
-        ("SELECT * FROM mydb.users JOIN orders ON 1=1", ["users", "orders"], "Schema.table with JOIN"),
-        ("SELECT * FROM db1.table1 JOIN db2.table2 ON 1=1", ["table1", "table2"], "Multiple schema.table"),
-        ("DESCRIBE mydb.products", ["products"], "DESCRIBE with schema"),
-        ("SELECT * FROM users u JOIN orders o ON u.id = o.user_id", ["users", "orders"], "Aliased tables"),
-        ("SELECT * FROM 用户表", ["用户表"], "Chinese table name"),
-        ("SELECT * FROM mydb.用户表", ["用户表"], "Chinese table with schema"),
-    ]
-    
-    all_passed = True
-    
-    for sql, expected, desc in test_cases:
-        result = sorted(_extract_tables_from_sql_fixed(sql))
-        expected_sorted = sorted(expected)
-        passed = result == expected_sorted
-        
-        if passed:
-            print(f"✅ PASS: {desc}")
-        else:
-            print(f"❌ FAIL: {desc}")
-            print(f"   SQL: {sql}")
-            print(f"   Expected: {expected_sorted}")
-            print(f"   Got:      {result}")
-            all_passed = False
-    
-    # Also verify the source code has the fix
-    source = read_source_file()
-    if r'(?:`?[a-zA-Z_\u4e00-\u9fff][a-zA-Z0-9_\u4e00-\u9fff]*`?\s*\.\s*)?' in source:
-        print("\n✅ Source code contains fixed regex pattern")
-    else:
-        print("\n❌ Source code missing fixed regex pattern")
-        all_passed = False
-    
-    print()
-    if all_passed:
-        print("🎉 P1 REGEX FIX VERIFIED!")
-    else:
-        print("❌ P1 fix incomplete")
-    
-    return all_passed
-
-
-def test_extract_tables_regex_fix():
-    """Pytest wrapper for the regex fix verification."""
-    assert _verify_extract_tables_regex_fix()
-
-
 def _verify_sql_assistant_prompt_fix():
     """Verify sql_assistant prompt handles ALLOWED_TABLES=* correctly."""
     print("\n" + "=" * 60)
@@ -207,7 +134,6 @@ if __name__ == "__main__":
     
     results = []
     
-    results.append(("P1: Regex fix", _verify_extract_tables_regex_fix()))
     results.append(("P2: Prompt fix", _verify_sql_assistant_prompt_fix()))
     results.append(("P0: Truncation fix", _verify_get_full_schema_truncation()))
     results.append(("Syntax check", check_syntax()))
