@@ -515,10 +515,6 @@ def test_workflow_contract_via_in_memory_fastmcp_client(
     monkeypatch.setenv("SKILLS_CHECK_SCHEMA_ON_LIST", "0")
     monkeypatch.setenv("SKILLS_DIR", "skills/")
     monkeypatch.setenv("SKILLS_AUDIT_LOG", str(tmp_path / "audit.jsonl"))
-    monkeypatch.setenv(
-        "MUTATION_PREVIEW_TOKEN_SECRET",
-        "approval-contract-test-secret-0123456789",
-    )
 
     project_root = Path(__file__).resolve().parent.parent
     skills_lib = project_root / "skills" / "_lib"

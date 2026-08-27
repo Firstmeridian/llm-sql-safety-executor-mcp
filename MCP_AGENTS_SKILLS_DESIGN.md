@@ -1,8 +1,8 @@
 # MCP Agents Skills Design Document
 
-> **Version**: 3.7.0
+> **Version**: 3.7.1
 > **Status**: Implemented
-> **Date**: 2026-08-22
+> **Date**: 2026-08-28
 > **References**: [Skills safety policy](skills/SAFETY.md), [design risk register](DESIGN_RISK_REGISTER.md), [v3.6 release-family notes](RELEASE_NOTES/RELEASE_NOTES_v3_6.md), and [v3.7 release notes](RELEASE_NOTES/RELEASE_NOTES_v3_7.md)
 
 ## 1. Overview
@@ -19,7 +19,7 @@ Skills are discoverable, auditable, and controlled by environment variables.
 - **Connection-scoped discovery/execution** — Read tools, query Skills, and explicitly authorized mutation Skills resolve a configured target `connection_id` before policy, schema readiness, and execution
 - **Optional Skill target scope** — v3.7 `connection_ids` metadata can only narrow configured targets and is rechecked before adapter construction
 - **Approval-ready host flow** — A stdio reference host can display exact previews and collect explicit approval without claiming server-verifiable human identity
-- **Full backward compatibility** — Zero impact when disabled (`ENABLE_SKILLS=0`)
+- **Disabled-mode compatibility** — Zero runtime impact when disabled (`ENABLE_SKILLS=0`)
 - **Minimal dependency footprint** — Only adds `pyyaml` to requirements
 
 ### Non-Goals
@@ -67,14 +67,14 @@ Skills are discoverable, auditable, and controlled by environment variables.
 ```
 Agent → list_skills(search/category/detail_level/available_only, connection_id?)
                                → Searchable skill catalog (compact/summary/full)
-Agent → get_skill_detail(name, connection_id?)
-                              → Full cached parameter schema and target readiness
+Agent → get_skill_detail(name, connection_id?, detail_level?)
+                              → Execution projection or full cached metadata/readiness
 Agent → execute_query_skill(connection_id?)
                               → resolve connection → skill_loader → adapter.execute(sql, params)
 Agent → execute_mutation_skill(confirm=false, connection_id?)
                                → resolve authorized target → mutation.validate() + preview() + preview_token
 Agent → execute_mutation_skill(confirm=true, preview_token, connection_id?)
-                               → same authorized target → verify preview_token → mutation.validate() + run_execute() → adapter.execute_write()
+                               → same authorized target → match and consume Store record → mutation.validate() + run_execute() → adapter.execute_write()
                                                                      → audit.log()
 ```
 
@@ -239,7 +239,7 @@ flowchart LR
 
     subgraph Runtime["Phase 3: Runtime — Agent Interaction"]
         R1["list_skills()\nsearchable metadata catalog"]
-        R2["get_skill_detail()\nfull cached params schema"]
+        R2["get_skill_detail()\nexecution or full projection"]
         R3["execute_query_skill()\ncached SQL + params"]
         R4["execute_mutation_skill()\ncached class + params"]
     end
@@ -335,13 +335,14 @@ sequenceDiagram
     Mutation-->>MCP: validation result (state check passed)
     MCP->>Mutation: preview(params)
     Mutation-->>MCP: {preview_sql, current_status, new_status}
-    MCP-->>Agent: {preview, preview_token, requires_confirmation: true}
+    MCP-->>Agent: {preview, preview_token, preview_token_expires_at}
 
     Note over Agent,DB: Phase 2: Execute (confirm=true)
     Agent->>MCP: execute_mutation_skill(name, params, confirm=true, preview_token)
-    MCP->>Loader: validate_name + validate_params (re-validate)
-    MCP->>MCP: verify preview_token binds skill/version/params/connection/db_type/expiry
+    MCP->>Loader: validate_name + cached metadata + validate_params
+    MCP->>MCP: resolve target; re-enforce scope/schema/mutation policy
     MCP->>Loader: load_mutation(name, adapter, audit_logger)
+    MCP->>MCP: lookup digest; compare request binding; atomically consume handle
     MCP->>Mutation: run_execute(params)
     Mutation->>Mutation: validate(params) — re-verify (TOCTOU defense)
     Mutation->>Adapter: execute_write(UPDATE ... WHERE status=:expected)
@@ -815,8 +816,17 @@ startup.
 |-------|--------|---------|------------------|
 | Catalog | `list_skills(detail_level="compact")` | name, type, description, risk, category, executability, schema readiness | No |
 | Summary | `list_skills()` or `detail_level="summary"` | compact fields plus triggers, databases, profiles, source filename, idempotency, related skills | No |
-| Detail | `get_skill_detail(name)` or `list_skills(detail_level="full")` | full cached frontmatter metadata plus params schema, version, requires_confirmation, tables | No |
+| Execution detail | `get_skill_detail(name, detail_level="execution")` | invocation fields, params schema, executability/disabled reason, confirmation requirement, resolved connection/DB type, next action | No |
+| Full detail | `get_skill_detail(name)` (backward-compatible default) or `list_skills(detail_level="full")` | full cached frontmatter metadata plus params schema, version, readiness and policy diagnostics | No |
 | Source review | Developer reads files in `skills/` | raw SQL/Python source for code review | Outside MCP runtime |
+
+The recommended path is conditional rather than a fixed three-call chain:
+
+- unknown Skill: targeted `list_skills(detail_level="compact", search=...)`,
+  followed by execution detail only if params remain unknown;
+- known Skill with unknown params: execution detail directly;
+- params already returned by `list_skills(detail_level="full")`: execute directly;
+- known Skill and params: execute directly (mutation calls still preview first).
 
 `list_skills()` also supports deterministic substring search and exact category
 filtering. Skills without a category are grouped under `uncategorized`. Regex
@@ -859,7 +869,6 @@ clear policy switch.
 | `DB_<ID>_MUTATION_SKILLS` | empty | Strict-mode per-connection skill allowlist; empty denies all and `*` explicitly allows all |
 | `MUTATION_PREVIEW_TOKEN_TTL_SECONDS` | `300` | Preview-token lifetime in seconds; valid range `1-86400`, invalid values fall back to `300` |
 | `MUTATION_PREVIEW_TOKEN_STORE_MAX_ENTRIES` | `10000` | Per-process bound on outstanding tokens; valid range `1-100000`; exhaustion fails closed without evicting valid entries |
-| `MUTATION_PREVIEW_TOKEN_SECRET` | generated per process | Optional private HMAC secret; at least 32 random bytes are recommended. When mutation is enabled, startup reports only generated/configured mode and warns about empty/short values. A fixed value does not preserve or share memory-store state |
 | `SKILLS_LIST_DEFAULT_DETAIL` | `summary` | Default `list_skills()` metadata projection: `compact`, `summary`, or `full` |
 | `SKILLS_LIST_AVAILABLE_ONLY_DEFAULT` | `1` | Default `list_skills()` availability filter; `1` hides currently non-executable skills from Agent discovery, while `available_only=false` exposes the full developer catalog |
 | `SKILLS_CHECK_SCHEMA_ON_LIST` | `1` | Include live table-existence checks in Skills readiness metadata; missing tables set `schema_ready=false` and are hidden by `available_only=true` |
@@ -872,6 +881,9 @@ clear policy switch.
 | `ENABLE_TOOL_TELEMETRY` | `0` | Enable sanitized per-tool-call JSONL telemetry middleware |
 | `TOOL_TELEMETRY_LOG_PATH` | `logs/tool_calls.jsonl` | Local JSONL destination for telemetry records |
 | `TOOL_TELEMETRY_SAMPLE_RATE` | `1.0` | Telemetry write sampling probability (finite float clamped to 0.0-1.0; invalid values fall back to 1.0) |
+
+`MUTATION_PREVIEW_TOKEN_SECRET` is an obsolete compatibility input. The server
+ignores it and emits a value-free warning when it is still configured.
 
 Named connections are configured outside the Skills layer with `DB_CONNECTIONS`
 and per-connection `DB_<ID>_*` variables. Query Skills consume only the resolved
@@ -913,19 +925,20 @@ creating targets. A configured DB-type conflict fails only that target so other
 valid members remain reusable. Discovery exposes scope state, but query and
 mutation execution authoritatively recheck it before adapter construction.
 
-**v3.6 preview-token core:** mutation execute now requires the `preview_token`
-returned by preview, including the default connection. The token binds skill
-name, skill version, canonical params hash, `connection_id`, `db_type`, preview
-timestamp, and expiry so mismatched execute calls fail closed. Multi-connection
-mutation routing additionally enforces the implemented global target allowlist,
-per-connection write switch, and per-connection skill allowlist.
+**v3.7.1 preview-token core:** mutation execute requires the `preview_token`
+returned by preview, including the default connection. The value is a random
+256-bit opaque bearer handle. Its digest indexes a bounded process-local Store
+record containing expiry, canonical request binding (skill, version, params,
+`connection_id`, and `db_type`), and the preview-time execution binding.
+Execute atomically consumes the record only when the request binding matches,
+before dynamic validation and database writes. A mismatch preserves the valid
+record. Consumption remains final after validation, database, audit, timeout,
+or process failure. If the write outcome is uncertain, inspect current business
+state before deciding whether another preview or mutation is appropriate; do
+not blindly retry.
 
-**v3.6 process-local token-store baseline:** each token has a cryptographically
-random `jti`; the server registers its full digest, expiry, and bounded canonical
-execution binding in a bounded store. Execute consumes that record after static
-request/policy/HMAC checks but before dynamic validation and database writes.
-Consumption remains final after validation, database, audit, timeout, or process
-failure, so uncertain writes require a new preview.
+Multi-connection mutation routing additionally enforces the global target
+allowlist, per-connection write switch, and per-connection skill allowlist.
 
 **v3.6.1 hardening and deployment boundary:** state-sensitive Skills explicitly
 implement `build_execution_binding()` and `execute_with_binding()`; the bundled
@@ -936,14 +949,14 @@ stdio. Conditional HTTP mutation is limited to a trusted private boundary and
 one mutation-enabled process; multi-user authenticated HTTP mutation is outside
 this release. Worker/replica counts are deployment responsibilities, not runtime
 enforcement. Restart or cross-process lookup failures fail closed without
-stateless HMAC fallback. Read-only capacity may scale only through a separate
+stateless token fallback. Read-only capacity may scale only through a separate
 read-only endpoint, profile, or pool.
 
-The token is API-opaque to clients but is signed, not encrypted. It remains a
-bearer secret until consumption or expiry. Clients must not depend on its
-internal format and should minimize durable context/log retention. Applicable
+The handle is API-opaque and contains no client-readable authorization state. It
+remains a bearer secret until consumption or expiry. Clients must not depend on
+its format and should minimize durable context/log retention. Applicable
 ToolResult metadata includes a short correlation hint; audit and telemetry
-persist neither the full token nor that short identifier in v3.6.1.
+persist neither the full token nor that short identifier in the current design.
 
 ## 10. Design Decisions
 
@@ -957,7 +970,9 @@ persist neither the full token nor that short identifier in v3.6.1.
 | v3.5 Mutation scope | Mutation Skills remained default-connection only in v3.5 | Allow `connection_id` for writes immediately | Avoided preview/execute target drift until v3.6 introduced explicit named-write policy and token binding |
 | v3.6 Mutation preview-token core | Require preview token for every mutation execute, including the default connection | Keep default-connection no-token compatibility | Gives higher-stakes writes one consistent protocol and makes preview/execute target binding explicit before enabling non-default writes |
 | v3.6 Mutation multi-connection policy | Require global target allowlist plus per-connection write switch and skill allowlist | Reuse read allowlists for writes | Keeps read policy and write authorization separate, deny-by-default, and auditable |
-| v3.6.1 Preview-token hardening | Retain the v3.6 bounded process-local store, fix preview/binding correctness, and formalize the same-process deployment boundary | Add shared external state, a local persistence layer, or stateless HMAC-only validation | Matches the current stdio-first deployment need with no new service or schema; preserves same-process replay protection while explicitly declining multi-user HTTP and cross-worker mutation support |
+| v3.7.1 preview-token core | Preserve the `preview_token` API field as a 256-bit opaque handle and keep binding state in the bounded process-local Store | Retain the self-describing HMAC envelope, add shared external state, or use stateless validation | Removes redundant client payload while preserving exact request/state binding, one-time consumption, and the stdio-first same-process deployment boundary |
+| v3.7.1 Skill detail projection | Add opt-in `execution`; keep omitted `detail_level` as `full` | Change the default immediately or remove readiness/catalog diagnostics | Cuts repeated Agent context while preserving existing callers and a developer diagnostic view |
+| Connection-specific UNION guidance | Keep the no-argument prompt target-neutral; disclose per-alias policy through `list_connections()` and enforce it in MCP raw/query-Skill paths | Describe the default alias policy globally or make prompt selection authorize a target | Prevents misleading multi-connection guidance without turning a user-controlled prompt into an authorization boundary; the standalone compatibility helper remains a shape gate only |
 | v3.7 Skill connection scope | Optional strict `connection_ids` list intersected with DB type and all existing policies; omitted means no new restriction | Singular auto-routing field or dynamic DSN binding | Supports direct business binding and reuse without changing default routing or turning metadata into authorization |
 | v3.7 approval example | One-shot stdio host, exact `APPROVE`, token-free view/output, no execute retry | Treat `confirm=true` as human proof or add server Elicitation/auth in the same release | Demonstrates a real client-owned approval loop while keeping identity, remote auth, and compliance claims outside the server's implemented boundary |
 | v3.7 demo reset mutation | MySQL/SQLite compensation with required non-pending `expected_status`, fixed `pending` target, preview binding, optimistic lock, and a database-enforced unique `orders.id` contract | Add reverse transitions to the production-like status machine or build a framework-wide schema DSL | Exercises and cleans up live mutation fixtures without redefining business transitions; documents non-atomic cleanup and the deliberate ABA cycle |
@@ -1019,7 +1034,7 @@ three-level progressive disclosure model:
 |-------|----------------------|--------------|
 | **L1: Metadata** | YAML frontmatter loaded into system prompt at startup (~100 tokens/skill) | `list_skills()` returns projected metadata from in-memory cache |
 | **L2: Instructions** | Agent reads SKILL.md body via `bash: cat SKILL.md` when triggered | N/A — skill_def.md body is for human developers, not consumed by agent at runtime |
-| **L3: Resources** | Agent reads bundled files (scripts, references) on demand via bash | `get_skill_detail()` returns cached params/schema metadata; SQL templates and mutation classes are **pre-loaded at startup** into `_skills_cache`, never read from disk at runtime |
+| **L3: Resources** | Agent reads bundled files (scripts, references) on demand via bash | `get_skill_detail(execution|full)` returns cached metadata; SQL templates and mutation classes are **pre-loaded at startup** into `_skills_cache`, never read from disk at runtime |
 
 In MCP architecture, the agent communicates with the server via JSON-RPC
 over stdio/SSE ([MCP Spec — Transports](https://modelcontextprotocol.io/specification/2025-03-26/basic/transports)).
@@ -1027,10 +1042,12 @@ The agent **cannot access the server's filesystem** — `bash: cat skill_def.md`
 not possible. Standard Skills' filesystem-based progressive disclosure is
 therefore architecturally incompatible with MCP.
 
-This project implements **MCP-level progressive disclosure** instead:
-`list_skills()` (catalog) → `get_skill_detail()` (one skill's cached schema)
-→ `execute_*_skill()` (execution). From the agent's perspective, this achieves
-the same staged interaction pattern without requiring filesystem access.
+This project implements **MCP-level progressive disclosure** instead. Unknown
+Skills use a compact/searchable catalog and, when necessary, one Skill's
+execution projection before invocation. A caller that already knows the Skill
+and params—or obtained them from `list_skills(detail_level="full")`—executes
+directly. This conditional path provides staged disclosure without requiring
+filesystem access or forcing redundant tool calls.
 
 #### Visual Comparison: Loading Flow
 

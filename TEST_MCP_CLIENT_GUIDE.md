@@ -1,6 +1,6 @@
 # MCP Client Test - Usage Guide
 
-**Updated:** August 22, 2026 (v3.7.0)
+**Updated:** August 28, 2026 (v3.7.1)
 
 ## Purpose
 
@@ -244,7 +244,7 @@ The script tests the following tools:
 7. ✅ `get_table_summary` - Table statistics with optional exact count (requires `ENABLE_TABLE_SUMMARY=1`)
 8. ✅ `sample` - Sample data retrieval (requires `ENABLE_SCHEMA_TOOLS=1`)
 9. ✅ `list_skills` - List/search skills with `compact`/`summary`/`full` metadata, optional `available_only` filtering, v3.7 Skill `connection_ids` scope, connection-scoped policy/readiness fields, and schema readiness fields (requires `ENABLE_SKILLS=1`)
-10. ✅ `get_skill_detail` - Fetch one skill's cached parameter schema and target connection readiness (requires `ENABLE_SKILLS=1`)
+10. ✅ `get_skill_detail` - Fetch one Skill's compact `execution` projection or backward-compatible `full` cached metadata/readiness view (requires `ENABLE_SKILLS=1`)
 11. ✅ `execute_query_skill` - Execute a parameterized query skill against the resolved target connection (requires `ENABLE_SKILLS=1`)
 12. ✅ `execute_mutation_skill` - Preview or execute a mutation skill on an authorized configured connection (requires `ENABLE_SKILLS=1` + `SKILLS_ALLOW_MUTATIONS=1`; execute also requires `preview_token`)
 
@@ -314,12 +314,12 @@ across all tools in v3.4.2.
     "success": true,
     "skill_name": "update-order-status",
     "mode": "preview",
+    "connection_id": "trade_analysis_mysql",
+    "db_type": "mysql",
     "preview": { /* before/after diff produced by the mutation class */ },
-    "preview_token": "<signed bearer token returned by preview>",
+    "preview_token": "<opaque bearer handle returned by preview>",
     "preview_token_expires_at": "2026-05-30T12:05:00+00:00",
-    "preview_token_expires_in_seconds": 300,
-    "idempotent": false,
-    "hint": "Set confirm=true and pass preview_token to execute this operation."
+    "idempotent": false
   },
   "_meta": {
     "tool_name": "execute_mutation_skill",
@@ -350,6 +350,8 @@ across all tools in v3.4.2.
     "success": true,
     "skill_name": "update-order-status",
     "mode": "execute",
+    "connection_id": "trade_analysis_mysql",
+    "db_type": "mysql",
     "result": { "success": true, "rowcount": 1, /* mutation-specific fields */ },
     "idempotent": false
   },
@@ -378,9 +380,11 @@ Fields visible in `_meta` may vary by skill type and mode (for example
 `row_count` is populated for mutation preview/execute only when the skill result
 provides an affected-row estimate or rowcount). Mutation execute requires the
 `preview_token` returned by the matching preview call; missing, expired,
-tampered, mismatched, already-consumed, or process-restart-stale tokens fail
+unknown, mismatched, already-consumed, or process-restart-stale handles fail
 closed before writes. A valid execute atomically consumes the token before
-dynamic validation/write; later failures require a new preview. The `_meta`
+dynamic validation/write. If a later failure leaves the write outcome
+uncertain, inspect current business state before deciding whether another
+preview or mutation is appropriate; do not blindly retry. The `_meta`
 field `preview_token_consumed=true` makes this explicit for normal validation
 failure results. `tool_name`,
 `success`, `connection_id`, `db_type`, and `execution_ms` are present for
@@ -403,8 +407,8 @@ To create the demo MySQL table used by `monthly-sales-report` and `update-order-
 The script refuses to modify an existing `orders` table unless `--drop-existing` or `--seed-existing` is passed explicitly.
 
 ```python
-skills = await client.call_tool("list_skills", {"detail_level": "compact", "connection_id": "analytics_demo_sqlite"})
-detail = await client.call_tool("get_skill_detail", {"skill_name": "monthly-sales-report-sqlite", "connection_id": "analytics_demo_sqlite"})
+skills = await client.call_tool("list_skills", {"detail_level": "compact", "search": "monthly sales", "connection_id": "analytics_demo_sqlite"})
+detail = await client.call_tool("get_skill_detail", {"skill_name": "monthly-sales-report-sqlite", "connection_id": "analytics_demo_sqlite", "detail_level": "execution"})
 result = await client.call_tool(
   "execute_query_skill",
   {"skill_name": "monthly-sales-report-sqlite", "params": {"year": 2026, "month": 1}, "connection_id": "analytics_demo_sqlite"},
@@ -412,7 +416,25 @@ result = await client.call_tool(
 # FastMCP clients can inspect result.meta for runtime diagnostics.
 ```
 
-Use `list_skills(search=..., category=..., available_only=true, connection_id=...)` for Agent-facing discovery and `get_skill_detail(..., connection_id=...)` for params before execution when the list response is not `full`. Use `available_only=false` for developer catalog review, including skills that are currently incompatible with the target connection's DB type, disabled by mutation switches, limited to the default connection when `SKILLS_ALLOW_MUTATION_CONNECTIONS` is omitted, blocked by connection policy, or marked `schema_ready=false` because required tables are missing. The discovery target should match the `connection_id` used for execution.
+Use `list_skills(search=..., detail_level="compact", available_only=true,
+connection_id=...)` when the Skill is unknown. If the Skill name is already
+known but params are not, call `get_skill_detail(...,
+detail_level="execution", connection_id=...)` directly. When
+`list_skills(detail_level="full")` already returned params—or the caller already
+knows them—execute directly. Omitted `detail_level` on `get_skill_detail`
+continues to return `full` for compatibility. Use `available_only=false` for
+developer catalog review, including Skills that are currently incompatible with
+the target connection's DB type, disabled by mutation switches, limited to the
+default connection when `SKILLS_ALLOW_MUTATION_CONNECTIONS` is omitted, blocked
+by connection policy, or marked `schema_ready=false` because required tables are
+missing. The discovery target should match the `connection_id` used for
+execution.
+
+Since v3.7.1, preview returns an opaque handle plus
+`preview_token_expires_at`; it no longer duplicates
+`preview_token_expires_in_seconds`, the top-level execution hint, or nested
+`preview.requires_confirmation`. Clients should rely on the tool contract and
+absolute expiry, not on convenience fields removed by this maintenance update.
 
 ## Key Validation Points
 

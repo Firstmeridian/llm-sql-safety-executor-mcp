@@ -1,12 +1,94 @@
-# Release Notes v3.7 — Scoped Skills, Approval Host, and SQL Hardening
+# Release Notes v3.7 — Scoped Skills and v3.7.1 Maintenance
 
-- Version: v3.7.0
-- Release date: 2026-08-22
-- Last implementation review: 2026-08-22
-- Last live validation update: 2026-08-21
+- Release family: v3.7
+- Initial release: v3.7.0 (2026-08-22)
+- Current maintenance update: v3.7.1 (2026-08-28)
+- Last implementation review: 2026-08-28
+- Latest live validation: v3.7.1 direct MCP and fresh approval-host flows (2026-08-28)
 - Status: implemented
 
-v3.7.0 adds an optional, deployment-aware connection scope to `skill_def.md`,
+## v3.7.1 Maintenance Update — Opaque Preview Handles and Agent Workflow Efficiency
+
+v3.7.1 keeps the public `preview_token` field and two-call mutation workflow,
+but replaces the client-visible self-describing HMAC envelope with a random
+256-bit opaque bearer handle. The authoritative bounded process-local Store now
+owns expiry, exact request binding, preview-time execution state, and atomic
+conditional consumption. A request-binding mismatch preserves the valid record;
+a matching request consumes it once before dynamic validation and database
+writes. TTL, default capacity, write authorization, optimistic locking, terminal
+consumption, and the same-process deployment boundary are unchanged.
+
+The maintenance update also adds
+`get_skill_detail(detail_level="execution")` as a compact invocation projection.
+`full` remains the backward-compatible default. Agent guidance now skips a
+redundant detail call after `list_skills(detail_level="full")` and whenever the
+Skill parameters are already known. Exact aliases are preserved, a unique DB
+type match may be selected only after `list_connections()`, and purpose-only
+descriptions never authorize guessing an alias.
+
+The generic `sql_assistant` prompt no longer reports the default connection's
+UNION configuration as if it applied to every alias. It directs callers to the
+selected alias's non-sensitive policy summary from `list_connections()`; raw
+queries and Query Skills continue to enforce the resolved target policy at
+runtime. Startup logs now label their legacy/default-policy UNION summary with
+the default alias, and a missing UNION allowlist now directs operators to the
+selected connection's policy rather than implying a global setting. The
+standalone `sql_safety_checker.execute_sql()` compatibility
+helper remains only a statement-shape gate and does not enforce
+`ALLOW_UNION`/`ALLOWED_TABLES`; callers needing the full connection policy must
+use the MCP tools. This boundary is recorded in the design risk register rather
+than duplicated through a circular server import.
+
+### Compatibility and migration
+
+- `preview_token` remains an API-opaque bearer value; clients that treated it as
+  opaque continue to pass it unchanged. Its length and internal format are not
+  a compatibility contract.
+- `MUTATION_PREVIEW_TOKEN_SECRET` is obsolete and ignored. If it remains set,
+  startup emits a value-free warning; remove it from active configuration.
+- Preview keeps `preview_token_expires_at`. To reduce duplicate Agent context,
+  v3.7.1 removes `preview_token_expires_in_seconds`, the top-level preview
+  `hint`, and nested `preview.requires_confirmation`. Clients that consumed
+  these convenience fields must migrate to the absolute expiry and the
+  tool/Skill-detail contract rather than depend on those duplicated fields.
+- The `get_skill_detail` input adds optional `detail_level="execution"`; omitting
+  it still returns `full`.
+- Tool names, mutation request arguments, two-phase preview/execute behavior,
+  TTL/capacity settings, connection policy, and database-write semantics remain
+  unchanged. A process restart during upgrade invalidates all outstanding
+  preview values because the Store is intentionally process-local.
+- Once a handle has been consumed, an exception or disconnect can leave the
+  caller unable to determine whether the database committed. The caller must
+  inspect current business state before another preview or mutation; it must not
+  blindly retry. Durable operation records and a reconnect status API remain a
+  future product-level design, not part of v3.7.1.
+
+### v3.7.1 validation
+
+On 2026-08-28, the default repository suite passed with 466 tests and 3 skipped;
+the explicit root legacy smoke passed 2 tests. Focused connection, Skills,
+mutation, and disclosure regressions also passed, and `git diff --check` found
+no whitespace errors. This includes opposite default/target UNION policies,
+per-alias disclosure, and a target-neutral prompt.
+
+On 2026-08-26, a restarted configured MCP service completed a reversible
+`live_test_sqlite` mutation flow with the v3.7.1 opaque handle: request mismatch
+preserved the handle, the matching request consumed it, replay failed, and the
+fixture was restored. On 2026-08-28, a fresh stdio subprocess also completed the
+approval-host flow: literal `APPROVE` returned exit code 0 with `rowcount=1`,
+while `NO` returned exit code 3 and did not call execute. A separate fresh
+subprocess temporarily enabled UNION only for `analytics_demo_sqlite`; both a
+raw query and a Query Skill harness returned a real two-row UNION there while
+the default MySQL target remained denied.
+The current configured MySQL was later checked successfully with read-only
+`SELECT 1` and `COUNT(*)`; an earlier same-day timeout remains recorded as a
+negative environment observation. Full timings, payload summaries, and
+evidence boundaries are in `LIVE_MCP_TSET/LIVE_MCP_TEST_V36-V37_ZH.md`.
+
+## v3.7.0 Initial Release — Historical Baseline
+
+The remaining sections describe v3.7.0. At that release, v3.7.0 added an
+optional, deployment-aware connection scope to `skill_def.md`,
 a portable demo/test reset mutation, a dependency-light stdio example for explicit
 host-side mutation approval, and supported-dialect SQL policy hardening.
 It is an incremental release: existing Skills that use the documented
@@ -16,7 +98,7 @@ capacity, execution binding, and existing write-authorization protocol do not
 change. Raw SQL grammar and malformed Skill metadata are intentionally tightened
 as described below.
 
-## 1. Optional `connection_ids` Skill Scope
+## 1. Optional `connection_ids` Skill Scope (v3.7.0)
 
 Skill authors may now restrict a Skill to one or more valid connection-alias
 identifiers. Only members configured in the current deployment can execute:

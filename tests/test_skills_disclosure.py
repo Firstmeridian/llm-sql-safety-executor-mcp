@@ -63,14 +63,23 @@ def disable_optional_skill_policies(monkeypatch):
     monkeypatch.setenv("MCP_TOOL_TIMEOUT_SECONDS", "120")
 
 
+def configure_demo_sqlite_connection(monkeypatch):
+    monkeypatch.setenv("DB_CONNECTIONS", "analytics_demo_sqlite")
+    monkeypatch.setenv("DEFAULT_DB_CONNECTION", "analytics_demo_sqlite")
+    monkeypatch.setenv("DB_ANALYTICS_DEMO_SQLITE_TYPE", "sqlite")
+    monkeypatch.setenv(
+        "DB_ANALYTICS_DEMO_SQLITE_SQLITE_DATABASE_PATH",
+        ":memory:",
+    )
+
+
 @pytest.fixture
 def skills_server(monkeypatch):
     """Import mcp_sql_server with Skills enabled and stable test settings."""
     disable_optional_skill_policies(monkeypatch)
     monkeypatch.setenv("ENABLE_SKILLS", "1")
     monkeypatch.setenv("SKILLS_DIR", "skills/")
-    monkeypatch.setenv("DB_TYPE", "sqlite")
-    monkeypatch.setenv("SQLITE_DATABASE_PATH", ":memory:")
+    configure_demo_sqlite_connection(monkeypatch)
     monkeypatch.setenv("SKILLS_ALLOW_MUTATIONS", "0")
     monkeypatch.delenv("SKILLS_LIST_DEFAULT_DETAIL", raising=False)
     monkeypatch.delenv("SKILLS_LIST_AVAILABLE_ONLY_DEFAULT", raising=False)
@@ -123,6 +132,8 @@ def test_list_default_summary_uses_env_default(skills_server):
     assert result["filtered_unavailable_skills"] == 3
     assert result["schema_unready_skills"] == 0
     assert result["hint"]
+    assert "not already known" in result["hint"]
+    assert "detail_level='execution'" in result["hint"]
 
     report = result["skills"][0]
     assert report["name"] == "monthly-sales-report-sqlite"
@@ -138,8 +149,7 @@ def test_default_availability_hides_missing_required_tables(monkeypatch):
     disable_optional_skill_policies(monkeypatch)
     monkeypatch.setenv("ENABLE_SKILLS", "1")
     monkeypatch.setenv("SKILLS_DIR", "skills/")
-    monkeypatch.setenv("DB_TYPE", "sqlite")
-    monkeypatch.setenv("SQLITE_DATABASE_PATH", ":memory:")
+    configure_demo_sqlite_connection(monkeypatch)
     monkeypatch.setenv("SKILLS_ALLOW_MUTATIONS", "0")
     monkeypatch.delenv("SKILLS_LIST_DEFAULT_DETAIL", raising=False)
     monkeypatch.delenv("SKILLS_LIST_AVAILABLE_ONLY_DEFAULT", raising=False)
@@ -262,8 +272,7 @@ def test_env_default_detail_full_applied(monkeypatch):
     disable_optional_skill_policies(monkeypatch)
     monkeypatch.setenv("ENABLE_SKILLS", "1")
     monkeypatch.setenv("SKILLS_DIR", "skills/")
-    monkeypatch.setenv("DB_TYPE", "sqlite")
-    monkeypatch.setenv("SQLITE_DATABASE_PATH", ":memory:")
+    configure_demo_sqlite_connection(monkeypatch)
     monkeypatch.setenv("SKILLS_ALLOW_MUTATIONS", "0")
     monkeypatch.setenv("SKILLS_LIST_DEFAULT_DETAIL", "full")
     monkeypatch.delenv("SKILLS_LIST_AVAILABLE_ONLY_DEFAULT", raising=False)
@@ -318,6 +327,61 @@ def test_get_skill_detail_returns_full_metadata(skills_server):
     assert result["skill"]["profiles"] == ["demo"]
     assert result["schema_check_enabled"] is True
     assert "execute_query_skill" in result["usage_hint"]
+
+
+def test_get_skill_detail_execution_returns_invocation_fields(skills_server):
+    """execution projection omits catalog and readiness diagnostics."""
+    result = run_tool(
+        skills_server.get_skill_detail(
+            skill_name="monthly-sales-report-sqlite",
+            ctx=DummyContext(),
+            detail_level="execution",
+        )
+    )
+
+    assert set(result) == {
+        "success",
+        "skill",
+        "connection_id",
+        "current_database_type",
+        "usage_hint",
+    }
+    assert set(result["skill"]) == {
+        "name",
+        "type",
+        "params",
+        "executable",
+        "requires_confirmation",
+    }
+    assert result["skill"]["params"]["month"]["max"] == 12
+    assert result["skill"]["executable"] is True
+    assert result["skill"]["requires_confirmation"] is False
+
+
+def test_get_skill_detail_execution_includes_disabled_reason(skills_server):
+    """execution projection preserves the actionable rejection reason."""
+    result = run_tool(
+        skills_server.get_skill_detail(
+            skill_name="monthly-sales-report",
+            ctx=DummyContext(),
+            detail_level="execution",
+        )
+    )
+
+    assert result["skill"]["executable"] is False
+    assert "not compatible" in result["skill"]["disabled_reason"]
+
+
+def test_get_skill_detail_rejects_unknown_projection(skills_server):
+    """get_skill_detail accepts only its backward-compatible projections."""
+    with pytest.raises(skills_server.ToolError, match="execution, full"):
+        run_tool(
+            skills_server.get_skill_detail(
+                skill_name="monthly-sales-report-sqlite",
+                ctx=DummyContext(),
+                detail_level="compact",
+            )
+        )
 
 
 def test_get_skill_detail_marks_database_incompatible(skills_server):
@@ -379,8 +443,7 @@ def test_excluded_profiles_hide_demo_skills_by_default(monkeypatch):
     disable_optional_skill_policies(monkeypatch)
     monkeypatch.setenv("ENABLE_SKILLS", "1")
     monkeypatch.setenv("SKILLS_DIR", "skills/")
-    monkeypatch.setenv("DB_TYPE", "sqlite")
-    monkeypatch.setenv("SQLITE_DATABASE_PATH", ":memory:")
+    configure_demo_sqlite_connection(monkeypatch)
     monkeypatch.setenv("SKILLS_ALLOW_MUTATIONS", "0")
     monkeypatch.setenv("SKILLS_EXCLUDE_PROFILES", "demo")
     monkeypatch.delenv("SKILLS_LIST_AVAILABLE_ONLY_DEFAULT", raising=False)
@@ -423,8 +486,7 @@ def test_profile_exclusion_blocks_direct_query_skill(monkeypatch):
     disable_optional_skill_policies(monkeypatch)
     monkeypatch.setenv("ENABLE_SKILLS", "1")
     monkeypatch.setenv("SKILLS_DIR", "skills/")
-    monkeypatch.setenv("DB_TYPE", "sqlite")
-    monkeypatch.setenv("SQLITE_DATABASE_PATH", ":memory:")
+    configure_demo_sqlite_connection(monkeypatch)
     monkeypatch.setenv("SKILLS_ALLOW_MUTATIONS", "0")
     monkeypatch.setenv("SKILLS_EXCLUDE_PROFILES", "demo")
 
@@ -458,8 +520,7 @@ def test_query_skill_audit_is_opt_in(monkeypatch, tmp_path):
     audit_log = tmp_path / "query_audit.jsonl"
     monkeypatch.setenv("ENABLE_SKILLS", "1")
     monkeypatch.setenv("SKILLS_DIR", "skills/")
-    monkeypatch.setenv("DB_TYPE", "sqlite")
-    monkeypatch.setenv("SQLITE_DATABASE_PATH", ":memory:")
+    configure_demo_sqlite_connection(monkeypatch)
     monkeypatch.setenv("SKILLS_ALLOW_MUTATIONS", "0")
     monkeypatch.setenv("SKILLS_AUDIT_QUERIES", "1")
     monkeypatch.setenv("SKILLS_AUDIT_LOG", str(audit_log))
@@ -525,8 +586,7 @@ def test_env_available_only_default_can_show_full_catalog(monkeypatch):
     disable_optional_skill_policies(monkeypatch)
     monkeypatch.setenv("ENABLE_SKILLS", "1")
     monkeypatch.setenv("SKILLS_DIR", "skills/")
-    monkeypatch.setenv("DB_TYPE", "sqlite")
-    monkeypatch.setenv("SQLITE_DATABASE_PATH", ":memory:")
+    configure_demo_sqlite_connection(monkeypatch)
     monkeypatch.setenv("SKILLS_ALLOW_MUTATIONS", "0")
     monkeypatch.setenv("SKILLS_LIST_AVAILABLE_ONLY_DEFAULT", "0")
     monkeypatch.delenv("SKILLS_CHECK_SCHEMA_ON_LIST", raising=False)
@@ -587,8 +647,7 @@ def test_fastmcp_tool_schema_exposes_skill_parameters(monkeypatch):
     disable_optional_skill_policies(monkeypatch)
     monkeypatch.setenv("ENABLE_SKILLS", "1")
     monkeypatch.setenv("SKILLS_DIR", "skills/")
-    monkeypatch.setenv("DB_TYPE", "sqlite")
-    monkeypatch.setenv("SQLITE_DATABASE_PATH", ":memory:")
+    configure_demo_sqlite_connection(monkeypatch)
     monkeypatch.setenv("SKILLS_ALLOW_MUTATIONS", "1")
     monkeypatch.delenv("SKILLS_LIST_AVAILABLE_ONLY_DEFAULT", raising=False)
     monkeypatch.delenv("SKILLS_CHECK_SCHEMA_ON_LIST", raising=False)
@@ -626,10 +685,25 @@ def test_fastmcp_tool_schema_exposes_skill_parameters(monkeypatch):
     raw_query_schema = schemas["query"]
     assert raw_query_schema["properties"]["sql"]["minLength"] == 1
     assert raw_query_schema["properties"]["sql"]["maxLength"] == module.MAX_SQL_LENGTH
-
+    connection_description = raw_query_schema["properties"]["connection_id"]["description"]
+    assert "exact aliases unchanged" in connection_description
+    assert "never means all connections" in connection_description
+    assert "discover aliases" in connection_description
+    assert "match a database type" in connection_description
+    assert "ambiguous" not in connection_description
     query_schema = schemas["execute_query_skill"]
     assert "params" in query_schema["properties"]
     assert "params" in query_schema["required"]
+
+    detail_schema = schemas["get_skill_detail"]
+    assert "detail_level" in detail_schema["properties"]
+    detail_level_schema = detail_schema["properties"]["detail_level"]
+    assert "execution (recommended)" in detail_level_schema["description"]
+    assert {"execution", "full"} in [
+        set(branch["enum"])
+        for branch in detail_level_schema["anyOf"]
+        if "enum" in branch
+    ]
 
     mutation_schema = schemas["execute_mutation_skill"]
     assert "params" in mutation_schema["properties"]

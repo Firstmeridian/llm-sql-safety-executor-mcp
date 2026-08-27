@@ -87,20 +87,20 @@ def _reload_server(
     skills_dir: str = "skills/",
     with_mysql_target: bool = False,
     schema_check_on_list: bool | None = None,
+    default_allowed_tables: str = "items",
+    analytics_allowed_tables: str = "items,orders",
 ):
-    connection_ids = (
-        "default,analytics,mysql_target"
-        if with_mysql_target
-        else "default,analytics"
-    )
-    monkeypatch.setenv("DB_CONNECTIONS", connection_ids)
+    connection_ids = ["default", "analytics"]
+    if with_mysql_target:
+        connection_ids.append("mysql_target")
+    monkeypatch.setenv("DB_CONNECTIONS", ",".join(connection_ids))
     monkeypatch.setenv("DEFAULT_DB_CONNECTION", "default")
     monkeypatch.setenv("DB_DEFAULT_TYPE", "sqlite")
     monkeypatch.setenv("DB_DEFAULT_SQLITE_DATABASE_PATH", str(default_db))
     monkeypatch.setenv("DB_ANALYTICS_TYPE", "sqlite")
     monkeypatch.setenv("DB_ANALYTICS_SQLITE_DATABASE_PATH", str(analytics_db))
-    monkeypatch.setenv("DB_DEFAULT_ALLOWED_TABLES", "items")
-    monkeypatch.setenv("DB_ANALYTICS_ALLOWED_TABLES", "items,orders")
+    monkeypatch.setenv("DB_DEFAULT_ALLOWED_TABLES", default_allowed_tables)
+    monkeypatch.setenv("DB_ANALYTICS_ALLOWED_TABLES", analytics_allowed_tables)
     if with_mysql_target:
         monkeypatch.setenv("DB_MYSQL_TARGET_TYPE", "mysql")
         monkeypatch.setenv("DB_MYSQL_TARGET_USER", "fixture")
@@ -198,6 +198,184 @@ def test_core_tools_resolve_policy_and_execution_to_same_connection(tmp_path, mo
         _cleanup_modules()
 
 
+@pytest.mark.parametrize(
+    ("default_allow_union", "analytics_allow_union"),
+    [(False, True), (True, False)],
+)
+def test_union_policy_and_disclosure_follow_selected_connection(
+    tmp_path,
+    monkeypatch,
+    default_allow_union,
+    analytics_allow_union,
+):
+    """A generic prompt must not copy the default alias's UNION policy."""
+    default_db = tmp_path / "default.db"
+    analytics_db = tmp_path / "analytics.db"
+    _create_rows_db(default_db, "items", "default-row")
+    _create_rows_db(analytics_db, "items", "analytics-row")
+    monkeypatch.setenv(
+        "DB_DEFAULT_ALLOW_UNION",
+        "1" if default_allow_union else "0",
+    )
+    monkeypatch.setenv(
+        "DB_ANALYTICS_ALLOW_UNION",
+        "1" if analytics_allow_union else "0",
+    )
+
+    module = _reload_server(monkeypatch, default_db, analytics_db)
+    union_sql = "SELECT label FROM items UNION SELECT label FROM items"
+    try:
+        connections, _meta = run_tool(
+            module.list_connections(ctx=DummyContext())
+        )
+        policy_by_id = {
+            item["connection_id"]: item["policy"]
+            for item in connections["connections"]
+        }
+        assert policy_by_id["default"]["allow_union"] is default_allow_union
+        assert policy_by_id["analytics"]["allow_union"] is analytics_allow_union
+
+        for connection_id, is_allowed in (
+            ("default", default_allow_union),
+            ("analytics", analytics_allow_union),
+        ):
+            if is_allowed:
+                payload, meta = run_tool(
+                    module.query(
+                        sql=union_sql,
+                        ctx=DummyContext(),
+                        connection_id=connection_id,
+                    )
+                )
+                assert payload["success"] is True
+                assert payload["data"] == [{"label": f"{connection_id}-row"}]
+                assert payload["connection_id"] == connection_id
+                assert meta["connection_id"] == connection_id
+            else:
+                payload, meta = run_tool(
+                    module.query(
+                        sql=union_sql,
+                        ctx=DummyContext(),
+                        connection_id=connection_id,
+                    )
+                )
+                assert payload["success"] is False
+                assert "UNION queries disabled" in payload["error"]
+                assert payload["connection_id"] == connection_id
+                assert meta["connection_id"] == connection_id
+
+        prompt = module.sql_assistant()
+        assert "UNION policy is connection-specific" in prompt
+        assert "selected alias in list_connections()" in prompt
+        assert "UNION supported for combining results" not in prompt
+        assert "UNION allowed for:" not in prompt
+        assert "Query tables separately" not in prompt
+    finally:
+        _cleanup_modules()
+
+
+@pytest.mark.parametrize(
+    ("default_allow_union", "analytics_allow_union"),
+    [(False, True), (True, False)],
+)
+def test_query_skill_union_policy_follows_selected_connection(
+    tmp_path,
+    monkeypatch,
+    default_allow_union,
+    analytics_allow_union,
+):
+    default_db = tmp_path / "default.db"
+    analytics_db = tmp_path / "analytics.db"
+    _create_rows_db(default_db, "items", "default-row")
+    _create_rows_db(analytics_db, "items", "analytics-row")
+    monkeypatch.setenv(
+        "DB_DEFAULT_ALLOW_UNION",
+        "1" if default_allow_union else "0",
+    )
+    monkeypatch.setenv(
+        "DB_ANALYTICS_ALLOW_UNION",
+        "1" if analytics_allow_union else "0",
+    )
+
+    module = _reload_server(monkeypatch, default_db, analytics_db, skills=True)
+    union_sql = "SELECT label FROM items UNION SELECT label FROM items"
+    skill_name = "monthly-sales-report-sqlite"
+    try:
+        module.get_skills_cache()[skill_name].tables = ["items"]
+        monkeypatch.setattr(
+            module,
+            "load_query",
+            lambda _skill_name: (union_sql, {}),
+        )
+
+        for connection_id, is_allowed in (
+            ("default", default_allow_union),
+            ("analytics", analytics_allow_union),
+        ):
+            if is_allowed:
+                payload, meta = run_tool(
+                    module.execute_query_skill(
+                        skill_name=skill_name,
+                        params={},
+                        ctx=DummyContext(),
+                        connection_id=connection_id,
+                    )
+                )
+                assert payload["success"] is True
+                assert payload["data"] == [{"label": f"{connection_id}-row"}]
+                assert payload["connection_id"] == connection_id
+                assert meta["connection_id"] == connection_id
+            else:
+                with pytest.raises(
+                    module.ToolError,
+                    match="UNION queries disabled",
+                ):
+                    run_tool(
+                        module.execute_query_skill(
+                            skill_name=skill_name,
+                            params={},
+                            ctx=DummyContext(),
+                            connection_id=connection_id,
+                        )
+                    )
+    finally:
+        _cleanup_modules()
+
+
+def test_union_missing_allowlist_error_is_target_connection_specific(
+    tmp_path,
+    monkeypatch,
+):
+    default_db = tmp_path / "default.db"
+    analytics_db = tmp_path / "analytics.db"
+    _create_rows_db(default_db, "items", "default-row")
+    _create_rows_db(analytics_db, "items", "analytics-row")
+    monkeypatch.setenv("DB_DEFAULT_ALLOW_UNION", "0")
+    monkeypatch.setenv("DB_ANALYTICS_ALLOW_UNION", "1")
+
+    module = _reload_server(
+        monkeypatch,
+        default_db,
+        analytics_db,
+        analytics_allowed_tables="",
+    )
+    try:
+        payload, meta = run_tool(
+            module.query(
+                sql="SELECT label FROM items UNION SELECT label FROM items",
+                ctx=DummyContext(),
+                connection_id="analytics",
+            )
+        )
+        assert payload["success"] is False
+        assert "selected connection" in payload["error"]
+        assert "Configure that connection's ALLOWED_TABLES policy" in payload["error"]
+        assert payload["connection_id"] == "analytics"
+        assert meta["connection_id"] == "analytics"
+    finally:
+        _cleanup_modules()
+
+
 def test_unknown_connection_id_does_not_fall_back(tmp_path, monkeypatch):
     default_db = tmp_path / "default.db"
     analytics_db = tmp_path / "analytics.db"
@@ -267,13 +445,27 @@ def test_query_skills_are_displayed_and_executed_for_target_connection(tmp_path,
     _create_rows_db(default_db, "items", "default-row")
     _create_orders_db(analytics_db)
 
-    module = _reload_server(monkeypatch, default_db, analytics_db, skills=True)
+    module = _reload_server(
+        monkeypatch,
+        default_db,
+        analytics_db,
+        skills=True,
+    )
     try:
+        assert (
+            module.get_skills_cache()[
+                "monthly-sales-report-sqlite"
+            ].connection_ids
+            is None
+        )
         default_skills, _ = run_tool(
             module.list_skills(ctx=DummyContext(), connection_id="default")
         )
         analytics_skills, _ = run_tool(
-            module.list_skills(ctx=DummyContext(), connection_id="analytics")
+            module.list_skills(
+                ctx=DummyContext(),
+                connection_id="analytics",
+            )
         )
 
         assert default_skills["connection_id"] == "default"
@@ -297,7 +489,7 @@ def test_query_skills_are_displayed_and_executed_for_target_connection(tmp_path,
         assert result["data"][0]["date"] == "2026-01-15"
         assert meta["connection_id"] == "analytics"
 
-        with pytest.raises(module.ToolError, match="requires table"):
+        with pytest.raises(module.ToolError, match="requires table.*not found"):
             run_tool(
                 module.execute_query_skill(
                     skill_name="monthly-sales-report-sqlite",

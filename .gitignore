@@ -110,3 +110,9 @@ DRAFTPLAN*.md
 
 # SQLite test db
 local_data/live-test.db
+
+# .codex directory
+.codex/
+
+# Local VS Code custom agents
+.github/agents/

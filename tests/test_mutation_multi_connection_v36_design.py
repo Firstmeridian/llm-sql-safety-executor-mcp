@@ -4,11 +4,9 @@ from __future__ import annotations
 
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
-import hashlib
 import importlib
 import json
 import logging
-import secrets
 import sqlite3
 import sys
 import threading
@@ -102,7 +100,6 @@ def _reload_server(
     allow_analytics_mutations: bool = True,
     mutation_connections: str = "mysql,analytics",
     analytics_mutation_skills: str = "update-order-status",
-    preview_token_secret: str | None = "test-preview-token-secret-0123456789",
     preview_token_ttl_seconds: int = 300,
     preview_token_store_max_entries: int = 10000,
     check_schema_on_list: bool | None = None,
@@ -127,13 +124,6 @@ def _reload_server(
     )
     monkeypatch.setenv("MAX_SQL_LENGTH", "20000")
     monkeypatch.setenv("MCP_TOOL_TIMEOUT_SECONDS", "120")
-    if preview_token_secret is None:
-        monkeypatch.delenv("MUTATION_PREVIEW_TOKEN_SECRET", raising=False)
-    else:
-        monkeypatch.setenv(
-            "MUTATION_PREVIEW_TOKEN_SECRET",
-            preview_token_secret,
-        )
     monkeypatch.setenv(
         "MUTATION_PREVIEW_TOKEN_TTL_SECONDS",
         str(preview_token_ttl_seconds),
@@ -306,6 +296,25 @@ def test_server_instructions_describe_optional_mutations(tmp_path, monkeypatch):
         assert "read-only core SQL tools" in module.mcp.instructions
         assert "controlled mutations" in module.mcp.instructions
         assert "one-time token" in module.mcp.instructions
+        assert "pass it unchanged" in module.mcp.instructions
+        assert "only a database type" in module.mcp.instructions
+        assert "exactly one has that db_type" in module.mcp.instructions
+        assert "only a purpose or role" in module.mcp.instructions
+        assert "do not infer a connection from alias names" in module.mcp.instructions
+        assert "asks which aliases are available" in module.mcp.instructions
+        assert "ask them to choose an exact alias" in module.mcp.instructions
+        assert "it never means all connections" in module.mcp.instructions
+        assert "Never broadcast mutations" in module.mcp.instructions
+        prompt = module.sql_assistant()
+        assert module._CONNECTION_ROUTING_GUIDANCE in prompt
+        assert 'list_skills(..., detail_level="compact")' in prompt
+        assert 'get_skill_detail(..., detail_level="execution") directly' in prompt
+        assert 'list_skills(detail_level="full")? Execute directly' in prompt
+        assert "preview first with confirm=false" in prompt
+        assert "UNION policy is connection-specific" in prompt
+        assert "selected alias in list_connections()" in prompt
+        assert "For raw query() calls, include the executed SQL" in prompt
+        assert "do not invent SQL that was not disclosed" in " ".join(prompt.split())
     finally:
         _cleanup_modules()
 
@@ -379,73 +388,31 @@ def test_preview_token_store_capacity_accepts_maximum(tmp_path, monkeypatch):
         _cleanup_modules()
 
 
-@pytest.mark.parametrize(
-    ("configured_secret", "required_fragments", "forbidden_fragments"),
-    [
-        (
-            None,
-            ("generated ephemeral", "is unset"),
-            ("explicitly empty", "shorter than 32"),
-        ),
-        (
-            "",
-            ("explicitly empty", "generated ephemeral"),
-            ("is unset", "shorter than 32"),
-        ),
-        (
-            "short-secret",
-            ("signing secret: configured", "shorter than 32 UTF-8 bytes"),
-            ("generated ephemeral",),
-        ),
-        (
-            "密" * 11,
-            ("signing secret: configured",),
-            ("generated ephemeral", "shorter than 32"),
-        ),
-    ],
-)
-def test_mutation_secret_startup_visibility_never_logs_secret_material(
+def test_mutation_handle_startup_visibility_ignores_legacy_secret(
     tmp_path,
     monkeypatch,
     caplog,
-    configured_secret,
-    required_fragments,
-    forbidden_fragments,
 ):
     mysql_db = tmp_path / "mysql.db"
     analytics_db = tmp_path / "analytics.db"
     _create_orders_db(mysql_db, "mysql")
     _create_orders_db(analytics_db, "analytics")
+    legacy_secret = "obsolete-preview-token-secret"
+    monkeypatch.setenv("MUTATION_PREVIEW_TOKEN_SECRET", legacy_secret)
 
     with caplog.at_level(logging.INFO, logger="mcp_sql_server"):
-        _reload_server(
-            monkeypatch,
-            mysql_db,
-            analytics_db,
-            preview_token_secret=configured_secret,
-        )
+        _reload_server(monkeypatch, mysql_db, analytics_db)
     try:
         all_messages = "\n".join(
             record.getMessage() for record in caplog.records
         )
-        messages = "\n".join(
-            record.getMessage()
-            for record in caplog.records
-            if (
-                "MUTATION_PREVIEW_TOKEN_SECRET" in record.getMessage()
-                or "preview-token signing secret" in record.getMessage()
-            )
-        )
-        for fragment in required_fragments:
-            assert fragment in messages
-        for fragment in forbidden_fragments:
-            assert fragment not in messages
-        if configured_secret:
-            assert configured_secret not in all_messages
-            secret_hash = hashlib.sha256(
-                configured_secret.encode("utf-8")
-            ).hexdigest()
-            assert secret_hash not in all_messages
+        assert (
+            "Mutation preview tokens: 256-bit opaque handles with "
+            "process-local one-time state"
+        ) in all_messages
+        assert "MUTATION_PREVIEW_TOKEN_SECRET is obsolete and ignored" in all_messages
+        assert legacy_secret not in all_messages
+        assert "signing secret" not in all_messages
     finally:
         _cleanup_modules()
 
@@ -1385,9 +1352,10 @@ def test_dynamic_validation_toolerror_is_audited_once_after_consumption(
             module.ToolError,
             match=(
                 "simulated dynamic validation failure.*"
+                "No database write was attempted.*"
                 "preview_token has been consumed"
             ),
-        ):
+        ) as exc_info:
             run_tool(
                 module.execute_mutation_skill(
                     skill_name="update-order-status",
@@ -1397,6 +1365,7 @@ def test_dynamic_validation_toolerror_is_audited_once_after_consumption(
                     preview_token=preview["preview_token"],
                 )
             )
+        assert "write outcome may be unknown" not in str(exc_info.value)
 
         assert len(audit_calls) == 1
         assert audit_calls[0]["mode"] == "execute"
@@ -1489,7 +1458,10 @@ def test_database_write_failure_still_consumes_token(tmp_path, monkeypatch):
         monkeypatch.setattr(adapter, "execute_write", fail_write)
         with pytest.raises(
             module.ToolError,
-            match="preview_token has been consumed; run preview again",
+            match=(
+                "preview_token has been consumed.*write outcome may be "
+                "unknown.*verify the current database state"
+            ),
         ):
             run_tool(
                 module.execute_mutation_skill(
@@ -1639,7 +1611,10 @@ def test_execute_rejects_token_at_expiry_boundary(tmp_path, monkeypatch):
         _cleanup_modules()
 
 
-def test_execute_rejects_tampered_token_without_echoing_it(tmp_path, monkeypatch):
+def test_execute_rejects_altered_or_unknown_handle_without_echoing_it(
+    tmp_path,
+    monkeypatch,
+):
     mysql_db = tmp_path / "mysql.db"
     analytics_db = tmp_path / "analytics.db"
     _create_orders_db(mysql_db, "mysql")
@@ -1657,7 +1632,7 @@ def test_execute_rejects_tampered_token_without_echoing_it(tmp_path, monkeypatch
         )
         original_token = preview["preview_token"]
         replacement = "A" if original_token[-1] != "A" else "B"
-        tampered_token = original_token[:-1] + replacement
+        altered_handle = original_token[:-1] + replacement
 
         with pytest.raises(
             module.ToolError,
@@ -1669,13 +1644,13 @@ def test_execute_rejects_tampered_token_without_echoing_it(tmp_path, monkeypatch
                     params=_params(),
                     ctx=DummyContext(),
                     confirm=True,
-                    preview_token=tampered_token,
+                    preview_token=altered_handle,
                 )
             )
 
         error_message = str(exc_info.value)
         assert original_token not in error_message
-        assert tampered_token not in error_message
+        assert altered_handle not in error_message
         assert _order_status(mysql_db, 1) == "pending"
 
         payload, _ = run_tool(
@@ -1729,7 +1704,7 @@ def test_execute_rejects_token_after_skill_version_changes(tmp_path, monkeypatch
         _cleanup_modules()
 
 
-def test_memory_store_restart_invalidates_token_even_with_same_secret(
+def test_memory_store_restart_invalidates_token(
     tmp_path,
     monkeypatch,
 ):
@@ -1738,12 +1713,7 @@ def test_memory_store_restart_invalidates_token_even_with_same_secret(
     _create_orders_db(mysql_db, "mysql")
     _create_orders_db(analytics_db, "analytics")
 
-    module = _reload_server(
-        monkeypatch,
-        mysql_db,
-        analytics_db,
-        preview_token_secret="stable-test-secret",
-    )
+    module = _reload_server(monkeypatch, mysql_db, analytics_db)
     try:
         preview, _ = run_tool(
             module.execute_mutation_skill(
@@ -1756,149 +1726,9 @@ def test_memory_store_restart_invalidates_token_even_with_same_secret(
     finally:
         _cleanup_modules()
 
-    module = _reload_server(
-        monkeypatch,
-        mysql_db,
-        analytics_db,
-        preview_token_secret="stable-test-secret",
-    )
+    module = _reload_server(monkeypatch, mysql_db, analytics_db)
     try:
         with pytest.raises(module.ToolError, match="not issued by this server process"):
-            run_tool(
-                module.execute_mutation_skill(
-                    skill_name="update-order-status",
-                    params=_params(),
-                    ctx=DummyContext(),
-                    confirm=True,
-                    preview_token=preview["preview_token"],
-                )
-            )
-        assert _order_status(mysql_db, 1) == "pending"
-    finally:
-        _cleanup_modules()
-
-
-def test_token_is_invalid_after_signing_secret_changes(tmp_path, monkeypatch):
-    mysql_db = tmp_path / "mysql.db"
-    analytics_db = tmp_path / "analytics.db"
-    _create_orders_db(mysql_db, "mysql")
-    _create_orders_db(analytics_db, "analytics")
-
-    module = _reload_server(
-        monkeypatch,
-        mysql_db,
-        analytics_db,
-        preview_token_secret="first-test-secret",
-    )
-    try:
-        preview, _ = run_tool(
-            module.execute_mutation_skill(
-                skill_name="update-order-status",
-                params=_params(),
-                ctx=DummyContext(),
-                confirm=False,
-            )
-        )
-    finally:
-        _cleanup_modules()
-
-    module = _reload_server(
-        monkeypatch,
-        mysql_db,
-        analytics_db,
-        preview_token_secret="second-test-secret",
-    )
-    try:
-        with pytest.raises(module.ToolError, match="Invalid preview_token"):
-            run_tool(
-                module.execute_mutation_skill(
-                    skill_name="update-order-status",
-                    params=_params(),
-                    ctx=DummyContext(),
-                    confirm=True,
-                    preview_token=preview["preview_token"],
-                )
-            )
-        assert _order_status(mysql_db, 1) == "pending"
-    finally:
-        _cleanup_modules()
-
-
-def test_generated_process_secret_invalidates_token_after_reload(
-    tmp_path,
-    monkeypatch,
-):
-    mysql_db = tmp_path / "mysql.db"
-    analytics_db = tmp_path / "analytics.db"
-    _create_orders_db(mysql_db, "mysql")
-    _create_orders_db(analytics_db, "analytics")
-
-    original_token_urlsafe = secrets.token_urlsafe
-    monkeypatch.setattr(
-        secrets,
-        "token_urlsafe",
-        lambda size: (
-            "process-one-secret-key"
-            if size == 32
-            else original_token_urlsafe(size)
-        ),
-    )
-    module = _reload_server(
-        monkeypatch,
-        mysql_db,
-        analytics_db,
-        preview_token_secret=None,
-    )
-    try:
-        preview, _ = run_tool(
-            module.execute_mutation_skill(
-                skill_name="update-order-status",
-                params=_params(),
-                ctx=DummyContext(),
-                confirm=False,
-            )
-        )
-    finally:
-        _cleanup_modules()
-
-    monkeypatch.setattr(
-        secrets,
-        "token_urlsafe",
-        lambda size: (
-            "process-two-secret-key"
-            if size == 32
-            else original_token_urlsafe(size)
-        ),
-    )
-    module = _reload_server(
-        monkeypatch,
-        mysql_db,
-        analytics_db,
-        preview_token_secret=None,
-    )
-    try:
-        with pytest.raises(module.ToolError, match="Invalid preview_token"):
-            run_tool(
-                module.execute_mutation_skill(
-                    skill_name="update-order-status",
-                    params=_params(),
-                    ctx=DummyContext(),
-                    confirm=True,
-                    preview_token=preview["preview_token"],
-                )
-            )
-        assert _order_status(mysql_db, 1) == "pending"
-    finally:
-        _cleanup_modules()
-
-    module = _reload_server(
-        monkeypatch,
-        mysql_db,
-        analytics_db,
-        preview_token_secret="second-test-secret",
-    )
-    try:
-        with pytest.raises(module.ToolError, match="Invalid preview_token"):
             run_tool(
                 module.execute_mutation_skill(
                     skill_name="update-order-status",
@@ -1931,17 +1761,15 @@ def test_full_token_is_excluded_from_meta_and_audit(tmp_path, monkeypatch):
             )
         )
         preview_token = preview["preview_token"]
-        encoded_payload = preview_token.split(".", 1)[0]
-        token_payload = json.loads(
-            module._b64url_decode(encoded_payload).decode("utf-8")
-        )
 
+        assert len(preview_token) == 43
+        assert "." not in preview_token
+        assert "preview_token_expires_in_seconds" not in preview
+        assert "hint" not in preview
+        assert "requires_confirmation" not in preview["preview"]
         assert preview_token not in str(preview_meta)
         assert preview_meta["preview_token_id"] != preview_token
         assert len(preview_meta["preview_token_id"]) == 16
-        assert token_payload["execution_binding_hash"]
-        assert token_payload["jti"]
-        assert "expected_status" not in token_payload
 
         _, execute_meta = run_tool(
             module.execute_mutation_skill(

@@ -6,6 +6,12 @@
 
 This file contains the v3.6 baseline and subsequent v3.6.x maintenance updates.
 
+> **v3.7.1 migration note:** This release record preserves the original v3.6
+> HMAC-envelope behavior. Since v3.7.1, the implementation keeps the
+> `preview_token` field but returns a 256-bit opaque handle; all request and
+> execution binding state lives in the process-local Store. The signing-secret
+> setting and `preview_token_expires_in_seconds` response field are obsolete.
+
 ## v3.6 Release Family Summary
 
 The v3.6 baseline adds mandatory preview-token binding and opt-in mutation

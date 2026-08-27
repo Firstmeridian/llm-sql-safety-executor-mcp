@@ -1,6 +1,6 @@
 # 面向 AI Agent 的数据库安全访问入口 - MCP 服务
 
-![Version](https://img.shields.io/badge/version-3.7.0-blue)
+![Version](https://img.shields.io/badge/version-3.7.1-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Python](https://img.shields.io/badge/python-3.12+-blue?logo=python)
 ![MCP](https://img.shields.io/badge/MCP-Protocol-orange)
@@ -92,7 +92,8 @@ SQL 方言的全面语义分析。
 - 采用 Model-driven 模式，优先提供决策规则而非固定流程
 - 工具返回 `is_large`/`row_count` 等上下文，供 LLM 自主决策
 - MCP `ToolAnnotations` 包含只读/破坏性/幂等提示，并统一设置 `openWorldHint=false`，表示工具工作在当前配置的数据库边界内，而不是任意外部系统
-- Skills 执行工具保持原有结构化 payload 不变，同时通过 `ToolResult.meta` 附加运行时元数据（如耗时、行数、截断状态、Skill 版本），用于调试和可观测性
+- Skills 执行工具返回结构化业务 payload，并通过 `ToolResult.meta` 附加运行时
+  元数据（如耗时、行数、截断状态、Skill 版本），用于调试和可观测性
 - 支持基于配置的策略/提示注入（如 ALLOW_UNION、ALLOWED_TABLES、截断阈值），用更短、更相关的指导减少无效工具调用
 - 错误反馈面向 LLM 优化：明确失败原因（安全拦截/表未允许/语法/超时/截断等）并给出修正建议，减少反复试错与无效调用，同时避免泄露敏感信息（凭据、系统表细节等）
 - 适配 ReAct 模式：推理 → 行动 → 观察 → 再思考
@@ -101,15 +102,18 @@ SQL 方言的全面语义分析。
 - 预定义参数化操作：将复杂查询和敏感写入封装为可复用的 skill，Agent 只需传参数，无需自行编写 SQL
 - 服务端强制约束：启动时 SQL 安全校验 + 参数强类型验证（type/min/max/enum）+ 写操作 best-effort 审计状态
 - 两阶段写协议：mutation skill 需经 preview（`confirm=false`）→ 携带返回的 `preview_token` execute（`confirm=true`），用于绑定已预览的请求/状态并拒绝 replay 或 preview/execute 漂移。只有可信客户端真正展示 preview 并收集批准时才构成人工批准；参见 v3.7 host 示例。
-- 渐进式发现：Agent 通过 `list_skills()` 获取可搜索目录，通过 `get_skill_detail()` 按需获取单个 Skill 的参数 schema，再选择调用
+- 渐进式发现：Agent 可先用 `list_skills()` 搜索轻量目录；仅在已知 Skill 但
+  参数仍未知时调用 `get_skill_detail(detail_level="execution")`；参数已知（包括
+  `list_skills(..., detail_level="full")` 已返回）时直接执行。
 
 **5. 典型工作流**：
 ```
 结构未知：list_tables() → describe_table(target) → query(sql)
 结构已知：query(sql) 直接执行
 大表场景：观察 is_large=true → 使用 LIMIT 或聚合
-Skills 场景：list_skills(search/category/detail_level/available_only) → get_skill_detail(name)
-             → execute_query_skill(name, params)
+Skills 场景：未知 Skill → list_skills(compact, search=...) → 必要时 get_skill_detail(execution)
+             已知 Skill、未知参数 → get_skill_detail(execution)
+             参数已知 → execute_query_skill(name, params)
              或 execute_mutation_skill(name, params, confirm=false) → preview_token → confirm=true
 ```
 
@@ -627,6 +631,10 @@ SQLITE_DATABASE_PATH=./sample_data/demo.db
 `analytics_demo_sqlite`、`orders_primary`。裸 `mysql`/`sqlite` 虽合法，
 但容易和 DB 类型混淆。示例中不使用 `default`，因为实际默认目标已由
 `DEFAULT_DB_CONNECTION` 表示。
+连接 id 是不透明的路由 alias：不要根据 alias 名称或后缀推断 `db_type`。
+应使用配置的 `DB_<ID>_TYPE`，或 `list_connections()` 返回的结构化
+`db_type` 字段；也不要从 alias 推断业务用途或角色。用户只提供用途时，
+应要求其给出 exact alias。
 
 ```bash
 # 两个配置化连接。id 必须匹配 ^[a-z][a-z0-9_]{0,63}$。
@@ -654,6 +662,9 @@ v3.5 的连接约定与妥协：
 - 服务器会先解析目标连接，再做 SQL policy、schema readiness、执行、结果元数据、审计和遥测。未知 `connection_id` 会 fail closed，不会回退到默认连接。
 - 工具和 Skills 不接受模型传入的任意 DSN；数据库 URL 与凭据只能来自环境配置。
 - per-connection policy 当前覆盖 `ALLOW_UNION`、`ALLOWED_TABLES`、查询超时、连接超时和 SQLite progress interval。结果大小限制（`MAX_RESULT_ROWS`、`MAX_RESULT_CHARS`、schema 概览上限）仍是进程级配置。
+- `sql_assistant` 没有目标参数，因此 UNION 提示有意保持 connection-neutral；应通过
+  `list_connections()` 查看所选 alias 的 policy，raw query 与 Query Skill 会在
+  runtime 对该目标做权威校验。
 - 读写 allowlist 的空值语义有意不同：`DB_<ID>_ALLOWED_TABLES` 为空时，为兼容旧行为，允许读取所有可见表；`DB_<ID>_MUTATION_SKILLS` 为空时拒绝所有写入。生产环境应显式配置读表 allowlist。
 - 查询 Skills 是 connection-scoped：`list_skills(connection_id=...)`、`get_skill_detail(connection_id=...)`、`execute_query_skill(..., connection_id=...)` 会用同一个目标连接做 DB 兼容性、表 readiness、allowlist、执行、`ToolResult.meta`、可选查询审计和遥测。
 - v3.7 的 `skill_def.md` 可选声明 `connection_ids: [...]`，把单个 Skill
@@ -707,7 +718,6 @@ SKILLS_ALLOW_MUTATIONS=0 # 允许写操作技能（需要 ENABLE_SKILLS=1）
 # SKILLS_ALLOW_MUTATION_CONNECTIONS=trade_analysis_mysql,analytics_demo_sqlite # 启用严格命名写策略
 MUTATION_PREVIEW_TOKEN_TTL_SECONDS=300 # Preview token 有效期（1-86400 秒）
 MUTATION_PREVIEW_TOKEN_STORE_MAX_ENTRIES=10000 # 未过期 token 容量
-# MUTATION_PREVIEW_TOKEN_SECRET=replace_with_at_least_32_random_bytes
 SKILLS_LIST_DEFAULT_DETAIL=summary # list_skills 默认元数据粒度：compact、summary 或 full
 SKILLS_LIST_AVAILABLE_ONLY_DEFAULT=1 # list_skills 默认仅展示当前可执行 Skill
 SKILLS_CHECK_SCHEMA_ON_LIST=1 # list_skills 默认隐藏缺少所需表的 Skill
@@ -731,7 +741,6 @@ Skills 层允许你将常用的 SQL 查询和数据变更操作封装为可复�
 | `DB_<ID>_MUTATION_SKILLS` | 空 | 严格模式下的 mutation Skill allowlist。空值 deny-all；`*` 表示显式允许所有仍通过其他检查的 mutation Skills |
 | `MUTATION_PREVIEW_TOKEN_TTL_SECONDS` | `300` | Mutation preview token 有效期（秒）；有效范围 `1-86400`，无效值回退到 `300` |
 | `MUTATION_PREVIEW_TOKEN_STORE_MAX_ENTRIES` | `10000` | 每进程未过期 preview token 上限（有效范围 `1-100000`）。容量满时 fail closed，不驱逐有效 token |
-| `MUTATION_PREVIEW_TOKEN_SECRET` | 每进程生成 | 可选私密 HMAC 签名 key，建议至少 32 个随机字节。启用 mutation 时，启动日志只说明 generated/configured 模式，并对空值或过短配置告警，不记录 secret；即使固定此值，memory store 仍会在重启时使未消费 token 失效 |
 | `SKILLS_LIST_DEFAULT_DETAIL` | `summary` | `list_skills` 默认元数据粒度：`compact`、`summary` 或 `full`。单次调用的 `detail_level` 会覆盖该值 |
 | `SKILLS_LIST_AVAILABLE_ONLY_DEFAULT` | `1` | `list_skills` 默认可用性过滤。设为 `1` 时，Agent 发现面会隐藏目标 `connection_id` 下因 DB 类型、mutation 开关/写策略、未设置 `SKILLS_ALLOW_MUTATION_CONNECTIONS` 时的仅默认连接兼容模式、查询连接 allowlist 或 schema readiness 不可执行的 Skill；开发者可传 `available_only=false` 查看完整目录 |
 | `SKILLS_CHECK_SCHEMA_ON_LIST` | `1` | 在 Skills 可用性元数据中加入实时表存在性检查。开启后，缺少所需表的 Skill 会显示 `schema_ready=false`，并被 `available_only=true` 隐藏 |
@@ -741,19 +750,22 @@ Skills 层允许你将常用的 SQL 查询和数据变更操作封装为可复�
 | `SKILLS_AUDIT_QUERIES` | `0` | 可选查询 Skill 审计。记录 Skill 名、参数、行数、状态、错误、`connection_id` 和实际 `db_type`，不记录返回数据或连接串 |
 | `AGENT_ID` | `unknown` | 审计日志中标识调用者的 Agent ID |
 
-**Preview-token 部署边界（v3.6.1 定稿，v3.7 保持不变）**：
+迁移说明：`MUTATION_PREVIEW_TOKEN_SECRET` 已废弃且会被忽略。部署中应删除此
+变量；若仍存在，服务端只会发出告警，不会记录变量值。
+
+**Preview-token 部署边界**：
 
 - Preview-token 状态保存在单个有界进程内 memory store。stdio 下，preview 与
   execute 必须留在同一客户端启动的 server 进程；这是推荐的 mutation 部署方式。
-- 若集成方通过 HTTP transport 暴露 mutation，v3.6.1 只支持受信任的单操作者/
+- 若集成方通过 HTTP transport 暴露 mutation，当前设计只支持受信任的单操作者/
   私有边界，并且只能运行一个启用 mutation 的进程；不定义多用户认证 HTTP
   mutation 服务。程序不会检测或强制 worker/replica 数，部署配置必须都保持为 1。
-- 即使固定 signing secret，进程重启仍会使全部未消费 token 失效。这是有意的
-  fail-closed 连续性边界；重启或进程结果不确定后必须重新 preview。
+- 进程重启会使全部未消费 handle 失效。这是有意的 fail-closed 连续性边界；若
+  execute 结果不确定，必须先核查当前业务状态，再决定是否重新 preview。
 - 不得把多个启用 mutation 的 worker 放在普通负载均衡器后。只读容量只能通过
-  独立的 read-only endpoint、profile 或 pool 扩展；v3.6.1-v3.7 不支持跨 worker 或
+  独立的 read-only endpoint、profile 或 pool 扩展；v3.6.1-v3.7.1 不支持跨 worker 或
   跨副本 mutation。
-- 不存在 stateless HMAC-only fallback，也不提供 SQLite、SQL 表或其他外部共享
+- 不存在 stateless token fallback，也不提供 SQLite、SQL 表或其他外部共享
   token backend。
 
 **v3.7 人工批准 host 示例**：
@@ -768,9 +780,9 @@ preview，workflow 会拒绝执行。只有在强制截止时间内输入精确�
 绝不自动重试，因为 token 可能已消费，写结果也可能未知。这是客户端/host 参考
 流程，不是服务端可验证的人类身份。直接 MCP 客户端仍可绕过它；deny 不会在 TTL
 前撤销未用 token record，外部 payload/debug logging 仍可能泄露 token。多用户认证
-HTTP 批准和合规级批准人审计不属于 v3.7。自定义批准 provider 必须配合 async
+HTTP 批准和合规级批准人审计不属于当前设计。自定义批准 provider 必须配合 async
 取消；恶意 provider 的硬终止需要进程隔离。详见
-[v3.7 发布说明](RELEASE_NOTES/RELEASE_NOTES_v3_7.md)。
+[v3.7/v3.7.1 发布说明](RELEASE_NOTES/RELEASE_NOTES_v3_7.md)。
 该可信本地示例为避免静默切换到另一套 `.env`，会转发完整进程环境；因此所有
 已导出的 secret 与 Python 控制变量也进入子进程/Skill 信任边界。产品化 host
 应维护项目专用环境 allowlist。
@@ -781,7 +793,7 @@ HTTP 批准和合规级批准人审计不属于 v3.7。自定义批准 provider 
 - 开启 mutation skills 后，mutation audit 会自动尝试记录，但审计写入失败不会阻断操作；query skill audit 仍保持 opt-in（`SKILLS_AUDIT_QUERIES=0` 默认关闭），避免意外记录读查询参数。v3.5 审计条目可包含安全别名 `connection_id` 和实际 `db_type`，仍不包含 DSN、host、密码、SQLite 文件路径、SQL 文本或返回行。
 - Token 前的参数/validation 拒绝和审计写入失败可能返回 `audit_logged=false` 的正常工具结果。有效 token 一旦被 execute 消费，后续动态 validation 拒绝会尝试 best-effort execute audit。JSONL audit 仍是可见性辅助，不是 fail-closed 事务控制。
 - 如果数据库写入已经提交，但随后 context 通知或响应构造失败，系统会保留已有 success audit，不再追加矛盾的 failure。客户端在再次 mutation 前必须核查当前数据库状态；token 仍保持已消费。
-- 进程本地 preview-token store 支持推荐的 stdio 路径，以及有条件的单个受信任私有 HTTP mutation 进程；多用户认证 HTTP、跨 worker/跨副本 mutation 不属于 v3.6.1-v3.7，且绝不回退到 stateless HMAC。
+- 进程本地 preview-token store 支持推荐的 stdio 路径，以及有条件的单个受信任私有 HTTP mutation 进程；多用户认证 HTTP、跨 worker/跨副本 mutation 不属于当前设计，且绝不回退到 stateless token acceptance。
 - `SKILLS_AUDIT_LOG`、`TOOL_TELEMETRY_LOG_PATH` 和 `logs/sql_safety_checker_*.log` 都是本地文件。生产环境应放在可信存储上，限制文件权限，并使用外部轮转/保留机制，例如 `logrotate`、平台日志、cron cleanup 或托管日志 sink。常见起点是按天或按大小轮转、压缩，并根据合规需求保留 14-90 天。
 
 **典型配置场景**：
@@ -849,6 +861,20 @@ SKILLS_AUDIT_QUERIES=1
 
 ## 更新日志
 
+### v3.7.1 不透明 Preview Handle 与 Agent 工作流优化（2026年8月）
+
+- 将 self-describing HMAC preview-token envelope 替换为随机 256-bit opaque
+  bearer handle，同时保留精确请求/状态绑定、TTL、有界进程内 Store、原子一次性
+  消费和同进程 mutation 部署边界。
+- 新增紧凑的 `get_skill_detail(detail_level="execution")` 执行投影，并保留
+  `full` 作为向后兼容默认值；`list_skills(..., detail_level="full")` 已返回参数或
+  参数本来已知时，不再建议重复获取 detail。
+- 对模糊数据库类型和仅描述用途的连接请求采用 fail-closed 路由指导。共享 prompt
+  不再把默认连接的 UNION policy 当成全局能力；调用方通过 `list_connections()`
+  检查目标别名，runtime 对该目标的 policy 做权威校验。
+- 精简重复 mutation preview 字段，并将 `MUTATION_PREVIEW_TOKEN_SECRET` 标为废弃；
+  响应兼容性细节和当前验证证据见 v3.7 release-family 发布说明。
+
 ### v3.7.0 Scoped Skills、批准 Host 与 SQL 加固（2026年8月）
 
 - `skill_def.md` 新增可选严格 `connection_ids` 元数据；单个别名可直接绑定，
@@ -881,14 +907,21 @@ SKILLS_AUDIT_QUERIES=1
 
 本版本增加强制 preview-token 绑定，以及跨配置化命名连接的 opt-in 严格 mutation 路由：
 
-- `execute_mutation_skill(confirm=false)` 现在返回对 API 调用方不透明、已签名但未加密的 bearer `preview_token`、token 过期字段和 token 相关 `_meta` 字段。
-- `execute_mutation_skill(confirm=true)` 必须携带匹配的 `preview_token`；缺失、过期、篡改，或 params/skill/connection 不匹配都会在写入前 fail closed。
-- Token 使用 HMAC 签名，并绑定 skill name、skill version、规范化 params hash、解析后的 `connection_id`、`db_type`、签发时间和过期时间。
-- 每个 token 都有随机 `jti` 并登记在有界进程内原子 store；execute 会在动态 validation/write 前消费，因此签发进程内的 replay 和并发复用都会 fail closed。
-- Preview 敏感状态可以独立绑定；内置订单 mutation 会用 preview 时展示的状态做乐观锁。
-- `execute_mutation_skill` 接受可选 `connection_id`；严格路由要求全局目标 allowlist、per-connection 开关和 Skill allowlist 同时通过。
-- `MUTATION_PREVIEW_TOKEN_TTL_SECONDS` 控制有效期，`MUTATION_PREVIEW_TOKEN_STORE_MAX_ENTRIES` 限制未消费 token 数量；memory store 使所有 token 在进程重启后失效，即使配置固定签名 key 也一样。
-- `tests/test_mutation_multi_connection_v36_design.py` 覆盖默认/非默认 token 流程、目标隔离、全部 policy 拒绝层、过期/篡改/version 绑定、secret reload 行为和 token 不暴露。
+> 历史格式说明：v3.6 使用 self-describing HMAC envelope。自 v3.7.1 起，当前实现保留
+> `preview_token` API 字段，但返回 256-bit opaque handle，并把全部绑定状态保存在
+> 进程内 Store；签名 secret 配置以及客户端可见的 `jti`/payload 格式均已废弃。
+
+- v3.6 的 `execute_mutation_skill(confirm=false)` 返回 API-opaque、HMAC 签名但未
+  加密的 bearer `preview_token`、过期字段和 token 相关 `_meta`。
+- v3.6 execute 会在写入前拒绝缺失、过期、篡改或 params/skill/connection 不匹配。
+- v3.6 envelope 绑定 Skill 名、版本、规范化参数 hash、解析后的连接、DB 类型、
+  签发时间和过期时间，并携带随机 `jti`；进程内 Store 原子消费以拒绝 replay。
+- Preview 敏感状态独立绑定；内置订单 mutation 使用 preview 展示状态做乐观锁。
+- 可选 `connection_id` 的严格路由同时要求全局目标 allowlist、per-connection 开关和
+  Skill allowlist。
+- TTL/容量配置限制未消费记录；即使历史签名 key 固定，进程重启也使记录失效。
+- v3.6 回归覆盖目标隔离、policy 拒绝、过期、篡改/version 绑定、secret reload、
+  replay 与 token 不暴露。
 
 ### v3.5 命名多连接只读工具与查询 Skills（2026年5月）
 
@@ -1281,7 +1314,7 @@ metadata discovery 使用 `list_tables()`/`describe_table()`。
 ### 8. `list_skills`（Skills 扩展，可选）
 用途：列出预定义技能（查询和写操作），支持搜索、category 过滤、元数据粒度选择和可用性过滤。
 
-**注意：** 需要 `ENABLE_SKILLS=1`。`detail_level` 可取 `compact`、`summary` 或 `full`。默认值由 `SKILLS_LIST_DEFAULT_DETAIL` 控制（默认 `summary`）。`available_only` 默认由 `SKILLS_LIST_AVAILABLE_ONLY_DEFAULT` 控制（默认 `1`），因此 Agent 发现面会隐藏目标 `connection_id` 下因可选 Skill `connection_ids` 范围、DB 类型、mutation 开关/写策略、查询连接 allowlist 或 schema readiness 不可执行的 Skill。传 `available_only=false` 可查看完整开发者目录。这只影响 Agent 看到的元数据；执行期会再次做权威检查。查询 Skills 接受 `connection_id`；严格命名写策略授权目标时，mutation Skills 也接受该参数。
+**注意：** 需要 `ENABLE_SKILLS=1`。`detail_level` 可取 `compact`、`summary` 或 `full`。默认值由 `SKILLS_LIST_DEFAULT_DETAIL` 控制（默认 `summary`）。`full` 已包含参数 schema，之后不应再调用 `get_skill_detail()`。`available_only` 默认由 `SKILLS_LIST_AVAILABLE_ONLY_DEFAULT` 控制（默认 `1`），因此 Agent 发现面会隐藏目标 `connection_id` 下因可选 Skill `connection_ids` 范围、DB 类型、mutation 开关/写策略、查询连接 allowlist 或 schema readiness 不可执行的 Skill。传 `available_only=false` 可查看完整开发者目录。这只影响 Agent 看到的元数据；执行期会再次做权威检查。查询 Skills 接受 `connection_id`；严格命名写策略授权目标时，mutation Skills 也接受该参数。
 
 summary/full 输出中的 `configured_connection_ids` 只表示该 Skill 声明的
 `connection_ids` 中当前部署已配置的子集，并不是服务端全部连接列表；
@@ -1344,18 +1377,22 @@ summary/full 输出中的 `configured_connection_ids` 只表示该 Skill 声明�
   "search": "revenue",
   "category": "reporting",
   "categories": [{"category": "reporting", "count": 1}],
-  "hint": "Call get_skill_detail(skill_name, connection_id) with the same target connection to retrieve params before calling execute_query_skill or execute_mutation_skill."
+  "hint": "If params are not already known, call get_skill_detail(skill_name, connection_id, detail_level='execution') with the same target connection before execution."
 }
 ```
 
 ### 9. `get_skill_detail`（Skills 扩展，可选）
-用途：获取单个 Skill 的完整缓存元数据和参数 schema。
+用途：获取单个 Skill 的执行字段或完整缓存元数据。
 
-**注意：** 需要 `ENABLE_SKILLS=1`。该工具不会在运行时读取 Skill 文件，也不会暴露原始 SQL 或 mutation Python 源码。
+**注意：** 需要 `ENABLE_SKILLS=1`。`detail_level` 支持 `full`（保持向后兼容的默认值）和 `execution`。已知 Skill 名但不知道参数时直接调用 `execution`，无需先列出目录；它是获取参数 schema 和下一步操作的推荐投影。`full` 只用于显式需要 catalog/readiness 诊断的场景；若 `list_skills(detail_level="full")` 已返回参数，则不要再调用。本模式仅返回执行字段、解析后的连接/DB 类型和下一步操作。该工具不会在运行时读取 Skill 文件，也不会暴露原始 SQL 或 mutation Python 源码。MCP 响应只可能包含解析后的 YAML frontmatter 值；YAML 注释和 Markdown 正文仍是开发者文档，不消耗 Agent 上下文。
 
 输入：
 ```json
-{"skill_name": "monthly-sales-report"}
+{
+  "skill_name": "monthly-sales-report",
+  "connection_id": "trade_analysis_mysql",
+  "detail_level": "execution"
+}
 ```
 
 输出：
@@ -1369,9 +1406,12 @@ summary/full 输出中的 `configured_connection_ids` 只表示该 Skill 声明�
       "year": {"type": "int", "required": true},
       "month": {"type": "int", "required": true, "min": 1, "max": 12}
     },
-    "tables": ["orders"]
+    "executable": true,
+    "requires_confirmation": false
   },
-  "usage_hint": "Call execute_query_skill(skill_name, params) with params matching this schema."
+  "connection_id": "trade_analysis_mysql",
+  "current_database_type": "mysql",
+  "usage_hint": "Call execute_query_skill(skill_name, params, connection_id) with this same target connection and params matching the schema."
 }
 ```
 
@@ -1543,8 +1583,8 @@ returned   → (终态，不可转换)
  "params": {"order_id": 42, "new_status": "shipped"},
  "confirm": false}
 ```
-返回将要执行的 SQL、预期影响，以及对 API 调用方不透明、已签名但未加密的
-bearer `preview_token`，不实际修改数据。
+返回将要执行的 SQL、预期影响，以及随机 256-bit、对 API 调用方不透明的
+bearer `preview_token` handle，不实际修改数据。
 
 2. **执行**（`confirm=true`）—— 确认并验证 token 后写入：
 ```json
@@ -1554,8 +1594,15 @@ bearer `preview_token`，不实际修改数据。
  "preview_token": "<preview 返回的 token>"}
 ```
 
-Preview token 会绑定 skill name、skill version、规范化后的 params、解析后的
-`connection_id`、DB 类型、过期时间，以及最小 preview-time execution state 的 hash。Token 只能使用一次：execute 会在动态 validation 和数据库写入前原子消费；此后的 validation、数据库、timeout、audit 或响应失败都要求重新 preview。静态 request/policy/HMAC 不匹配不会消耗原 token。默认有效期为 `MUTATION_PREVIEW_TOKEN_TTL_SECONDS=300`，有效范围是 `1-86400` 秒。进程内 memory store 在重启时丢失全部未消费 token，即使固定签名 secret 也一样。Preview 与 execute 必须到达同一进程；跨 worker/跨副本 mutation 不受支持，且绝不会开放 stateless token replay。
+服务端 Store record 会绑定 skill name、skill version、规范化后的 params、解析后的
+`connection_id`、DB 类型、过期时间，以及最小 preview-time execution state。
+Handle 只能使用一次：execute 会在动态 validation 和数据库写入前原子匹配并消费
+record；若此后 validation、数据库、timeout、audit 或响应失败使结果不确定，调用方
+必须先核查当前业务状态，再决定是否进行新的 preview/mutation，不能盲目重试。
+静态 request/policy 拒绝或 request-binding 不匹配不会消耗有效 record。默认有效期
+为 `MUTATION_PREVIEW_TOKEN_TTL_SECONDS=300`，有效范围是 `1-86400` 秒。进程内
+memory store 在重启时丢失全部未消费 handle。Preview 与 execute 必须到达同一
+进程；跨 worker/跨副本 mutation 不受支持，且绝不会开放 stateless token acceptance。
 
 客户端不得解析 token 或依赖其内部格式。Token 必然经过授权客户端，并可能进入
 模型上下文；客户端应尽量避免持久保存和日志记录，并保护上下文与日志的访问。
@@ -1707,7 +1754,7 @@ sequenceDiagram
     Note over Agent,DB: 阶段 2: 确认执行 (confirm=true)
     Agent->>MCP: execute_mutation_skill(name, params, true, preview_token)
     MCP->>MCP: validate_name + validate_params（重新校验）
-    MCP->>MCP: 验证 preview_token 绑定和有效期
+    MCP->>MCP: 查询 handle、比较请求绑定并原子消费
     MCP->>Mutation: run_execute(params)
     Mutation->>Mutation: validate(params) — 重新验证（TOCTOU 防护）
     Mutation->>Adapter: execute_write(UPDATE ... WHERE status=:expected)
@@ -1833,11 +1880,11 @@ python test_mcp_client.py
 - [v3.5-v3.7 命名连接、Skills 与批准流程说明](RELEASE_NOTES/GUIDE/V3_5-V3_7_SKILLS_GUIDE_ZH.md)：解释命名连接、Mutation 写策略、preview-token、Skill 连接范围、单 mutation worker 与批准边界
 - [v3.5 发布说明](RELEASE_NOTES/RELEASE_NOTES_v3_5.md)：命名多连接版本摘要、兼容性、限制和验证证据
 - [v3.6/v3.6.1 发布说明](RELEASE_NOTES/RELEASE_NOTES_v3_6.md)：Mutation preview-token、命名写策略、execution binding 修复与同进程部署边界定稿
-- [v3.7.0 发布说明](RELEASE_NOTES/RELEASE_NOTES_v3_7.md)：可选 Skill 连接范围、stdio 人工批准 host、跨数据库 demo reset 与 SQL 加固
+- [v3.7/v3.7.1 发布说明](RELEASE_NOTES/RELEASE_NOTES_v3_7.md)：v3.7 能力、opaque preview handle 与 Agent 工作流优化
 - [设计风险登记表](DESIGN_RISK_REGISTER_ZH.md)：长期维护的设计、安全与运维风险登记
 - [可行性分析](LLM_TO_MCP_FEASIBILITY_ANALYSIS.md)：LLM 到 MCP 转换的详细分析
 - [原始上下文](GEMINI.md)：项目背景和开发指南
-- [重构日志](REFACTORING_LOG.md)：重构变更文档（v2.0 — v3.7.0）
+- [重构日志](REFACTORING_LOG.md)：重构变更文档（v2.0 — v3.7.1）
 - [MCP 客户端测试指南](TEST_MCP_CLIENT_GUIDE.md)：通过客户端测试 MCP 服务器的指南
 - [提示工程最佳实践](PROMPT_ENGINEERING_BEST_PRACTICES.md)：MCP 工具描述和提示的指南
 - [Agent 示例开发日志](agent_examples/AGENT_DEVELOPMENT_ZH.md)：AutoGen 多智能体示例的设计与决策

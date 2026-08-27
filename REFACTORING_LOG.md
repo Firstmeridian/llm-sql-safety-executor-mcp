@@ -1,6 +1,6 @@
 # MCP SQL Server Refactoring Log
 
-**Date:** December 2, 2025 (Updated: August 22, 2026)
+**Date:** December 2, 2025 (Updated: August 28, 2026)
 **Author:** Code Refactoring Session
 
 ## Overview
@@ -8,6 +8,59 @@
 This document records the major refactoring changes made to `mcp_sql_server.py` to follow FastMCP best practices and improve the overall design.
 
 ---
+
+## Update v3.7.1 - Opaque Preview Handles and Agent Workflow Efficiency (August 28, 2026)
+
+The mutation protocol keeps the public `preview_token` field but replaces the
+self-describing HMAC envelope with a random 256-bit opaque bearer handle. The
+bounded process-local Store now owns expiry, exact request binding, preview-time
+execution state, and atomic conditional consumption. A mismatched execute
+request does not consume the valid record; a matching execute consumes it once
+before dynamic validation and writes.
+
+Preview responses no longer duplicate `preview_token_expires_in_seconds`, an
+execution hint, or the Skill's nested `requires_confirmation` value. The legacy
+`MUTATION_PREVIEW_TOKEN_SECRET` input is ignored with a value-free warning.
+Existing v3.6-v3.7 entries below remain historical records of the released HMAC
+format rather than the current runtime contract.
+
+`get_skill_detail()` now accepts `execution` and `full` projections. Omitting
+the field retains the existing full response; the execution projection limits
+Agent-facing output to invocation fields, resolved connection/DB type, any
+disabled reason, and the next action. Catalog guidance no longer recommends a
+detail call after `list_skills(detail_level="full")` or when parameters are
+already known.
+
+Connection guidance now distinguishes an exact alias, a uniquely matched DB
+type, and a purpose/role that cannot be inferred safely. The global
+`sql_assistant` prompt is target-neutral for UNION because it has no
+`connection_id` argument: callers inspect `list_connections()` and the raw/query
+Skill paths enforce the selected connection's policy. Module-load UNION logs
+are explicitly labeled as the default-connection summary, and missing-allowlist
+errors refer to the selected connection's policy. The standalone
+`sql_safety_checker.execute_sql()` helper remains a compatibility statement-
+shape gate, not the full MCP `ALLOW_UNION`/`ALLOWED_TABLES` policy.
+
+After a handle has been consumed, a dynamic-validation exception before
+mutation execution explicitly reports that no database write was attempted.
+Once mutation execution starts, an exception may leave the write result unknown
+and directs the caller to verify current database state before another preview
+or mutation. This does not make memory-store consumption and database
+commit/response delivery atomic. A durable operation ledger and reconnect
+status API remain deferred until a real product workflow requires them.
+
+The 2026-08-28 default suite passed with 466 tests and 3 skipped; the explicit
+root legacy smoke passed 2 tests. A restarted configured MCP service also passed
+a reversible v3.7.1 opaque-handle mutation flow on 2026-08-26. On 2026-08-28,
+a fresh stdio subprocess completed the approval-host flow: literal `APPROVE`
+returned exit code 0 with `rowcount=1`, while `NO` returned exit code 3 and did
+not call execute. A separate fresh subprocess temporarily enabled UNION only
+for `analytics_demo_sqlite`; both a raw query and a Query Skill harness returned
+a real two-row UNION there while the default MySQL target remained denied by its
+target policy. The configured MySQL was later checked successfully with
+read-only `SELECT 1` and `COUNT(*)`; an earlier same-day timeout remains a
+negative environment observation. Full timings, payload summaries, and evidence
+boundaries are in `RELEASE_NOTES/LIVE_MCP_TSET/LIVE_MCP_TEST_V36-V37_ZH.md`.
 
 ## Update v3.7.0 - Scoped Skills, Approval Host, and SQL Hardening (August 22, 2026)
 

@@ -31,8 +31,6 @@ import os
 import re
 import sys
 import json
-import hmac
-import base64
 import hashlib
 import logging
 import math
@@ -45,7 +43,7 @@ from dataclasses import dataclass
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Annotated, Any, AsyncIterator
+from typing import Annotated, Any, AsyncIterator, Literal
 from pydantic import Field
 from mcp.types import ToolAnnotations
 from fastmcp import FastMCP, Context
@@ -234,19 +232,6 @@ MUTATION_PREVIEW_TOKEN_TTL_SECONDS = _parse_env_int(
     min_value=1,
     max_value=MUTATION_PREVIEW_TOKEN_TTL_MAX_SECONDS,
 )
-_mutation_preview_token_secret_raw = os.getenv("MUTATION_PREVIEW_TOKEN_SECRET")
-if _mutation_preview_token_secret_raw is None:
-    _MUTATION_PREVIEW_TOKEN_SECRET_SOURCE = "generated-unset"
-    _MUTATION_PREVIEW_TOKEN_SECRET = secrets.token_urlsafe(32).encode("utf-8")
-elif _mutation_preview_token_secret_raw == "":
-    _MUTATION_PREVIEW_TOKEN_SECRET_SOURCE = "generated-explicit-empty"
-    _MUTATION_PREVIEW_TOKEN_SECRET = secrets.token_urlsafe(32).encode("utf-8")
-else:
-    _MUTATION_PREVIEW_TOKEN_SECRET_SOURCE = "configured"
-    _MUTATION_PREVIEW_TOKEN_SECRET = _mutation_preview_token_secret_raw.encode(
-        "utf-8"
-    )
-del _mutation_preview_token_secret_raw
 MUTATION_PREVIEW_TOKEN_STORE_MAX_ENTRIES_MAX = 100_000
 MUTATION_PREVIEW_TOKEN_STORE_MAX_ENTRIES = _parse_env_int(
     "MUTATION_PREVIEW_TOKEN_STORE_MAX_ENTRIES",
@@ -316,7 +301,7 @@ def _mutation_routing_startup_summary() -> tuple[str, str, str, str]:
 
 
 def _log_mutation_security_startup() -> None:
-    """Log mutation security posture without secret material or database DSNs."""
+    """Log mutation security posture without token material or database DSNs."""
     mode, candidates, policy_enabled_targets, target_policy = (
         _mutation_routing_startup_summary()
     )
@@ -328,24 +313,15 @@ def _log_mutation_security_startup() -> None:
         policy_enabled_targets,
         target_policy,
     )
-
-    if _MUTATION_PREVIEW_TOKEN_SECRET_SOURCE == "generated-unset":
-        logger.info(
-            "Mutation preview-token signing secret: generated ephemeral "
-            "per-process value (MUTATION_PREVIEW_TOKEN_SECRET is unset)"
-        )
-    elif _MUTATION_PREVIEW_TOKEN_SECRET_SOURCE == "generated-explicit-empty":
+    logger.info(
+        "Mutation preview tokens: 256-bit opaque handles with process-local "
+        "one-time state"
+    )
+    if os.getenv("MUTATION_PREVIEW_TOKEN_SECRET") is not None:
         logger.warning(
-            "MUTATION_PREVIEW_TOKEN_SECRET is explicitly empty; using a "
-            "generated ephemeral per-process signing secret"
+            "MUTATION_PREVIEW_TOKEN_SECRET is obsolete and ignored; mutation "
+            "preview tokens use process-local opaque handles"
         )
-    else:
-        logger.info("Mutation preview-token signing secret: configured")
-        if len(_MUTATION_PREVIEW_TOKEN_SECRET) < 32:
-            logger.warning(
-                "Configured MUTATION_PREVIEW_TOKEN_SECRET is shorter than 32 "
-                "UTF-8 bytes; use at least 32 random bytes"
-            )
 
 # Skills directory path (relative to project root or absolute)
 SKILLS_DIR = os.getenv("SKILLS_DIR", "skills/")
@@ -354,6 +330,7 @@ SKILLS_DIR = os.getenv("SKILLS_DIR", "skills/")
 # disclosed to the Agent; startup discovery, SQL validation, and in-memory
 # execution caches remain eager for TOCTOU protection.
 _SKILLS_DETAIL_LEVELS = {"compact", "summary", "full"}
+_SKILL_DETAIL_PROJECTION_LEVELS = {"execution", "full"}
 SKILLS_LIST_DEFAULT_DETAIL = os.getenv(
     "SKILLS_LIST_DEFAULT_DETAIL",
     "summary",
@@ -434,14 +411,28 @@ ALLOWED_TABLES: set[str] | None = (
     else None
 )
 
-# Log security configuration at module load
+# Log the compatibility/default policy at module load. Runtime tools resolve
+# and enforce the selected connection's policy independently.
+_default_connection_id = _DEFAULT_CONNECTION_CONFIG.connection_id
 if ALLOW_UNION:
     if ALLOWED_TABLES:
-        logger.info(f"UNION queries enabled with table allowlist: {sorted(ALLOWED_TABLES)}")
+        logger.info(
+            "Default connection '%s': UNION queries enabled with table "
+            "allowlist: %s",
+            _default_connection_id,
+            sorted(ALLOWED_TABLES),
+        )
     else:
-        logger.warning("ALLOW_UNION=1 but no ALLOWED_TABLES configured - UNION will be blocked")
+        logger.warning(
+            "Default connection '%s': ALLOW_UNION=1 but no ALLOWED_TABLES "
+            "configured; UNION will be blocked",
+            _default_connection_id,
+        )
 else:
-    logger.info("UNION queries disabled (default safe mode)")
+    logger.info(
+        "Default connection '%s': UNION queries disabled (safe mode)",
+        _default_connection_id,
+    )
 
 
 def _effective_policy(policy: ConnectionPolicy | None = None) -> ConnectionPolicy:
@@ -875,13 +866,22 @@ async def lifespan(mcp_server: FastMCP) -> AsyncIterator[dict[str, Any]]:
 
 
 # Create MCP server with lifespan
-# Reference: Google/Anthropic best practices - server instructions should describe capabilities,
-# not prescribe workflow (let LLM decide based on task context)
+# Server instructions carry cross-tool capabilities and safety-critical routing
+# invariants; per-tool descriptions remain local and concise.
+_CONNECTION_ROUTING_GUIDANCE = """Connection routing:
+- If the user provides an exact configured connection alias, pass it unchanged as connection_id.
+- If the user specifies only a database type, call list_connections(). Use the only matching connection when exactly one has that db_type; otherwise ask for an exact alias.
+- If the user describes only a purpose or role, do not infer a connection from alias names; ask for an exact alias.
+- If the user asks which aliases are available or says they do not know the alias, call list_connections() and ask them to choose an exact alias.
+- Omitting connection_id selects only the configured default; it never means all connections.
+- For read-only requests across all connections, call list_connections() and invoke the requested tool once per connection_id. Never broadcast mutations."""
+
 mcp = FastMCP(
     name="sql-safety-executor",
-    instructions="""Database safety gateway with read-only core SQL tools and configured connection routing.
+    instructions=f"""Database safety gateway with read-only core SQL tools and configured connection routing.
 Use query() for free-form reads. Use describe_table() or get_full_schema() first if structure is unknown.
-Optional Skills provide reviewed queries and, when enabled, controlled mutations that require preview plus a matching one-time token.""",
+Optional Skills provide reviewed queries and, when enabled, controlled mutations that require preview plus a matching one-time token.
+{_CONNECTION_ROUTING_GUIDANCE}""",
     lifespan=lifespan,
     mask_error_details=True,
 )
@@ -1101,8 +1101,9 @@ def _is_query_safe_extended(
         # UNION enabled: Require table allowlist for validation
         elif effective_policy.allowed_tables is None:
             return False, (
-                "UNION requires ALLOWED_TABLES. "
-                "Set ALLOWED_TABLES=table1,table2 or ALLOWED_TABLES=* to enable."
+                "UNION requires an explicit table allowlist on the selected "
+                "connection. Configure that connection's ALLOWED_TABLES policy "
+                "with table names or * to enable."
             )
         # UNION will be validated by _check_table_allowlist() which extracts all tables
         logger.info("UNION query allowed - validating tables")
@@ -1173,8 +1174,9 @@ def _elapsed_ms_from(start_time: float) -> float:
 
 _CONNECTION_ID_FIELD = Field(
     description=(
-        "Optional configured database connection id. Omit to use the default "
-        "connection. Use list_connections() to inspect configured ids."
+        "Connection alias. Pass exact aliases unchanged; omit only for default. "
+        "Omission never means all connections. Use "
+        "list_connections() to discover aliases or match a database type."
     ),
     min_length=1,
     max_length=64,
@@ -1182,12 +1184,12 @@ _CONNECTION_ID_FIELD = Field(
 
 _MUTATION_PREVIEW_TOKEN_FIELD = Field(
     description=(
-        "API-opaque, signed but unencrypted bearer token returned by "
+        "API-opaque one-time bearer handle returned by "
         "execute_mutation_skill(confirm=false). Required when confirm=true; "
         "do not parse it or depend on its internal format."
     ),
     min_length=1,
-    max_length=4096,
+    max_length=128,
 )
 
 
@@ -1262,15 +1264,6 @@ def _public_database_name(connection: ConnectionContext) -> str | None:
     return connection.adapter.get_database_name()
 
 
-def _b64url_encode(data: bytes) -> str:
-    return base64.urlsafe_b64encode(data).rstrip(b"=").decode("ascii")
-
-
-def _b64url_decode(data: str) -> bytes:
-    padding = "=" * (-len(data) % 4)
-    return base64.urlsafe_b64decode((data + padding).encode("ascii"))
-
-
 def _canonical_json(value: Any) -> str:
     try:
         return json.dumps(
@@ -1306,37 +1299,21 @@ def _sha256_hex(value: str) -> str:
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
 
-def _mutation_preview_token_payload(
+def _mutation_preview_request_binding_json(
     *,
     skill_name: str,
     skill_version: str,
     params: dict[str, Any],
     connection: ConnectionContext,
-    execution_binding_json: str,
-    issued_at: int | None = None,
-) -> dict[str, Any]:
-    now = issued_at if issued_at is not None else int(time.time())
-    return {
+) -> str:
+    return _canonical_json({
         "v": 1,
-        "jti": secrets.token_urlsafe(16),
         "skill_name": skill_name,
         "skill_version": skill_version,
         "params_hash": _mutation_params_hash(params),
-        "execution_binding_hash": _sha256_hex(execution_binding_json),
         "connection_id": connection.connection_id,
         "db_type": connection.db_type,
-        "iat": now,
-        "exp": now + MUTATION_PREVIEW_TOKEN_TTL_SECONDS,
-    }
-
-
-def _mutation_preview_signature(encoded_payload: str) -> str:
-    digest = hmac.new(
-        _MUTATION_PREVIEW_TOKEN_SECRET,
-        encoded_payload.encode("ascii"),
-        hashlib.sha256,
-    ).digest()
-    return _b64url_encode(digest)
+    })
 
 
 def _create_mutation_preview_token(
@@ -1345,18 +1322,15 @@ def _create_mutation_preview_token(
     skill_version: str,
     params: dict[str, Any],
     connection: ConnectionContext,
-    execution_binding_json: str,
-) -> tuple[str, dict[str, Any]]:
-    payload = _mutation_preview_token_payload(
+) -> tuple[str, int, str]:
+    request_binding_json = _mutation_preview_request_binding_json(
         skill_name=skill_name,
         skill_version=skill_version,
         params=params,
         connection=connection,
-        execution_binding_json=execution_binding_json,
     )
-    encoded_payload = _b64url_encode(_canonical_json(payload).encode("utf-8"))
-    signature = _mutation_preview_signature(encoded_payload)
-    return f"{encoded_payload}.{signature}", payload
+    expires_at = int(time.time()) + MUTATION_PREVIEW_TOKEN_TTL_SECONDS
+    return secrets.token_urlsafe(32), expires_at, request_binding_json
 
 
 def _preview_token_id(preview_token: str) -> str:
@@ -1369,13 +1343,15 @@ def _preview_token_digest(preview_token: str) -> str:
 
 def _register_mutation_preview_token(
     preview_token: str,
-    payload: dict[str, Any],
+    expires_at: int,
+    request_binding_json: str,
     execution_binding_json: str,
 ) -> None:
     now = int(time.time())
     issued = _MUTATION_PREVIEW_TOKEN_STORE.issue(
         _preview_token_digest(preview_token),
-        int(payload["exp"]),
+        expires_at,
+        request_binding_json,
         execution_binding_json,
         now=now,
     )
@@ -1385,7 +1361,7 @@ def _register_mutation_preview_token(
         )
 
 
-def _verify_mutation_preview_token(
+def _consume_mutation_preview_token(
     preview_token: str | None,
     *,
     skill_name: str,
@@ -1399,87 +1375,28 @@ def _verify_mutation_preview_token(
             "execute_mutation_skill with confirm=false first."
         )
 
-    try:
-        encoded_payload, signature = preview_token.split(".", 1)
-    except ValueError as exc:
-        raise ToolError("Invalid preview_token; run preview again.") from exc
-
-    expected_signature = _mutation_preview_signature(encoded_payload)
-    if not hmac.compare_digest(signature, expected_signature):
-        raise ToolError("Invalid preview_token; run preview again.")
-
-    try:
-        payload = json.loads(_b64url_decode(encoded_payload).decode("utf-8"))
-    except Exception as exc:
-        raise ToolError("Invalid preview_token; run preview again.") from exc
-
-    if not isinstance(payload, dict):
-        raise ToolError("Invalid preview_token; run preview again.")
-
-    try:
-        issued_at = payload["iat"]
-        expires_at = payload["exp"]
-        if (
-            isinstance(issued_at, bool)
-            or not isinstance(issued_at, int)
-            or isinstance(expires_at, bool)
-            or not isinstance(expires_at, int)
-            or expires_at <= issued_at
-        ):
-            raise ValueError
-    except (KeyError, TypeError, ValueError) as exc:
-        raise ToolError("Invalid preview_token; run preview again.") from exc
-
-    if expires_at <= int(time.time()):
-        raise ToolError("Expired preview_token; run preview again.")
-
-    expected_fields = {
-        "v": 1,
-        "skill_name": skill_name,
-        "skill_version": skill_version,
-        "params_hash": _mutation_params_hash(params),
-        "connection_id": connection.connection_id,
-        "db_type": connection.db_type,
-    }
-    for key, expected_value in expected_fields.items():
-        if payload.get(key) != expected_value:
-            raise ToolError(
-                "preview_token does not match this mutation request; run preview again."
-            )
-
-    jti = payload.get("jti")
-    binding_hash = payload.get("execution_binding_hash")
-    if (
-        not isinstance(jti, str)
-        or not re.fullmatch(r"[A-Za-z0-9_-]{20,128}", jti)
-        or not isinstance(binding_hash, str)
-        or not re.fullmatch(r"[0-9a-f]{64}", binding_hash)
-    ):
-        raise ToolError("Invalid preview_token; run preview again.")
-
-    return payload
-
-
-def _consume_mutation_preview_token(
-    preview_token: str,
-    payload: dict[str, Any],
-) -> dict[str, Any]:
-    record = _MUTATION_PREVIEW_TOKEN_STORE.consume(
+    request_binding_json = _mutation_preview_request_binding_json(
+        skill_name=skill_name,
+        skill_version=skill_version,
+        params=params,
+        connection=connection,
+    )
+    status, record = _MUTATION_PREVIEW_TOKEN_STORE.consume_if_matches(
         _preview_token_digest(preview_token),
-        int(payload["exp"]),
+        request_binding_json,
         now=int(time.time()),
     )
-    if record is None:
+    if status == "expired":
+        raise ToolError("Expired preview_token; run preview again.")
+    if status == "mismatch":
         raise ToolError(
-            "preview_token has already been used, was not issued by this server "
-            "process, or expired; run preview again."
+            "preview_token does not match this mutation request; run preview again."
         )
-
-    if not hmac.compare_digest(
-        _sha256_hex(record.execution_binding_json),
-        payload["execution_binding_hash"],
-    ):
-        raise ToolError("Invalid preview_token execution binding; run preview again.")
+    if status == "not_found" or record is None:
+        raise ToolError(
+            "Invalid preview_token, has already been used, or was not issued "
+            "by this server process; run preview again."
+        )
 
     try:
         execution_binding = json.loads(record.execution_binding_json)
@@ -2416,6 +2333,17 @@ if SKILLS_ENABLED:
         return level
 
 
+    def _normalize_skill_detail_projection(detail_level: str | None) -> str:
+        """Resolve the get_skill_detail() projection without changing its default."""
+        level = (detail_level or "full").strip().lower()
+        if level not in _SKILL_DETAIL_PROJECTION_LEVELS:
+            allowed = ", ".join(sorted(_SKILL_DETAIL_PROJECTION_LEVELS))
+            raise ValueError(
+                f"Invalid detail_level '{detail_level}'. Allowed values: {allowed}"
+            )
+        return level
+
+
     def _resolve_available_only(available_only: bool | None) -> bool:
         """Resolve the optional availability filter for list_skills()."""
         if available_only is None:
@@ -2925,6 +2853,23 @@ if SKILLS_ENABLED:
         return projected
 
 
+    def _project_skill_execution_meta(
+        meta: SkillMetadata,
+        availability: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Project only fields needed to choose and invoke one Skill."""
+        projected = {
+            "name": meta.name,
+            "type": meta.type,
+            "params": meta.params,
+            "executable": availability["executable"],
+            "requires_confirmation": meta.requires_confirmation,
+        }
+        if availability["disabled_reason"]:
+            projected["disabled_reason"] = availability["disabled_reason"]
+        return projected
+
+
     def _aggregate_skill_categories(skills: list[SkillMetadata]) -> list[dict[str, Any]]:
         """Aggregate category counts for the currently matched skill set."""
         counts: dict[str, int] = {}
@@ -2972,7 +2917,12 @@ if SKILLS_ENABLED:
         ] = None,
         detail_level: Annotated[
             str | None,
-            Field(description="Metadata projection: compact, summary, or full."),
+            Field(
+                description=(
+                    "Metadata projection: compact, summary, or full. Full "
+                    "includes params and needs no get_skill_detail() follow-up."
+                )
+            ),
         ] = None,
         available_only: Annotated[
             bool | None,
@@ -3121,9 +3071,9 @@ if SKILLS_ENABLED:
         }
         if resolved_detail_level != "full":
             result["hint"] = (
-                "Call get_skill_detail(skill_name, connection_id) with the same "
-                "target connection to retrieve params before calling "
-                "execute_query_skill or execute_mutation_skill."
+                "If params are not already known, call get_skill_detail("
+                "skill_name, connection_id, detail_level='execution') with the "
+                "same target connection before execution."
             )
         return _tool_result(
             result, tool_name="list_skills", start_time=start_time, success=True,
@@ -3147,19 +3097,37 @@ if SKILLS_ENABLED:
         skill_name: Annotated[str, Field(description="Name of the skill to inspect")],
         ctx: Context,
         connection_id: Annotated[str | None, _CONNECTION_ID_FIELD] = None,
+        detail_level: Annotated[
+            Literal["execution", "full"] | None,
+            Field(
+                description=(
+                    "Use execution (recommended) for params/schema and the next "
+                    "action. Use full only when catalog or readiness diagnostics "
+                    "are explicitly needed; omission defaults to full for "
+                    "compatibility."
+                )
+            ),
+        ] = None,
     ) -> ToolResult:
         """
-        Return full cached metadata for one skill, including parameter schema.
+        Return cached execution fields or full metadata for one Skill.
 
-        This is the on-demand detail step after list_skills(). It does not read
-        skill files from disk and does not expose raw SQL or mutation source.
+        Call this directly when the Skill name is known but its params are not.
+        Use detail_level="execution" for params/schema and the next action.
+        Do not call it when list_skills(detail_level="full") already returned
+        the params. Use full only for explicit catalog/readiness diagnostics.
+        This tool does not read files at runtime or expose SQL or mutation source.
         """
         start_time = time.perf_counter()
         connection = _resolve_connection_context(connection_id)
-        await ctx.info(f"Getting skill detail for connection '{connection.connection_id}': {skill_name}")
+        await ctx.info(
+            "Getting skill detail for connection "
+            f"'{connection.connection_id}': {skill_name}"
+        )
 
         try:
             validate_name(skill_name)
+            resolved_detail_level = _normalize_skill_detail_projection(detail_level)
         except ValueError as e:
             await ctx.warning(f"Skill detail parameter error: {e}")
             raise ToolError(str(e)) from e
@@ -3191,18 +3159,30 @@ if SKILLS_ENABLED:
                 or "Skill execution is unavailable on this connection."
             )
 
-        return _tool_result({
+        if resolved_detail_level == "execution":
+            projected_skill = _project_skill_execution_meta(meta, availability)
+        else:
+            projected_skill = _project_skill_meta(meta, "full", availability)
+
+        result: dict[str, Any] = {
             "success": True,
-            "skill": _project_skill_meta(meta, "full", availability),
-            "mutations_enabled": SKILLS_ALLOW_MUTATIONS,
-            "schema_check_enabled": SKILLS_CHECK_SCHEMA_ON_LIST,
-            "schema_check_available": schema_table_names is not None,
+            "skill": projected_skill,
             "connection_id": connection.connection_id,
             "current_database_type": connection.db_type,
             "usage_hint": usage_hint,
-        }, tool_name="get_skill_detail", start_time=start_time, success=True,
-           connection=connection,
-           skill_name=skill_name, skill_type=meta.type)
+        }
+        if resolved_detail_level == "full":
+            result.update({
+                "mutations_enabled": SKILLS_ALLOW_MUTATIONS,
+                "schema_check_enabled": SKILLS_CHECK_SCHEMA_ON_LIST,
+                "schema_check_available": schema_table_names is not None,
+            })
+
+        return _tool_result(
+            result, tool_name="get_skill_detail", start_time=start_time, success=True,
+            connection=connection,
+            skill_name=skill_name, skill_type=meta.type,
+        )
 
     # ── execute_query_skill ──
     @mcp.tool(
@@ -3404,13 +3384,11 @@ if SKILLS_ENABLED:
                     "preview_token": {
                         "type": "string",
                         "description": (
-                            "API-opaque, signed but unencrypted bearer token "
+                            "API-opaque one-time bearer handle "
                             "returned by preview and required for execute."
                         ),
                     },
                     "preview_token_expires_at": {"type": "string"},
-                    "preview_token_expires_in_seconds": {"type": "integer"},
-                    "hint": {"type": "string"},
                     # Execute branch (success=true, mode=execute)
                     "result": {
                         "type": "object",
@@ -3592,16 +3570,18 @@ if SKILLS_ENABLED:
                     )
                     binding_json = _execution_binding_json(execution_binding)
 
-                    generated_token, token_payload = _create_mutation_preview_token(
-                        skill_name=skill_name,
-                        skill_version=meta.version,
-                        params=validated_params,
-                        connection=connection,
-                        execution_binding_json=binding_json,
+                    generated_token, expires_at, request_binding_json = (
+                        _create_mutation_preview_token(
+                            skill_name=skill_name,
+                            skill_version=meta.version,
+                            params=validated_params,
+                            connection=connection,
+                        )
                     )
                     _register_mutation_preview_token(
                         generated_token,
-                        token_payload,
+                        expires_at,
+                        request_binding_json,
                         binding_json,
                     )
                     token_id = _preview_token_id(generated_token)
@@ -3627,20 +3607,17 @@ if SKILLS_ENABLED:
                         "mode": "preview",
                         "connection_id": connection.connection_id,
                         "db_type": connection.db_type,
-                        "preview": preview_result,
+                        "preview": {
+                            key: value
+                            for key, value in preview_result.items()
+                            if key != "requires_confirmation"
+                        },
                         "preview_token": generated_token,
                         "preview_token_expires_at": datetime.fromtimestamp(
-                            token_payload["exp"],
+                            expires_at,
                             timezone.utc,
                         ).isoformat(),
-                        "preview_token_expires_in_seconds": (
-                            token_payload["exp"] - int(time.time())
-                        ),
                         "idempotent": meta.idempotent,
-                        "hint": (
-                            "Set confirm=true and pass preview_token to execute "
-                            "this operation."
-                        ),
                     }
                     return _skill_tool_result(
                         payload,
@@ -3663,9 +3640,10 @@ if SKILLS_ENABLED:
             else:
                 # Phase 2: validate + execute (commits to database)
                 token_consumed = False
+                execution_started = False
                 write_completed = False
                 try:
-                    verified_token_payload = _verify_mutation_preview_token(
+                    execution_binding = _consume_mutation_preview_token(
                         preview_token,
                         skill_name=skill_name,
                         skill_version=meta.version,
@@ -3673,10 +3651,6 @@ if SKILLS_ENABLED:
                         connection=connection,
                     )
                     token_id = _preview_token_id(preview_token or "")
-                    execution_binding = _consume_mutation_preview_token(
-                        preview_token or "",
-                        verified_token_payload,
-                    )
                     token_consumed = True
 
                     try:
@@ -3731,6 +3705,7 @@ if SKILLS_ENABLED:
                             preview_token_id=token_id,
                         )
 
+                    execution_started = True
                     result = mutation.run_execute(
                         validated_params,
                         skill_name=skill_name,
@@ -3781,9 +3756,16 @@ if SKILLS_ENABLED:
                             "the current database state before another mutation."
                         ) from e
                     if token_consumed:
+                        if not execution_started:
+                            raise ToolError(
+                                f"{e} No database write was attempted. The "
+                                "preview_token has been consumed; run preview "
+                                "again before another mutation."
+                            ) from e
                         raise ToolError(
-                            f"{e} The preview_token has been consumed; run "
-                            "preview again."
+                            f"{e} The preview_token has been consumed and the "
+                            "write outcome may be unknown; verify the current "
+                            "database state before another preview or mutation."
                         ) from e
                     raise
                 except Exception as e:
@@ -3800,10 +3782,19 @@ if SKILLS_ENABLED:
                         ) from e
                     sanitized = adapter._handle_error(e)
                     if token_consumed:
-                        sanitized = (
-                            f"{sanitized} The preview_token has been consumed; "
-                            "run preview again."
-                        )
+                        if not execution_started:
+                            sanitized = (
+                                f"{sanitized} No database write was attempted. "
+                                "The preview_token has been consumed; run "
+                                "preview again before another mutation."
+                            )
+                        else:
+                            sanitized = (
+                                f"{sanitized} The preview_token has been "
+                                "consumed; the write outcome may be unknown. "
+                                "Verify the current database state before "
+                                "another preview or mutation."
+                            )
                     _audit_logger.log(
                         skill_name=skill_name,
                         params=validated_params,
@@ -3831,24 +3822,22 @@ else:
 @mcp.prompt(name="sql_assistant")
 def sql_assistant() -> str:
     """System prompt for SQL query assistance."""
-    # Build dynamic prompt based on configuration
+    # The prompt has no target connection argument, so it must not present the
+    # default connection's UNION policy as a server-wide rule. Each tool call
+    # resolves and enforces the selected connection policy at runtime.
     # Reference: Microsoft prompt engineering - clear, structured, avoid unnecessary steps
     # Reference: MCP spec - model-driven tool selection, provide decision rules not fixed paths
-    if ALLOW_UNION and ALLOWED_TABLES:
-        if "*" in ALLOWED_TABLES:
-            cross_table = "UNION supported for combining results."
-        else:
-            tables_desc = ', '.join(sorted(ALLOWED_TABLES))
-            cross_table = f"UNION allowed for: {tables_desc}."
-    else:
-        cross_table = "Query tables separately."
+    cross_table = (
+        "UNION policy is connection-specific. Inspect the selected alias in "
+        "list_connections(); query() and Query Skills enforce that target's policy."
+    )
 
     # Skills extension info for prompt
     skills_info = ""
     if SKILLS_ENABLED:
         skills_info = """
-- list_skills(search, category, detail_level, available_only): List pre-defined query/mutation skills; default availability filters incompatible, disabled, or schema-unready skills
-- get_skill_detail(skill_name, connection_id): Get params/schema for one skill before execution
+- list_skills(search, category, detail_level, available_only): Search pre-defined skills; full includes params
+- get_skill_detail(skill_name, connection_id, detail_level): Get params/schema for one known Skill
 - execute_query_skill(name, params, connection_id): Execute a query skill with parameters
 """
         if SKILLS_ALLOW_MUTATIONS:
@@ -3866,11 +3855,18 @@ Tools (choose based on need):
 - get_full_schema(connection_id): Visible schema overview; may be truncated; use for multi-table JOINs
 - check_connection(connection_id): Verify database connectivity (use only on connection errors)
 {skills_info}
+{_CONNECTION_ROUTING_GUIDANCE}
+
 Decision rules:
 - Unknown structure? list_tables() for overview, then describe_table() for details
 - For single-table queries, if schema/columns unknown, call describe_table(table_name) before query().
 - Know the table? Query directly with appropriate LIMIT
 - is_large=true in response? Use LIMIT or aggregation
+- Unknown Skill? Use targeted list_skills(..., detail_level="compact"), then get_skill_detail(..., detail_level="execution") only if params are unknown.
+- Known Skill but unknown params? Call get_skill_detail(..., detail_level="execution") directly.
+- Params already known, including from list_skills(detail_level="full")? Execute directly; for mutations, preview first with confirm=false.
 - {cross_table}
 
-Always include SQL in response."""
+For raw query() calls, include the executed SQL in the response. For Skills,
+report the Skill name, params, and connection_id; do not invent SQL that was
+not disclosed."""

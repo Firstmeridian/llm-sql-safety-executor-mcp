@@ -2,11 +2,33 @@
 
 **日期：** 2026-07-31
 
-**文档边界更新：** 2026-08-22
+**文档边界更新：** 2026-08-28
+
+> **v3.7.1 迁移说明：** 本文是 v3.6-v3.7.0 协议联调历史记录，其中 token
+> 格式和响应快照不代表 v3.7.1 契约。v3.7.1 `preview_token` 是 256-bit opaque
+> handle，绑定状态保存在进程内 Store；现行规范见
+> [Skills 安全策略](../../skills/SAFETY.md)。
+
+2026-08-26 已在重启后的已配置 MCP 服务上完成 v3.7.1 opaque-handle direct
+MCP live mutation 与恢复；它本身不等同于 fresh-subprocess approval-host 复验。
+2026-08-28 又完成了 fresh-subprocess approval-host 的批准/拒绝复验，以及按目标
+连接隔离的 UNION allow/deny 复验，因此 2026-08-21 的 v3.7.0 stdio/host 结果保留
+为历史基线，不再是最新证据。
+
+2026-08-28 发布前首次检查中，直接调用当前聊天 MCP 的默认连接
+`check_connection` 返回已脱敏的 `Database query failed`；后续本地复核显示，
+同一默认 MySQL 连接在 30 秒查询限制下超时。MySQL 服务启动且 MCP 重启后，
+同日复验的 `check_connection` 和 `SELECT 1` 均成功，UNION 按目标连接的
+`allow_union=false` policy 被拒绝。MySQL 只做了只读检查，没有执行 mutation。
+本轮还在 disposable `live_test_sqlite` 上完成并恢复了 opaque-handle 可逆流程，
+详情见 7.4。随后在 fresh stdio subprocess 中用临时环境仅打开
+`analytics_demo_sqlite` 的 UNION，真实两行 UNION 成功而默认 MySQL 仍拒绝；同日
+又重新复验了 fresh-subprocess approval host 的批准和拒绝路径，详情也见 7.4。
 
 **结果：** 2026-07-31 联调通过；2026-08-13、2026-08-19 与 2026-08-20
 的隔离 subprocess stdio 阻塞保留为历史尝试；2026-08-21 的 v3.7
-人工批准 host、完整 server subprocess stdio 和拒绝路径复验通过
+人工批准 host、完整 server subprocess stdio 和拒绝路径复验通过；
+2026-08-26 和 2026-08-28 的 v3.7.1 direct MCP opaque-handle 可逆流程通过
 
 **范围：** v3.6 基线配置解析、MCP stdio 协议、命名连接、严格 mutation policy、
 一次性 preview token、MySQL/SQLite 写路径和 replay 拒绝；以及 v3.7 人工批准
@@ -42,10 +64,13 @@ SKILLS_AUDIT_LOG=logs/mutation_audit.jsonl
 该配置让三个连接同时保持可选，省略 `connection_id` 时仍默认路由到
 `trade_analysis_mysql`；但全局 mutation allowlist 只包含可丢弃的
 `live_test_sqlite`，所以 MySQL 与跟踪的 demo SQLite 在 preview 前拒绝写入。
-`local_data/live-test.db` 当前只包含最小 `orders(id, status)` schema，适合订单
-mutation live 测试，不满足 monthly-sales query Skill 所需列。reset 虽然声明兼容
-MySQL，但应只在另建或明确选择的专用 MySQL 测试 alias 上授权，且仍必须通过其它
-mutation policy 层。修改 `.env` 后需要重启 MCP server 才会重新加载连接注册表。
+当前本地 `local_data/live-test.db` fixture 的 `orders` 表包含主键 `id`、`status`、
+`order_date` 和 `total_amount`，并准备了 2026-08 的确定性测试数据，因此既可用于
+订单 mutation，也可用于 `monthly-sales-report-sqlite`。该数据库文件被 `.gitignore`
+排除，不是干净 clone 可依赖的仓库资产；执行 live 测试前仍应确认本地 fixture 的
+schema 和数据边界。reset 虽然声明兼容 MySQL，但应只在另建或明确选择的专用 MySQL
+测试 alias 上授权，且仍必须通过其它 mutation policy 层。修改 `.env` 后需要重启
+MCP server 才会重新加载连接注册表。
 
 2026-08-20 的配置快照与 2026-08-21 的 live 证据早于 reset Skill 定稿；对应
 真实写路径使用的是 `update-order-status`，数据库恢复依赖临时 fixture 或快照。
@@ -217,7 +242,8 @@ GitHub 项目只属于次要实现旁证。最终判断优先采用官方协议�
 
 ### 5.3 Prompt、工具定义和 token 消耗复审
 
-本地静态测量（不是模型账单 usage）：
+2026-08-21 当时的本地静态测量快照（不是当前提示契约，也不是模型账单
+usage）：
 
 | Surface | Size | 粗略说明 |
 |---|---:|---|
@@ -242,16 +268,17 @@ GitHub 项目只属于次要实现旁证。最终判断优先采用官方协议�
 
 ### 5.4 复审发现与优先级
 
-1. **中优先级：prompt 的 per-connection 策略表达不足。**
-   `sql_assistant()` 的 `cross_table` 文案仍使用默认策略概念；它没有完整表达
-   `analytics` 独立的 `ALLOW_UNION`/`ALLOWED_TABLES`。此外，代码中的
-   `if ALLOW_UNION and ALLOWED_TABLES` 在未来打开默认 UNION 时可能引用未定义的
-   `ALLOWED_TABLES`。当前 `.env` 的默认 UNION 为关闭，因此本次 smoke 未触发该问题。
+1. **v3.7.1 已修复：prompt 的 per-connection UNION 策略表达。**
+   2026-08-21 的 `sql_assistant()` 文案错误地把默认连接的 UNION policy 当作全局
+   提示；真实 `query()` 与 Query Skill 执行路径当时已经按目标连接强制执行。
+   v3.7.1 将提示改为目标中立的说明，并增加默认/目标连接策略相反的双向回归测试，
+   防止提示再次把某一连接的 policy 泛化为整个服务的 policy。
 
-2. **中优先级：减少不必要的 SQL 回显。**
-   prompt 当前要求 `Always include SQL in response`，这会重复工具 payload、增加
-   输出 token，并扩大 SQL 可见性。更合适的规则是：默认简要说明 query；只有用户
-   明确要求或解释失败时才回显完整 SQL。
+2. **v3.7.1 已收窄并接受：SQL 回显。**
+   2026-08-21 的 prompt 无条件要求 `Always include SQL in response`。v3.7.1 只要求
+   raw `query()` 调用报告实际提交的 SQL，以保留透明度和响应兼容性；Skill 调用只
+   报告 Skill、参数和连接，不得编造 Skill 未披露的 SQL。raw query 的 SQL 仍可能
+   进入 MCP 上下文，因此不得把 secret、token 或敏感个人数据放入 SQL literal。
 
 3. **中优先级：为 `get_full_schema` 增加字符级预算。**
    表数量上限不能覆盖宽表/复杂 schema 的大输出。应增加 schema payload 的总字符
@@ -351,7 +378,8 @@ stdio live 通过，也没有证据说明阻塞由 v3.7 connection scope、批�
 `pytest.ini` 有意只收集 `tests/`，另行显式运行根目录
 legacy `test_bug_fixes.py`，结果为 `2 passed`；`git diff --check` 通过。该结果验证
 v3.7 policy/Skill/mutation regression；该结果记录的是 2026-08-20 之前的自动化
-基线，真实 subprocess stdio 的 2026-08-21 最新结果见下方第 7.1 节。
+基线；2026-08-21 的历史 subprocess stdio 结果见下方第 7.1 节，2026-08-28 的最新
+fresh-subprocess approval-host 和 UNION 目标 policy 复验见第 7.4 节。
 
 ### 7.1 v3.7.0 Live Validation（2026-08-21）
 
@@ -466,6 +494,123 @@ Host，或由 host 维护 token，而不是让模型直接读取和回显 bearer
 连接下的 Skill discovery、query execution、mutation write、状态核验和 replay
 拒绝，但不替代 7.1 的 subprocess stdio 或人工批准 Host 验证，也不证明
 `local_data/live-test.db` 已通过当前聊天 MCP 路径。
+
+### 7.3 v3.7.1 Opaque Handle Direct MCP Live Validation（2026-08-26）
+
+本节记录重启 MCP 服务并重新发现工具后的 v3.7.1 窄范围 live 证据。工具 schema
+已显示 opaque handle 且 `preview_token.maxLength=128`；此前会话附件中的
+HMAC/4096 描述属于旧快照，不代表重启后的服务。
+
+**调用链与结果：**
+
+1. 默认 `trade_analysis_mysql` 在该时点 `check_connection` 成功；随后选择明确的
+  disposable `live_test_sqlite`，只读 query 确认 `orders.id=1` 初始为 `pending`。
+2. `update-order-status(confirm=false)` 返回 43 字符 URL-safe opaque handle 和
+  `preview_token_expires_at`；响应中没有旧 envelope、
+  `preview_token_expires_in_seconds`、顶层 hint 或嵌套 confirmation 字段。
+3. 使用同一 handle 但把目标状态改为 `shipped` 的 execute 被拒绝，错误未回显
+  handle；随后用原始 `confirmed` 参数执行成功，证明 request mismatch 没有消费
+  有效记录。
+4. 同一 handle 再次执行被拒绝；只读 query 确认状态为 `confirmed`，证明成功消费
+  后 replay protection 生效。
+5. 通过 `reset-demo-order-to-pending` 的独立 preview/execute 将记录恢复，最终
+  query 确认 `orders.id=1` 回到 `pending`。
+
+该流程是重启后已配置服务上的 **direct MCP live mutation passed**，验证 opaque
+handle 的实际响应、匹配/消费和 replay 行为。它没有重新启动独立 fresh subprocess
+或运行人工批准 Host，所以不能单独作为这两条 fresh-subprocess 路径的证据；
+2026-08-28 的独立 fresh-subprocess approval-host 批准/拒绝与按目标连接的 UNION
+allow/deny 复验见 7.4，已取代 2026-08-21 作为最新 live evidence。
+2026-08-28 默认 MySQL 曾出现连接超时；服务启动并重启 MCP 后的恢复证据见 7.4。
+该瞬时失败不推翻本节已经完成并恢复的 SQLite 流程。
+
+### 7.4 当前代码 Direct MCP 复验（2026-08-28）
+
+本节用于验证当前代码和重启后的当前配置，不把 7.3 的历史成功直接外推。真实
+MySQL 仅执行只读检查；mutation 仍只在可丢弃的 `live_test_sqlite` 上进行。
+
+**MySQL 只读结果：**
+
+1. 默认 `trade_analysis_mysql` 的 `check_connection` 成功。
+2. 显式目标上的 `SELECT 1 AS live_check` 成功返回一行。
+3. `SELECT 1 AS value UNION SELECT 2 AS value` 被该目标的
+  `allow_union=false` policy 拒绝，响应包含正确的 `connection_id`。
+
+**SQLite opaque-handle 可逆流程：**
+
+1. 只读 query 确认 `orders.id=1` 初始为 `pending`；Skill discovery 显示
+  `update-order-status` 和 `reset-demo-order-to-pending` 均可在该目标执行。
+2. preview `pending -> confirmed` 成功并返回 43 字符 opaque handle。
+3. 使用同一 handle 将 execute 参数改成 `new_status=shipped` 时，请求绑定校验拒绝；
+  随后以原始 `confirmed` 参数执行成功并返回 `rowcount=1`，证明 mismatch 没有消费
+  有效 handle。
+4. 同一 handle 再次执行被拒绝；只读 query 确认状态已变为 `confirmed`。
+5. 使用独立 reset preview/handle 恢复，最终 query 确认状态回到 `pending`。
+
+**证据边界：** 当前三个 live 连接的 `allow_union` 均为 `false`，所以本轮只能
+live 验证目标 policy 的拒绝路径。相反 policy 顺序下 raw query 和 Query Skill
+的允许/拒绝双向行为由自动化多连接矩阵覆盖。本轮没有在 MySQL 上执行 mutation，
+也不把临时环境覆盖的 UNION allow 分支当作当前 `.env` 默认策略。当前代码还在
+`live_test_sqlite` 上完成了 fresh-subprocess approval host 的批准/拒绝复验；它与
+上面的 direct MCP opaque-handle 流程使用独立的 server subprocess，但都只写入并
+恢复同一个可丢弃的订单 `id=1`。
+
+**Fresh subprocess UNION allow 分支：** 使用新的 `StdioTransport` server 进程，
+只临时设置 `DB_ANALYTICS_DEMO_SQLITE_ALLOW_UNION=1`，未修改工作区 `.env`。该进程
+的 `list_connections()` 确认 `analytics_demo_sqlite.allow_union=true`，而默认
+`trade_analysis_mysql.allow_union=false`。目标 SQLite 执行
+`SELECT id, status FROM orders WHERE id = 1 UNION SELECT id, status FROM orders
+WHERE id = 2 ORDER BY id` 成功返回 2 行（`id=1/2`，均为 `completed`）；同一进程
+对默认 MySQL 的 `SELECT 1 AS probe UNION SELECT 2 AS probe` 仍返回安全拒绝。该次
+调用观测耗时分别约 134.28 ms 和 157.10 ms，只是单次联调样本，不是性能基准。
+同一 fresh server 进程另以测试 harness 将同一条只读 UNION SQL 注入现有 query
+Skill 的加载路径：`monthly-sales-report-sqlite` 指向
+`analytics_demo_sqlite` 时成功返回 2 行，耗时约 348.74 ms；
+`monthly-sales-report` 指向默认 MySQL 时被 UNION policy 拒绝，耗时约
+2,040.54 ms。该 harness 使用空参数映射来隔离 UNION policy，不代表正式月报
+Skill 的业务 SQL；它补充证明 Query Skill 的目标连接 policy 与 raw query 一致。
+
+**Fresh-subprocess approval host：** 使用当前 `.venv`、当前本地配置和
+`live_test_sqlite.orders.id=1`，临时参数为 `pending -> confirmed`。输入精确
+`APPROVE` 的 Host 子进程墙钟耗时约 8,787.69 ms，退出码 0，最终状态
+`executed`，目标为 `live_test_sqlite`，数据库返回 `rowcount=1`；批准视图和最终
+stdout 均没有完整 bearer handle。恢复后输入 `NO` 的独立 Host 子进程耗时约
+12,414.76 ms，退出码 3，状态 `deny`，消息明确为 execute 未调用，stdout 同样
+没有完整 handle。两次流程均在各自的同一 Client/server 子进程内完成 preview
+和后续决定；拒绝流程没有执行写入。
+
+**详细 direct MCP 采样：** 以下是一个 fresh stdio server 进程中 19 个步骤的单次
+观测，所有耗时为从客户端发起调用到收到结果的墙钟时间；错误传播也计入其中。
+累计约 3,711.75 ms，不能代表吞吐、P95 或跨网络生产延迟。
+
+| Step | Result | Observed ms |
+|---|---|---:|
+| `ping` | 成功 | 7.80 |
+| `list_connections` | 3 个连接，默认 `trade_analysis_mysql` | 93.40 |
+| MySQL `SELECT 1` | 1 行成功 | 412.50 |
+| MySQL UNION | policy 拒绝 | 40.22 |
+| live SQLite `COUNT(*)` | 3 行订单总数 | 72.97 |
+| live SQLite UNION | policy 拒绝 | 40.69 |
+| `list_skills(full)` | 3 个可执行 Skill | 37.89 |
+| `get_skill_detail(execution)` | mutation 参数/下一步成功返回 | 20.41 |
+| SQLite 月报 Skill | 2026-08 返回 3 行 | 179.19 |
+| execute 前查状态 | `pending` | 50.92 |
+| mutation preview | `pending -> confirmed`，handle 43 字符 | 59.58 |
+| 参数绑定 mismatch | 拒绝，handle 保留 | 1,438.14 |
+| mismatch 后查状态 | 仍为 `pending` | 44.99 |
+| 正确 execute | `rowcount=1`，变为 `confirmed` | 60.87 |
+| execute 后查状态 | `confirmed` | 47.99 |
+| replay | 已消费 handle，拒绝 | 959.81 |
+| reset preview | `confirmed -> pending` | 42.22 |
+| reset execute | `rowcount=1` | 59.40 |
+| 最终查状态 | `pending` | 42.74 |
+
+preview 返回的 handle 在该次采样中为 43 个字符、没有 `.`；这是当前实现的观测，
+不是客户端应依赖的格式契约。`get_prompt("sql_assistant")` 通过 fresh MCP
+subprocess 返回 1 条消息、2,959 字符、约 9.99 ms，包含
+`UNION policy is connection-specific` 和 selected-alias 指引，不包含默认连接
+UNION 泛化文案。最终只读查询确认 `live_test_sqlite.orders.id=1` 为 `pending`；
+MySQL 全程只读，未执行 mutation。
 
 ## 附录 A：历史协议基线
 

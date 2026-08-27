@@ -19,19 +19,40 @@ def read_source_file():
 
 
 def _verify_sql_assistant_prompt_fix():
-    """Verify sql_assistant prompt handles ALLOWED_TABLES=* correctly."""
+    """Verify sql_assistant does not present the default UNION policy globally."""
     print("\n" + "=" * 60)
     print("TEST 2: sql_assistant prompt fix verification")
     print("=" * 60)
     
     source = read_source_file()
-    
-    # Look for the fixed logic in sql_assistant
-    # Current implementation: ALLOWED_TABLES=* results in "UNION supported for combining results."
+    match = re.search(r'def sql_assistant\(\).*?return f""".*?"""', source, re.DOTALL)
+    if not match:
+        print("❌ FAIL: Could not extract sql_assistant function")
+        return False
+
+    func_code = match.group(0)
+
+    # sql_assistant() has no connection_id argument. It must direct callers to
+    # the selected connection's policy instead of projecting the default
+    # connection's ALLOW_UNION/ALLOWED_TABLES values as server-wide truth.
     checks = [
-        ('if "*" in ALLOWED_TABLES:' in source, 'Check for "*" in ALLOWED_TABLES'),
-        ('UNION supported for combining results' in source, 'UNION message for ALLOWED_TABLES=*'),
-        ('cross_table' in source, 'cross_table variable used in prompt'),
+        (
+            "UNION policy is connection-specific" in func_code,
+            "UNION guidance is connection-specific",
+        ),
+        (
+            "selected alias in " in func_code and "list_connections();" in func_code,
+            "Prompt directs callers to the selected alias",
+        ),
+        (
+            "query() and Query Skills enforce that target's policy" in func_code,
+            "Prompt identifies target-runtime enforcement",
+        ),
+        (
+            "if ALLOW_UNION" not in func_code and "ALLOWED_TABLES" not in func_code,
+            "Prompt does not derive global guidance from default policy globals",
+        ),
+        ('cross_table' in func_code, 'cross_table variable used in prompt'),
     ]
     
     all_passed = True
@@ -43,14 +64,11 @@ def _verify_sql_assistant_prompt_fix():
             all_passed = False
     
     # Extract the relevant code section
-    match = re.search(r'def sql_assistant\(\).*?return f""".*?"""', source, re.DOTALL)
-    if match:
-        print(f"\n📋 Extracted sql_assistant function:\n{'-' * 40}")
-        func_code = match.group(0)
-        # Show just the relevant part
-        for line in func_code.split('\n')[:20]:
-            print(f"   {line}")
-        print("   ...")
+    print(f"\n📋 Extracted sql_assistant function:\n{'-' * 40}")
+    # Show just the relevant part
+    for line in func_code.split('\n')[:20]:
+        print(f"   {line}")
+    print("   ...")
     
     print()
     if all_passed:

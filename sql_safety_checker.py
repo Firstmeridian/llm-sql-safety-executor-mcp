@@ -61,6 +61,14 @@ def execute_sql(
         - SQLite does not support SHOW/DESCRIBE commands
         - These are handled at the MCP tool level via adapter methods
         - Direct SHOW/DESCRIBE queries will fail on SQLite with syntax error
+
+    Policy boundary:
+        This compatibility helper applies only the shared statement-shape
+        predicate in ``is_sql_safe()``. It resolves and executes on the selected
+        connection, but does not enforce the MCP layer's per-connection
+        ``ALLOW_UNION``, ``ALLOWED_TABLES``, raw-SHOW, system-schema, or extended
+        table-scope policy. Security-sensitive integrations should use the MCP
+        query/Skill tools or enforce an equivalent application policy.
     """
     try:
         config = get_connection_config(connection_id)

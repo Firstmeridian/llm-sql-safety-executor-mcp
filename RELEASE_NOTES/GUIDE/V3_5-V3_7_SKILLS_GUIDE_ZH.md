@@ -6,7 +6,14 @@
 >
 > 版本范围：v3.5 命名连接与只读 Skills，v3.6 命名 Mutation、preview-token
 > 和严格写策略，v3.6.1 的 preview/binding 修复与同进程部署契约定稿，
-> 以及 v3.7 的可选 Skill 连接范围、人工批准 host 和跨数据库 demo reset。
+> v3.7.0 的可选 Skill 连接范围、人工批准 host 和跨数据库 demo reset，以及
+> v3.7.1 的 opaque preview handle、精简响应与 Agent 渐进披露优化。
+
+> **v3.7.1 迁移说明：** 本文的 v3.6/v3.6.1 比较保留 HMAC token 历史事实。
+> v3.7.1 仍使用 `preview_token` 字段，但其值是 256-bit opaque handle；请求与
+> 执行绑定状态全部位于进程内 Store。签名 secret 配置及
+> `preview_token_expires_in_seconds` 响应字段已废弃；当前规范以
+> [Skills 安全策略](../../skills/SAFETY.md) 为准。
 
 ## 1. 先看总图
 
@@ -57,7 +64,7 @@ v3.6.1 没有改变 Mutation Skill API、token 格式、默认 TTL、默认容�
 部署定为客户端自有的 stdio 进程。受信任私有环境中的条件性 HTTP mutation
 只能运行一个启用 mutation 的进程；多用户认证 HTTP mutation 不属于本版本。
 
-### 1.3 v3.6.1 和 v3.7 的区别
+### 1.3 v3.6.1 和 v3.7.0 的区别
 
 | 项目 | v3.6.1 | v3.7.0 |
 |------|---------|--------|
@@ -69,10 +76,26 @@ v3.6.1 没有改变 Mutation Skill API、token 格式、默认 TTL、默认容�
 | Demo reset mutation | 只有跨 MySQL/SQLite 的通用业务状态 Skill | 新增跨 MySQL/SQLite 的 `reset-demo-order-to-pending`，显式检查测试产生的来源状态并固定恢复为 `pending` |
 | SQL 方言加固 | DRR-013 尚未作为 v3.6.1 功能关闭 | 拒绝执行型 ANALYZE explain、嵌套写 DML、MySQL 可执行注释与非空白 `--` 形式 |
 
-v3.7 没有改变 preview-token 格式、store、TTL、容量或既有写授权协议，但有意
+v3.7.0 没有改变 preview-token 格式、store、TTL、容量或既有写授权协议，但有意
 收紧了 raw SQL grammar 与畸形 Skill metadata。它没有增加 HTTP 认证、服务端
 批准人身份或 token 撤销 API。新增 reset mutation 只使用既有 MySQL/SQLite demo
 `orders` schema，不代表完整生产订单生命周期或事务性回滚能力。
+
+### 1.4 v3.7.0 和 v3.7.1 的区别
+
+| 项目 | v3.7.0 | v3.7.1 |
+|------|--------|--------|
+| Preview 值 | Self-describing HMAC envelope + 进程内 Store | 公共字段名不变，值改为随机 256-bit opaque bearer handle；完整绑定只保存在 Store |
+| 请求匹配 | 解析/校验签名 payload，再查询并消费 Store record | 对 handle 做 digest lookup，在锁内精确比较 request binding；不匹配保留有效 record，匹配后原子消费 |
+| Secret | `MUTATION_PREVIEW_TOKEN_SECRET` 参与 envelope 签名 | 配置已废弃并忽略；存在时只输出不含值的 warning |
+| Preview 响应 | 同时返回绝对/相对过期时间、执行 hint 和嵌套确认字段 | 保留 `preview_token_expires_at`；移除三个重复 convenience 字段并明确兼容影响 |
+| Skill detail | `get_skill_detail()` 固定 full | 新增可选 `execution` 投影；省略仍为 full，保持旧调用兼容 |
+| Agent 流程 | 容易形成固定 list → detail → execute | 参数已知或 list full 已提供参数时直接执行；未知参数才取 execution detail |
+| 连接/UNION 提示 | 全局 prompt 可能把默认连接 policy 当成全局建议 | 模糊用途不猜 alias；UNION 提示保持 target-neutral，运行时仍按目标连接权威校验 |
+
+没有改变的边界包括：mutation 仍是 preview/execute 两次调用、execute 仍重传
+Skill/params/connection、TTL 与默认容量不变、写授权层不变、preview/execute 必须到达
+同一进程。Handle 仍是 bearer secret；缩短它不会使泄漏无害。
 
 ## 2. `DB_CONNECTIONS` 和 `connection_id`
 
@@ -540,9 +563,10 @@ confirm=true  -> execute 分支
 
 如果 MCP 客户端弹出确认 UI 并由人点击允许，客户端可能随后发送 `confirm=true`；但服务端从这个布尔值本身无法证明一定有人类点击。自动化 Agent 也可以在分析 preview 后发送 `confirm=true`。
 
-### 8.2 `preview_token` 绑定什么？
+### 8.2 `preview_token` 对应的 Store record 绑定什么？
 
-Token 绑定的是“一次具体的预览操作”，不是一个泛化的“允许这个 Skill”标记：
+Handle 本身是随机值，不携带客户端可读授权状态。其服务端 Store record 绑定的是
+“一次具体的预览操作”，不是泛化的“允许这个 Skill”标记：
 
 ```text
 skill_name
@@ -550,9 +574,8 @@ skill_version
 规范化 params 的 hash
 connection_id
 db_type
-签发时间与过期时间
-preview-time execution binding 的 hash
-随机 jti
+过期时间
+preview-time execution binding
 ```
 
 为什么绑定多个属性？
@@ -571,7 +594,9 @@ preview-time execution binding 的 hash
     防止 preview 看到 confirmed，却覆盖后来已经变成 cancelled 的订单
 ```
 
-Token 由 HMAC 防篡改，并登记在当前进程的有界原子 memory store 中防止重复消费。
+服务端只用 handle 的 SHA-256 digest 索引 record，不持久保存完整 bearer 值。
+Store 在同一把锁内完成 request binding 比较和一次性消费；随机 256-bit handle
+提供不可猜测性，Store record 才是授权状态的权威来源。
 
 ### 8.3 为什么 execute 不再次调用 `preview()`？
 
@@ -582,8 +607,8 @@ Token 由 HMAC 防篡改，并登记在当前进程的有界原子 memory store 
 因此当前做法是：
 
 ```text
-preview 阶段保存最小必要的 execution binding
-execute 阶段验证 token，并使用这份 binding
+preview 阶段保存最小必要的 request/execution binding
+execute 阶段用 handle 查找并原子匹配/消费 record，再使用 execution binding
 ```
 
 但 execute 仍会再次 `validate()`，因为它需要检查当前业务状态是否还允许执行。
@@ -652,8 +677,8 @@ WHERE id = :order_id
 缺少 token
     -> 要求先 confirm=false
 
-HMAC 错误、格式错误
-    -> Invalid preview_token; run preview again.
+未知、被改动或不属于本进程的 handle
+    -> preview_token was not issued by this server process ...
 
 参数、连接、Skill 或版本不匹配
     -> preview_token does not match this mutation request
@@ -680,17 +705,19 @@ HMAC 错误、格式错误
 第二次 preview -> token B
 ```
 
-当前 execute 在通过静态 token 检查后，会在动态 validation 和数据库写入前原子消费 token。消费后即使发生 validation、数据库、超时、audit 或响应失败，也不会恢复；需要重新 preview。
+当前 execute 在静态 request/policy 检查后，对 Store record 原子执行“匹配并消费”，
+随后才进入动态 validation 和数据库写入。消费后即使发生 validation、数据库、超时、
+audit 或响应失败，也不会恢复。若结果不确定，必须先查询当前业务状态，再决定是否
+进行新的 preview/mutation，不能盲目重试。
 
 这样做是保守策略：如果一次写请求结果不确定，系统不能凭旧 token 自动重试，以免重复写入。
 
-HMAC 与 memory store 不是同一层防护：HMAC 检测 token 篡改，并让参数、连接、
-Skill 或版本不匹配在消费前被拒绝；store 证明 token 确实由当前进程签发，保存
-canonical execution binding，并原子实施一次性消费。v3.6.1 不允许任意一层替代
-另一层。消费后的 binding compare 是内部一致性检查，不是第三个独立授权边界。
+v3.7.1 不再保留独立的签名 payload 层。随机 handle 负责不可猜测性，Store 证明
+它由当前进程签发、保存 canonical request/execution binding，并实施条件式一次性
+消费。未知 handle 查不到 record；请求不匹配不会消费仍有效的 record。
 
-Token 对调用方是 API-opaque，但内容并未加密；调用方不得解析或依赖其内部格式。
-Token 必然经过授权客户端，并可能进入模型上下文，因此应尽量减少持久保存和日志
+Handle 对调用方是 API-opaque，调用方不得解析或依赖其内部格式。Handle 必然经过
+授权客户端，并可能进入模型上下文，因此应尽量减少持久保存和日志
 记录、限制上下文与日志访问。Bearer confidentiality 在 token 消费或过期前仍然
 重要；短 TTL、精确绑定和原子一次性消费只能限制、不能消除泄露影响。适用工具
 metadata 中的短 `preview_token_id` 只是客户端关联提示；audit 和 telemetry 不会
@@ -708,10 +735,10 @@ HTTP  -> 仅限受信任私有边界，且只运行一个启用 mutation 的进�
 stdio 是推荐基线。v3.6.1 不定义多用户认证 HTTP mutation 服务，程序也不会自动
 检测 worker 或 replica 数；部署配置必须保证 mutation 进程数为 1。不得把多个
 启用 mutation 的 memory worker 放在普通负载均衡器后。进程重启、
-滚动发布或请求进入其他进程时，旧 token 都会 fail closed，调用方必须重新
-preview；即使固定 `MUTATION_PREVIEW_TOKEN_SECRET` 也不能恢复 store 状态。
+滚动发布或请求进入其他进程时，旧 handle 都会 fail closed，调用方必须重新
+preview；v3.7.1 已不使用签名 secret，任何进程外配置都不能恢复 Store 状态。
 只读容量只能通过独立的 read-only endpoint、profile 或 pool 横向扩展。
-v3.6.1 不提供共享 token backend，也不会退回可重放的 stateless HMAC-only 校验。
+当前版本不提供共享 token backend，也不会退回 stateless token acceptance。
 
 ## 11. `mutation.py` 固定接口契约
 
@@ -804,23 +831,26 @@ sequenceDiagram
         else preview 成功
             Server->>Skill: build_execution_binding()
             Skill-->>Server: 与展示内容同源的最小 preview 状态
-            Server->>Store: 登记 HMAC token digest + binding + expiry
+            Server->>Store: 登记 handle digest + request/execution binding + expiry
             Server-->>Agent: preview result + preview_token
         end
     end
 
     Agent->>Server: 第 2 次：confirm=true\n同一 skill + params + connection_id + token
     Server->>Server: 重新解析配置并检查 connection_ids / db_type / 写策略
-    Server->>Server: 验证 token 的签名、Skill、版本、参数、连接、DB 类型
+    Server->>Server: 规范化 Skill、版本、参数、连接与 DB 类型的 request binding
 
     alt token 缺失、错误、过期或不匹配
         Server-->>Agent: 拒绝，重新 preview
-    else 静态 token 验证成功
-        Server->>Store: 原子消费 token
-        alt token 已消费或不存在
-            Store-->>Server: consume 失败
+    else 静态 request/policy 检查成功
+        Server->>Store: digest lookup + 原子比较 request binding
+        alt handle 不存在、过期或已消费
+            Store-->>Server: lookup/consume 失败
             Server-->>Agent: replay 拒绝
-        else consume 成功
+        else request binding 不匹配
+            Store-->>Server: mismatch（不消费有效 record）
+            Server-->>Agent: 请求不匹配
+        else 匹配并消费成功
             Store-->>Server: execution binding
             Server->>Skill: validate(params)
             alt 当前状态不再允许
@@ -867,10 +897,7 @@ SKILLS_ALLOW_MUTATION_CONNECTIONS=analytics_demo_sqlite
 
 MUTATION_PREVIEW_TOKEN_TTL_SECONDS=300  # 有效范围 1-86400 秒
 MUTATION_PREVIEW_TOKEN_STORE_MAX_ENTRIES=10000  # 有效范围 1-100000
-# 可选：只在服务端环境设置，不要交给 Agent
-# 固定 secret 不会让 token 在进程重启或跨进程后恢复
-# 建议至少 32 个随机字节；启动日志只报告来源模式，不记录 secret
-# MUTATION_PREVIEW_TOKEN_SECRET=replace_with_at_least_32_random_bytes
+# v3.7.1 使用随机 opaque handle；MUTATION_PREVIEW_TOKEN_SECRET 已废弃且会被忽略
 ```
 
 Skill 作者可选地在 `skill_def.md` 中再收窄目标（这不是环境变量，也不授予权限）：
@@ -911,13 +938,13 @@ MySQL 和 SQLite 两端都使用临时订单完成 preview/execute/replay 测试
 清理临时数据。因此，“本节批次未执行远程 MySQL 写入”和“完整 fixture 批次验证了
 MySQL 写入”并不矛盾，不能把两批写入范围合并描述。
 
-真实联调不是穷尽式生产证明。尤其需要持续注意：MySQL 当前若配置 `ALLOWED_TABLES=*` 和 Mutation 写权限，会扩大真实数据库的 blast radius；v3.6.1-v3.7 的 mutation endpoint 只支持单个启用 mutation 的进程，不能将多个 memory worker 放在普通负载均衡器后。v3.7 的 in-memory FastMCP contract 和 2026-08-21 的 subprocess stdio 复验均已通过；2026-08-13、2026-08-19/20 的 initialize 阻塞保留为历史环境观察，不能与最新通过结果混淆。
+真实联调不是穷尽式生产证明。尤其需要持续注意：MySQL 当前若配置 `ALLOWED_TABLES=*` 和 Mutation 写权限，会扩大真实数据库的 blast radius；v3.6.1-v3.7.1 的 mutation endpoint 只支持单个启用 mutation 的进程，不能将多个 memory worker 放在普通负载均衡器后。v3.7.0 的 in-memory FastMCP contract 和 2026-08-21 的 subprocess stdio 复验均已通过；2026-08-26 又在重启后的已配置 MCP 服务上完成 v3.7.1 opaque-handle direct live mutation 与恢复，但它本身不是 fresh-subprocess approval-host 复验。2026-08-28 又在 fresh subprocess 完成人工批准 Host 的 `APPROVE` 成功写入与 `NO` 拒绝且未调用 execute；另在临时只为 `analytics_demo_sqlite` 开启 UNION 的 subprocess 中，raw query 和 Query Skill allow 分支均返回真实两行，而默认 MySQL 仍按目标 policy 拒绝 UNION。MySQL 早先超时后，后续只读连接复验恢复成功；早先超时作为负面环境观察保留在 live 文档中。2026-08-13、2026-08-19/20 的 initialize 阻塞保留为历史环境观察，不能与最新通过结果混淆。
 
 ## 15. 相关文档
 
 - [v3.5 发布说明](../RELEASE_NOTES_v3_5.md)
 - [v3.6/v3.6.1 发布说明](../RELEASE_NOTES_v3_6.md)
-- [v3.7.0 发布说明](../RELEASE_NOTES_v3_7.md)
+- [v3.7/v3.7.1 发布说明](../RELEASE_NOTES_v3_7.md)
 - [Skills 设计文档](../../MCP_AGENTS_SKILLS_DESIGN.md)
 - [Skills 安全策略](../../skills/SAFETY.md)
 - [设计风险登记表](../../DESIGN_RISK_REGISTER_ZH.md)

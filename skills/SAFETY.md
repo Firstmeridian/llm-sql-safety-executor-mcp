@@ -25,18 +25,21 @@ is **never** used. This prevents SQL injection by design.
 the operation before confirming execution with `confirm=True`.
 
 Every `confirm=True` mutation execute must include the `preview_token` returned
-by the matching preview call. The token is HMAC-signed and bound to the skill
-name, skill version, canonical params hash, resolved `connection_id`, DB type,
-issue time, expiry, and a hash of minimal preview-time execution state. Missing,
-expired, tampered, or mismatched tokens fail closed before the write path runs.
+by the matching preview call. It is a random 256-bit opaque bearer handle. Its
+server-side Store record is bound to the skill name, skill version, canonical
+params hash, resolved `connection_id`, DB type, expiry, and minimal preview-time
+execution state. Missing, expired, unknown, consumed, or mismatched handles fail
+closed before the write path runs.
 
-Preview tokens are registered in a bounded atomic store and consumed before
-dynamic business validation and database writes. Consumption is terminal after
-every later outcome, including validation, database, timeout, audit, or response
-failure. Static request/policy/HMAC rejection happens before consumption. The
+Preview handles are registered in a bounded atomic store and conditionally
+consumed only when their request binding matches. Consumption happens before
+dynamic business validation and database writes and is terminal after every
+later outcome, including validation, database, timeout, audit, or response
+failure. Static request/policy rejection and request-binding mismatch happen
+without consuming the valid record. The
 memory store is process-local and loses outstanding tokens on restart. The
 recommended mutation deployment is the client-owned stdio MCP process. If an
-integrator exposes mutations through an HTTP transport, v3.6.1 supports only a
+integrator exposes mutations through an HTTP transport, the current design supports only a
 trusted single-operator/private boundary with exactly one mutation-enabled
 process. It does not define a multi-user authenticated HTTP mutation service.
 The application does not detect worker or replica counts; deployment
@@ -77,7 +80,9 @@ Mutation authors should prefer idempotent write patterns:
 - Optimistic locking (`WHERE status = :expected`)
 - Conditional updates (`WHERE updated_at = :expected_ts`)
 
-This prevents duplicate effects when agents retry operations.
+These patterns reduce duplicate effects when a workflow has independently
+established that retry is safe. They do not authorize an Agent to retry after a
+timeout, disconnect, or other ambiguous mutation result.
 
 ## 7. Script Trust Boundary
 
@@ -94,57 +99,59 @@ Production recommendations:
 - For SQLite: use a separate database file for writes if possible
 - Grant only the minimum permissions required by each skill's SQL
 
-## 9. Server-Side Preview Token (v3.6-v3.7)
+## 9. Server-Side Preview Token
 
 Server-side preview-token protection, including the bounded process-local
-memory store, was introduced in v3.6. v3.6.1 adds preview/binding correctness
-fixes and formalizes the same-process deployment boundary. The
+memory store, was introduced in v3.6. Since v3.7.1, the implementation uses a
+random 256-bit opaque handle and keeps authorization state only in that Store. The
 `destructiveHint` annotation remains only a client-facing hint and does not
 replace server-side authorization or token validation.
 
 Every `confirm=true` mutation execution must include the `preview_token`
-returned by the matching `confirm=false` preview. The token is HMAC-signed and
-binds the Skill name, Skill version, canonical parameter hash, resolved
-`connection_id`, database type, issue/expiry timestamps, and a hash of the
-minimal preview-time execution binding. Missing, expired, tampered, or
-mismatched tokens fail closed before the write path.
+returned by the matching `confirm=false` preview. The Store record binds the
+Skill name, Skill version, canonical parameter hash, resolved `connection_id`,
+database type, expiry, and minimal preview-time execution binding. Missing,
+expired, unknown, consumed, or mismatched handles fail closed before the write
+path. An exact request-binding mismatch does not consume the valid record.
 
-HMAC and the server-side store have separate roles. HMAC detects tampering and
-lets static request mismatches fail before consuming a valid record. The store
-proves that this process issued the token, retains the canonical execution
-binding, and enforces one-time atomic consumption. Neither layer may replace the
-other in v3.6.1. The post-consume binding comparison is an internal consistency
-check, not a third independent authorization boundary.
-
-The token is API-opaque but not encrypted: clients must not parse it or depend
-on its internal format. It necessarily passes through the authorized client and
+The handle is API-opaque and contains no client-readable authorization state:
+clients must not parse it or depend on its format. It necessarily passes through the authorized client and
 may enter model context. Until it is consumed or expires, bearer confidentiality
 still matters: clients should minimize durable retention and logging, protect
 access to context and logs, and never expose the token to an unauthorized party.
 Short TTL, exact request/state binding, and atomic one-time consumption limit the
 impact of disclosure; they do not make disclosure harmless.
 
-The token is registered in a bounded atomic store and consumed before dynamic
-validation and database writes. A consumed token cannot be retried, including
-after a later validation, database, timeout, audit, or response failure; the
-caller must preview again. Static request, policy, or HMAC rejection does not
-consume a matching valid token. A preview result containing `error` or reporting
-`success=false` fails and does not receive a token.
+The handle is registered in a bounded atomic store and consumed before dynamic
+validation and database writes. A consumed handle cannot be reused, including
+after a later validation, database, timeout, audit, or response failure. When
+the write outcome is uncertain, the caller must inspect current business state
+before deciding whether a new preview/mutation is appropriate; it must not
+blindly retry. Static request or policy rejection and a request-
+binding mismatch do not consume the matching valid record. A preview result
+containing `error` or reporting `success=false` fails and does not receive a
+handle.
+
+The database transaction cannot make Store consumption, database commit, audit,
+and MCP response delivery one atomic event. Fully queryable retry semantics
+would require a durable operation/idempotency record committed with the business
+write plus an authenticated status lookup after reconnect; v3.7.1 does not add
+that product-level protocol.
 
 This mechanism proves that the execute request matches a server-issued preview
 and prevents replay. It does not prove that a human personally clicked an
 approval button: `confirm=true` may be produced by an Agent or client. A
 separate human approval workflow is required when that policy is mandatory.
 
-The memory store is process-local, so restart invalidates outstanding tokens.
+The memory store is process-local, so restart invalidates outstanding handles.
 The supported baseline is stdio in one client-owned process. Conditional HTTP
 mutation use is limited to a trusted private boundary and one mutation-enabled
-process; multi-user authenticated HTTP mutation is outside v3.6.1-v3.7. Preview and
-execute must reach that same process. Even a fixed signing secret cannot recover
-or share store state. The application does not enforce worker or replica counts.
+process; multi-user authenticated HTTP mutation is outside the current design.
+Preview and execute must reach that same process. The application does not
+enforce worker or replica counts.
 Requests reaching the wrong process fail closed and require a new preview.
 Read-only capacity may scale only through a separate read-only endpoint,
-profile, or pool. The server never falls back to stateless HMAC acceptance.
+profile, or pool. The server never falls back to stateless token acceptance.
 
 ### v3.7 host-side approval example
 
@@ -214,8 +221,8 @@ the consumed token is never restored.
 
 The full `preview_token` is never written to audit or tool telemetry. A short
 `preview_token_id` correlation hint is returned in applicable `ToolResult`
-metadata for the client, but v3.6.1 does not persist that short identifier in
-the audit or telemetry JSONL files.
+metadata for the client, but the current design does not persist that short
+identifier in the audit or telemetry JSONL files.
 
 Read-only query skills can be audited with `SKILLS_AUDIT_QUERIES=1`.
 This records skill name, truncated params, row counts, success/failure,

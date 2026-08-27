@@ -24,9 +24,9 @@ risk: low
 idempotent: true
 # Compatible database types. This is separate from connection alias scope.
 databases: [sqlite]
-# Optional deployment scope (aliases, not DB types or permissions). Omit it to
-# let callers choose any otherwise-authorized compatible connection.
-# connection_ids: [analytics_demo_sqlite]
+# Optional deployment scope (connection aliases, not DB types or schema checks).
+# Uncomment and adapt only when this deployment must restrict the Skill.
+# connection_ids: [analytics_demo_sqlite, live_test_sqlite]
 # Operational tags used by SKILLS_EXCLUDE_PROFILES and catalog filtering.
 profiles: [demo]
 # Strict input schema; undeclared params and invalid values are rejected.
