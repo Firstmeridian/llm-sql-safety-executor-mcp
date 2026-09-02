@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
+import hashlib
 import importlib
 import json
 import logging
@@ -211,6 +212,97 @@ def test_default_execute_requires_preview_token(tmp_path, monkeypatch):
         _cleanup_modules()
 
 
+def test_direct_call_rejects_non_boolean_confirm_before_mutation_setup(
+    tmp_path,
+    monkeypatch,
+):
+    """Direct calls must not select preview/execute via Python truthiness."""
+    mysql_db = tmp_path / "mysql.db"
+    analytics_db = tmp_path / "analytics.db"
+    _create_orders_db(mysql_db, "mysql")
+    _create_orders_db(analytics_db, "analytics")
+
+    module = _reload_server(monkeypatch, mysql_db, analytics_db)
+
+    def fail_validate_name(*_args, **_kwargs):
+        pytest.fail("Invalid confirm must be rejected before mutation setup")
+
+    monkeypatch.setattr(module, "validate_name", fail_validate_name)
+    try:
+        for invalid_confirm in (None, 0, 1, "false", "true"):
+            with pytest.raises(module.ToolError, match="confirm must be a boolean"):
+                run_tool(
+                    module.execute_mutation_skill(
+                        skill_name="update-order-status",
+                        params=_params(),
+                        ctx=DummyContext(),
+                        confirm=invalid_confirm,
+                    )
+                )
+        assert _order_status(mysql_db, 1) == "pending"
+        assert _order_status(analytics_db, 1) == "pending"
+    finally:
+        _cleanup_modules()
+
+
+def test_schema_metadata_failure_blocks_query_and_mutation_before_execution(
+    tmp_path,
+    monkeypatch,
+):
+    """Enabled readiness checks fail closed before SQL, preview, or token issue."""
+    mysql_db = tmp_path / "mysql.db"
+    analytics_db = tmp_path / "analytics.db"
+    _create_orders_db(mysql_db, "mysql")
+    _create_orders_db(analytics_db, "analytics")
+
+    module = _reload_server(monkeypatch, mysql_db, analytics_db)
+    adapter = module.get_adapter()
+
+    def fail_metadata():
+        raise module.MetadataQueryError("listing tables")
+
+    try:
+        monkeypatch.setattr(adapter, "get_tables", fail_metadata)
+        monkeypatch.setattr(
+            adapter,
+            "execute",
+            lambda *_args, **_kwargs: pytest.fail(
+                "Skill SQL must not execute when schema readiness is unavailable"
+            ),
+        )
+        monkeypatch.setattr(
+            module._MUTATION_PREVIEW_TOKEN_STORE,
+            "issue",
+            lambda *_args, **_kwargs: pytest.fail(
+                "Preview token must not be issued when schema readiness is unavailable"
+            ),
+        )
+
+        with pytest.raises(module.ToolError, match="could not be verified"):
+            run_tool(
+                module.execute_query_skill(
+                    skill_name="monthly-sales-report-sqlite",
+                    params={"year": 2026, "month": 1},
+                    ctx=DummyContext(),
+                )
+            )
+
+        with pytest.raises(module.ToolError, match="could not be verified"):
+            run_tool(
+                module.execute_mutation_skill(
+                    skill_name="update-order-status",
+                    params=_params(),
+                    ctx=DummyContext(),
+                    confirm=False,
+                )
+            )
+
+        assert len(module._MUTATION_PREVIEW_TOKEN_STORE) == 0
+        assert _order_status(mysql_db, 1) == "pending"
+    finally:
+        _cleanup_modules()
+
+
 def test_reset_skill_completes_mutation_compensation_flow(tmp_path, monkeypatch):
     """A mutation and its demo reset both use the real token/tool path."""
     mysql_db = tmp_path / "mysql.db"
@@ -313,8 +405,48 @@ def test_server_instructions_describe_optional_mutations(tmp_path, monkeypatch):
         assert "preview first with confirm=false" in prompt
         assert "UNION policy is connection-specific" in prompt
         assert "selected alias in list_connections()" in prompt
+        assert (
+            "list_skills(search, category, detail_level, available_only, "
+            "connection_id)" in prompt
+        )
         assert "For raw query() calls, include the executed SQL" in prompt
         assert "do not invent SQL that was not disclosed" in " ".join(prompt.split())
+    finally:
+        _cleanup_modules()
+
+
+def test_mutation_execution_detail_returns_invocation_contract(
+    tmp_path,
+    monkeypatch,
+):
+    mysql_db = tmp_path / "mysql.db"
+    analytics_db = tmp_path / "analytics.db"
+    _create_orders_db(mysql_db, "mysql")
+    _create_orders_db(analytics_db, "analytics")
+
+    module = _reload_server(monkeypatch, mysql_db, analytics_db)
+    try:
+        detail, _ = run_tool(
+            module.get_skill_detail(
+                skill_name="update-order-status",
+                connection_id="analytics",
+                detail_level="execution",
+                ctx=DummyContext(),
+            )
+        )
+
+        assert detail["success"] is True
+        assert detail["connection_id"] == "analytics"
+        assert detail["current_database_type"] == "sqlite"
+        assert detail["skill"]["name"] == "update-order-status"
+        assert detail["skill"]["type"] == "mutation"
+        assert detail["skill"]["executable"] is True
+        assert detail["skill"]["requires_confirmation"] is True
+        assert set(detail["skill"]["params"]) == {"order_id", "new_status"}
+        assert "confirm=false" in detail["usage_hint"]
+        assert "preview_token" in detail["usage_hint"]
+        assert "confirm=true" in detail["usage_hint"]
+        assert "same connection" in detail["usage_hint"]
     finally:
         _cleanup_modules()
 
@@ -1762,8 +1894,6 @@ def test_full_token_is_excluded_from_meta_and_audit(tmp_path, monkeypatch):
         )
         preview_token = preview["preview_token"]
 
-        assert len(preview_token) == 43
-        assert "." not in preview_token
         assert "preview_token_expires_in_seconds" not in preview
         assert "hint" not in preview
         assert "requires_confirmation" not in preview["preview"]
@@ -1786,6 +1916,68 @@ def test_full_token_is_excluded_from_meta_and_audit(tmp_path, monkeypatch):
         audit_text = audit_path.read_text(encoding="utf-8")
         assert preview_token not in audit_text
         assert preview_meta["preview_token_id"] not in audit_text
+    finally:
+        _cleanup_modules()
+
+
+def test_preview_uses_256_bit_random_handle_and_registers_only_digest(
+    tmp_path,
+    monkeypatch,
+):
+    mysql_db = tmp_path / "mysql.db"
+    analytics_db = tmp_path / "analytics.db"
+    _create_orders_db(mysql_db, "mysql")
+    _create_orders_db(analytics_db, "analytics")
+
+    module = _reload_server(monkeypatch, mysql_db, analytics_db)
+    random_byte_counts: list[int] = []
+    issued_digests: list[str] = []
+    fixed_handle = "fixed-opaque-preview-handle"
+    original_issue = module._MUTATION_PREVIEW_TOKEN_STORE.issue
+
+    def fake_token_urlsafe(nbytes: int) -> str:
+        random_byte_counts.append(nbytes)
+        return fixed_handle
+
+    def capture_issue(
+        token_digest: str,
+        expires_at: int,
+        request_binding_json: str,
+        execution_binding_json: str,
+        *,
+        now: int,
+    ) -> bool:
+        issued_digests.append(token_digest)
+        return original_issue(
+            token_digest,
+            expires_at,
+            request_binding_json,
+            execution_binding_json,
+            now=now,
+        )
+
+    try:
+        monkeypatch.setattr(module.secrets, "token_urlsafe", fake_token_urlsafe)
+        monkeypatch.setattr(
+            module._MUTATION_PREVIEW_TOKEN_STORE,
+            "issue",
+            capture_issue,
+        )
+
+        preview, _ = run_tool(
+            module.execute_mutation_skill(
+                skill_name="update-order-status",
+                params=_params(),
+                ctx=DummyContext(),
+                confirm=False,
+            )
+        )
+
+        expected_digest = hashlib.sha256(fixed_handle.encode("utf-8")).hexdigest()
+        assert preview["preview_token"] == fixed_handle
+        assert random_byte_counts == [32]
+        assert issued_digests == [expected_digest]
+        assert issued_digests[0] != fixed_handle
     finally:
         _cleanup_modules()
 

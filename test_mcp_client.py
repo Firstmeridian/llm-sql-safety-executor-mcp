@@ -92,9 +92,62 @@ async def _test_mcp_server_async():
             # List available tools
             tools = await client.list_tools()
             tool_names = [tool.name for tool in tools]
+            tools_by_name = {tool.name: tool for tool in tools}
             print(f"Available tools: {tool_names}\n")
-            for expected_tool in ["check_connection", "query", "list_tables", "describe_table"]:
-                assert expected_tool in tool_names, f"Missing expected MCP tool: {expected_tool}"
+            for expected_tool in [
+                "list_connections",
+                "check_connection",
+                "query",
+                "list_tables",
+                "describe_table",
+                "get_full_schema",
+            ]:
+                assert expected_tool in tool_names, (
+                    f"Missing expected MCP tool: {expected_tool}"
+                )
+
+            schema_tool = tools_by_name["get_full_schema"]
+            schema_properties = schema_tool.inputSchema["properties"]
+            assert schema_properties["detail_level"]["enum"] == [
+                "compact",
+                "full",
+            ]
+            assert schema_properties["detail_level"]["default"] == "compact"
+            assert "anyOf" not in schema_properties["detail_level"]
+
+            normalized_descriptions = {
+                name: " ".join((tool.description or "").split())
+                for name, tool in tools_by_name.items()
+            }
+            assert "primary tool for free-form read-only SQL" in (
+                normalized_descriptions["query"]
+            )
+            assert "not complete DDL" in normalized_descriptions["describe_table"]
+            assert "strict named-write policy" in (
+                normalized_descriptions["list_connections"]
+            )
+
+            if "sample" in tools_by_name:
+                limit_schema = tools_by_name["sample"].inputSchema["properties"][
+                    "limit"
+                ]
+                assert limit_schema["default"] == 5
+                assert limit_schema["minimum"] == 1
+                assert limit_schema["maximum"] == 20
+                invalid_sample = await client.call_tool(
+                    "sample",
+                    {"table_name": "validation_only", "limit": 0},
+                    raise_on_error=False,
+                )
+                assert invalid_sample.is_error is True
+
+            if "get_table_summary" in tools_by_name:
+                exact_count_schema = tools_by_name[
+                    "get_table_summary"
+                ].inputSchema["properties"]["exact_count"]
+                assert exact_count_schema["default"] is False
+                assert "SELECT COUNT(*)" in exact_count_schema["description"]
+                assert "full scan" in exact_count_schema["description"]
             
             # Test 1: Check Database Connection
             result = await client.call_tool("check_connection", {})
@@ -127,10 +180,33 @@ async def _test_mcp_server_async():
             first_table = None
             if content.get("success") and content.get("tables"):
                 first_table = content["tables"][0].get("table_name")
+
+            # Test 2B: Default grouped-compact projection through fresh stdio
+            result = await client.call_tool("get_full_schema", {})
+            compact_schema = parse_result(result)
+            assert compact_schema.get("success") is True, compact_schema
+            assert compact_schema.get("detail_level") == "compact"
+            assert compact_schema.get("grouping_basis") == (
+                "adapter_visible_column_metadata_and_order"
+            )
+            assert "schema_groups" in compact_schema
+            assert "schema" not in compact_schema
+            print_result(
+                "TEST 2B: get_full_schema(default compact)",
+                {
+                    "success": compact_schema["success"],
+                    "detail_level": compact_schema["detail_level"],
+                    "returned_table_count": compact_schema["returned_table_count"],
+                    "schema_group_count": compact_schema["schema_group_count"],
+                    "grouping_basis": compact_schema["grouping_basis"],
+                    "truncated": compact_schema["truncated"],
+                },
+                note="Grouping compares adapter-visible column metadata, not complete DDL.",
+            )
             
             # Test 3: Query Tool (Primary)
             print("-" * 70)
-            print("TEST 3: query (Primary Tool)")
+            print("TEST 3: query (Free-form Read Tool)")
             print("-" * 70)
             
             # Test simple SELECT

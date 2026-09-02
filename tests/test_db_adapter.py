@@ -127,6 +127,41 @@ class TestSQLiteAdapter:
         table_names = [t["table_name"] for t in tables]
         for name in table_names:
             assert not name.startswith("sqlite_")
+
+    def test_get_tables_marks_unsupported_identifier_row_count_unknown(
+        self,
+        sqlite_adapter,
+    ):
+        """An unavailable estimate must not be reported as an empty table."""
+        sqlite_adapter.execute_write(
+            'CREATE TABLE "odd-name" (id INTEGER PRIMARY KEY)',
+            {},
+        )
+
+        tables = sqlite_adapter.get_tables()
+
+        odd_table = next(
+            table for table in tables if table["table_name"] == "odd-name"
+        )
+        assert odd_table["row_count"] is None
+
+    def test_sqlite_metadata_query_errors_are_not_reported_as_empty(self, monkeypatch):
+        """Database failures must remain distinct from valid empty metadata."""
+        from db_adapter import MetadataQueryError, SQLiteAdapter
+
+        adapter = SQLiteAdapter(":memory:")
+        monkeypatch.setattr(
+            adapter,
+            "execute",
+            lambda *_a, **_k: "Error: Database query failed",
+        )
+
+        with pytest.raises(MetadataQueryError, match="listing tables"):
+            adapter.get_tables()
+        with pytest.raises(MetadataQueryError, match="reading table columns"):
+            adapter.get_columns("users")
+        with pytest.raises(MetadataQueryError, match="estimating table rows"):
+            adapter.get_row_estimate("users")
     
     def test_get_columns(self, sqlite_adapter):
         """Test getting column information for a table."""
@@ -163,7 +198,7 @@ class TestSQLiteAdapter:
         invalid_names = ["users) --", "main.users", "`users`", '"users"']
         for table_name in invalid_names:
             assert adapter.get_columns(table_name) == []
-            assert adapter.get_row_estimate(table_name) == 0
+            assert adapter.get_row_estimate(table_name) is None
 
     def test_row_estimate_quotes_sqlite_identifier_for_bounded_sample(self, monkeypatch):
         """Valid SQLite metadata identifiers are quoted before use as identifiers."""
@@ -199,10 +234,27 @@ class TestSQLiteAdapter:
         assert row_count == 5
     
     def test_get_row_estimate_nonexistent_table(self, sqlite_adapter):
-        """Test that nonexistent table returns 0."""
+        """Test that a nonexistent table has no row estimate."""
         row_count = sqlite_adapter.get_row_estimate("nonexistent_table")
         
-        assert row_count == 0
+        assert row_count is None
+
+    def test_get_row_estimate_returns_unknown_when_table_disappears(self, monkeypatch):
+        """A table dropped after discovery must not be reported as empty."""
+        from db_adapter import SQLiteAdapter
+
+        adapter = SQLiteAdapter(":memory:")
+
+        def fake_execute(sql, timeout=None, params=None):
+            if "sqlite_master" in sql:
+                return []
+            if "COUNT(*)" in sql:
+                return "Error: Table or column not found"
+            return []
+
+        monkeypatch.setattr(adapter, "execute", fake_execute)
+
+        assert adapter.get_row_estimate("vanished_table") is None
     
     def test_check_connection_success(self, sqlite_adapter):
         """Test connection check returns success."""
@@ -677,6 +729,58 @@ class TestMySQLAdapter:
         assert "TABLE_NAME = :table_name" in calls[0][0]
         assert "TABLE_NAME = 'users'" not in calls[0][0]
 
+    def test_mysql_metadata_query_errors_are_not_reported_as_empty(self, monkeypatch):
+        """Database failures must remain distinct from valid empty metadata."""
+        from db_adapter import MetadataQueryError, MySQLAdapter
+
+        adapter = MySQLAdapter()
+        monkeypatch.setattr(
+            adapter,
+            "execute",
+            lambda *_a, **_k: "Error: Database query failed",
+        )
+
+        with pytest.raises(MetadataQueryError, match="listing tables"):
+            adapter.get_tables()
+        with pytest.raises(MetadataQueryError, match="reading table columns"):
+            adapter.get_columns("users")
+        with pytest.raises(MetadataQueryError, match="estimating table rows"):
+            adapter.get_row_estimate("users")
+
+    def test_mysql_get_tables_preserves_unknown_row_estimate(self, monkeypatch):
+        """A NULL INFORMATION_SCHEMA estimate must remain unknown, not zero."""
+        from db_adapter import MySQLAdapter
+
+        adapter = MySQLAdapter()
+        monkeypatch.setattr(
+            adapter,
+            "execute",
+            lambda *_a, **_k: [("unknown_rows", None), ("empty_table", 0)],
+        )
+
+        assert adapter.get_tables() == [
+            {"table_name": "unknown_rows", "row_count": None},
+            {"table_name": "empty_table", "row_count": 0},
+        ]
+
+    def test_mysql_get_row_estimate_preserves_unknown_value(self, monkeypatch):
+        """A single-table NULL estimate must remain distinct from zero."""
+        from db_adapter import MySQLAdapter
+
+        adapter = MySQLAdapter()
+        monkeypatch.setattr(adapter, "execute", lambda *_a, **_k: [(None,)])
+
+        assert adapter.get_row_estimate("unknown_rows") is None
+
+    def test_mysql_get_row_estimate_returns_unknown_for_missing_table(self, monkeypatch):
+        """An absent INFORMATION_SCHEMA row is not a zero-row estimate."""
+        from db_adapter import MySQLAdapter
+
+        adapter = MySQLAdapter()
+        monkeypatch.setattr(adapter, "execute", lambda *_a, **_k: [])
+
+        assert adapter.get_row_estimate("missing_table") is None
+
     def test_mysql_metadata_rejects_invalid_table_identifiers_without_execute(self, monkeypatch):
         """Invalid MySQL metadata table names should not reach execute()."""
         from db_adapter import MySQLAdapter
@@ -691,7 +795,7 @@ class TestMySQLAdapter:
         invalid_names = ["users' OR '1'='1", "main.users", "`users`", "users) --"]
         for table_name in invalid_names:
             assert adapter.get_columns(table_name) == []
-            assert adapter.get_row_estimate(table_name) == 0
+            assert adapter.get_row_estimate(table_name) is None
 
     def test_mysql_execute_write_sets_lock_wait_timeout_not_max_execution_time(self):
         """MySQL writes should configure InnoDB lock waits, not SELECT timeout."""

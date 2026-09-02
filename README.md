@@ -110,13 +110,16 @@ conservative gate, not comprehensive SQL semantic analysis for arbitrary dialect
 
 **5. Typical Workflow**:
 ```
-Structure Unknown: list_tables() → describe_table(target) → query(sql)
+Structure Unknown: names/counts only → list_tables()
+                   broad columns → get_full_schema(detail_level="compact") directly
+                   one target table → describe_table(target) → query(sql)
 Structure Known: query(sql) directly
 Large Table Scenario: Observe is_large=true → Use LIMIT or Aggregation
-Skills Scenario: unknown Skill → list_skills(compact, search=...) → get_skill_detail(execution) when needed
-                 known Skill + unknown params → get_skill_detail(execution)
-                 known params → execute_query_skill(name, params)
-                 or execute_mutation_skill(name, params, confirm=false) → preview_token → confirm=true
+Skills Scenario: unknown Skill → list_skills(search=..., detail_level="compact", connection_id=target)
+                 → get_skill_detail(skill_name=..., connection_id=target, detail_level="execution") when needed
+                 known Skill + unknown params → get_skill_detail(skill_name=..., connection_id=target, detail_level="execution")
+                 known params → execute_query_skill(name, params, connection_id=target)
+                 or mutation preview → user approval → same params/connection_id + returned preview_token
 ```
 
 ### Safety Features
@@ -309,10 +312,10 @@ flowchart TB
 
     subgraph MCP["MCP Protocol Boundary"]
         direction TB
-        T1["query(sql)"]
-        T2["execute_query_skill(name, params)"]
-        T3["execute_mutation_skill(name, params, confirm)"]
-        T4["list_skills() / get_skill_detail() / describe_table() / ..."]
+        T1["query(sql, connection_id?)"]
+        T2["execute_query_skill(name, params, connection_id?)"]
+        T3["execute_mutation_skill(name, params, confirm,<br/>preview_token?, connection_id?)"]
+        T4["list_skills(connection_id?) / get_skill_detail(connection_id?) /<br/>describe_table(connection_id?) / ..."]
     end
 
     subgraph Server["MCP Server Safety Layer (Trusted)"]
@@ -434,15 +437,18 @@ Rashly connecting an untested Agent may lead to **instability, infinite loops, T
 In recent updates, multiple efficiency optimizations have been carried out for this project, mainly focusing on reducing unnecessary tool call counts and increasing speed. Certain tests have been performed. However, due to the randomness of LLMs (Agents), unnecessary tool calls may still occur in actual use, although the probability is small.
 
 ### Known Issues and Limitations
-- **Row count fields may be imprecise**: `list_tables()` / `describe_table()` / `get_full_schema()` return `row_count` as estimates:
+- **Tool inputs are schema-strict at the MCP boundary**: the server enables FastMCP `strict_input_validation`, so values such as `"false"` for a boolean or `"10"` for an integer are rejected rather than coerced. Omitted optional parameters still use their declared defaults. Direct Python calls do not pass through MCP validation; decision-critical direct-call parameters have matching handler checks where supported.
+- **Refresh tools after a contract upgrade**: restarting the MCP server and refreshing an IDE Host's registered `tools/list` are separate steps. Reconnect the server or reload the Host window after tool names, descriptions, schemas, or defaults change, and verify the schema from that same Host before Agent behavior testing.
+- **Row count fields may be imprecise**: `list_tables()` / `describe_table()` / `get_full_schema()` and `get_table_summary(exact_count=false)` return `row_count` as estimates:
   - **MySQL**: from `INFORMATION_SCHEMA.TABLES.TABLE_ROWS` (InnoDB may have significant deviation or lag)
   - **SQLite**: from `sqlite_stat1` (if ANALYZE has been run) or bounded 10,000-row sampling; if the sample cap is reached, the value is a lower-bound estimate unless statistics exist
+  - An individual `row_count` can be `null` when the adapter cannot safely provide an estimate; `null` means unknown, not an empty table. In that case, single-table tools also return `row_count_approximate=null` and `is_large=null` rather than classifying the table as small. This includes a SQLite name outside the conservative generated-metadata grammar and a table dropped between discovery and bounded sampling.
   - Only recommended for "order of magnitude judgment/whether to add LIMIT/whether it is a large table" strategies.
   - If an exact count is needed, please use `SELECT COUNT(*) ...`, or enable `ENABLE_TABLE_SUMMARY=1` and use `get_table_summary(exact_count=True)` (note that large tables may be slow).
 
-- **Result truncation to avoid Token explosion**: `query()`, `list_tables()`, `get_full_schema()` will truncate returned payloads based on `MAX_RESULT_ROWS` / `MAX_RESULT_CHARS` / `MAX_OVERVIEW_TABLES` / `MAX_SCHEMA_TABLES`; therefore, "returned data/tables/columns" may not be the full set. Query truncation does not reduce database execution work or Python-side fetching; use explicit `WHERE`, `LIMIT`, and `ORDER BY` clauses to limit work and stabilize result order. For table/schema tools, narrow the scope with `describe_table()` or adjust relevant environment variables (at your own risk).
+- **Result truncation and projection to avoid Token explosion**: `query()` uses `MAX_RESULT_ROWS` / `MAX_RESULT_CHARS`, `list_tables()` uses `MAX_OVERVIEW_TABLES`, and `get_full_schema()` uses `MAX_SCHEMA_TABLES`; therefore, returned rows or tables may not be complete. `MAX_RESULT_CHARS` does not cap schema-tool payloads. Use `get_full_schema(detail_level="compact")` for broad schema explanations, then `describe_table()` only for requested table details. Query truncation does not reduce database execution work or Python-side fetching; use explicit `WHERE`, `LIMIT`, and `ORDER BY` to limit work and stabilize ordering.
 
-- **Some "Total" fields have "Visible Range" semantics**: For example, `total_tables` in tool output represents "the number of visible tables after allowlist parameter filtering (and considering truncation)", which is not necessarily equal to the actual total number of tables in the database; please avoid misinterpreting it as "whole database statistics".
+- **Some "Total" fields have "Visible Range" semantics**: For example, `total_tables` represents the number of visible tables after allowlist filtering and **before** response truncation. It is not necessarily the physical database total; `returned_table_count` is the number actually returned after truncation.
 
 ### Best Practices
 - **We recommend starting with GitHub Copilot in VS Code.** GitHub Copilot in VS Code is a mature AI agent tool. You can choose a free model (for example, GPT-5 mini) and use it against a test database, which improves safety and avoids extra AI request costs.
@@ -744,7 +750,7 @@ ALLOW_UNION=0
 # Token Optimization: Limit result size to prevent context overflow
 # Set to 0 to disable truncation (for data export scenarios)
 MAX_RESULT_ROWS=100      # Max rows returned per query (0=unlimited)
-MAX_RESULT_CHARS=16000   # Max characters in response (0=unlimited)
+MAX_RESULT_CHARS=16000   # Truncation threshold for serialized query/Query Skill data (0=disabled)
 MAX_SQL_LENGTH=20000     # Max characters accepted by raw query(sql) (0=unlimited)
 MAX_SCHEMA_TABLES=50     # Max tables returned by get_full_schema (0=unlimited)
 MAX_OVERVIEW_TABLES=100  # Max tables returned by list_tables (0=unlimited)
@@ -757,7 +763,7 @@ MUTATION_PREVIEW_TOKEN_TTL_SECONDS=300 # Preview token lifetime (1-86400 seconds
 MUTATION_PREVIEW_TOKEN_STORE_MAX_ENTRIES=10000 # Outstanding token capacity
 SKILLS_LIST_DEFAULT_DETAIL=summary  # list_skills default: compact, summary, or full
 SKILLS_LIST_AVAILABLE_ONLY_DEFAULT=1  # list_skills default availability filter
-SKILLS_CHECK_SCHEMA_ON_LIST=1  # hide schema-unready skills from default discovery
+SKILLS_CHECK_SCHEMA_ON_LIST=1  # hide missing/unverified table-dependent skills
 # SKILLS_EXCLUDE_PROFILES=demo  # hide matching profiles from default discovery and execution
 # SKILLS_DIR=skills/     # Skills directory path (relative or absolute)
 # SKILLS_AUDIT_LOG=skills/_audit.jsonl  # Audit log path (JSONL)
@@ -780,7 +786,7 @@ The Skills layer lets you package common SQL queries and data mutations as reusa
 | `MUTATION_PREVIEW_TOKEN_STORE_MAX_ENTRIES` | `10000` | Per-process maximum outstanding unexpired preview tokens (valid range `1-100000`). Full capacity fails closed without eviction |
 | `SKILLS_LIST_DEFAULT_DETAIL` | `summary` | Default metadata projection for `list_skills`: `compact`, `summary`, or `full`. Per-call `detail_level` overrides this value |
 | `SKILLS_LIST_AVAILABLE_ONLY_DEFAULT` | `1` | Default availability filter for `list_skills`. When `1`, Agent-facing discovery hides skills that cannot execute for the target `connection_id` because of DB type compatibility, mutation switch, default-only compatibility mode when `SKILLS_ALLOW_MUTATION_CONNECTIONS` is omitted, connection allowlist, or schema readiness. Pass `available_only=false` for the full developer catalog |
-| `SKILLS_CHECK_SCHEMA_ON_LIST` | `1` | Include live table-existence checks in Skills availability metadata. When enabled, skills with missing required tables get `schema_ready=false` and are hidden by `available_only=true` |
+| `SKILLS_CHECK_SCHEMA_ON_LIST` | `1` | Include live table-existence checks in Skills availability metadata. Missing required tables set `schema_ready=false`. If metadata is unavailable, table-dependent Skills also fail closed with `schema_check_available=false`, `schema_ready=false`, and `executable=false`; both cases are hidden by `available_only=true`. `available_only=false` still returns the developer catalog and its failure reason |
 | `SKILLS_EXCLUDE_PROFILES` | empty | Comma-separated profile policy. Matching skills are marked non-executable, hidden by default discovery, and rejected at execution time. Use `demo` in production to hide bundled examples |
 | `SKILLS_DIR` | `skills/` | Skills directory path. Must be within the project root (security constraint) |
 | `SKILLS_AUDIT_LOG` | `skills/_audit.jsonl` | Audit log path. Mutation preview/execute paths attempt best-effort writes; query skill audit uses the same path when enabled |
@@ -916,7 +922,7 @@ For a complete client configuration example, please refer to `mcp_config.json`.
   TTL, bounded process-local storage, atomic one-time consumption, and the
   same-process mutation deployment boundary.
 - Added `get_skill_detail(detail_level="execution")` as a compact invocation
-  projection while keeping `full` as the backward-compatible default. Agent
+  projection while keeping `full` as the default. Agent
   guidance now skips redundant detail calls after `list_skills(...,
   detail_level="full")` or when params are already known.
 - Made connection routing guidance fail closed for ambiguous database types and
@@ -1062,7 +1068,7 @@ Added on-demand metadata disclosure for the Skills layer while preserving startu
 - `get_skill_detail(skill_name)`: Fetches one skill's cached parameter schema and execution metadata on demand
 - `SKILLS_LIST_DEFAULT_DETAIL`: Environment-controlled default projection (`summary` by default)
 - `SKILLS_LIST_AVAILABLE_ONLY_DEFAULT`: Agent-facing default hides currently non-executable skills while `available_only=false` preserves the full developer catalog
-- `SKILLS_CHECK_SCHEMA_ON_LIST`: Optional live table-existence readiness check; default discovery hides skills with missing required tables
+- `SKILLS_CHECK_SCHEMA_ON_LIST`: Optional live table-existence readiness check; default discovery hides Skills with missing required tables or table readiness that cannot currently be verified
 - Security boundary preserved: no runtime SQL/Python source reads and no raw source disclosure to Agents
 - Category aggregation added; missing categories are reported as `uncategorized`
 - Optional `databases` skill metadata prevents DB-specific skills from executing on incompatible adapters
@@ -1203,14 +1209,20 @@ Output:
 ```
 
 The tool does not expose DSNs, hosts, users, passwords, or SQLite file paths.
+A returned alias may be passed to read-only tools and Query Skills, subject to
+their policies and Skill scope. A Mutation Skill may use the default alias in
+compatibility mode; a non-default alias requires the strict named-write policy
+to authorize that connection and Skill. Discovery does not grant write access.
 
-### 1. `query` (Primary Tool)
+### 1. `query` (Free-form Read Tool)
 Usage: Execute read-only SQL queries with automatic security validation.
 
-This is the main tool for all database operations. Security validation is
-automatic; the full MCP policy accepts one SELECT, DESCRIBE, or non-ANALYZE
-EXPLAIN on the supported MySQL/SQLite adapters. Raw SHOW is rejected; use
-`list_tables()` or `describe_table()` for metadata discovery.
+This is the primary tool for free-form read-only SQL, not every database task.
+Use metadata tools for schema discovery and reviewed Query Skills for defined
+workflows. Security validation is automatic; the full MCP policy accepts one
+SELECT, DESCRIBE, or non-ANALYZE EXPLAIN on the supported MySQL/SQLite adapters.
+Raw SHOW is rejected; use `list_tables()` or `describe_table()` for metadata
+discovery.
 
 Input:
 ```json
@@ -1250,7 +1262,15 @@ Output:
 ### 3. `list_tables`
 Usage: Visible Database Overview - List returned/allowed tables and their estimated row counts.
 
-Lightweight initial exploration tool. The table list may be truncated by `MAX_OVERVIEW_TABLES`. Row counts are INFORMATION_SCHEMA estimates for MySQL (InnoDB may have ±40% error) or SQLite statistics/sampling.
+Lightweight initial exploration tool. The table list may be truncated by `MAX_OVERVIEW_TABLES`. Row counts are INFORMATION_SCHEMA estimates for MySQL (InnoDB estimates may differ significantly from the actual count) or SQLite statistics/sampling.
+
+An individual `row_count` is `null` when no safe estimate is available; it does
+not mean that the table is empty. Table discovery remains available in that
+case, while tools that must generate metadata SQL can reject an unsupported
+identifier explicitly.
+
+If adapter metadata cannot be read, this tool returns `success=false` with
+`error_code="metadata_query_failed"` rather than an empty result.
 
 Output:
 ```json
@@ -1266,14 +1286,24 @@ Output:
   "row_count_approximate": true,
   "truncated": false,
   "truncation_note": null,
-  "hint": "Row counts are estimates (InnoDB ±40%). total_tables = visible after allowlist."
+  "hint": "Row counts are estimates; null means unavailable, not empty. total_tables = visible after allowlist."
 }
 ```
 
 ### 4. `describe_table`
 Usage: Get Table Structure - Column info, estimated row count, and query suggestions.
 
-Returns column details and estimated row counts from adapter metadata/statistics (MySQL INFORMATION_SCHEMA; SQLite sqlite_stat1 or bounded sampling). Includes `is_large` flag for query planning and avoids automatic COUNT(*) full table scans.
+Returns full adapter-visible column metadata and estimated row counts from
+adapter metadata/statistics (MySQL INFORMATION_SCHEMA; SQLite sqlite_stat1 or
+bounded sampling). This is not complete DDL: indexes, foreign keys, checks, and
+other backend-specific properties may be absent. Includes `is_large` for query
+planning and avoids automatic COUNT(*) full table scans.
+
+If adapter metadata cannot be read, this tool returns `success=false` with
+`error_code="metadata_query_failed"` rather than a missing-table or zero-row
+result. If MySQL returns no usable estimate, the successful response uses
+`row_count=null`, `row_count_approximate=null`, and `is_large=null`; no
+large-table recommendation is inferred from the unknown value.
 
 Input:
 ```json
@@ -1291,8 +1321,8 @@ Output:
   "row_count_approximate": true,
   "column_count": 5,
   "columns": [
-    {"column_name": "id", "data_type": "int", "nullable": "NO", "key_type": "PRI"},
-    {"column_name": "name", "data_type": "varchar", "nullable": "YES", "key_type": ""}
+    {"column_name": "id", "data_type": "int", "nullable": "NO", "key_type": "PRI", "default_value": null},
+    {"column_name": "name", "data_type": "varchar", "nullable": "YES", "key_type": "", "default_value": null}
   ],
   "is_large": true,
   "recommendation": "Large table (~1500 rows). Use LIMIT or aggregation (COUNT/GROUP BY)."
@@ -1303,6 +1333,11 @@ Output:
 Usage: Retrieve sample data from a specified table.
 
 **Note**: This tool is controlled by `ENABLE_SCHEMA_TOOLS` environment variable (Default: Enabled)
+
+`limit` defaults to 5 and its MCP input schema accepts integers from 1 through
+20 inclusive. Out-of-range MCP calls are rejected before SQL execution rather
+than silently clamped. Direct Python calls receive the same explicit rejection,
+so both entry paths share one range contract.
 
 Input:
 ```json
@@ -1327,39 +1362,56 @@ Output:
 ```
 
 ### 6. `get_full_schema`
-Usage: Fetch a visible database schema overview in a single call.
+Usage: Fetch a compact or full visible database schema overview in one call.
 
-Suitable for multi-table JOIN or scenarios requiring several table structures at once. The returned schema may be filtered by allowlist and truncated by `MAX_SCHEMA_TABLES`; for single table queries, `describe_table()` is recommended.
+`detail_level="compact"` is the machine-visible default and is intended for broad table explanations and multi-table planning; omitting the parameter is equivalent to passing `compact`. It returns `[name, type]` column pairs, primary keys, column counts, and every table's row estimate. With `group_identical=true` (the default), tables share a group only when all column metadata currently exposed by the adapter and the column order are equal. For MySQL, that comparison covers column name, base data type, nullability, key marker, and default; it does **not** prove equality of complete DDL, indexes, foreign keys, checks, length/precision, unsigned flags, collations, or generated expressions. The response records this boundary in `grouping_basis`. Set `group_identical=false` when every compact table must remain separate; the parameter is ignored in full mode.
 
-Output:
+Request `detail_level="full"` explicitly for `nullable`, `default`, and key metadata across multiple tables. A database/metadata failure returns `success=false` with `error_code="metadata_query_failed"` instead of being reported as an empty database, empty schema, missing table, or zero-row estimate. A row estimate can be `null` when unavailable; null does not mean empty. If table discovery returns a database identifier outside the schema tools' conservative identifier grammar, projection fails explicitly with `error_code="unsupported_metadata_identifier"` rather than misclassifying it as a query failure or emitting an empty table. The visible table set may be filtered by allowlist and truncated by `MAX_SCHEMA_TABLES`; use `describe_table()` for one-table drill-down.
+
+Compact output:
 ```json
 {
   "success": true,
-  "schema": {
-    "users": {
-      "row_count": 150,
-      "columns": [
-        {"name": "id", "type": "int", "nullable": "NO", "key": "PRI"},
-        {"name": "name", "type": "varchar", "nullable": "YES", "key": ""}
-      ]
+  "detail_level": "compact",
+  "schema_groups": [
+    {
+      "tables": [{"name": "users", "row_count": 150}],
+      "column_count": 2,
+      "columns": [["id", "int"], ["name", "varchar"]],
+      "primary_key": ["id"]
     }
-  },
+  ],
+  "schema_group_count": 1,
+  "grouped_by_schema": true,
+  "grouping_basis": "adapter_visible_column_metadata_and_order",
   "returned_table_count": 1,
   "total_tables": 1,
   "total_columns": 2,
   "row_count_approximate": true,
   "truncated": false,
-  "truncation_note": null,
-  "hint": "Row counts are estimates (InnoDB ±40%). Use LIMIT for large tables (row_count > 1000). total_tables = visible after allowlist."
+  "truncation_note": null
 }
 ```
+
+Full output keeps the table-keyed `schema` mapping. Each column contains
+`name`, `type`, `nullable`, `key`, and `default` from the database adapter.
 
 ### 7. `get_table_summary` (Optional)
 Usage: Get table statistics, supports optional exact row count calculation.
 
 **Note**: This tool is controlled by `ENABLE_TABLE_SUMMARY` environment variable (Default: **Disabled**). `describe_table()` tool already provides estimated row counts, so this tool is needed only when precise counting is required.
 
-**Warning**: `exact_count=True` will run COUNT(*), which may be slow on large tables (full table scan).
+**Warning**: `exact_count=True` will run COUNT(*), which may be slow on large
+tables (full table scan; MySQL may also encounter metadata-lock contention).
+This cost warning is also part of the machine-visible parameter description.
+If adapter row-estimate metadata (`exact_count=false`) or column metadata in
+either mode cannot be read, the tool returns `success=false` with
+`error_code="metadata_query_failed"` rather than an empty, missing, or zero-row
+result. An explicit `COUNT(*)` execution failure uses its existing query-error
+response instead. If MySQL returns an unavailable estimate without a query
+failure, the approximate response preserves `row_count=null`,
+`row_count_approximate=null`, and `is_large=null`; `exact_count=true` retains
+integer row counts and boolean classification fields.
 
 Input:
 ```json
@@ -1374,19 +1426,19 @@ Output:
 {
   "success": true,
   "table_name": "users",
-  "row_count": 150,
+  "row_count": 1500,
   "row_count_approximate": true,
   "column_count": 5,
   "columns": [...],
   "is_large": true,
-  "recommendation": "Large table (~150 rows). Use LIMIT or aggregation (COUNT/GROUP BY)."
+  "recommendation": "Large table (~1500 rows). Use LIMIT or aggregation (COUNT/GROUP BY)."
 }
 ```
 
 ### 8. `list_skills` (Skills Extension, Optional)
 Usage: List pre-defined skills (query and mutation), with optional search, category filtering, metadata projection, and availability filtering.
 
-**Note**: Requires `ENABLE_SKILLS=1`. `detail_level` can be `compact`, `summary`, or `full`. The default is controlled by `SKILLS_LIST_DEFAULT_DETAIL` (`summary` by default). `full` already includes parameter schemas, so do not follow it with `get_skill_detail()`. `available_only` defaults to `SKILLS_LIST_AVAILABLE_ONLY_DEFAULT` (`1` by default), so Agent-facing discovery hides skills that cannot execute for the target `connection_id` because of optional Skill `connection_ids` scope, DB type compatibility, mutation switches/write policy, query connection allowlist, or schema-readiness checks. Pass `available_only=false` to inspect the full developer catalog. This only changes Agent-facing metadata disclosure; execution repeats the authoritative checks. Query Skills accept `connection_id`; mutation Skills also accept it when strict named-write policy authorizes the target.
+**Note**: Requires `ENABLE_SKILLS=1`. `detail_level` is a non-null `compact|summary|full` enum. Its machine-visible default is the startup-resolved `SKILLS_LIST_DEFAULT_DETAIL` (`summary` by default); `full` already includes parameter schemas, so do not follow it with `get_skill_detail()`. `available_only` is a non-null boolean whose machine-visible default likewise equals the startup-resolved `SKILLS_LIST_AVAILABLE_ONLY_DEFAULT` (`true` by default), so Agent-facing discovery hides skills that cannot execute for the target `connection_id` because of optional Skill `connection_ids` scope, DB type compatibility, mutation switches/write policy, query connection allowlist, missing required tables, or an unavailable enabled schema-readiness check. In the last case `schema_check_available=false` distinguishes “unverified” from a known `missing_tables` result. Pass `available_only=false` to inspect the full developer catalog and failure reasons. This only changes Agent-facing metadata disclosure; execution repeats the authoritative checks and fails closed when enabled readiness cannot be verified. Query Skills accept `connection_id`; mutation Skills also accept it when strict named-write policy authorizes the target.
 
 In summary/full output, `configured_connection_ids` means the subset of that
 Skill's declared `connection_ids` present in this deployment; it is not the
@@ -1457,7 +1509,7 @@ Output:
 ### 9. `get_skill_detail` (Skills Extension, Optional)
 Usage: Retrieve cached execution fields or full metadata for a single skill.
 
-**Note**: Requires `ENABLE_SKILLS=1`. `detail_level` accepts `full` (the backward-compatible default) or `execution`. Use `execution` when the Skill name is known but params are not; it is the recommended projection for parameter schema and the next action. Reserve `full` for explicit catalog/readiness diagnostics, and do not call this tool when `list_skills(detail_level="full")` already returned params. The execution projection contains only invocation fields, resolved connection/DB type, and the next action. This tool does not read skill files at runtime and does not expose raw SQL or mutation Python source. Only parsed YAML frontmatter values can enter these MCP responses; YAML comments and the Markdown body remain developer documentation and do not consume Agent context.
+**Note**: Requires `ENABLE_SKILLS=1`. `detail_level` is a non-null `execution|full` enum with machine-visible default `full`. Use `execution` when the Skill name is known but params are not; it is the recommended projection for parameter schema and the next action. Reserve `full` for explicit catalog/readiness diagnostics, and do not call this tool when `list_skills(detail_level="full")` already returned params. The execution projection contains only invocation fields, resolved connection/DB type, and the next action. This tool does not read skill files at runtime and does not expose raw SQL or mutation Python source. Only parsed YAML frontmatter values can enter these MCP responses; YAML comments and the Markdown body remain developer documentation and do not consume Agent context.
 
 Input:
 ```json
@@ -1612,7 +1664,7 @@ GROUP BY date(order_date)
 ORDER BY date ASC
 ```
 
-The bundled `monthly-sales-report`, `monthly-sales-report-sqlite`, `update-order-status`, and `reset-demo-order-to-pending` skills are marked with `profiles: [demo]` because they require an `orders` demo schema. With `SKILLS_CHECK_SCHEMA_ON_LIST=1`, `available_only=true` hides them when the target connection does not contain their required tables. Dialect-specific query SQL remains in separate Skills, while portable mutations explicitly declare both supported database types; this keeps startup validation simple and makes `available_only` filtering deterministic for Agents.
+The bundled `monthly-sales-report`, `monthly-sales-report-sqlite`, `update-order-status`, and `reset-demo-order-to-pending` skills are marked with `profiles: [demo]` because they require an `orders` demo schema. With `SKILLS_CHECK_SCHEMA_ON_LIST=1`, `available_only=true` hides them when the target connection does not contain their required tables or when database metadata is unavailable and readiness cannot be verified. Dialect-specific query SQL remains in separate Skills, while portable mutations explicitly declare both supported database types; this keeps startup validation simple and makes `available_only` filtering deterministic for Agents.
 
 #### Example 2: `update-order-status` (Mutation Skill)
 
@@ -1631,6 +1683,7 @@ skills/update-order-status/
 ```yaml
 name: update-order-status
 type: mutation                     # Write operation
+source: mutation.py                # Validated implementation file
 risk: medium
 requires_confirmation: true        # Requests preview/execute + client confirmation UX; not human-identity proof
 params:
@@ -1976,7 +2029,8 @@ This script:
 - [Original Context](GEMINI.md): Project background and development guide
 - [Refactoring Log](REFACTORING_LOG.md): Refactoring change documentation (v2.0 — v3.7.1)
 - [MCP Client Test Guide](TEST_MCP_CLIENT_GUIDE.md): Guide for testing MCP Server via client
-- [Prompt Engineering Best Practices](PROMPT_ENGINEERING_BEST_PRACTICES.md): Guide for MCP tool descriptions and prompts
+- [MCP Agent Behavior Validation Method (Chinese)](RELEASE_NOTES/GUIDE/MCP_AGENT_BEHAVIOR_VALIDATION_ZH.md): Method for validating natural tool selection, redundant calls, connection routing, and progressive disclosure
+- [MCP Tool Contract and Evaluation Guide](PROMPT_ENGINEERING_BEST_PRACTICES.md): Project guidance for tool schemas, descriptions, instructions, safety boundaries, and evaluation
 - [Agent Examples Development Log (Chinese)](agent_examples/AGENT_DEVELOPMENT_ZH.md): AutoGen multi-agent example design and decisions
 
 ## Contribution

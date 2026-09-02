@@ -71,6 +71,13 @@ CONNECTION_ID_PATTERN = re.compile(r"^[a-z][a-z0-9_]{0,63}$")
 MUTATION_SKILL_NAME_PATTERN = re.compile(r"^[a-z0-9][a-z0-9-]{0,63}$")
 
 
+class MetadataQueryError(RuntimeError):
+    """Signal that adapter metadata could not be read without exposing DB details."""
+
+    def __init__(self, operation: str):
+        super().__init__(f"Database metadata query failed while {operation}.")
+
+
 @dataclass(frozen=True)
 class ConnectionPolicy:
     """Read and mutation policy bound to one configured database connection."""
@@ -579,7 +586,11 @@ class DatabaseAdapter(ABC):
         Get list of all tables with metadata.
         
         Returns:
-            List of dicts with 'table_name' and 'row_count' keys
+            List of dicts with 'table_name' and 'row_count' keys. row_count is
+            None when the backend cannot provide a safe estimate.
+
+        Raises:
+            MetadataQueryError: If the metadata query cannot be completed
         """
         pass
     
@@ -593,11 +604,14 @@ class DatabaseAdapter(ABC):
             
         Returns:
             List of dicts with column metadata (name, type, nullable, key, default)
+
+        Raises:
+            MetadataQueryError: If the metadata query cannot be completed
         """
         pass
     
     @abstractmethod
-    def get_row_estimate(self, table_name: str) -> int:
+    def get_row_estimate(self, table_name: str) -> int | None:
         """
         Get estimated row count for a table.
         
@@ -609,7 +623,11 @@ class DatabaseAdapter(ABC):
             table_name: Name of the table
             
         Returns:
-            Estimated row count (0 if table not found)
+            Estimated row count, or None when the table is not found or the
+            backend cannot provide a safe estimate
+
+        Raises:
+            MetadataQueryError: If the metadata query cannot be completed
         """
         pass
     
@@ -884,10 +902,10 @@ class MySQLAdapter(DatabaseAdapter):
         result = self.execute(sql)
         
         if isinstance(result, str):
-            logger.error(f"Failed to get tables: {result}")
-            return []
+            logger.error("Failed to list MySQL tables")
+            raise MetadataQueryError("listing tables")
         
-        return [{"table_name": row[0], "row_count": row[1] or 0} for row in result]
+        return [{"table_name": row[0], "row_count": row[1]} for row in result]
     
     def get_columns(self, table_name: str) -> list[dict[str, Any]]:
         """Get column information from INFORMATION_SCHEMA."""
@@ -908,8 +926,8 @@ class MySQLAdapter(DatabaseAdapter):
         result = self.execute(sql, params={"table_name": table_name})
         
         if isinstance(result, str):
-            logger.error(f"Failed to get columns for {table_name}: {result}")
-            return []
+            logger.error("Failed to read MySQL column metadata")
+            raise MetadataQueryError("reading table columns")
         
         return [
             {
@@ -922,10 +940,10 @@ class MySQLAdapter(DatabaseAdapter):
             for row in result
         ]
     
-    def get_row_estimate(self, table_name: str) -> int:
+    def get_row_estimate(self, table_name: str) -> int | None:
         """Get row count estimate from INFORMATION_SCHEMA.TABLES."""
         if _metadata_identifier_is_rejected(table_name):
-            return 0
+            return None
 
         sql = """
             SELECT TABLE_ROWS
@@ -934,10 +952,14 @@ class MySQLAdapter(DatabaseAdapter):
         """
         result = self.execute(sql, params={"table_name": table_name})
         
-        if isinstance(result, str) or not result:
-            return 0
+        if isinstance(result, str):
+            logger.error("Failed to read MySQL row estimate metadata")
+            raise MetadataQueryError("estimating table rows")
+        if not result:
+            return None
         
-        return result[0][0] or 0
+        row_count = result[0][0]
+        return None if row_count is None else int(row_count)
     
     def check_connection(self) -> tuple[bool, str]:
         """Check MySQL connection status."""
@@ -1193,13 +1215,21 @@ class SQLiteAdapter(DatabaseAdapter):
         result = self.execute(sql)
         
         if isinstance(result, str):
-            logger.error(f"Failed to get tables: {result}")
-            return []
+            logger.error("Failed to list SQLite tables")
+            raise MetadataQueryError("listing tables")
         
         tables = []
         for row in result:
             table_name = row[0]
-            row_count = self.get_row_estimate(table_name)
+            # Discovery can safely return an unusual table name, but the
+            # conservative identifier grammar intentionally prevents using it
+            # in generated metadata SQL. Preserve the table and mark its row
+            # estimate unknown instead of misreporting it as an empty table.
+            row_count = (
+                None
+                if _metadata_identifier_is_rejected(table_name)
+                else self.get_row_estimate(table_name)
+            )
             tables.append({"table_name": table_name, "row_count": row_count})
         
         return tables
@@ -1219,8 +1249,8 @@ class SQLiteAdapter(DatabaseAdapter):
         result = self.execute(sql)
         
         if isinstance(result, str):
-            logger.error(f"Failed to get columns for {table_name}: {result}")
-            return []
+            logger.error("Failed to read SQLite column metadata")
+            raise MetadataQueryError("reading table columns")
         
         columns = []
         for row in result:
@@ -1235,7 +1265,7 @@ class SQLiteAdapter(DatabaseAdapter):
         
         return columns
     
-    def get_row_estimate(self, table_name: str) -> int:
+    def get_row_estimate(self, table_name: str) -> int | None:
         """
         Estimate row count using sqlite_stat1 or bounded sampling.
         
@@ -1246,19 +1276,27 @@ class SQLiteAdapter(DatabaseAdapter):
         This avoids full table scan for large tables.
         """
         if _metadata_identifier_is_rejected(table_name):
-            return 0
+            return None
 
         # Try sqlite_stat1 first (if ANALYZE has been run)
         # First check if sqlite_stat1 exists to avoid error logging
         check_sql = "SELECT name FROM sqlite_master WHERE type='table' AND name='sqlite_stat1'"
         check_result = self.execute(check_sql)
+
+        if isinstance(check_result, str):
+            logger.error("Failed to inspect SQLite statistics metadata")
+            raise MetadataQueryError("estimating table rows")
         
-        if not isinstance(check_result, str) and check_result:
+        if check_result:
             # sqlite_stat1 exists, query it
             stat_sql = "SELECT stat FROM sqlite_stat1 WHERE tbl = :table_name LIMIT 1"
             stat_result = self.execute(stat_sql, params={"table_name": table_name})
+
+            if isinstance(stat_result, str):
+                logger.error("Failed to read SQLite statistics metadata")
+                raise MetadataQueryError("estimating table rows")
             
-            if not isinstance(stat_result, str) and stat_result:
+            if stat_result:
                 # sqlite_stat1.stat format: "row_count col1_distinct col2_distinct ..."
                 try:
                     stat_str = stat_result[0][0]
@@ -1275,7 +1313,12 @@ class SQLiteAdapter(DatabaseAdapter):
         sample_sql = f"SELECT COUNT(*) FROM (SELECT 1 FROM {quoted_table_name} LIMIT {sample_limit})"
         sample_result = self.execute(sample_sql)
         
-        if isinstance(sample_result, str) or not sample_result:
+        if isinstance(sample_result, str):
+            if sample_result == "Error: Table or column not found":
+                return None
+            logger.error("Failed to sample SQLite table rows")
+            raise MetadataQueryError("estimating table rows")
+        if not sample_result:
             return 0
         
         sample_count = sample_result[0][0] or 0

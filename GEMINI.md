@@ -20,19 +20,19 @@ The primary technologies used are:
     *   `is_sql_safe(sql_query)`: Provides the low-level statement-shape compatibility check (`SELECT` / `SHOW` / `DESCRIBE` / non-ANALYZE `EXPLAIN`). The MCP server adds the authoritative full policy, including one-statement enforcement, table scope, and rejection of raw `SHOW`.
     *   `execute_sql(sql_query)`: Validates the query using `is_sql_safe` and then executes it against the database.
 *   `mcp_sql_server.py`: MCP (Model Context Protocol) server implementation that wraps the SQL safety checker functionality (refactored December 2025):
-    *   `query(sql)`: Primary MCP tool for executing read-only SQL queries (with automatic validation)
+    *   `query(sql)`: Primary MCP tool for free-form read-only SQL (with automatic validation); metadata tools and reviewed Query Skills keep their own roles
     *   `check_connection()`: MCP tool for testing database connectivity
     *   `list_tables()`: MCP tool for listing visible/allowed tables with estimated row counts; output may be truncated
-    *   `describe_table(table_name)`: MCP tool for retrieving table column info and query recommendations
-    *   `get_full_schema()`: MCP tool for getting a visible schema overview in one call; output may be truncated
-    *   `get_table_summary(table_name)`: **Optional** MCP tool for getting table statistics (controlled by `ENABLE_TABLE_SUMMARY`, default disabled)
-    *   `sample(table_name, limit)`: **Optional** MCP tool for retrieving sample data (controlled by `ENABLE_SCHEMA_TOOLS`, default enabled)
+    *   `describe_table(table_name)`: MCP tool for retrieving full adapter-visible column metadata and query recommendations; not complete DDL
+    *   `get_full_schema()`: MCP tool for a visible schema overview; grouped `compact` is the default, while callers request `full` for nullable/default/key metadata; output may be truncated
+    *   `get_table_summary(table_name)`: **Optional** MCP tool for getting table statistics; exact `COUNT(*)` may be expensive (controlled by `ENABLE_TABLE_SUMMARY`, default disabled)
+    *   `sample(table_name, limit)`: **Optional** MCP tool for retrieving 1-20 sample rows (controlled by `ENABLE_SCHEMA_TOOLS`, default enabled)
     *   `sql_assistant()`: MCP prompt for SQL query assistance
 *   `test_mcp_functions.py`: Test script to verify MCP functions work correctly (internal tests)
 *   `test_mcp_client.py`: MCP client test script that simulates real client connections
 *   `mcp_config.json`: Configuration file for MCP client integration
 *   `TEST_MCP_CLIENT_GUIDE.md`: Usage guide for the MCP client test script
-*   `PROMPT_ENGINEERING_BEST_PRACTICES.md`: Guidelines for MCP tool descriptions and prompts
+*   `PROMPT_ENGINEERING_BEST_PRACTICES.md`: Project guide for MCP tool contracts and evaluation
 *   `REFACTORING_LOG.md`: Refactoring and release-history documentation
 *   `.env.example`: Example environment configuration file
 *   `requirements.txt`: Lists all the necessary Python packages for this project (now includes fastMCP).
@@ -185,14 +185,14 @@ The conversion of this SQL safety checker tool to an MCP (Model Context Protocol
 
 The MCP service provides 6-12 tools (depending on configuration):
 
-1. **`query`**: Primary tool - Executes read-only SQL queries with automatic safety validation
+1. **`query`**: Primary free-form read-only SQL tool with automatic safety validation
 2. **`check_connection`**: Tests database connectivity and configuration
 3. **`list_connections`**: Lists configured connection aliases and non-sensitive policy summaries (no DSNs/credentials/paths)
 4. **`list_tables`**: Lists visible/allowed tables in the target connection with estimated row counts; output may be truncated
-5. **`describe_table`**: Retrieves table column info and query recommendations
-6. **`get_full_schema`**: Gets a visible schema overview in one call; output may be truncated
-7. **`get_table_summary`**: **Optional** - Gets table statistics (controlled by `ENABLE_TABLE_SUMMARY`, default disabled)
-8. **`sample`**: **Optional** - Retrieves sample data from tables (controlled by `ENABLE_SCHEMA_TOOLS`, default enabled)
+5. **`describe_table`**: Retrieves full adapter-visible column metadata and query recommendations, not complete DDL
+6. **`get_full_schema`**: Gets a visible grouped-compact schema overview by default; request `full` for nullable/default/key metadata; output may be truncated
+7. **`get_table_summary`**: **Optional** - Gets table statistics; exact `COUNT(*)` may be expensive (controlled by `ENABLE_TABLE_SUMMARY`, default disabled)
+8. **`sample`**: **Optional** - Retrieves 1-20 sample rows (controlled by `ENABLE_SCHEMA_TOOLS`, default enabled)
 9. **`list_skills`**: **Optional** - Lists available Skills for the target connection when `ENABLE_SKILLS=1`
 10. **`get_skill_detail`**: **Optional** - Retrieves detailed metadata/readiness for one Skill when `ENABLE_SKILLS=1`
 11. **`execute_query_skill`**: **Optional** - Executes a cached query Skill on the target connection when `ENABLE_SKILLS=1`

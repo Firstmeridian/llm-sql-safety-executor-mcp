@@ -2,7 +2,7 @@
 
 **日期：** 2026-07-31
 
-**文档边界更新：** 2026-08-28
+**文档边界更新：** 2026-09-03
 
 > **v3.7.1 迁移说明：** 本文是 v3.6-v3.7.0 协议联调历史记录，其中 token
 > 格式和响应快照不代表 v3.7.1 契约。v3.7.1 `preview_token` 是 256-bit opaque
@@ -18,7 +18,7 @@ MCP live mutation 与恢复；它本身不等同于 fresh-subprocess approval-ho
 2026-08-28 发布前首次检查中，直接调用当前聊天 MCP 的默认连接
 `check_connection` 返回已脱敏的 `Database query failed`；后续本地复核显示，
 同一默认 MySQL 连接在 30 秒查询限制下超时。MySQL 服务启动且 MCP 重启后，
-同日复验的 `check_connection` 和 `SELECT 1` 均成功，UNION 按目标连接的
+同日复验的 `check_connection`、`SELECT 1` 和 `COUNT(*)` 均成功，UNION 按目标连接的
 `allow_union=false` policy 被拒绝。MySQL 只做了只读检查，没有执行 mutation。
 本轮还在 disposable `live_test_sqlite` 上完成并恢复了 opaque-handle 可逆流程，
 详情见 7.4。随后在 fresh stdio subprocess 中用临时环境仅打开
@@ -28,12 +28,17 @@ MCP live mutation 与恢复；它本身不等同于 fresh-subprocess approval-ho
 **结果：** 2026-07-31 联调通过；2026-08-13、2026-08-19 与 2026-08-20
 的隔离 subprocess stdio 阻塞保留为历史尝试；2026-08-21 的 v3.7
 人工批准 host、完整 server subprocess stdio 和拒绝路径复验通过；
-2026-08-26 和 2026-08-28 的 v3.7.1 direct MCP opaque-handle 可逆流程通过
+2026-08-26 和 2026-08-28 的 v3.7.1 direct MCP opaque-handle 可逆流程通过；
+2026-08-29 的渐进 Schema 投影 direct MCP 与 Agent 自然选择探索通过；
+2026-09-01 的真实 MySQL 只读复验与 Skills readiness fail-closed 隔离回归通过；
+2026-09-02 的最终 compact 默认契约与 Skills 非空默认值隔离回归通过，MySQL
+数据面当天不可用，未误报为 live pass
 
 **范围：** v3.6 基线配置解析、MCP stdio 协议、命名连接、严格 mutation policy、
 一次性 preview token、MySQL/SQLite 写路径和 replay 拒绝；以及 v3.7 人工批准
-host 的 in-memory contract 与 subprocess stdio 复验边界。2026-08-22 新增的
-跨数据库 demo reset 当前只有自动化回归证据，尚未追加真实 MySQL/stdio live 结论。
+host 的 in-memory contract 与 subprocess stdio 复验边界。v3.7.1 已在 disposable
+`live_test_sqlite` 上通过 direct MCP 与 fresh-stdio reset/恢复；真实 MySQL reset
+尚未执行，其 MySQL 兼容性目前仍以自动化回归为证据。
 
 本文记录的协议联调只验证 stdio；2026-08-10 补充的 v3.6.1 HTTP 文字是部署
 边界说明，不表示已经完成 HTTP transport 或多用户认证联调。
@@ -44,8 +49,8 @@ host 的 in-memory contract 与 subprocess stdio 复验边界。2026-08-22 新�
 
 ## 1. v3.7 推荐配置与历史快照边界
 
-以下是 `reset-demo-order-to-pending` 定稿后用于下一轮本地 live 测试的严格配置摘要；
-它不表示 reset 已完成真实 live 验证：
+以下配置最初用于准备 `reset-demo-order-to-pending` 的本地 live 测试；配置本身不构成
+验证证据。后续 SQLite reset live 结果见 7.3/7.4；真实 MySQL reset 尚未执行：
 
 ```env
 DB_CONNECTIONS=trade_analysis_mysql,analytics_demo_sqlite,live_test_sqlite
@@ -533,7 +538,8 @@ MySQL 仅执行只读检查；mutation 仍只在可丢弃的 `live_test_sqlite` 
 
 1. 默认 `trade_analysis_mysql` 的 `check_connection` 成功。
 2. 显式目标上的 `SELECT 1 AS live_check` 成功返回一行。
-3. `SELECT 1 AS value UNION SELECT 2 AS value` 被该目标的
+3. 随后独立复核的 `SELECT COUNT(*) AS row_count FROM orders` 成功返回 `8`。
+4. `SELECT 1 AS value UNION SELECT 2 AS value` 被该目标的
   `allow_union=false` policy 拒绝，响应包含正确的 `connection_id`。
 
 **SQLite opaque-handle 可逆流程：**
@@ -547,10 +553,11 @@ MySQL 仅执行只读检查；mutation 仍只在可丢弃的 `live_test_sqlite` 
 4. 同一 handle 再次执行被拒绝；只读 query 确认状态已变为 `confirmed`。
 5. 使用独立 reset preview/handle 恢复，最终 query 确认状态回到 `pending`。
 
-**证据边界：** 当前三个 live 连接的 `allow_union` 均为 `false`，所以本轮只能
-live 验证目标 policy 的拒绝路径。相反 policy 顺序下 raw query 和 Query Skill
-的允许/拒绝双向行为由自动化多连接矩阵覆盖。本轮没有在 MySQL 上执行 mutation，
-也不把临时环境覆盖的 UNION allow 分支当作当前 `.env` 默认策略。当前代码还在
+**证据边界：** 当前三个 live 连接的 `allow_union` 均为 `false`，因此当前 `.env`
+的 direct MCP 复验只覆盖拒绝路径。本轮还通过独立 fresh subprocess 临时仅为
+`analytics_demo_sqlite` 开启 UNION，真实验证 raw query 与 Query Skill 的 allow
+分支，同时默认 MySQL 仍拒绝；这项临时覆盖不是当前 `.env` 默认策略。自动化多连接
+矩阵继续覆盖相反 policy 组合。本轮没有在 MySQL 上执行 mutation。当前代码还在
 `live_test_sqlite` 上完成了 fresh-subprocess approval host 的批准/拒绝复验；它与
 上面的 direct MCP opaque-handle 流程使用独立的 server subprocess，但都只写入并
 恢复同一个可丢弃的订单 `id=1`。
@@ -589,7 +596,7 @@ stdout 均没有完整 bearer handle。恢复后输入 `NO` 的独立 Host 子�
 | `list_connections` | 3 个连接，默认 `trade_analysis_mysql` | 93.40 |
 | MySQL `SELECT 1` | 1 行成功 | 412.50 |
 | MySQL UNION | policy 拒绝 | 40.22 |
-| live SQLite `COUNT(*)` | 3 行订单总数 | 72.97 |
+| live SQLite `COUNT(*)` | 返回 1 行，订单总数为 3 | 72.97 |
 | live SQLite UNION | policy 拒绝 | 40.69 |
 | `list_skills(full)` | 3 个可执行 Skill | 37.89 |
 | `get_skill_detail(execution)` | mutation 参数/下一步成功返回 | 20.41 |
@@ -605,12 +612,271 @@ stdout 均没有完整 bearer handle。恢复后输入 `NO` 的独立 Host 子�
 | reset execute | `rowcount=1` | 59.40 |
 | 最终查状态 | `pending` | 42.74 |
 
+上面的 MySQL `COUNT(*)` 是随后独立完成的只读复核，不属于这份 19 步计时样本，
+因此不为它补写未观测的耗时。
+
 preview 返回的 handle 在该次采样中为 43 个字符、没有 `.`；这是当前实现的观测，
 不是客户端应依赖的格式契约。`get_prompt("sql_assistant")` 通过 fresh MCP
 subprocess 返回 1 条消息、2,959 字符、约 9.99 ms，包含
 `UNION policy is connection-specific` 和 selected-alias 指引，不包含默认连接
 UNION 泛化文案。最终只读查询确认 `live_test_sqlite.orders.id=1` 为 `pending`；
 MySQL 全程只读，未执行 mutation。
+
+### 7.5 渐进 Schema 投影 Live Validation（2026-08-29）
+
+本节验证 `get_full_schema(detail_level="compact"|"full")`。测试目标为明确 alias
+`trade_analysis_mysql`，真实 MySQL 全程只读。先用 fresh FastMCP stdio 子进程完成
+payload 测量；随后重载 VS Code 窗口，使当前 Host 重新发现工具并直接复验新参数。
+重载前，Host 的执行校验层虽然展示了新 schema，却把 `detail_level` 和
+`group_identical` 拒绝为 additional properties；重载后相同调用均成功，因此该现象
+分类为 Host 工具注册缓存，不是 server 实现失败。
+
+**Direct MCP 结果：**
+
+1. `check_connection(connection_id="trade_analysis_mysql")` 成功，目标数据库为
+  `trade_data_analysis`。
+2. 显式 `detail_level="full"` 成功，返回 8 表、272 列，`truncated=false`。
+3. `detail_level="compact", group_identical=true` 成功，返回 4 个 schema group；
+  其中 5 张 `va_manual_*` 表共享一个经当前 adapter 可见列元数据和列顺序判等的组。
+  该判等不覆盖完整 DDL、索引或约束，不能据此声称这些对象完全等价。
+4. `detail_level="compact", group_identical=false` 成功，返回 8 个独立 group。
+5. 当时省略 `detail_level` 的 fresh-process 响应与显式 full 完全相同；该中间默认值
+   后来由 7.7 记录的最终 compact 默认取代。
+   当前 full 相对改动前是加法兼容（新增顶层 `detail_level` 和列 `default`），并非旧
+   payload 逐字节不变。
+
+以下字符数使用 JSON 文本的 Python 字符长度；token 使用
+`tiktoken/o200k_base`。Pretty 表示两空格缩进，minified 表示无可选空白。旧 full
+来自改动前保存的同库 Host 结果；当前三种模式在同库、同数据上测量，并由重载后的
+direct Host 调用复现响应语义。它们不是 API 账单或跨 Host 的通用保证。
+
+| Schema payload | Pretty 字符 | Pretty token | Minified 字符 | Minified token | 相对旧 full 的 Pretty token |
+|---|---:|---:|---:|---:|---:|
+| 改动前 full | 36,676 | 9,270 | 18,404 | 5,314 | 基线 |
+| 当前 full（含 adapter default） | 44,300 | 10,946 | 22,760 | 5,934 | +18.1% |
+| compact，不分组 | 20,125 | 4,660 | 8,273 | 2,492 | -49.7% |
+| compact，adapter 可见列元数据判等分组 | 8,732 | 2,068 | 3,728 | 1,128 | **-77.7%** |
+
+Grouped compact 相对旧 full 减少 76.2% pretty 字符和 77.7% pretty token；相对
+当前含 default 的 full 减少 80.3% / 81.1%。仅启用该元数据判等分组，就比
+ungrouped compact 再减少 56.6% pretty 字符和 55.6% pretty token。此前单张 41 列
+`describe_table()` 约为 1,094 token，因此 broad overview 使用 grouped compact
+还能避免 Host 截断后逐表重复钻取所产生的额外上下文。
+
+**低上下文 Agent 自然选择样本：** 独立 `MCP Runner` 只收到“概览该 alias 的表、
+用途、同构关系，并指出订单分析应深入哪张表”的业务目标；提示没有指定工具、参数
+或调用顺序，也没有提供上述测量结论。Agent 自主执行：
+
+| 样本 | 实际轨迹 | 调用数 | Full/describe/query | 截断 | 结果 |
+|---|---|---:|---:|---|---|
+| broad schema overview，`n=1` | `list_tables` → `get_full_schema(compact, group_identical=true)` | 2 | 0 | 否 | 正确识别 8 表、4 组、5 张同构 `va_manual_*` 表，并优先定位 `orders` |
+
+该轨迹发生在后续引导微调前，并暴露出 grouped compact 已包含表名和行估计时仍先调
+`list_tables` 的冗余。微调后的 fresh-process pretty payload 为：`list_tables` 368
+token、grouped compact 2,068 token；若仍走两调用路径约为 2,436 token，直接 compact
+可再省 368 token。相对当前口径的旧 `list_tables + pre-change full` 约 9,638 token，
+直接 compact 约减少 78.5%。这不包含 system prompt、工具 schema、Agent 回答或
+provider usage，不能当作完整会话账单。
+
+**引导微调后重启验收：** MCP 服务重启后，先通过 `check_connection` 确认 alias 仍指向
+`trade_data_analysis`，再直接调用 grouped compact，复核 8 表、272 列、4 组且
+`truncated=false`。随后 3 个相互独立的低上下文 `MCP Runner` 接收与历史样本相同的
+broad overview 目标，不指定工具名、参数或顺序：
+
+| 样本 | 实际轨迹 | 调用数 | Full/describe/query | 截断/错误 | 结果 |
+|---:|---|---:|---:|---|---|
+| 1 | `list_tables` → grouped compact | 2 | 0 | 无 | 正确完成 |
+| 2 | grouped compact | 1 | 0 | 无 | 正确完成 |
+| 3 | grouped compact | 1 | 0 | 无 | 正确完成 |
+
+Direct compact 选择率为 `2/3`（66.7%），前置 `list_tables` 为 `1/3`；共 4 次调用，
+平均 1.33 次/样本，未调用 full、`describe_table` 或 `query`。按上述 pretty payload
+估算，3 次 schema 结果共 6,572 token，平均约 2,191 token/样本，仅比全部 direct
+compact 的 2,068 token 下界高 123 token（5.9%）。相对旧
+`list_tables + pre-change full` 的约 9,638 token/样本，平均 payload 下降约 77.3%。
+这些仍是 payload-only 估算，不包含工具定义、系统提示、Agent 回答或 provider usage。
+
+**修复后 fresh stdio 复验（2026-08-29）：** 使用
+`.venv/bin/python -m pytest -q test_mcp_client.py -s` 启动独立 stdio server，实际
+该批 `tools/list` 中 `detail_level` 为非空 `compact|full` enum、机器默认值为
+`full`；7.7 记录了后来定稿的 `compact` 默认。字段当时已不再
+含 nullable `anyOf`。随后对 `trade_analysis_mysql` 调用 grouped compact，返回 8 表、
+272 列、4 组、`truncated=false`，并显式返回
+`grouping_basis="adapter_visible_column_metadata_and_order"`。同一 smoke 的
+`SELECT 1`、`COUNT(*)`、单表描述和 query Skill 均为只读；非法 `DELETE` 与不存在的
+mutation Skill 在执行写入前被拒绝，全程没有 mutation 或数据库写入。结果为
+`1 passed`。该复验验证当前 fresh-process 工具契约；已运行的 VS Code/Codex Host
+仍需重启或刷新工具注册后才会看到新的默认值与描述。
+
+该批次支持引导微调后多数样本会自然跳过冗余 discovery，但仍观测到 `1/3` 前置
+`list_tables`。历史 `n=1` 与本批 `n=3` 不是随机对照实验；小样本结果不能外推为所有
+模型、Host、温度或任务措辞的保证。
+
+### 7.6 MySQL 恢复复验与 Skills Readiness 补漏（2026-09-01）
+
+MySQL 恢复后，当前 Host 对明确 alias `trade_analysis_mysql` 顺序执行纯只读
+`get_full_schema` 调用：grouped compact 返回 8 表、272 列、4 组，ungrouped
+compact 返回 8 个独立组，两者均 `truncated=false`；grouped 响应明确携带
+`grouping_basis="adapter_visible_column_metadata_and_order"`。省略
+`detail_level` 与显式 `full` 的结构化响应完全相同；`full` 下切换
+`group_identical` 不产生分组字段或响应变化。当前 Host 对 `structuredContent`
+做 minified JSON 序列化后，grouped compact、ungrouped compact、full 分别约为
+3,860、8,368、22,760 字符。该字符数受响应文案和序列化方式影响，不是协议保证。
+
+同批代码审查发现 Skills readiness 曾把“检查主动关闭”和“metadata 读取失败”都压成
+`None`，从而可能在检查已启用时把依赖表的 Skill 继续显示为
+`schema_ready=true`。修复后使用显式 disabled/available/unavailable snapshot：
+metadata 不可用时返回 `schema_check_available=false`、`schema_ready=false`，不伪造
+`missing_tables`，默认发现面隐藏相关 Skill，直接 query/mutation 执行则在 SQL、
+preview token 和写入前 fail closed。该失败路径通过隔离 SQLite/mock 回归验证，未通过
+修改真实 MySQL 状态来人为制造故障。整个 MySQL 复验没有调用 `query` 或 mutation，
+没有数据库写入。相关 Skills disclosure/mutation 聚焦套件为 `83 passed`，默认全量
+套件为 `484 passed, 3 skipped`。
+
+### 7.7 最终默认契约复验（2026-09-02）
+
+由于本项目尚未正式发布，`get_full_schema()` 的最终默认值收敛为
+`detail_level="compact"`。省略投影参数现在等价于显式
+`detail_level="compact", group_identical=true`，默认响应使用 `schema_groups`；需要
+以表名为 key 的完整 adapter 元数据时必须显式传入 `detail_level="full"`。隔离 SQLite
+回归同时确认 full 模式下切换 `group_identical` 不改变响应，也不产生任何分组字段。
+
+Skills 工具契约也完成收敛：`list_skills.detail_level` 是非空
+`compact|summary|full` enum，`available_only` 是非空 boolean，二者的 JSON Schema
+默认值等于该进程启动时解析出的环境配置；`get_skill_detail.detail_level` 是非空
+`execution|full` enum，默认 `full`。非默认启动配置 `full/false` 也通过了“机器默认值
+等于省略参数后的运行值”回归。
+
+验证结果如下：
+
+- Schema/Skills 聚焦套件：`56 passed`；
+- 默认全量套件：`485 passed, 3 skipped`；
+- fresh stdio MySQL 进程成功完成 MCP 注册，`tools/list` 显示
+  `get_full_schema.detail_level` 为非空 enum 且默认 `compact`；随后
+  `check_connection` 返回已脱敏的 `Database query failed`，smoke 按既有规则跳过，
+  未执行 schema、SQL 或 mutation；
+- 当前已连接 MCP 的显式 compact 只读调用同样返回
+  `error_code="metadata_query_failed"`，所以本节不把 MySQL 数据面写成通过；
+- `PYTHON_DOTENV_DISABLED=1` 的临时 SQLite fresh-stdio 尝试在 MCP initialize
+  阶段阻塞，观察后已终止；它不构成功能失败证据，也不计为通过。
+
+因此，2026-09-02 的证据覆盖最终工具注册契约和隔离运行语义；最近一次真实 MySQL
+投影成功仍是 7.6 记录的 2026-09-01 只读复验。上述尝试均未产生数据库写入。
+
+### 7.8 工具契约精度与范围校验（2026-09-02）
+
+本批修正 `sample.limit`、`get_table_summary.exact_count` 以及核心工具选择说明。验证
+分成两部分，避免把不同配置或 Host 缓存混写为同一种证据。
+
+**隔离 SQLite FastMCP protocol probe：** 在 fresh process 中启用可选 schema 和
+table-summary 工具，仅使用一次性 `:memory:` 数据库。`tools/list` 实际返回：
+
+- `sample.limit`：`type=integer`、`default=5`、`minimum=1`、`maximum=20`，说明明确
+  越界会被拒绝；
+- `get_table_summary.exact_count`：`type=boolean`、`default=false`，参数说明明确
+  `SELECT COUNT(*)` 可能全扫描、在大表上较慢，并可能遇到 MySQL metadata-lock
+  contention；
+- `query`、`describe_table`、`list_connections` 的注册说明分别显示自由形式只读
+  SQL、adapter 可见列元数据而非完整 DDL，以及“默认 alias 保留 mutation 兼容模式、
+  非默认 alias 要求严格命名写授权，连接发现本身不授权写”的边界；`sql_assistant`
+  中的 `list_skills` 签名包含 `connection_id`。
+
+真实 MCP 调用 `sample(limit=0)` 与 `sample(limit=21)` 均返回 validation error；
+拦截的 `adapter.execute` 调用列表保持为空，证明拒绝发生在 handler/SQL 之前。
+`limit=1` 与 `limit=20` 均成功，生成的 SQLite SQL 分别以 `LIMIT 1` 与 `LIMIT 20`
+结尾。该段记录 MCP 边界验证；Python 直接调用与最终严格契约见 7.9。
+该 probe 的聚焦结果为 `4 passed, 77 deselected`。
+
+**Fresh stdio + 配置的 MySQL：** 运行维护脚本
+`.venv/bin/python -m pytest -q test_mcp_client.py -s`，结果为 `1 passed`。新 server
+成功初始化，`tools/list` 暴露修正后的三个核心工具说明；`list_tables` 返回 8 张表，
+默认 grouped compact 返回 8 表、272 列、4 组且未截断；`SELECT 1`、对 8 行
+`orders` 的只读 `COUNT(*)`、`describe_table(orders)` 和 query Skill 均成功；非法
+`DELETE` 与不存在的 mutation Skill 在写入前被拒绝。当前部署未注册 `sample` 和
+`get_table_summary`，因此不能用这次 MySQL stdio smoke 声称验证了两个可选参数；
+它们的证据来自上述隔离 probe。MySQL 全程没有执行 mutation 或数据库写入。
+
+回归结果为：聚焦 metadata/multi-connection 套件 `81 passed`；默认全量套件
+`488 passed, 3 skipped`；`git diff --check` 与相关 Python 编译检查通过。长期运行的
+IDE/Codex Host 没有用于证明本批新描述已经刷新；修改后仍需重启/刷新 Host 的工具
+注册缓存。
+
+### 7.9 严格参数契约与未知行数语义（2026-09-03）
+
+本批将 MCP `inputSchema`、Python 函数签名和 handler 校验收敛为一个契约，并修正
+无法估算行数时误报为 0 的行为：
+
+- `SKILLS_LIST_DEFAULT_DETAIL` 经专用解析器返回静态
+  `Literal["compact", "summary", "full"]`；`get_full_schema`、`list_skills` 和
+  `get_skill_detail` 的投影类型使用共享 Literal alias；
+- 省略参数仍使用声明默认值，但 Python 直接调用显式传 `None`、大小写/空白变体，
+  或向 `available_only` 传非布尔值时会明确拒绝，不再解释成默认值；
+- `sample.limit` 的 Python 直接调用与 MCP 一致，只接受整数 1..20；0、21、`true`
+  和 `None` 均在 SQL 前拒绝，不再静默截断；
+- SQLite 可发现但不满足保守 metadata identifier 语法的表仍由 `list_tables` 返回，
+  其 `row_count=null` 表示未知而非空表；MySQL 的 NULL `TABLE_ROWS` 也会在 discovery
+  与单表 adapter 路径保持为 null；
+- `list_connections` 明确为无参数工具；`list_skills` 不再把 `summary` 描述成固定
+  默认值，而是说明省略参数采用启动时解析的配置。
+
+**隔离协议与单元回归：** 聚焦 adapter/schema/Skills/multi-connection 套件结果为
+`175 passed, 3 skipped`。FastMCP Client 继续证明 `sample.limit` 的 JSON Schema 为 integer、默认 5、
+minimum 1、maximum 20，且 MCP 越界值在 adapter SQL 前被拒绝。新增直接调用测试和
+`odd-name` SQLite 表测试覆盖上述严格拒绝与 null/zero 区分；MySQL adapter mock
+同时验证 NULL estimate 保持 null、真实 0 保持 0。`describe_table()` 与 approximate
+`get_table_summary()` 的隔离回归进一步验证未知估算会输出
+`row_count=null`、`row_count_approximate=null`、`is_large=null`，不会生成大表建议或
+`~None` 日志；`exact_count=true` 的整数/布尔语义保持不变。
+
+**静态检查：** 临时 Pyright 1.1.411 使用项目 `.venv` 依赖解析
+`mcp_sql_server.py`，结果为 `0 errors, 0 warnings, 0 informations`。这不仅验证了
+原 3272 行动态 `str` 默认值问题已消失，也检查了该文件其余静态类型诊断。
+
+**Fresh stdio + 配置的 MySQL：** 运行
+`.venv/bin/python -m pytest -q test_mcp_client.py -s`，结果为 `1 passed`。fresh
+server 从当前源码启动并成功完成初始化；`list_tables` 返回 8 张表，新的 hint 明确
+“null means unavailable, not empty”；默认 grouped compact 返回 8 表、272 列、4 组
+且未截断。`SELECT 1`、`orders` 的只读 `COUNT(*)`、`describe_table(orders)` 和 Query
+Skill 均成功；非法 `DELETE` 和不存在的 mutation Skill 在写入前被拒绝。8 张 MySQL
+表本次均取得数值估计，因此 null 分支以隔离 adapter/core-tool 回归为证据。全程没有
+mutation 或数据库写入。
+
+最终默认全量结果为 `507 passed, 3 skipped`。`git diff --check` 和 Python 编译检查
+在最终差异复核中执行。
+
+### 7.10 Strict FastMCP Validation 与 Host Rediscovery（2026-09-03）
+
+本轮进一步区分机器 schema、FastMCP runtime validation 和 Python 直调三层契约。
+FastMCP 3.0.2 默认 flexible validation 的隔离探针证明，字符串
+`group_identical="false"` 会被转换为 boolean false。Server 随后显式启用
+`strict_input_validation=True`；fresh in-process Client 验证字符串 boolean 和字符串
+integer 均在 handler/SQL 前被 JSON Schema 拒绝。Python 直调不经过该协议层，因此
+`group_identical`、`exact_count`、`available_only` 与 mutation 的 `confirm` 复用显式
+boolean 校验，`None`、0/1 和字符串不再静默进入 false/true 分支；非法 `confirm`
+还会在 Skill 加载、token 消费或数据库访问前停止。
+
+SQLite row-estimate 回归还模拟了 table discovery 后、bounded sample 前对象被删除的
+并发 DDL 窗口。该路径现在返回 `row_count=null`，表示估计不可用；真实空表仍返回
+0。名称不满足保守 metadata identifier 语法的表也保持相同 unknown 语义。
+
+**Fresh stdio 协议与只读 MySQL：** 独立启动当前 `start_server.py` 后，`tools/list`
+暴露非空 `compact|full`、默认 `compact`，以及 boolean `group_identical`、默认 true；
+传入字符串 `"false"` 返回 `Input validation error`。省略参数的 grouped compact
+调用成功返回 `trade_analysis_mysql` 的 8 表、272 列、4 组，
+`grouping_basis="adapter_visible_column_metadata_and_order"`，`truncated=false`。
+全过程只读。相关 adapter/schema/Skills/multi-connection 套件为
+`203 passed, 3 skipped`，默认全量为 `521 passed, 3 skipped`。Pyright 1.1.411
+使用项目虚拟环境，对当前全部 8 个已修改 Python 文件报告
+`0 errors, 0 warnings`。
+
+**当前 VS Code Host 边界：** 本轮修改前，长期运行的当前 Host 仍向模型显示旧的
+nullable/default-null `detail_level` schema，但 direct backend 已返回新 compact 行为并
+拒绝 null。这证明 server process restart 与 Host tool rediscovery 是独立生命周期。
+Server 无法清除 Host 私有注册缓存；需要断开/重连 MCP 或 Reload Window，并从同一
+Host 重新获取 `tools/list`。本轮末当前 Host 完成工具重新发现，实际暴露非空
+`compact|full`、默认 compact 和 boolean grouping 默认 true；随后通过当前 Host 的
+默认调用复现 8 表、272 列、4 组且未截断。该结果完成当前 Host 契约验收，但本节未
+追加 Agent 自然选择样本，也不把 fresh stdio 证据与 Host 证据混为同一来源。
 
 ## 附录 A：历史协议基线
 

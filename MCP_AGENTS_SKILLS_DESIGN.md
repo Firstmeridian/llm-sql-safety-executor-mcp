@@ -2,7 +2,7 @@
 
 > **Version**: 3.7.1
 > **Status**: Implemented
-> **Date**: 2026-08-28
+> **Date**: 2026-09-02
 > **References**: [Skills safety policy](skills/SAFETY.md), [design risk register](DESIGN_RISK_REGISTER.md), [v3.6 release-family notes](RELEASE_NOTES/RELEASE_NOTES_v3_6.md), and [v3.7 release notes](RELEASE_NOTES/RELEASE_NOTES_v3_7.md)
 
 ## 1. Overview
@@ -593,7 +593,7 @@ flowchart TB
       T0["list_connections()"]
       T1["query(sql, connection_id?)"]
       T2["execute_query_skill(name, params, connection_id?)"]
-        T3["execute_mutation_skill(name, params, confirm)"]
+        T3["execute_mutation_skill(name, params, confirm,<br/>preview_token?, connection_id?)"]
       T4["list_skills(connection_id?) / describe_table(..., connection_id?) / ..."]
     end
 
@@ -817,7 +817,7 @@ startup.
 | Catalog | `list_skills(detail_level="compact")` | name, type, description, risk, category, executability, schema readiness | No |
 | Summary | `list_skills()` or `detail_level="summary"` | compact fields plus triggers, databases, profiles, source filename, idempotency, related skills | No |
 | Execution detail | `get_skill_detail(name, detail_level="execution")` | invocation fields, params schema, executability/disabled reason, confirmation requirement, resolved connection/DB type, next action | No |
-| Full detail | `get_skill_detail(name)` (backward-compatible default) or `list_skills(detail_level="full")` | full cached frontmatter metadata plus params schema, version, readiness and policy diagnostics | No |
+| Full detail | `get_skill_detail(name)` (default) or `list_skills(detail_level="full")` | full cached frontmatter metadata plus params schema, version, readiness and policy diagnostics | No |
 | Source review | Developer reads files in `skills/` | raw SQL/Python source for code review | Outside MCP runtime |
 
 The recommended path is conditional rather than a fixed three-call chain:
@@ -832,6 +832,13 @@ The recommended path is conditional rather than a fixed three-call chain:
 filtering. Skills without a category are grouped under `uncategorized`. Regex
 search is intentionally not supported in the first implementation to avoid ReDoS
 risks and brittle model-generated regular expressions.
+
+The callable contract exposes `list_skills.detail_level` as a non-null
+`compact|summary|full` enum and `available_only` as a non-null boolean. Their
+JSON Schema defaults are the values resolved from the corresponding startup
+settings, so the machine-visible default and omitted-argument behavior agree.
+`get_skill_detail.detail_level` is likewise a non-null `execution|full` enum
+with default `full`.
 
 `available_only` filters the catalog to skills that can execute for the target
 connection and current server state. By default it follows
@@ -850,6 +857,14 @@ declare `tables` in frontmatter. The server checks whether those tables exist in
 the target connection and exposes `schema_ready` plus `missing_tables`. It does
 not validate every column shape during discovery, because that would increase
 metadata complexity and risk false negatives for reviewed templates.
+
+If target metadata is unavailable, readiness is not treated as ready. A
+table-dependent Skill exposes `schema_ready=false` and
+`schema_check_available=false` without inventing `missing_tables`, is filtered
+by `available_only=true`, and is rejected by the execution-time readiness guard.
+`available_only=false` still exposes the developer catalog and disabled reason.
+Only the sanitized `MetadataQueryError` is converted to this unavailable state;
+unexpected programming exceptions are not swallowed.
 
 Bundled example skills use `profiles: [demo]` because they target the demo
 `orders` schema. Profiles remain descriptive metadata by default, but deployments
@@ -871,7 +886,7 @@ clear policy switch.
 | `MUTATION_PREVIEW_TOKEN_STORE_MAX_ENTRIES` | `10000` | Per-process bound on outstanding tokens; valid range `1-100000`; exhaustion fails closed without evicting valid entries |
 | `SKILLS_LIST_DEFAULT_DETAIL` | `summary` | Default `list_skills()` metadata projection: `compact`, `summary`, or `full` |
 | `SKILLS_LIST_AVAILABLE_ONLY_DEFAULT` | `1` | Default `list_skills()` availability filter; `1` hides currently non-executable skills from Agent discovery, while `available_only=false` exposes the full developer catalog |
-| `SKILLS_CHECK_SCHEMA_ON_LIST` | `1` | Include live table-existence checks in Skills readiness metadata; missing tables set `schema_ready=false` and are hidden by `available_only=true` |
+| `SKILLS_CHECK_SCHEMA_ON_LIST` | `1` | Include live table-existence checks in Skills readiness metadata. Missing tables set `schema_ready=false`; unavailable metadata also sets `schema_check_available=false` and fails closed without inventing `missing_tables`. Both states are hidden by `available_only=true` |
 | `SKILLS_EXCLUDE_PROFILES` | empty | Comma-separated profile policy; matching skills are non-executable, hidden by default discovery, and rejected at execution time |
 | `SKILLS_DIR` | `skills/` | Skills directory path |
 | `SKILLS_AUDIT_LOG` | `skills/_audit.jsonl` | Audit log file path; contains business audit params, so protect and rotate it as sensitive operational data |
@@ -971,7 +986,7 @@ persist neither the full token nor that short identifier in the current design.
 | v3.6 Mutation preview-token core | Require preview token for every mutation execute, including the default connection | Keep default-connection no-token compatibility | Gives higher-stakes writes one consistent protocol and makes preview/execute target binding explicit before enabling non-default writes |
 | v3.6 Mutation multi-connection policy | Require global target allowlist plus per-connection write switch and skill allowlist | Reuse read allowlists for writes | Keeps read policy and write authorization separate, deny-by-default, and auditable |
 | v3.7.1 preview-token core | Preserve the `preview_token` API field as a 256-bit opaque handle and keep binding state in the bounded process-local Store | Retain the self-describing HMAC envelope, add shared external state, or use stateless validation | Removes redundant client payload while preserving exact request/state binding, one-time consumption, and the stdio-first same-process deployment boundary |
-| v3.7.1 Skill detail projection | Add opt-in `execution`; keep omitted `detail_level` as `full` | Change the default immediately or remove readiness/catalog diagnostics | Cuts repeated Agent context while preserving existing callers and a developer diagnostic view |
+| v3.7.1 Skill detail projection | Add opt-in `execution`; keep omitted `detail_level` as `full`, and expose a non-null enum/default in the machine schema | Make execution the default or remove readiness/catalog diagnostics | Cuts repeated Agent context while retaining a developer diagnostic view and an unambiguous callable contract |
 | Connection-specific UNION guidance | Keep the no-argument prompt target-neutral; disclose per-alias policy through `list_connections()` and enforce it in MCP raw/query-Skill paths | Describe the default alias policy globally or make prompt selection authorize a target | Prevents misleading multi-connection guidance without turning a user-controlled prompt into an authorization boundary; the standalone compatibility helper remains a shape gate only |
 | v3.7 Skill connection scope | Optional strict `connection_ids` list intersected with DB type and all existing policies; omitted means no new restriction | Singular auto-routing field or dynamic DSN binding | Supports direct business binding and reuse without changing default routing or turning metadata into authorization |
 | v3.7 approval example | One-shot stdio host, exact `APPROVE`, token-free view/output, no execute retry | Treat `confirm=true` as human proof or add server Elicitation/auth in the same release | Demonstrates a real client-owned approval loop while keeping identity, remote auth, and compliance claims outside the server's implemented boundary |
@@ -985,6 +1000,7 @@ persist neither the full token nor that short identifier in the current design.
 | Demo skills | `profiles: [demo]` plus optional `SKILLS_EXCLUDE_PROFILES=demo` | Delete or disable bundled examples by default | Keeps examples usable for local demos while allowing production deployments to hide and block them explicitly |
 | Query skill audit | Optional `SKILLS_AUDIT_QUERIES=1`; params are logged as business audit data and must not contain secrets | Audit every read skill by default, or build a redaction policy engine now | Avoids surprising sensitive parameter logs while providing an opt-in compliance trail; returned data is never logged. Runtime redaction is deferred until real skills require sensitive params |
 | Raw SQL length | `MAX_SQL_LENGTH` for `query(sql)` | Apply the same cap to reviewed skill templates | Free-form SQL is agent-provided input and needs schema/runtime bounds; reviewed skill SQL is startup-validated code and should not be constrained by the user-input cap |
+| Agent-facing tool contracts | Put finite choices, numeric bounds, defaults, and expensive-mode warnings in parameter schemas; enforce the same exact values for direct calls; keep tool descriptions explicit about selection roles and metadata limits | Rely on silent runtime coercion/clamps or broad labels such as “primary for all database queries” and “full metadata” | Models select and populate MCP tools from their descriptions and `inputSchema`; one precise contract reduces invalid calls, hidden behavior, and tool-role competition without adding orchestration or tools |
 | Tool timeout | FastMCP `timeout=MCP_TOOL_TIMEOUT_SECONDS` | Rely only on DB read-query and mutation lock-wait controls | Protects the MCP foreground request from non-DB stalls while keeping database timeout controls as lower-level guards |
 | v3.4.1.B1 ToolResult metadata | Implemented for Skills execution tools | Keep plain dict returns everywhere | Adds runtime diagnostics (`execution_ms`, row counts, truncation, skill version) without changing the structured payload; metadata excludes SQL, params, and returned rows |
 | v3.4.1.B2 Closed-world annotations | `openWorldHint=false` on all MCP tools | Leave FastMCP default `openWorldHint=true` | The server operates inside a configured database boundary, so closed-world hints better represent client-facing safety semantics; hints remain advisory, not authorization |

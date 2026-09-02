@@ -108,13 +108,16 @@ SQL 方言的全面语义分析。
 
 **5. 典型工作流**：
 ```
-结构未知：list_tables() → describe_table(target) → query(sql)
+结构未知：只需表名/规模 → list_tables()
+         需要全局字段 → 直接 get_full_schema(detail_level="compact")
+         仅看目标表 → describe_table(target) → query(sql)
 结构已知：query(sql) 直接执行
 大表场景：观察 is_large=true → 使用 LIMIT 或聚合
-Skills 场景：未知 Skill → list_skills(compact, search=...) → 必要时 get_skill_detail(execution)
-             已知 Skill、未知参数 → get_skill_detail(execution)
-             参数已知 → execute_query_skill(name, params)
-             或 execute_mutation_skill(name, params, confirm=false) → preview_token → confirm=true
+Skills 场景：未知 Skill → list_skills(search=..., detail_level="compact", connection_id=target)
+             → 必要时 get_skill_detail(skill_name=..., connection_id=target, detail_level="execution")
+             已知 Skill、未知参数 → get_skill_detail(skill_name=..., connection_id=target, detail_level="execution")
+             参数已知 → execute_query_skill(name, params, connection_id=target)
+             或 mutation preview → 用户批准 → 同一 params/connection_id + 返回的 preview_token
 ```
 
 ### 安全功能
@@ -301,10 +304,10 @@ flowchart TB
 
     subgraph MCP["MCP 协议边界"]
         direction TB
-        T1["query(sql)"]
-        T2["execute_query_skill(name, params)"]
-        T3["execute_mutation_skill(name, params, confirm)"]
-        T4["list_skills() / get_skill_detail() / describe_table() / ..."]
+        T1["query(sql, connection_id?)"]
+        T2["execute_query_skill(name, params, connection_id?)"]
+        T3["execute_mutation_skill(name, params, confirm,<br/>preview_token?, connection_id?)"]
+        T4["list_skills(connection_id?) / get_skill_detail(connection_id?) /<br/>describe_table(connection_id?) / ..."]
     end
 
     subgraph Server["MCP Server 安全层 (可信)"]
@@ -426,15 +429,18 @@ Agent **既是决策者又是执行者**，安全保障依赖于：
 在近几次更新中，本项目进行了多次的效率优化，主要聚焦于减少不必要的工具调用次数和提升速度。并已经进行了一定的测试。但因为LLM(Agents)的随机性，在实际使用时，仍可能出现不必要的工具调用情况，尽管概率较小。  
 
 ### 已知问题和不足
-- **行数相关字段可能不精确**：`list_tables()` / `describe_table()` / `get_full_schema()` 返回的 `row_count` 属于统计估计值：
+- **MCP 边界严格按 schema 校验工具输入**：server 已启用 FastMCP `strict_input_validation`，因此 boolean 参数的 `"false"` 或 integer 参数的 `"10"` 会被拒绝，不会自动转换。省略可选参数仍采用声明的默认值。Python 直接调用不经过 MCP 校验；需要契约一致的关键直调参数由 handler 做对应检查。
+- **契约升级后必须刷新工具注册**：重启 MCP server 与 IDE Host 重新获取 `tools/list` 是两个独立步骤。工具名、描述、schema 或默认值改变后，应重新连接 MCP 或重载 Host 窗口，并在 Agent 行为实验前从同一 Host 核对当前 schema。
+- **行数相关字段可能不精确**：`list_tables()` / `describe_table()` / `get_full_schema()` 和 `get_table_summary(exact_count=false)` 返回的 `row_count` 属于统计估计值：
   - **MySQL**：来自 `INFORMATION_SCHEMA.TABLES.TABLE_ROWS`（InnoDB 可能有明显偏差或滞后）
   - **SQLite**：来自 `sqlite_stat1`（如果已运行 ANALYZE）或最多 10,000 行的有界采样；如果达到采样上限，则该值是下界估算，除非已有统计信息
+  - adapter 无法安全提供估计时，单个 `row_count` 可以是 `null`；`null` 表示未知，不表示空表。此时单表工具也会返回 `row_count_approximate=null` 和 `is_large=null`，不会把该表归类为小表。这包括名称超出生成 metadata SQL 所用保守语法的 SQLite 表，以及在 discovery 与有界采样之间被删除的表。
   - 仅建议用于“量级判断/是否加 LIMIT/是否大表”等策略，不应当作精确计数。
   - 如需精确行数，请使用 `SELECT COUNT(*) ...`，或启用 `ENABLE_TABLE_SUMMARY=1` 后使用 `get_table_summary(exact_count=True)`（注意大表可能较慢）。
 
-- **为避免 Token 爆炸，返回结果可能被截断**：`query()`、`list_tables()`、`get_full_schema()` 会根据 `MAX_RESULT_ROWS` / `MAX_RESULT_CHARS` / `MAX_OVERVIEW_TABLES` / `MAX_SCHEMA_TABLES` 截断返回 payload；因此“返回的数据/表/列”可能不是全量。`query()` 的截断不等于限制数据库执行量或 Python 侧获取量；请在 SQL 中显式使用 `WHERE`、`LIMIT`、`ORDER BY` 来限制工作量并稳定结果顺序。表/Schema 工具需要更小范围时，请优先使用 `describe_table()` 或调整相关环境变量（风险自担）。
+- **通过截断和投影避免 Token 爆炸**：`query()` 使用 `MAX_RESULT_ROWS` / `MAX_RESULT_CHARS`，`list_tables()` 使用 `MAX_OVERVIEW_TABLES`，`get_full_schema()` 使用 `MAX_SCHEMA_TABLES`，因此返回的行或表可能不是全量。`MAX_RESULT_CHARS` 不限制 Schema 工具 payload。全局解释优先使用 `get_full_schema(detail_level="compact")`，仅在需要某张表的详情时调用 `describe_table()`。`query()` 截断不等于限制数据库执行量或 Python 侧获取量；请在 SQL 中显式使用 `WHERE`、`LIMIT`、`ORDER BY` 来限制工作量并稳定结果顺序。
 
-- **部分“总数”字段是“可见范围”语义**：例如 `total_tables` 在工具输出中表示“allowlist 参数过滤后的可见表数量（再考虑截断）”，并非一定等同于数据库实际总表数；请避免将其误读为“全库统计”。
+- **部分“总数”字段是“可见范围”语义**：例如 `total_tables` 表示 allowlist 过滤后、响应截断前的可见表数量，并非数据库物理总表数；`returned_table_count` 才是截断后实际返回的数量。
 
 ### 使用本项目的最佳实践
 - **推荐首先接入VS Code的GitHub Copilot进行试用。** VS Code中的GitHub Copilot是一个成熟的AI Agent工具，你可以选择免费模型（例如GPT-5 mini）在测试数据库中进行使用，这样安全性较高，同时可以避免额外的AI请求费用消耗。
@@ -707,7 +713,7 @@ ALLOW_UNION=0
 # Token 优化：限制结果大小以防止上下文溢出
 # 设为 0 可禁用截断（用于数据导出场景）
 MAX_RESULT_ROWS=100      # 每次查询返回的最大行数（0=不限制）
-MAX_RESULT_CHARS=16000   # 响应中的最大字符数（0=不限制）
+MAX_RESULT_CHARS=16000   # query/Query Skill 序列化 data 的截断阈值（0=禁用）
 MAX_SQL_LENGTH=20000     # query(sql) 接受的最大字符数（0=不限制）
 MAX_SCHEMA_TABLES=50     # get_full_schema 返回的最大表数（0=不限制）
 MAX_OVERVIEW_TABLES=100  # list_tables 返回的最大表数（0=不限制）
@@ -720,7 +726,7 @@ MUTATION_PREVIEW_TOKEN_TTL_SECONDS=300 # Preview token 有效期（1-86400 秒�
 MUTATION_PREVIEW_TOKEN_STORE_MAX_ENTRIES=10000 # 未过期 token 容量
 SKILLS_LIST_DEFAULT_DETAIL=summary # list_skills 默认元数据粒度：compact、summary 或 full
 SKILLS_LIST_AVAILABLE_ONLY_DEFAULT=1 # list_skills 默认仅展示当前可执行 Skill
-SKILLS_CHECK_SCHEMA_ON_LIST=1 # list_skills 默认隐藏缺少所需表的 Skill
+SKILLS_CHECK_SCHEMA_ON_LIST=1 # 默认隐藏缺表或无法验证表 readiness 的 Skill
 # SKILLS_EXCLUDE_PROFILES=demo # 隐藏并阻止匹配 profile 的 Skill
 # SKILLS_DIR=skills/     # Skills 目录路径（相对或绝对）
 # SKILLS_AUDIT_LOG=skills/_audit.jsonl  # 审计日志路径（JSONL 格式）
@@ -743,7 +749,7 @@ Skills 层允许你将常用的 SQL 查询和数据变更操作封装为可复�
 | `MUTATION_PREVIEW_TOKEN_STORE_MAX_ENTRIES` | `10000` | 每进程未过期 preview token 上限（有效范围 `1-100000`）。容量满时 fail closed，不驱逐有效 token |
 | `SKILLS_LIST_DEFAULT_DETAIL` | `summary` | `list_skills` 默认元数据粒度：`compact`、`summary` 或 `full`。单次调用的 `detail_level` 会覆盖该值 |
 | `SKILLS_LIST_AVAILABLE_ONLY_DEFAULT` | `1` | `list_skills` 默认可用性过滤。设为 `1` 时，Agent 发现面会隐藏目标 `connection_id` 下因 DB 类型、mutation 开关/写策略、未设置 `SKILLS_ALLOW_MUTATION_CONNECTIONS` 时的仅默认连接兼容模式、查询连接 allowlist 或 schema readiness 不可执行的 Skill；开发者可传 `available_only=false` 查看完整目录 |
-| `SKILLS_CHECK_SCHEMA_ON_LIST` | `1` | 在 Skills 可用性元数据中加入实时表存在性检查。开启后，缺少所需表的 Skill 会显示 `schema_ready=false`，并被 `available_only=true` 隐藏 |
+| `SKILLS_CHECK_SCHEMA_ON_LIST` | `1` | 在 Skills 可用性元数据中加入实时表存在性检查。缺少所需表时 `schema_ready=false`；若 metadata 不可用，依赖表的 Skill 也会以 `schema_check_available=false`、`schema_ready=false`、`executable=false` fail closed。两类情况都会被 `available_only=true` 隐藏；`available_only=false` 仍返回开发者目录和失败原因 |
 | `SKILLS_EXCLUDE_PROFILES` | 空 | 逗号分隔的 profile 策略。匹配的 Skill 会被标记为不可执行，默认发现面隐藏，并在直接执行时被拒绝。生产环境可用 `demo` 隐藏仓库内置示例 |
 | `SKILLS_DIR` | `skills/` | 技能目录路径。必须位于项目根目录下（安全约束） |
 | `SKILLS_AUDIT_LOG` | `skills/_audit.jsonl` | 审计日志路径。mutation preview/execute 路径尝试 best-effort 写入；启用查询 Skill 审计时也使用该路径 |
@@ -867,7 +873,7 @@ SKILLS_AUDIT_QUERIES=1
   bearer handle，同时保留精确请求/状态绑定、TTL、有界进程内 Store、原子一次性
   消费和同进程 mutation 部署边界。
 - 新增紧凑的 `get_skill_detail(detail_level="execution")` 执行投影，并保留
-  `full` 作为向后兼容默认值；`list_skills(..., detail_level="full")` 已返回参数或
+  `full` 作为默认值；`list_skills(..., detail_level="full")` 已返回参数或
   参数本来已知时，不再建议重复获取 detail。
 - 对模糊数据库类型和仅描述用途的连接请求采用 fail-closed 路由指导。共享 prompt
   不再把默认连接的 UNION policy 当成全局能力；调用方通过 `list_connections()`
@@ -991,7 +997,7 @@ SKILLS_AUDIT_QUERIES=1
 - `get_skill_detail(skill_name)`：按需获取单个 Skill 的缓存参数 schema 和执行元数据
 - `SKILLS_LIST_DEFAULT_DETAIL`：通过环境变量控制默认投影，默认 `summary`
 - `SKILLS_LIST_AVAILABLE_ONLY_DEFAULT`：默认隐藏当前不可执行的 Skill；开发者可用 `available_only=false` 查看完整目录
-- `SKILLS_CHECK_SCHEMA_ON_LIST`：可选实时表存在性 readiness 检查；默认发现面会隐藏缺少所需表的 Skill
+- `SKILLS_CHECK_SCHEMA_ON_LIST`：可选实时表存在性 readiness 检查；默认发现面会隐藏缺少所需表或当前无法验证表 readiness 的 Skill
 - 安全边界保持不变：运行时不读取 SQL/Python 源文件，也不向 Agent 暴露原始源码
 - 新增 category 聚合；缺失 category 的 Skill 归入 `uncategorized`
 - 可选 `databases` Skill 元数据用于防止数据库特定 Skill 在不兼容适配器上执行
@@ -1131,14 +1137,19 @@ SKILLS_AUDIT_QUERIES=1
 }
 ```
 
-该工具不暴露 DSN、host、用户名、密码或 SQLite 文件路径。
+该工具不暴露 DSN、host、用户名、密码或 SQLite 文件路径。返回的 alias 可传给只读
+工具和 Query Skills，但仍受目标 policy 与 Skill scope 约束。Mutation Skill 可在
+兼容模式使用默认 alias；非默认 alias 则要求严格命名写策略授权目标连接和 Skill。
+发现连接本身不授予写权限。
 
-### 1. `query`（主要工具）
+### 1. `query`（自由形式只读工具）
 用途：执行带有自动安全验证的只读 SQL 查询
 
-这是所有数据库操作的主要工具。安全验证是自动的——完整 MCP policy 每次只
-接受一条 `SELECT`、`DESCRIBE` 或非 ANALYZE `EXPLAIN`。raw `SHOW` 会被拒绝，
-metadata discovery 使用 `list_tables()`/`describe_table()`。
+这是自由形式只读 SQL 的主要工具，而不是所有数据库任务的通用入口。Schema 发现
+使用 metadata 工具，已定义工作流优先使用经过 review 的 Query Skills。安全验证是
+自动的——完整 MCP policy 每次只接受一条 `SELECT`、`DESCRIBE` 或非 ANALYZE
+`EXPLAIN`。raw `SHOW` 会被拒绝，metadata discovery 使用
+`list_tables()`/`describe_table()`。
 
 输入：
 ```json
@@ -1178,7 +1189,13 @@ metadata discovery 使用 `list_tables()`/`describe_table()`。
 ### 3. `list_tables`
 用途：可见数据库概览 - 列出返回/允许访问的表及其估计行数
 
-轻量级的初始探索工具。表列表可能被 `MAX_OVERVIEW_TABLES` 截断。MySQL 行数为 INFORMATION_SCHEMA 估计值（InnoDB 可能有 ±40% 误差），SQLite 来自统计信息或采样。
+轻量级的初始探索工具。表列表可能被 `MAX_OVERVIEW_TABLES` 截断。MySQL 行数为 INFORMATION_SCHEMA 估计值（InnoDB 粗略估算可能与实际行数有明显差异），SQLite 来自统计信息或采样。
+
+无法安全取得估计时，单个 `row_count` 为 `null`；它表示未知，而不是空表。此时
+仍会保留表发现结果，必须生成 metadata SQL 的工具则会明确拒绝不支持的标识符。
+
+若 adapter 元数据无法读取，本工具返回 `success=false` 和
+`error_code="metadata_query_failed"`，不会伪装为空结果。
 
 输出：
 ```json
@@ -1194,14 +1211,22 @@ metadata discovery 使用 `list_tables()`/`describe_table()`。
   "row_count_approximate": true,
   "truncated": false,
   "truncation_note": null,
-  "hint": "Row counts are estimates (InnoDB ±40%). total_tables = visible after allowlist."
+  "hint": "Row counts are estimates; null means unavailable, not empty. total_tables = visible after allowlist."
 }
 ```
 
 ### 4. `describe_table`
 用途：获取表结构 - 列信息、估计行数和查询建议
 
-返回列详情以及来自适配器元数据/统计信息的估计行数（MySQL 使用 INFORMATION_SCHEMA；SQLite 使用 sqlite_stat1 或有界采样）。包含 `is_large` 标志用于查询规划，并避免自动执行 COUNT(*) 全表扫描。
+返回 adapter 可见的完整列元数据，以及来自适配器元数据/统计信息的估计行数
+（MySQL 使用 INFORMATION_SCHEMA；SQLite 使用 sqlite_stat1 或有界采样）。这不
+等于完整 DDL：索引、外键、check 和其它 backend-specific 属性可能不在结果中。
+包含 `is_large` 标志用于查询规划，并避免自动执行 COUNT(*) 全表扫描。
+
+若 adapter 元数据无法读取，本工具返回 `success=false` 和
+`error_code="metadata_query_failed"`，不会伪装为缺表或 0 行结果。
+若 MySQL 返回不可用的估算值，成功响应会使用 `row_count=null`、
+`row_count_approximate=null` 和 `is_large=null`，不会根据未知值生成大表建议。
 
 输入：
 ```json
@@ -1219,8 +1244,8 @@ metadata discovery 使用 `list_tables()`/`describe_table()`。
   "row_count_approximate": true,
   "column_count": 5,
   "columns": [
-    {"column_name": "id", "data_type": "int", "nullable": "NO", "key_type": "PRI"},
-    {"column_name": "name", "data_type": "varchar", "nullable": "YES", "key_type": ""}
+    {"column_name": "id", "data_type": "int", "nullable": "NO", "key_type": "PRI", "default_value": null},
+    {"column_name": "name", "data_type": "varchar", "nullable": "YES", "key_type": "", "default_value": null}
   ],
   "is_large": true,
   "recommendation": "Large table (~1500 rows). Use LIMIT or aggregation (COUNT/GROUP BY)."
@@ -1231,6 +1256,10 @@ metadata discovery 使用 `list_tables()`/`describe_table()`。
 用途：从指定表中检索示例数据
 
 **注意**：此工具由 `ENABLE_SCHEMA_TOOLS` 环境变量控制（默认：启用）
+
+`limit` 默认 5；MCP 输入 schema 只接受 1 到 20（含端点）的整数。越界 MCP 调用会
+在 SQL 执行前被拒绝，不再静默 clamp。Python 直接调用也会得到同样的明确拒绝，
+两条入口共用一个范围契约。
 
 输入：
 ```json
@@ -1255,39 +1284,53 @@ metadata discovery 使用 `list_tables()`/`describe_table()`。
 ```
 
 ### 6. `get_full_schema`
-用途：在一次调用中获取可见数据库 Schema 概览
+用途：在一次调用中获取 compact 或 full 的可见数据库 Schema 概览
 
-适用于多表 JOIN 或需要一次性获取多个表结构的场景。返回的 Schema 可能受 allowlist 过滤，并可能被 `MAX_SCHEMA_TABLES` 截断；对于单表查询，建议使用 `describe_table()`。
+`detail_level="compact"` 是机器可见的默认值，适用于全局表说明和多表规划；省略该参数等同于显式传入 `compact`。它返回 `[字段名, 类型]` 二元组、主键、字段数和每张表的近似行数。默认 `group_identical=true`，只有当前 adapter 可见的全部列元数据和字段顺序均相等的表才会共享一个分组。对 MySQL 而言，判等范围包括字段名、基础数据类型、可空性、key 标记和默认值；它**不能**证明完整 DDL、索引、外键、check、长度/精度、unsigned、collation 或生成表达式等价。响应以 `grouping_basis` 明示这一边界；compact 需要每张表独立保留时传 `group_identical=false`，full 模式会忽略该参数。
 
-输出：
+需要跨多张表查看 `nullable`、`default` 和 key 元数据时，应显式传入 `detail_level="full"`。数据库/元数据读取失败会返回 `success=false` 和 `error_code="metadata_query_failed"`，不会再伪装成空数据库、空 schema、表不存在或 0 行估计。无法取得行数估计时，`row_count` 可以为 `null`，不表示空表。若 table discovery 返回超出 schema 工具保守 identifier 语法的数据库对象名，投影会明确返回 `error_code="unsupported_metadata_identifier"`，不会把它误报为查询失败或输出空表。可见表可能受 allowlist 过滤并被 `MAX_SCHEMA_TABLES` 截断；单表深入查看使用 `describe_table()`。
+
+Compact 输出：
 ```json
 {
   "success": true,
-  "schema": {
-    "users": {
-      "row_count": 150,
-      "columns": [
-        {"name": "id", "type": "int", "nullable": "NO", "key": "PRI"},
-        {"name": "name", "type": "varchar", "nullable": "YES", "key": ""}
-      ]
+  "detail_level": "compact",
+  "schema_groups": [
+    {
+      "tables": [{"name": "users", "row_count": 150}],
+      "column_count": 2,
+      "columns": [["id", "int"], ["name", "varchar"]],
+      "primary_key": ["id"]
     }
-  },
+  ],
+  "schema_group_count": 1,
+  "grouped_by_schema": true,
+  "grouping_basis": "adapter_visible_column_metadata_and_order",
   "returned_table_count": 1,
   "total_tables": 1,
   "total_columns": 2,
   "row_count_approximate": true,
   "truncated": false,
-  "truncation_note": null,
-  "hint": "Row counts are estimates (InnoDB ±40%). Use LIMIT for large tables (row_count > 1000). total_tables = visible after allowlist."
+  "truncation_note": null
 }
 ```
+
+Full 输出继续使用以表名为 key 的 `schema` 映射；每个字段包含 adapter
+返回的 `name`、`type`、`nullable`、`key` 和 `default`。
 
 ### 7. `get_table_summary`（可选）
 用途：获取表统计信息，支持可选的精确行数计算
 
 **注意**：此工具由 `ENABLE_TABLE_SUMMARY` 环境变量控制（默认：**禁用**）。`describe_table()` 工具已经提供估计行数，因此只有在需要精确计数时才需要此工具。
 
-**警告**：`exact_count=True` 会运行 COUNT(*)，在大型表上可能很慢（全表扫描）。
+**警告**：`exact_count=True` 会运行 COUNT(*)，在大型表上可能很慢（全表扫描；
+MySQL 还可能遇到 metadata-lock contention）。该成本警告也写入机器可见的参数说明。
+若 `exact_count=false` 时的 adapter 行数估计或任一模式的列元数据无法读取，本工具
+返回 `success=false` 和 `error_code="metadata_query_failed"`，不会伪装为空结果、
+缺表或 0 行。显式 `COUNT(*)` 执行失败仍使用原有 query-error 响应。
+如果 MySQL 在查询成功时返回不可用估算，approximate 响应会保留
+`row_count=null`、`row_count_approximate=null` 和 `is_large=null`；
+`exact_count=true` 仍返回整数行数和布尔分类字段。
 
 输入：
 ```json
@@ -1302,19 +1345,19 @@ metadata discovery 使用 `list_tables()`/`describe_table()`。
 {
   "success": true,
   "table_name": "users",
-  "row_count": 150,
+  "row_count": 1500,
   "row_count_approximate": true,
   "column_count": 5,
   "columns": [...],
   "is_large": true,
-  "recommendation": "Large table (~150 rows). Use LIMIT or aggregation (COUNT/GROUP BY)."
+  "recommendation": "Large table (~1500 rows). Use LIMIT or aggregation (COUNT/GROUP BY)."
 }
 ```
 
 ### 8. `list_skills`（Skills 扩展，可选）
 用途：列出预定义技能（查询和写操作），支持搜索、category 过滤、元数据粒度选择和可用性过滤。
 
-**注意：** 需要 `ENABLE_SKILLS=1`。`detail_level` 可取 `compact`、`summary` 或 `full`。默认值由 `SKILLS_LIST_DEFAULT_DETAIL` 控制（默认 `summary`）。`full` 已包含参数 schema，之后不应再调用 `get_skill_detail()`。`available_only` 默认由 `SKILLS_LIST_AVAILABLE_ONLY_DEFAULT` 控制（默认 `1`），因此 Agent 发现面会隐藏目标 `connection_id` 下因可选 Skill `connection_ids` 范围、DB 类型、mutation 开关/写策略、查询连接 allowlist 或 schema readiness 不可执行的 Skill。传 `available_only=false` 可查看完整开发者目录。这只影响 Agent 看到的元数据；执行期会再次做权威检查。查询 Skills 接受 `connection_id`；严格命名写策略授权目标时，mutation Skills 也接受该参数。
+**注意：** 需要 `ENABLE_SKILLS=1`。`detail_level` 是非空的 `compact|summary|full` 枚举，其机器可见默认值等于启动时解析的 `SKILLS_LIST_DEFAULT_DETAIL`（默认 `summary`）。`full` 已包含参数 schema，之后不应再调用 `get_skill_detail()`。`available_only` 是非空布尔值，其机器可见默认值也等于启动时解析的 `SKILLS_LIST_AVAILABLE_ONLY_DEFAULT`（默认 `true`），因此 Agent 发现面会隐藏目标 `connection_id` 下因可选 Skill `connection_ids` 范围、DB 类型、mutation 开关/写策略、查询连接 allowlist、缺少所需表，或已启用但 metadata 不可用的 schema readiness 检查而不可执行的 Skill。最后一种情况以 `schema_check_available=false` 区分“无法验证”和已知 `missing_tables`。传 `available_only=false` 可查看完整开发者目录和失败原因。这只影响 Agent 看到的元数据；执行期会再次做权威检查，并在已启用的 readiness 无法验证时 fail closed。查询 Skills 接受 `connection_id`；严格命名写策略授权目标时，mutation Skills 也接受该参数。
 
 summary/full 输出中的 `configured_connection_ids` 只表示该 Skill 声明的
 `connection_ids` 中当前部署已配置的子集，并不是服务端全部连接列表；
@@ -1384,7 +1427,7 @@ summary/full 输出中的 `configured_connection_ids` 只表示该 Skill 声明�
 ### 9. `get_skill_detail`（Skills 扩展，可选）
 用途：获取单个 Skill 的执行字段或完整缓存元数据。
 
-**注意：** 需要 `ENABLE_SKILLS=1`。`detail_level` 支持 `full`（保持向后兼容的默认值）和 `execution`。已知 Skill 名但不知道参数时直接调用 `execution`，无需先列出目录；它是获取参数 schema 和下一步操作的推荐投影。`full` 只用于显式需要 catalog/readiness 诊断的场景；若 `list_skills(detail_level="full")` 已返回参数，则不要再调用。本模式仅返回执行字段、解析后的连接/DB 类型和下一步操作。该工具不会在运行时读取 Skill 文件，也不会暴露原始 SQL 或 mutation Python 源码。MCP 响应只可能包含解析后的 YAML frontmatter 值；YAML 注释和 Markdown 正文仍是开发者文档，不消耗 Agent 上下文。
+**注意：** 需要 `ENABLE_SKILLS=1`。`detail_level` 是非空的 `execution|full` 枚举，机器可见默认值为 `full`。已知 Skill 名但不知道参数时直接调用 `execution`，无需先列出目录；它是获取参数 schema 和下一步操作的推荐投影。`full` 只用于显式需要 catalog/readiness 诊断的场景；若 `list_skills(detail_level="full")` 已返回参数，则不要再调用。本模式仅返回执行字段、解析后的连接/DB 类型和下一步操作。该工具不会在运行时读取 Skill 文件，也不会暴露原始 SQL 或 mutation Python 源码。MCP 响应只可能包含解析后的 YAML frontmatter 值；YAML 注释和 Markdown 正文仍是开发者文档，不消耗 Agent 上下文。
 
 输入：
 ```json
@@ -1537,7 +1580,7 @@ GROUP BY date(order_date)
 ORDER BY date ASC
 ```
 
-仓库内置的 `monthly-sales-report`、`monthly-sales-report-sqlite`、`update-order-status` 和 `reset-demo-order-to-pending` 都标记为 `profiles: [demo]`，因为它们依赖 demo `orders` schema。开启 `SKILLS_CHECK_SCHEMA_ON_LIST=1` 时，如果目标连接没有所需表，`available_only=true` 会默认隐藏这些 Skill。方言相关 query SQL 保持为独立 Skill，跨数据库 mutation 则显式声明两种受支持类型；这能保持启动期校验简单，并让 `available_only` 对 Agent 的过滤结果更加确定。
+仓库内置的 `monthly-sales-report`、`monthly-sales-report-sqlite`、`update-order-status` 和 `reset-demo-order-to-pending` 都标记为 `profiles: [demo]`，因为它们依赖 demo `orders` schema。开启 `SKILLS_CHECK_SCHEMA_ON_LIST=1` 时，如果目标连接没有所需表，或数据库 metadata 不可用而无法验证 readiness，`available_only=true` 都会默认隐藏这些 Skill。方言相关 query SQL 保持为独立 Skill，跨数据库 mutation 则显式声明两种受支持类型；这能保持启动期校验简单，并让 `available_only` 对 Agent 的过滤结果更加确定。
 
 #### 示例 2：`update-order-status`（写操作技能）
 
@@ -1556,6 +1599,7 @@ skills/update-order-status/
 ```yaml
 name: update-order-status
 type: mutation                     # 写操作
+source: mutation.py                # 已校验的实现文件
 risk: medium                       # 中等风险
 requires_confirmation: true        # 请求 preview/execute 与客户端确认 UX；不证明人类身份
 params:
@@ -1886,7 +1930,8 @@ python test_mcp_client.py
 - [原始上下文](GEMINI.md)：项目背景和开发指南
 - [重构日志](REFACTORING_LOG.md)：重构变更文档（v2.0 — v3.7.1）
 - [MCP 客户端测试指南](TEST_MCP_CLIENT_GUIDE.md)：通过客户端测试 MCP 服务器的指南
-- [提示工程最佳实践](PROMPT_ENGINEERING_BEST_PRACTICES.md)：MCP 工具描述和提示的指南
+- [MCP Agent 编排行为验证方法](RELEASE_NOTES/GUIDE/MCP_AGENT_BEHAVIOR_VALIDATION_ZH.md)：验证 Agent 自然工具选择、重复调用、连接路由和渐进披露效果
+- [MCP 工具契约与评测指南](PROMPT_ENGINEERING_BEST_PRACTICES.md)：面向本项目的工具 schema、描述、instructions、安全边界与评测指南
 - [Agent 示例开发日志](agent_examples/AGENT_DEVELOPMENT_ZH.md)：AutoGen 多智能体示例的设计与决策
 
 ## 贡献

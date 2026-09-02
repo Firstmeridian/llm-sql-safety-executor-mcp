@@ -1,11 +1,252 @@
 # MCP SQL Server Refactoring Log
 
-**Date:** December 2, 2025 (Updated: August 28, 2026)
+**Date:** December 2, 2025 (Updated: September 3, 2026)
 **Author:** Code Refactoring Session
 
 ## Overview
 
 This document records the major refactoring changes made to `mcp_sql_server.py` to follow FastMCP best practices and improve the overall design.
+
+---
+
+## Follow-up: Strict Tool Contracts and Honest Row Estimates (September 3, 2026)
+
+FastMCP now runs with `strict_input_validation=True`. MCP calls therefore
+reject wrong-type scalar JSON such as string booleans and string integers
+against the published `inputSchema` instead of applying FastMCP's default
+compatible coercion. Handler validation remains necessary for direct Python
+calls: `group_identical`, `exact_count`, `available_only`, and the
+mutation-critical `confirm` flag now share an exact boolean check, while
+omission retains each declared default.
+
+The remaining Agent-facing tool contracts now describe their actual boundaries
+instead of relying on prose outside the machine schema. `sample.limit` exposes
+an inclusive `1..20` range through `Annotated[int, Field(ge=1, le=20)]`, so a
+FastMCP/MCP call outside that range is rejected before the handler or SQL runs.
+Valid values and the default of 5 are unchanged. The handler applies the same
+explicit rejection to direct Python calls instead of silently clamping invalid
+values. `get_table_summary.exact_count` tells the model at the parameter level
+that `SELECT COUNT(*)` may require a full scan and may encounter MySQL
+metadata-lock contention.
+
+Finite projection values now use shared `Literal` aliases from configuration
+parsing through handler validation. The startup-derived
+`SKILLS_LIST_DEFAULT_DETAIL` therefore has a statically valid
+`compact|summary|full` type as well as runtime fallback behavior. Deliberate
+`None`/case/whitespace compatibility paths were removed from the non-null
+projection and availability parameters, so MCP and direct Python calls now
+share one exact contract. Omitted arguments still use their declared defaults.
+
+Table discovery no longer converts an unavailable row estimate into zero.
+SQLite tables outside the conservative generated-metadata identifier grammar
+remain discoverable with `row_count=null`; MySQL preserves a nullable
+`INFORMATION_SCHEMA.TABLES.TABLE_ROWS` value, and an absent single-table
+metadata row is also unknown. Zero now means an actual zero estimate, while
+null means unavailable. The same MySQL null semantics now flow
+through `describe_table()` and the approximate path of
+`get_table_summary()`: `row_count`, `row_count_approximate`, and `is_large` are
+null rather than presenting an unknown estimate as a zero-row/small table.
+Detailed schema projection still fails explicitly with
+`unsupported_metadata_identifier` when it cannot safely inspect one of the
+discovered names. SQLite also returns an unknown estimate when a table
+disappears between discovery and bounded sampling, rather than classifying that
+concurrent DDL race as an empty table.
+
+Tool roles were also narrowed without adding tools or changing database logic:
+`query` is the primary *free-form read-only SQL* path, metadata tools own schema
+discovery, and reviewed Query Skills own defined workflows. `describe_table`
+and related hints say “full adapter-visible column metadata” and explicitly do
+not claim complete DDL. `list_connections` distinguishes discoverable aliases
+from Mutation authorization: the default alias retains compatibility mode,
+while non-default aliases require strict named-write authorization. The
+no-argument `list_connections` description and `sql_assistant` prompt no longer
+tell callers to omit a nonexistent `connection_id` parameter. The
+`sql_assistant` guidance includes `connection_id` in the `list_skills` contract.
+
+A final documentation audit corrected adjacent copies of the same contract.
+The maintained AutoGen example now lists all six core tools, uses the compact
+discovery path, treats exact counts as opt-in, and passes the returned
+`preview_token` with the same params and connection to mutation execution.
+README examples now distinguish pre-truncation `total_tables` from
+`returned_table_count`, show adapter `default_value`, use internally consistent
+`is_large` values, include the required mutation `source`, and document the
+sanitized metadata-failure result for each affected schema tool.
+
+This follows FastMCP's documented use of Python signatures, `Literal`, defaults,
+and `Annotated` + Pydantic `Field` constraints to produce MCP `inputSchema`, as
+well as MCP's requirement that tool descriptions and schemas define the
+model-callable contract. The change is intentionally limited to validation,
+metadata semantics, and disclosure; it adds no new tool, backend,
+configuration, or database query.
+
+Validation passed with `203 passed, 3 skipped` for the focused
+adapter/schema/Skills/multi-connection contract suites and `521 passed, 3
+skipped` for the default repository suite. Pyright 1.1.411, configured against
+the project virtual environment, reported `0 errors, 0 warnings` across all
+eight currently modified Python files, including the server, adapters, client,
+and affected regression tests.
+A disposable SQLite FastMCP Client confirmed the exact `minimum=1`,
+`maximum=20`, and default 5 schema; MCP limits 0 and 21 were rejected before
+the intercepted adapter executed SQL, while 1 and 20 succeeded. Direct-call
+regressions likewise reject invalid limits and non-schema projection/filter
+values before SQL. Adapter and core-tool tests distinguish unknown row
+estimates from zero and verify that single-table tools do not emit a
+large-table classification or recommendation when the estimate is unavailable;
+the SQLite regression also simulates a table disappearing before bounded
+sampling. A fresh FastMCP 3.0.2 stdio server exposed the non-null compact/full
+schema and boolean grouping default, rejected `group_identical="false"`, and
+returned the configured MySQL target as 8 tables, 272 columns, and 4 compact
+groups without truncation. All MySQL operations were read-only.
+
+The long-running VS Code Host initially exposed its old nullable/default-null
+schema even while backend calls reached the new runtime. This was Host
+registration cache evidence, not a server contract regression. After tool
+rediscovery, the same Host exposed the compact and boolean defaults above and a
+direct default call returned the same 8-table, 272-column, 4-group result.
+Server restart and Host rediscovery remain separate release gates: inspect the
+Host's own `tools/list` before Agent selection tests.
+
+- [FastMCP tool parameter metadata](https://gofastmcp.com/servers/tools)
+- [MCP Tools specification](https://modelcontextprotocol.io/specification/2025-06-18/server/tools)
+- [Google Vertex AI function-calling guidance](https://docs.cloud.google.com/vertex-ai/generative-ai/docs/multimodal/function-calling)
+- [Anthropic tool-definition guidance](https://platform.claude.com/docs/en/agents-and-tools/tool-use/define-tools)
+- [MySQL `INFORMATION_SCHEMA.TABLES` reference](https://dev.mysql.com/doc/refman/8.4/en/information-schema-tables-table.html)
+
+---
+
+## Follow-up: Progressive Schema Projection (August 29, 2026)
+
+`get_full_schema()` now supports a compact grouped projection for broad schema
+explanations. Its machine-visible `detail_level` default is `"compact"`;
+omission is equivalent to explicit compact with the default
+`group_identical=true`, so the default envelope uses `schema_groups`. Callers
+that need nullable/default/key metadata request full explicitly. Compact output uses structured
+`[name, type]` pairs and keeps every returned table name, row estimate, column
+count, and primary key. Optional grouping compares every column field currently
+exposed by the adapter plus column order. That is stronger than comparing the
+compact projection, but it is not complete DDL/index/constraint equivalence;
+the response therefore records `grouping_basis`. `describe_table()` remains the
+single-table detail path.
+
+Metadata adapters now raise a sanitized `MetadataQueryError` when table,
+column, statistics, or bounded row-sampling queries fail. Core schema tools
+translate it into `success=false` / `error_code="metadata_query_failed"` and
+do not return a partial projection. Legitimately empty databases, missing
+tables, and invalid identifiers retain their prior distinct behavior. This also
+fixes the optional `get_table_summary()` approximate path, which previously
+could report a missing table as a successful zero-column table. A table name
+discovered from the database but outside the conservative metadata identifier
+grammar now returns the separate `unsupported_metadata_identifier` code rather
+than being mislabeled as a query failure or projected with no columns.
+
+The Skills readiness caller now distinguishes an intentionally disabled check,
+a successful table snapshot, and unavailable metadata. When the check is
+enabled, table-dependent Skills no longer remain `schema_ready=true` after a
+metadata failure: discovery reports `schema_check_available=false` and
+`schema_ready=false` without fabricating `missing_tables`, while execution
+fails closed before query SQL, mutation preview, token issuance, or writes.
+Only `MetadataQueryError` is converted to the unavailable state; unexpected
+programming exceptions remain visible to tests and error handling.
+
+On the configured MySQL fixture, 8 tables/272 columns measured 36,676 characters
+/ 9,270 `o200k_base` tokens in the pre-change Host-rendered full result. A fresh
+server process returned grouped compact output at 8,732 / 2,068 after the
+guidance refinement, and a reloaded
+direct MCP Host reproduced its projection and grouping semantics, reducing those
+measures by 76.2% / 77.7%. The corresponding minified comparison was 18,404 /
+5,314 to 3,728 / 1,128 (79.7% / 78.8%). Current full output, including adapter
+defaults, measured 44,300 / 10,946, making its compact reduction 80.3% / 81.1%.
+Ungrouped compact measured 20,125 / 4,660; grouping the five tables whose
+adapter-visible column metadata and order were independently verified as equal
+saved another 56.6% / 55.6%. A 41-column `describe_table()` measured about
+1,094 tokens. The
+optimization thus targets both the initial payload and Host-truncation-driven
+duplicate calls; these measurements remain specific to the fixture, Host,
+serialization, and tokenizer.
+
+After the VS Code Host refreshed its tool registration, direct calls accepted
+explicit full, grouped compact, and ungrouped compact parameters. One independent
+low-context `MCP Runner` sample received only an exact alias and broad overview
+goal; it chose `list_tables` followed by grouped compact, completed the task in
+two calls, and made no full-schema, `describe_table`, or SQL call. Since compact
+already returns table names and row estimates, this exposed one redundant
+discovery call. Tool descriptions now route names/counts-only tasks to
+`list_tables`, broad-column tasks directly to compact, one-table full
+adapter-visible column metadata to `describe_table`, and the same metadata
+across multiple tables to full. With current pretty
+payloads, direct compact is 2,068 `o200k_base` tokens versus 2,436 for the same
+two-call path. After the MCP service restart, three independent low-context
+samples repeated the same broad overview task: `2/3` selected grouped compact
+directly and `1/3` retained the leading `list_tables` call. All completed without
+truncation, full schema, `describe_table`, or SQL, using four calls total (1.33
+per sample). Their estimated pretty schema payload averaged 2,191 tokens, 5.9%
+above the all-direct floor and 77.3% below the old approximately 9,638-token
+`list_tables + pre-change full` path. This small non-randomized batch supports an
+improvement in natural selection but is not a cross-model or cross-Host
+guarantee.
+
+Post-fix validation completed with `69 passed, 3 skipped` for the focused
+adapter/schema suite. The Skills readiness follow-up completed with `83 passed`
+for its focused disclosure/mutation suite. After the final default-contract
+change, the focused schema/Skills suite passed `56` tests and the default
+repository suite passed `485 passed, 3 skipped`. A fresh stdio registration
+confirmed the non-null `compact|full` input enum with default `compact`; the
+configured MySQL connectivity check then returned the sanitized database
+failure and the smoke skipped before schema or SQL calls. The most recent
+successful MySQL read-only projection was the 2026-09-01 run. The later
+tool-contract smoke above passed against MySQL on 2026-09-02. No mutation or
+database write was attempted.
+
+Anthropic's programmatic tool-calling guidance supports filtering and
+aggregation before results enter model context, but currently excludes MCP
+connector tools. The portable implementation therefore projects on the server.
+MCP `structuredContent` preserves machine-readable results; `outputSchema`
+supports validation and documentation but does not automatically reduce result
+size, so the follow-up does not add a large union-shaped output schema.
+
+---
+
+## Follow-up: Host-specific Prompt Budget and Routing Guidance (August 29, 2026)
+
+A read-only review measured the current prompt surfaces instead of treating a
+generic token cap as a design requirement. With the current FastMCP/VS Code
+path, `InitializeResult.instructions` is returned as one server-level block;
+the raw MCP tool schemas independently repeat the `connection_id` description
+where that field is needed. A separate wrapper or Host may assemble these
+surfaces differently, so the measurements are scoped to the named Host,
+model, tokenizer, tool set, and feature flags.
+
+The representative measurements used in that review were recorded with the
+`o200k_base` tokenizer: the complete instructions were 1,128 characters/215
+tokens, of which the routing block was 799 characters/156 tokens. The current
+tool surface had nine copies of a 177-character/33-token `connection_id`
+description, or about 297 tokens in total. A compact routing candidate was
+about 90 tokens, saving about 66 tokens, while a representative historical
+HMAC preview value measured roughly 335–350 tokens versus a median of about 29
+tokens for the 43-character opaque handle. These are Host/model/tokenizer-
+specific observations, not wire-size or client-facing length guarantees. The
+current Codex wrapper view may display the routing prefix repeatedly even when
+the raw MCP response and the tested VS Code prompt contain one server-level
+instructions block.
+
+The review retained the existing routing instructions and self-contained
+`connection_id` parameter description. Compressing the routing block would
+save only a small number of tokens relative to the safety and routing semantics
+it carries, while the shorter opaque mutation handle provides a substantially
+larger saving in the preview/execute flow. This is an intentional design
+trade-off, not a claim that longer prompts are always preferable.
+
+Future prompt-surface changes should use a frozen, single-variable A/B
+comparison: change only the server instructions when testing that wording, and
+hold the Host, model, sampling settings, tool schemas, fixture, and task
+constant. Report routing correctness, unnecessary calls, input tokens, and
+latency as Host/model-specific trends rather than universal guarantees.
+
+No runtime change or new DRR was warranted by this review. The fixed token
+limits formerly shown in `PROMPT_ENGINEERING_BEST_PRACTICES.md` were guidance
+without a universal basis and have been replaced by baseline, relative-growth,
+and behavior-regression guidance. The Agent behavior guide remains the
+methodology reference for repeated samples and A/B attribution.
 
 ---
 
@@ -24,8 +265,8 @@ execution hint, or the Skill's nested `requires_confirmation` value. The legacy
 Existing v3.6-v3.7 entries below remain historical records of the released HMAC
 format rather than the current runtime contract.
 
-`get_skill_detail()` now accepts `execution` and `full` projections. Omitting
-the field retains the existing full response; the execution projection limits
+`get_skill_detail()` now accepts `execution` and `full` projections through a
+non-null enum whose default is full; the execution projection limits
 Agent-facing output to invocation fields, resolved connection/DB type, any
 disabled reason, and the next action. Catalog guidance no longer recommends a
 detail call after `list_skills(detail_level="full")` or when parameters are
@@ -49,7 +290,7 @@ or mutation. This does not make memory-store consumption and database
 commit/response delivery atomic. A durable operation ledger and reconnect
 status API remain deferred until a real product workflow requires them.
 
-The 2026-08-28 default suite passed with 466 tests and 3 skipped; the explicit
+The 2026-08-28 default suite passed with 468 tests and 3 skipped; the explicit
 root legacy smoke passed 2 tests. A restarted configured MCP service also passed
 a reversible v3.7.1 opaque-handle mutation flow on 2026-08-26. On 2026-08-28,
 a fresh stdio subprocess completed the approval-host flow: literal `APPROVE`
@@ -254,8 +495,10 @@ Validation results:
   462 passed, 3 skipped.
 - The August 22 portable reset follow-up retained 462 passed, 3 skipped; its
   focused mutation/token/discovery selection passed 94 tests and the explicit
-  root regression smoke passed 2 tests. A real MySQL reset and reset-specific
-  subprocess stdio live run remain unclaimed.
+  root regression smoke passed 2 tests. As of August 22, neither a real MySQL
+  reset nor a reset-specific subprocess stdio live run had been performed. The
+  v3.7.1 follow-up later validated SQLite reset in direct MCP and fresh-stdio
+  flows; a real MySQL reset remains unclaimed.
 - Focused SQL/query/SQLite suites: 115 passed.
 - The root legacy smoke is outside default `pytest.ini` collection and was run
   explicitly: `test_bug_fixes.py` passed 2 tests.

@@ -1,331 +1,583 @@
-# Prompt Engineering Best Practices for MCP Tool Descriptions
+# MCP Tool Contract and Evaluation Guide
 
-This document summarizes best practices for designing prompts and tool descriptions in MCP (Model Context Protocol) servers, based on official guidelines from Microsoft, OpenAI, Google, and industry research.
+This document is project guidance for designing, reviewing, and evaluating the
+model-visible surface of `sql-safety-executor-mcp`. It covers MCP tool names,
+input schemas, descriptions, server instructions, result envelopes, and the
+evidence used to change them.
+
+The historical filename is retained to avoid breaking existing repository
+links; the title reflects the document's narrower current role.
+
+It is **not** a universal prompt-engineering standard and is not an independent
+security boundary. Current code, generated MCP schemas, runtime policy, database
+permissions, automated tests, and verified live behavior remain authoritative
+for what the server actually accepts and does.
+
+**Last reviewed:** September 3, 2026
 
 ## Table of Contents
 
-- [1. Core Principles](#1-core-principles)
-- [2. Emoji Usage](#2-emoji-usage)
-- [3. Formatting Guidelines](#3-formatting-guidelines)
-- [4. Tool Description Design](#4-tool-description-design)
-- [5. Before vs After Examples](#5-before-vs-after-examples)
-- [6. References](#6-references)
-- [7. Token Optimization for MCP Prompts](#7-token-optimization-for-mcp-prompts-added-december-2025)
+- [1. Scope and Decision Precedence](#1-scope-and-decision-precedence)
+- [2. Responsibility by Contract Layer](#2-responsibility-by-contract-layer)
+- [3. Tool Interface Design](#3-tool-interface-design)
+- [4. Project-Specific Tool Selection](#4-project-specific-tool-selection)
+- [5. Safety-Critical Wording](#5-safety-critical-wording)
+- [6. Evaluation and Change Workflow](#6-evaluation-and-change-workflow)
+- [7. Context and Token Efficiency](#7-context-and-token-efficiency)
+- [8. Review Checklist](#8-review-checklist)
+- [9. References and Source Quality](#9-references-and-source-quality)
 
 ---
 
-## 1. Core Principles
+## 1. Scope and Decision Precedence
 
-### 1.1 Clear and Concise
+### 1.1 What this guide is for
 
-Write instructions in clear and concise language that's easy to understand.
+Use this guide when changing:
 
-| ❌ Less Effective | ✅ Better |
-|-------------------|-----------|
-| "The description should be fairly short, a few sentences only, and not too much more." | "Use a 3 to 5 sentence paragraph to describe this product." |
+- a tool name, purpose, parameter, default, constraint, or return field;
+- a FastMCP docstring or `Annotated`/`Field` parameter description;
+- MCP server instructions or cross-tool routing guidance;
+- compact/full projections, filtering, pagination, or truncation;
+- Agent-facing errors, hints, approval wording, or safety claims;
+- tests or live evidence intended to justify a tool-surface change.
 
-### 1.2 Specific
+This guide is narrower than general prompt writing. Tool interfaces are
+executable contracts: wording, JSON Schema, runtime validation, and observed
+behavior must agree.
 
-Be specific about the context, outcome, length, format, and style.
+### 1.2 Decision precedence
 
-| ❌ Less Effective | ✅ Better |
-|-------------------|-----------|
-| "Write a poem about OpenAI." | "Write a short inspiring poem about OpenAI, focusing on the recent DALL-E product launch, in the style of Shakespeare." |
+When sources disagree, use the following order as a review discipline rather
+than treating any prose document as automatically correct:
 
-### 1.3 Keep It Brief
+1. User intent, accepted security invariants, database authorization, and
+   normative requirements of the MCP version actually negotiated or targeted.
+2. The intended public contract expressed by runtime behavior and the generated
+   MCP `inputSchema`/`outputSchema`. A mismatch here is a defect to resolve, not
+   a reason to ignore the protocol or security requirement above it.
+3. Automated contract, functional, security, and regression tests plus verified
+   live MCP traces.
+4. Current official MCP, framework, and model-provider documentation, reviewed
+   for applicability to this project and Host/model combination.
+5. This guide and other internal heuristics.
 
-> "Instructions that are too long can lead to latency, timeouts, or issues handling the prompt."  
-> — Microsoft Copilot Studio
+Do not weaken an authorization or safety check merely to make a prompt shorter.
+Do not preserve inaccurate prose merely because it appears in an older internal
+guide. If implementation, machine schema, tests, and documentation disagree,
+determine the intended contract and update all affected layers together.
 
-### 1.4 Say What TO DO, Not What NOT TO DO
+### 1.3 Guidance is contextual
 
-Positive instructions are more effective than prohibitions.
-
-| ❌ Less Effective | ✅ Better |
-|-------------------|-----------|
-| "DO NOT ASK FOR PERSONAL INFORMATION. DO NOT REPEAT." | "If the user asks for personal info, respond with 'I cannot help with that. Please visit our FAQ page.'" |
-
-### 1.5 Prefer Guidance (Heuristics) Over Rigid Workflows
-
-> "When more complexity is warranted, workflows offer predictability and consistency for well-defined tasks, whereas agents are the better option when flexibility and model-driven decision-making are needed at scale."  
-> — Anthropic, "Building Effective Agents" (December 2024)
-
-**The Trade-off:**
-
-| Mode | Pros | Cons |
-|------|------|------|
-| **Deterministic Chain** (Explore structure before querying) | Predictable, easy to audit, consistent results | Inflexible, requires code changes to adapt to new scenarios |
-| **Model-driven** (Heuristic exploration) | Flexible, can handle diverse requests | Unpredictable, potential for incorrect calls |
-
-**For MCP tool prompts**, we design interfaces for LLM agents. The goal is **decision rules** (heuristics) rather than **fixed sequences** (rigid checklists). This aligns with Anthropic's guidance that tools are "model-controlled."
-
-**Good prompts use conditional guidance:**
-- Schema unknown → call schema tool (e.g., `list_tables()` then `describe_table()`)
-- Table might be large (`is_large=true`) → use LIMIT or aggregation
-- Known table/columns and small request → query directly
-
-Reserve "must/always" language for true safety constraints (e.g., read-only SQL).
-
-**Key insight from Anthropic:**
-> "Start with simple prompts, optimize them with comprehensive evaluation, and add multi-step agentic systems only when simpler solutions fall short."
-
-**Practical recommendation:** For MCP tools, lean toward model-driven (heuristics) but document common patterns. Let the LLM decide based on context, guided by clear decision rules.
+Advice such as “keep it brief,” “use positive instructions,” “use Markdown,” or
+“expose fewer tools” is useful only when it improves the measured outcome.
+Different Hosts assemble MCP instructions and tool definitions differently, and
+models can respond differently to the same wording. Treat provider guidance as
+an informed starting point, then validate it with this server's real tool
+surface and representative tasks.
 
 ---
 
-## 2. Emoji Usage
+## 2. Responsibility by Contract Layer
 
-### Recommendation: Avoid Emojis in Production Prompts
+No single prompt or description should carry the whole contract.
 
-| Source | Guidance |
-|--------|----------|
-| Microsoft Learn | Emoji meanings vary by language, culture, and social group - may cause misunderstanding |
-| OpenAI Best Practices | All examples use plain text, no emojis |
-| Prompting Guide | Emphasizes "clear" and "direct" communication, no emojis in examples |
+| Layer | Primary responsibility | Must not be used as a substitute for |
+|-------|------------------------|--------------------------------------|
+| Database grants and connection credentials | Authoritative database authorization and blast-radius control | Prompt wording or table-name filtering |
+| Runtime policy and business logic | Read/write policy, allowlists, mutation state transitions, token consumption, limits, and fail-closed behavior | Model compliance |
+| Python signature, MCP `inputSchema`, and framework validation mode | Parameter names, required/optional status, types, enums, defaults, machine-valid ranges, and whether compatible type coercion is accepted | A prose-only statement of valid inputs or handler-only validation |
+| Tool description and parameter descriptions | Purpose, selection boundary, semantic meaning, cost, and important limitations | Runtime input validation or access control |
+| MCP server instructions | Concise guidance shared across tools: routing, common workflows, and cross-tool invariants | Tool-specific parameter detail or guaranteed Host behavior |
+| Structured result and errors | High-signal data, stable state distinctions, actionable next steps, and sanitized failures | Hidden assumptions that only a human can infer |
+| Client/Host UX | Tool visibility, user confirmation, credential isolation, and approval presentation | A server-side `confirm=true` value or preview token |
 
-### Reasons to Avoid Emojis
+Additional rules:
 
-1. **Token consumption**: Emojis typically consume 2-4 tokens each
-2. **Inconsistent interpretation**: Different models may interpret emojis differently
-3. **Ambiguity in technical contexts**: Emojis add unnecessary ambiguity
-4. **Localization issues**: Meanings vary across cultures and languages
-
----
-
-## 3. Formatting Guidelines
-
-### 3.1 Recommended Formats
-
-Models are trained on large quantities of web content in XML and Markdown.
-
-| Format | Use Case | Example |
-|--------|----------|---------|
-| **Markdown** | Structured content | `### Heading`, `- List`, `**Bold**` |
-| **XML** | Separating blocks | `<instruction>`, `<context>` |
-| **Separators** | Distinguishing content | `---`, `###`, `"""` |
-| **UPPERCASE** | Emphasizing keywords | `RULES:`, `PRIORITY:` |
-
-### 3.2 Prompt Structure Template
-
-```
-### Instruction ###
-{Clear directive}
-
-### Context ###
-{Relevant background information}
-
-### Examples ###
-{Expected input/output examples}
-
-### Constraints ###
-{Limitations and rules}
-```
+- MCP tool annotations are useful behavioral hints, but clients must not treat
+  untrusted annotations as proof of safety.
+- Server instructions may influence model behavior, but a Host is not required
+  to incorporate them in exactly the same way as another Host. Verify the
+  actual integration rather than assuming a universal assembled prompt.
+- If an output schema is declared, the structured result must conform to it.
+  Schema validation still does not solve response relevance or excessive size.
 
 ---
 
-## 4. Tool Description Design
+## 3. Tool Interface Design
 
-### 4.1 For MCP Server Instructions
+### 3.1 Give each tool a distinct job
 
-Provide clear tool priority while maintaining flexibility for LLM decision-making:
+A tool should correspond to a natural Agent task, not merely wrap every
+low-level API endpoint. Overlapping tools increase selection ambiguity and load
+more descriptions into context.
+
+Before adding a tool, ask:
+
+- Does an existing tool already cover the task with one optional projection or
+  filter?
+- Would the new tool remove a repeated multi-call workflow, or merely duplicate
+  it under another name?
+- Can the intended user or a new developer choose correctly from the name and
+  schema alone?
+- Is the tool common enough to expose by default, or should it be optional or
+  progressively disclosed?
+
+Do not combine unrelated operations solely to reduce the tool count. A smaller
+catalogue is valuable only while tool purposes remain coherent and auditable.
+
+### 3.2 Make invalid parameter states hard to express
+
+Prefer machine-readable constraints over prose-only rules:
+
+- use descriptive parameter names;
+- use `Literal`/enum for finite choices;
+- declare concrete defaults that match omission behavior;
+- use `Annotated` and Pydantic `Field` for descriptions and numeric bounds;
+- use nullable types only when `null` has a real public meaning;
+- distinguish zero, empty, missing, unavailable, disabled, and failed states;
+- validate again at runtime where authorization or business state can change.
+
+Example:
 
 ```python
-instructions="""Database query assistant with READ-ONLY access.
-
-Tools: query (primary), get_full_schema, list_tables, describe_table, check_connection
-Optional: get_table_summary only when ENABLE_TABLE_SUMMARY=1 and exact counts are required
-
-Guidance (not mandatory):
-- Known table/columns and small request: query directly
-- Unknown structure: get_full_schema() or list_tables()/describe_table() first
-- Potentially large tables or uncertain result size: use describe_table() estimates; use explicit COUNT(*) or get_table_summary(exact_count=True) only when exact counts are required
-
-Safe raw statements: one SELECT, DESCRIBE, or non-ANALYZE EXPLAIN.
-Use list_tables()/describe_table() instead of raw SHOW."""
+detail_level: Annotated[
+    Literal["compact", "full"],
+    Field(description="compact for broad planning; full for adapter-visible column metadata"),
+] = "compact"
 ```
 
-**Key principles:**
-- Concise over verbose (fewer tokens = faster, cheaper)
-- Descriptive over restrictive (let LLM decide based on context)
-- Clear primary tool indication without forbidding exploration
-- Aligned with MCP spec: tools are "model-controlled"
+The generated `tools/list` schema must be inspected in tests. A correct Python
+annotation is not sufficient evidence if the framework emits a nullable or
+otherwise different machine schema.
 
-### 4.2 For Tool Docstrings
+FastMCP uses flexible Pydantic validation by default and can coerce compatible
+values such as `"false"` to `False` or `"10"` to `10`. This project enables
+`strict_input_validation=True` so MCP calls are checked against the published
+JSON Schema before handler execution. Test representative wrong-type JSON
+values as well as schema shape; a boolean schema alone does not prove strict
+runtime behavior under a framework's default mode. Strict protocol validation
+does not replace handler checks for authorization or changing business state,
+and direct Python calls bypass it, so public direct-call helpers must validate
+decision-critical values explicitly when parity is required.
+
+### 3.3 Write high-signal descriptions
+
+A model-visible tool description should communicate the information needed to
+choose and call the tool correctly:
+
+- what the tool does;
+- when it is preferable to adjacent tools;
+- required parameters and non-obvious parameter effects;
+- material cost or side effects, such as an exact `COUNT(*)` or a write;
+- important semantic boundaries, such as “adapter-visible metadata, not full
+  DDL” or “row count may be null when unavailable”;
+- the next action after truncation or a recoverable validation error.
+
+Avoid repeating every parameter in both server instructions and every tool
+description. Do not remove a decision-critical boundary merely to satisfy an
+arbitrary sentence or token limit.
+
+### 3.4 Prefer conditional guidance to a fixed global priority
+
+There is no universal ordering in which every database request should call the
+tools. Use conditional rules:
+
+- known table and columns, free-form read needed: call `query()` directly;
+- only table names/counts needed: call `list_tables()`;
+- broad columns or multi-table planning needed: call
+  `get_full_schema(detail_level="compact")` directly;
+- one selected table needs full adapter-visible column metadata: call
+  `describe_table()`;
+- several tables need nullable/default/key metadata: call
+  `get_full_schema(detail_level="full")`;
+- exact count is genuinely required: use explicit `COUNT(*)` or the optional
+  `get_table_summary(exact_count=true)` with its cost understood;
+- connection behavior fails or is uncertain: use `check_connection()`; do not
+  make it an unconditional preflight call.
+
+Use a deterministic sequence only when the workflow itself requires one, such
+as mutation preview followed by execution with the same bound inputs.
+
+### 3.5 Return useful context, not raw volume
+
+Prefer structured, directly actionable fields. For potentially large results,
+use a suitable combination of:
+
+- compact/full projections;
+- filtering or targeted lookup;
+- pagination or bounded limits;
+- truncation with an explicit truncation flag and next-step hint;
+- code-side aggregation when the model does not need every raw record.
+
+Errors should be sanitized but actionable. Tell the caller whether it should
+correct an argument, choose a connection, request a narrower projection, retry
+a preview, or inspect database state. Do not expose credentials, bound values,
+internal SQL, or stack traces merely to make an error more detailed.
+
+### 3.6 Formatting and style are tools, not invariants
+
+- Use plain language and the smallest amount of Markdown that materially
+  improves structure.
+- XML tags or separators can help isolate complex blocks, but are not required
+  for short tool descriptions.
+- Uppercase labels and repeated emphasis do not create enforcement. Use them
+  sparingly.
+- Prefer positive instructions for ordinary workflow guidance, but use explicit
+  negative wording where a safety boundary would otherwise be ambiguous.
+- Reserve “must,” “never,” and “always” for actual protocol, security, or state
+  invariants.
+- Emojis are not categorically harmful or safe. Omit decorative emojis from
+  this project's technical tool surface unless testing shows a functional
+  benefit. Do not rely on a universal per-emoji token-cost claim.
+- Examples are valuable when they disambiguate input shape or recovery. Remove
+  examples that merely repeat the schema or become stale.
+
+---
+
+## 4. Project-Specific Tool Selection
+
+### 4.1 Describe the service accurately
+
+The service has a read-only core SQL surface and optional Skills. Query Skills
+run reviewed reads. Mutation Skills, when explicitly enabled and authorized,
+can perform controlled writes through a preview/execute protocol. Therefore,
+do not describe the entire service as `READ-ONLY`.
+
+A concise service summary should resemble:
+
+```text
+Database safety gateway with read-only core SQL tools and configured connection
+routing. Use query() for free-form reads; use metadata tools for schema
+discovery. Optional Skills provide reviewed queries and, when enabled,
+controlled mutations that require preview plus a matching one-time token.
+```
+
+### 4.2 Connection routing
+
+- Pass an exact user-provided connection alias unchanged.
+- If only a database type is known, use `list_connections()` and select it only
+  when exactly one matching alias exists; otherwise ask for the exact alias.
+- Do not infer purpose from an alias name.
+- Omitting `connection_id` selects the configured default only; it never means
+  all connections.
+- Read-only requests may iterate explicitly over discovered aliases when the
+  user asks for all connections. Never broadcast a mutation.
+- Discovering an alias does not grant write permission. Mutation authorization
+  is decided by the target connection policy and Skill scope at runtime.
+
+### 4.3 Skills disclosure
+
+- Unknown Skill: use a targeted
+  `list_skills(search=..., detail_level="compact", connection_id=...)` call.
+- Known Skill with unknown parameters: use
+  `get_skill_detail(detail_level="execution", connection_id=...)` directly.
+- `list_skills(detail_level="full")` already includes parameter schemas; do not
+  automatically follow it with `get_skill_detail()`.
+- `available_only=true` is a discovery filter, not an authorization decision.
+  Execution repeats the authoritative policy and readiness checks.
+
+### 4.4 Mutation workflow
+
+The mutation sequence is intentionally deterministic:
+
+1. Preview with the intended Skill, parameters, and connection.
+2. Present the preview through the client/application's approval UX.
+3. Execute once with the returned token and the same bound request.
+4. If the token is expired, unknown, consumed, or belongs to another process,
+   run preview again; do not reconstruct or retry a write blindly.
+
+The preview token is a short-lived one-time bearer capability, not proof that a
+human approved the operation. Human confirmation belongs to the client/Host.
+The server must continue to enforce mutation switches, connection policy,
+binding, expiry, one-time consumption, optimistic locking, and audit behavior
+regardless of prompt wording.
+
+---
+
+## 5. Safety-Critical Wording
+
+### 5.1 Use explicit prohibitions when needed
+
+“Say what to do” is a helpful writing heuristic, not a ban on negative rules.
+For example, these prohibitions clarify real boundaries:
+
+- do not send raw write SQL through `query()`;
+- do not broadcast mutations across connections;
+- do not treat a preview token as human approval;
+- do not claim compact schema grouping proves full DDL equivalence;
+- do not interpret `row_count=null` as an empty or small table.
+
+Pair a prohibition with the supported alternative when possible. For example:
+“Raw `SHOW` is rejected; use `list_tables()` or `describe_table()` for metadata.”
+
+### 5.2 Prompts describe; code enforces
+
+Safety-relevant statements must have an enforcement point and a regression
+test. Tool descriptions cannot prevent:
+
+- a direct Python call;
+- a buggy or malicious MCP client;
+- concurrent calls;
+- database changes between discovery and execution;
+- a credential with excessive database privileges.
+
+For every safety claim, identify the runtime check, database control, or client
+responsibility that makes it true. If none exists, rewrite the claim as a
+limitation or implement the missing control before publishing it.
+
+---
+
+## 6. Evaluation and Change Workflow
+
+### 6.1 Validate four evidence layers
+
+1. **Machine contract:** inspect real `tools/list` output for names,
+   descriptions, required fields, enum values, nullability, defaults, and
+   numeric bounds.
+2. **Deterministic behavior:** test valid inputs, invalid inputs, edge states,
+   authorization, error classification, response shape, and non-execution on
+   rejection.
+3. **Agent behavior:** run representative natural-language tasks through the
+   intended Host/model and inspect tool choice, arguments, redundant calls,
+   recovery, and final answer quality.
+4. **Live integration:** use a fresh server process and a disposable or approved
+   test database. Record transport, enabled tools, connection profile, whether
+   writes were possible, and what was actually observed.
+
+Mock tests, an in-process FastMCP client, a fresh stdio smoke, and a long-running
+IDE Host answer different questions. Label them accurately; do not use one as
+evidence for another.
+
+Restarting a server process and refreshing a Host's registered tool contract
+are separate lifecycle steps. After a contract change, reconnect the MCP server
+or reload the Host as required, fetch `tools/list` through that same Host, and
+compare the relevant defaults, nullability, enums, bounds, and descriptions.
+Do not run Agent tool-selection experiments while the Host still exposes a
+stale schema, even if direct calls already reach the new backend behavior.
+
+### 6.2 Use representative and held-out tasks
 
 Include:
-- **Purpose**: What the tool does
-- **When to use**: Specific conditions for using this tool
-- **When NOT to use**: (Optional but helpful) Conditions to avoid
-- **Args**: Parameter descriptions
-- **Returns**: What the tool returns
-- **Examples**: Concrete usage examples
+
+- direct queries with known schema;
+- unknown-schema discovery;
+- broad schema explanation and targeted drill-down;
+- invalid enums, missing arguments, boundary values, and unavailable metadata;
+- ambiguous connection requests and exact aliases;
+- unavailable Skills and policy-denied mutations;
+- preview, execute, replay, expiry, concurrency, database failure, and unknown
+  write outcome where mutation behavior is in scope.
+
+Run repeated Agent samples for nondeterministic behavior and keep some tasks
+held out from prompt tuning. A single successful trace demonstrates possibility,
+not reliability.
+
+### 6.3 Measure outcomes, not wording preferences
+
+Useful measures include:
+
+- task completion and factual correctness;
+- correct tool and connection selection;
+- invalid-argument and recovery rate;
+- unnecessary tool-call count;
+- model-visible input and tool-result tokens;
+- latency and database work;
+- truncation frequency;
+- unsafe attempt and fail-closed behavior.
+
+Do not optimize solely for prompt length. A slightly longer description is an
+improvement when it measurably prevents a wrong connection, expensive count,
+redundant full-schema call, or unsafe assumption.
+
+### 6.4 Project evidence
+
+Use these maintained records alongside automated tests:
+
+- [MCP Agent behavior validation](RELEASE_NOTES/GUIDE/MCP_AGENT_BEHAVIOR_VALIDATION_ZH.md)
+- [v3.6-v3.7 live MCP tests](RELEASE_NOTES/LIVE_MCP_TSET/LIVE_MCP_TEST_V36-V37_ZH.md)
+- [Design risk register](DESIGN_RISK_REGISTER.md)
+- [Refactoring log](REFACTORING_LOG.md)
+
+These are evidence records, not substitutes for rerunning checks after a tool
+contract changes.
 
 ---
 
-## 5. Before vs After Examples
+## 7. Context and Token Efficiency
 
-### Before (With Emojis, Verbose)
+Tool definitions consume model context in many function-calling integrations,
+and large tool results consume additional context. Optimize both definition
+size and returned data, but keep decision-critical semantics.
 
-```
-🤖 You are a helpful database assistant! 
-📊 You can help users query data from the database.
-⚠️ Remember: Only SELECT queries are allowed!
-🔧 Available tools: query, list_tables, describe_table, check_connection
-💡 Tip: Always check connection first before doing anything!
-```
+### 7.1 Prefer high-signal reductions
 
-**Issues:**
-- Emojis consume extra tokens
-- No clear priority
-- Encourages unnecessary tool calls ("check connection first")
-- Vague instructions
+- Remove duplicated explanations from server instructions when the tool schema
+  already carries them.
+- Keep cross-tool routing in server instructions and tool-specific semantics in
+  the tool/parameter description.
+- Use compact projections, targeted filters, and bounded output for discovery.
+- Return full detail only when the task needs it.
+- Aggregate mechanically equivalent records in code when individual records are
+  not needed, while disclosing the grouping basis.
+- Provide actionable truncation and error hints so the Agent can narrow its next
+  call.
 
-### After (Following Best Practices)
+Do not assume that symbols such as `→`, uppercase headings, or removing every
+example always saves tokens or improves behavior. Tokenization and model
+response vary.
 
-```
-SQL database assistant with READ-ONLY access.
+### 7.2 Establish a reproducible baseline
 
-TOOL PRIORITY:
-1. query - PRIMARY. Use FIRST for all data requests.
-2. list_tables - Only if query fails with "table not found"
-3. describe_table - Only if query fails with "column not found"
-4. check_connection - Only for connection errors
+Fixed rules such as “every tool description must be under 50 tokens” are not
+portable best practices. Record the environment with each measurement:
 
-RULES:
-- DO NOT call check_connection before queries
-- START with query() for any data request
-```
+| Baseline field | Record |
+|----------------|--------|
+| Host | Name/version, transport, and tool discovery behavior |
+| Model | Model/version, sampling settings, and tokenizer used for estimates |
+| Tool surface | Enabled tool count and serialized names/descriptions/schemas |
+| Instructions | Raw MCP server instructions and, when observable, Host-assembled context |
+| Workload | Representative tasks and expected tools/results |
+| Outcomes | Calls, input/result tokens, latency, errors, retries, and correctness |
 
-**Improvements:**
-- No emojis
-- Clear priority order
-- Explicit rules about what to do
-- Correct/Wrong examples for guidance
-
----
-
-## 6. References
-
-### Official Documentation
-
-1. **Microsoft Learn - Prompt Engineering Techniques**
-   - URL: https://learn.microsoft.com/en-us/azure/ai-foundry/openai/concepts/prompt-engineering
-   - Key points: Use clear syntax, Markdown/XML formatting, separators
-
-2. **Microsoft Copilot Studio - Best Practices for Prompt Instructions**
-   - URL: https://learn.microsoft.com/en-us/microsoft-copilot-studio/nlu-prompt-node
-   - Key points: Be specific, keep it brief, give the agent a way out
-
-3. **OpenAI - Best Practices for Prompt Engineering**
-   - URL: https://help.openai.com/en/articles/6654000-best-practices-for-prompt-engineering-with-the-openai-api
-   - Key points: Use separators (###, """), be specific, reduce fluffy descriptions
-
-4. **Prompting Guide - General Tips for Designing Prompts**
-   - URL: https://www.promptingguide.ai/introduction/tips
-   - Key points: Start simple, be specific, avoid impreciseness
-
-5. **OpenAI Function Calling Guide** (Added December 2025)
-   - URL: https://platform.openai.com/docs/guides/function-calling
-   - Key points: Token limits apply to function descriptions, keep descriptions concise
-
-6. **Google Gemini Function Calling** (Added December 2025)
-   - URL: https://ai.google.dev/gemini-api/docs/function-calling
-   - Key points: "Token limits: function descriptions and parameters count toward input token limits"
-
-7. **Anthropic - Building Effective Agents** (Added January 2026)
-   - URL: https://www.anthropic.com/engineering/building-effective-agents
-   - Key points: 
-     - "Workflows offer predictability and consistency for well-defined tasks, agents for flexibility"
-     - "Start with simple prompts, add complexity only when simpler solutions fall short"
-     - Tools should have clear documentation; invest in agent-computer interface (ACI) design
-     - For MCP tools: "Tools enable Claude to interact with external services... tool definitions should be given just as much prompt engineering attention as your overall prompts"
-
-### Key Takeaways Summary
-
-| Principle | Description |
-|-----------|-------------|
-| **Avoid Emojis** | Increases token consumption, may cause ambiguity |
-| **Use Markdown/XML** | Models are trained on these formats extensively |
-| **Be Specific** | "2-3 sentences" is better than "a few sentences" |
-| **Say What TO DO** | Positive instructions outperform prohibitions |
-| **Keep It Brief** | Long instructions cause latency and handling issues |
-| **Use Separators** | `###`, `---`, `"""` help distinguish content blocks |
-| **Minimize Tool Descriptions** | Function descriptions count toward token limits |
-| **Prefer Heuristics** | Provide decision rules, not fixed sequences (Anthropic) |
-| **Start Simple** | Add complexity only when simpler solutions fall short (Anthropic) |
+Compare absolute size and relative change against the last accepted baseline.
+Treat a large increase as a review trigger, not an automatic failure. Historical
+token measurements are observations for their recorded environment, not wire
+size or future-model guarantees.
 
 ---
 
-## 7. Token Optimization for MCP Prompts (Added December 2025)
+## 8. Review Checklist
 
-### Why Token Optimization Matters
+### Contract consistency
 
-Function/tool descriptions and prompts count toward input token limits. Verbose prompts:
-- Increase latency
-- Increase cost  
-- May hit context limits in complex conversations
+- [ ] Tool name and description have one distinct purpose.
+- [ ] Signature, `inputSchema`, prose defaults, and runtime behavior agree.
+- [ ] Finite choices use enums/Literals; numeric limits are machine visible.
+- [ ] `null`, empty, zero, unavailable, disabled, and failure are not collapsed.
+- [ ] Structured outputs conform to any declared `outputSchema`.
+- [ ] Tool annotations match behavior but are not treated as enforcement.
 
-### Optimization Techniques
+### Selection and efficiency
 
-#### 7.1 Remove Redundancy
+- [ ] Adjacent tools explain when each is preferable without imposing a false
+      global ordering.
+- [ ] Common tasks do not require redundant discovery calls.
+- [ ] Broad outputs have compact/filter/limit/truncation behavior where needed.
+- [ ] Full detail remains available for justified drill-down.
+- [ ] Errors and truncation tell the caller what safe next action is available.
 
-Tool information already in docstrings doesn't need to repeat in system prompts:
+### Safety and operations
 
-| ❌ Redundant | ✅ Optimized |
-|--------------|-------------|
-| "query(sql) - Execute SQL queries. Use for SELECT, SHOW..." | "query (primary)" |
-| "list_tables() - List visible tables with row estimates; may truncate" | "list_tables" |
+- [ ] Every safety claim maps to code, database authorization, or client UX.
+- [ ] The framework validation mode is deliberate, and wrong-type protocol
+  inputs plus direct-call bypasses are tested where contract parity matters.
+- [ ] Expensive or state-changing parameters are explicit in machine-visible
+      descriptions.
+- [ ] Rejections occur before SQL, token issuance, or writes where required.
+- [ ] Mutation wording distinguishes preview, bearer capability, human approval,
+      execution, replay, and unknown outcome.
+- [ ] Logs and errors remain useful without leaking SQL values or credentials.
 
-#### 7.2 Combine Related Instructions
+### Evidence and documentation
 
-| ❌ Verbose (5 lines) | ✅ Concise (1 line) |
-|---------------------|---------------------|
-| "Use JOINs for combining related tables. Use INNER JOIN or LEFT JOIN. Use aggregation instead of fetching all rows. Use COUNT, SUM, GROUP BY. Always include LIMIT." | "Use aggregation (COUNT/GROUP BY) over raw data. Use JOINs for related data." |
+- [ ] Contract and regression tests cover the change and its edge cases.
+- [ ] After server restart, the intended Host reconnects and fetches a current
+  `tools/list`; cached definitions are not used as release evidence.
+- [ ] Agent evaluation uses representative tasks and repeated samples where
+      nondeterminism matters.
+- [ ] Live evidence states the exact Host/transport/configuration and whether
+      writes occurred.
+- [ ] README, release notes, risk register, examples, and test guides are aligned.
+- [ ] Official links and version-sensitive claims have a review date.
 
-#### 7.3 Remove Examples from System Prompts
+---
 
-LLMs can infer usage from context. Examples should go in tool docstrings, not system prompts.
+## 9. References and Source Quality
 
-| ❌ With Examples | ✅ Without Examples |
-|-----------------|---------------------|
-| "Example: SELECT id FROM products UNION SELECT id FROM categories" | "UNION enabled (tables: customers, orders, products)" |
+### 9.1 Normative protocol source
 
-### Real-World Case Study: sql_assistant Prompt
+1. **Model Context Protocol — Tools specification (current release)**
+   - https://modelcontextprotocol.io/specification/2026-07-28/server/tools
+   - Defines tool discovery/calls, descriptions, JSON Schema, structured
+     content, output-schema conformance, annotations, errors, and security
+     responsibilities.
 
-**Before optimization:** ~306 tokens
-```
-Database query assistant with READ-ONLY access.
+2. **Model Context Protocol — 2025-06-18 Tools specification**
+   - https://modelcontextprotocol.io/specification/2025-06-18/server/tools
+   - Retained because existing framework/client deployments may negotiate this
+     earlier protocol generation.
 
-TOOLS:
-1. query(sql) - PRIMARY. Execute one SELECT, DESCRIBE, or non-ANALYZE EXPLAIN; use schema tools instead of raw SHOW.
-2. list_tables() - List available tables...
-[... 20+ lines ...]
-```
+Normative keywords apply to the protocol version the client and server actually
+negotiate or explicitly target. The current specification takes precedence over
+blog posts and vendor prompting advice when designing a migration, but a newer
+release is not evidence that the installed FastMCP and Hosts already implement
+it.
 
-**After optimization:** ~94 tokens (69% reduction)
-```
-READ-ONLY SQL assistant. Tools: query (primary), get_full_schema, list_tables, describe_table, sample. Optional: get_table_summary only when enabled and exact counts are required.
+### 9.2 Official implementation and provider guidance
 
-Guidance (not mandatory): schema unknown → get_full_schema()/describe_table(); potentially large tables → describe_table() estimate; exact counts → COUNT(*) or get_table_summary(exact_count=True) if enabled; large tables → LIMIT/ORDER BY or aggregation.
-Guidelines: Use aggregation (COUNT/GROUP BY) over raw data. Use JOINs for related data.
-Always show SQL in response.
-```
+3. **FastMCP — Tools**
+   - https://gofastmcp.com/servers/tools
+   - Documents how Python signatures, docstrings, `Annotated`, `Field`, return
+     types, annotations, and validation become the exposed MCP contract.
 
-**Key changes:**
-1. Removed tool descriptions (redundant with docstrings)
-2. Combined guidelines into single sentences
-3. Removed examples
-4. Used symbols (→) instead of words
+4. **MCP Blog — Server Instructions**
+   - https://blog.modelcontextprotocol.io/posts/2025-11-03-using-server-instructions/
+   - Useful guidance for cross-tool instructions and Host variability; it is not
+     a normative replacement for the MCP specification.
 
-### Token Budget Guidelines
+5. **OpenAI — Function calling**
+   - https://developers.openai.com/api/docs/guides/function-calling
+   - Recommends intuitive functions, enums/objects that exclude invalid states,
+     code-side handling of known values, a focused initial tool set, and
+     evaluation rather than treating tool-count suggestions as hard limits.
 
-| Prompt Type | Recommended Limit | Rationale |
-|-------------|------------------|-----------|
-| System instructions | < 100 tokens | Leave room for conversation |
-| Tool docstrings | < 50 tokens each | Models read all tools |
-| MCP prompts | < 150 tokens | May be included in context |
+6. **Anthropic — Writing effective tools for agents**
+   - https://www.anthropic.com/engineering/writing-tools-for-agents
+   - Emphasizes distinct tools, high-signal results, concise/detailed response
+     modes, actionable errors, comprehensive evaluation, and held-out tasks.
+
+7. **Anthropic — Define tools**
+   - https://platform.claude.com/docs/en/agents-and-tools/tool-use/define-tools
+   - Covers clear tool/parameter descriptions and input schemas for reliable
+     selection and invocation.
+
+8. **Anthropic — Building effective agents**
+   - https://www.anthropic.com/engineering/building-effective-agents
+   - Historical architectural guidance supporting simple systems and adding
+     workflows or agentic complexity only when justified. The page itself notes
+     that parts of the tooling landscape have changed since its 2024 release, so
+     it is not used as current product/API documentation.
+
+9. **Anthropic — Develop tests**
+   - https://platform.claude.com/docs/en/test-and-evaluate/develop-tests
+   - Supports realistic cases, edge cases, repeated trials, and explicit success
+     criteria.
+
+10. **Google AI for Developers — Function calling with the Gemini API**
+   - https://ai.google.dev/gemini-api/docs/function-calling
+   - Demonstrates descriptive names, typed parameters, required fields, and
+     application-controlled function execution.
+
+11. **Microsoft Copilot Studio — Prompt instructions**
+    - https://learn.microsoft.com/en-us/microsoft-copilot-studio/microsoft-copilot-extend-action-prompt
+    - Recommends clear, specific, testable instructions with enough context and
+      a recovery path. Its product-specific limits and UI guidance are not
+      universal MCP constraints.
+
+Core links above were rechecked on September 3, 2026. Provider guidance is
+model- and product-specific; use it as reviewed input, not as a blanket rule.
+
+### 9.3 Secondary material
+
+12. **Prompt Engineering Guide — General tips**
+    - https://www.promptingguide.ai/introduction/tips
+    - May provide useful examples, but is secondary material and must not
+      override the MCP specification, framework behavior, security design, or
+      project evidence.
 
 ---
 
 *Document created: December 2025*  
-*Last updated: January 2026 (Added Anthropic best practices)*
+*Reframed as a project tool-contract and evaluation guide: September 3, 2026*

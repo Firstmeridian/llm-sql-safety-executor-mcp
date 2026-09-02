@@ -42,13 +42,13 @@ v3.0 更新内容（相对于旧版 autogen_sql_agent.py）:
 - https://learn.microsoft.com/en-us/azure/aks/ai-toolchain-operator-mcp
 
 MCP Server compatibility:
-- Core tools: query, list_tables, describe_table, get_full_schema, check_connection
+- Core tools: list_connections, query, list_tables, describe_table, get_full_schema, check_connection
 - Optional tools: sample (ENABLE_SCHEMA_TOOLS=1), get_table_summary (ENABLE_TABLE_SUMMARY=1)
 - Skills tools: list_skills, get_skill_detail, execute_query_skill (ENABLE_SKILLS=1),
   execute_mutation_skill (SKILLS_ALLOW_MUTATIONS=1)
 
 MCP 服务器工具兼容性:
-- 核心工具（始终可用）: query, list_tables, describe_table, get_full_schema, check_connection
+- 核心工具（始终可用）: list_connections, query, list_tables, describe_table, get_full_schema, check_connection
 - 可选工具: sample (需 ENABLE_SCHEMA_TOOLS=1), get_table_summary (需 ENABLE_TABLE_SUMMARY=1)
 - Skills 工具: list_skills, get_skill_detail, execute_query_skill (需 ENABLE_SKILLS=1),
   execute_mutation_skill (需 SKILLS_ALLOW_MUTATIONS=1)
@@ -277,7 +277,7 @@ def get_model_client() -> tuple[OpenAIChatCompletionClient, str]:
 # without hardcoding assumptions.
 # 为什么要动态检测？
 # 1. MCP 服务器的工具取决于 .env 配置（ENABLE_SKILLS、ENABLE_SCHEMA_TOOLS 等）
-# 2. 不同配置下可用工具数量不同（5-11 个）
+# 2. 不同配置下可用工具数量不同（6-12 个）
 # 3. 如果在提示词中描述不存在的工具，LLM 会产生“幻觉工具调用”（调用不存在的工具）
 #
 # Reference: MCP Spec — "Servers define capabilities during initialization"
@@ -409,11 +409,11 @@ def build_planning_prompt(caps: ServerCapabilities) -> str:
 SKILLS WORKFLOW:
 - The server provides pre-defined skills (parameterized operations) that are safer and more efficient than raw SQL.
 - When a user request matches a known skill, prefer using skills over writing raw SQL.
-- First call list_skills(search/category/detail_level/available_only) to discover available operations.
+- Call list_skills(search, category, detail_level, available_only, connection_id) when Skill discovery is needed.
 - The default catalog hides skills that cannot execute in the current DB, mutation configuration, or schema readiness state; use available_only=false only for developer catalog review.
 - If a full catalog entry has schema_ready=false or missing_tables, do not execute it unless the database/schema has been prepared.
-- If list_skills returns a hint or omits params, call get_skill_detail(skill_name) before execution.
-- For query skills: use execute_query_skill(name, params) — pre-audited SQL templates.
+- If list_skills returns a hint or omits params, call get_skill_detail(skill_name, connection_id=target, detail_level="execution") before execution.
+- For query skills: use execute_query_skill(name, params, connection_id=target) — pre-audited SQL templates.
 - Skills accept structured parameters — pass a params dict, not raw SQL.
 """
     
@@ -426,21 +426,24 @@ SKILLS WORKFLOW:
         mutation_section = """
 MUTATION SAFETY (CRITICAL - TWO-PHASE WORKFLOW):
 - Mutation skills modify the database. They MUST follow a two-phase workflow:
-  Phase 1 (Preview): execute_mutation_skill(name, params, confirm=false)
-    → Returns preview of planned changes. NO database modifications.
-  Phase 2 (Execute): execute_mutation_skill(name, params, confirm=true)
-    → Actually commits changes to the database.
+  Phase 1 (Preview): execute_mutation_skill(name, params, confirm=false, connection_id=target)
+    → Returns planned changes and a one-time preview_token. NO database modifications.
+  Phase 2 (Execute): execute_mutation_skill(name, same params, confirm=true,
+                                             preview_token=returned token,
+                                             connection_id=same target)
+    → Consumes that token and attempts the bound database change.
 - After Phase 1, you MUST present the preview result to the User for approval.
 - ONLY proceed to Phase 2 after the User explicitly approves.
 - NEVER skip the preview step or auto-confirm mutations.
-- NEVER call confirm=true without User approval first.
+- NEVER call confirm=true without User approval, the unchanged returned token,
+  and the same params/connection_id used for preview.
 """
 
     # --- Sample tool hint (when server has sample tool, suggest using it instead of writing SELECT...LIMIT) ---
     # --- sample 工具提示（当服务器有 sample 工具时，建议用它代替手写 SELECT...LIMIT） ---
     sample_hint = ""
     if caps.has_sample:
-        sample_hint = "\n- For quick data preview: ask SQLExecutorAgent to use sample(table_name) instead of writing SELECT...LIMIT"
+        sample_hint = "\n- For quick data preview: ask SQLExecutorAgent to use sample(table_name, limit=1..20, connection_id=target); MCP rejects values outside that range"
 
     return f"""You are a planning agent that coordinates database query tasks.
 
@@ -472,15 +475,17 @@ EFFICIENCY RULES - AVOID DELAYS:
 7. Never request all data from large tables - always ask for samples or summaries
 
 QUERY STRATEGY (Token Optimization - Google/Microsoft Best Practices):
-- For unknown tables: First use list_tables() for overview, then describe_table() for details
-- For multi-table JOINs: Use get_full_schema() to get all tables at once
-- For large tables (is_large=true in response): Request COUNT(*) first, then sample with LIMIT
+- Unknown structure: use list_tables() when names/counts are enough; call
+  get_full_schema(detail_level="compact") directly when broad columns or multi-table planning are needed
+- For one selected table's details: use describe_table(); it is adapter-visible metadata, not complete DDL
+- For multi-table JOINs: start with grouped compact; request full only when nullable/default/key metadata is needed
+- For large tables (is_large=true): use LIMIT, sampling, or aggregation; request exact COUNT(*) only when precision is required
 - Prefer aggregation queries (GROUP BY, COUNT, AVG) over raw data retrieval
 - Never request SELECT * without LIMIT - always specify needed columns{sample_hint}
 {skills_section}{mutation_section}
 Workflow:
 - Work step by step, planning multiple queries as needed
-- First explore the database structure before answering questions
+- Explore database structure only when the required tables or columns are unknown
 - Verify assumptions with actual data
 - If the request is unclear or ambiguous, ask the User for clarification
 
@@ -510,7 +515,7 @@ def build_sql_executor_prompt(caps: ServerCapabilities) -> str:
     必须精确知道哪些工具可用。
     
     Dynamic sections / 动态片段：
-    - Core tools list (always 5) / 核心工具列表（始终 5 个）
+    - Core tools list (always 6) / 核心工具列表（始终 6 个）
     - Optional tools: sample, get_table_summary / 可选工具
     - Skills tools: list_skills, get_skill_detail, execute_query_skill, execute_mutation_skill
     - Skills usage guide (including two-phase mutation workflow) / Skills 使用指南
@@ -520,27 +525,28 @@ def build_sql_executor_prompt(caps: ServerCapabilities) -> str:
     Reference: OpenAI — "Best practices for defining functions"
     """
     # --- Core tools (always available) ---
-    # --- 核心工具（这 5 个工具始终可用） ---
+    # --- 核心工具（这 6 个工具始终可用） ---
     tools_section = """Available tools:
 
 Core tools (always available):
-1. query(sql) - Execute read-only SQL queries (SELECT only; use list_tables/describe_table for schema discovery)
-2. list_tables() - Database overview with table names and row estimates
-3. describe_table(table_name) - Single table columns + row estimate + is_large hint
-4. get_full_schema() - All tables with columns (use for multi-table JOINs)
-5. check_connection() - Verify database connectivity (use only on connection errors)"""
+1. list_connections() - Discover configured aliases and non-sensitive policy summaries; discovery does not authorize writes
+2. query(sql, connection_id) - Primary free-form read-only SQL tool (use metadata tools for schema discovery and reviewed Skills for defined workflows)
+3. list_tables(connection_id) - Lightweight visible-table overview with row estimates
+4. describe_table(table_name, connection_id) - Full adapter-visible column metadata + row estimate + is_large hint; not complete DDL
+5. get_full_schema(connection_id, detail_level, group_identical) - Grouped compact by default; request full only for nullable/default/key metadata
+6. check_connection(connection_id) - Verify database connectivity (use only on connection errors)"""
 
     # --- Optional tools (conditional) ---
     # --- 可选工具（根据服务器配置动态添加） ---
-    tool_num = 6  # Continue numbering after core tools / 接着核心工具的编号继续
+    tool_num = 7  # Continue numbering after core tools / 接着核心工具的编号继续
     if caps.has_sample:
         tools_section += f"""
-{tool_num}. sample(table_name, limit) - Quick data preview from a table (max 20 rows, faster than writing SELECT)"""
+{tool_num}. sample(table_name, limit, connection_id) - Quick data preview; limit is 1-20 and MCP rejects out-of-range values"""
         tool_num += 1
     
     if caps.has_table_summary:
         tools_section += f"""
-{tool_num}. get_table_summary(table_name, exact_count) - Table summary with optional exact COUNT(*)"""
+{tool_num}. get_table_summary(table_name, exact_count, connection_id) - Table summary; exact COUNT(*) may require an expensive scan"""
         tool_num += 1
 
     # --- Skills tools (conditional, only when server has Skills enabled) ---
@@ -550,23 +556,23 @@ Core tools (always available):
         skills_tools = f"""
 
 Skills tools (pre-defined parameterized operations):
-{tool_num}. list_skills(search, category, detail_level, available_only) - List/search skills with compact, summary, or full metadata"""
+{tool_num}. list_skills(search, category, detail_level, available_only, connection_id) - List/search skills with compact, summary, or full metadata"""
         tool_num += 1
         if caps.has_skill_detail:
             skills_tools += f"""
-{tool_num}. get_skill_detail(skill_name) - Get one skill's parameter schema before execution"""
+{tool_num}. get_skill_detail(skill_name, connection_id, detail_level) - Use execution detail for one known Skill's invocation contract"""
             tool_num += 1
         skills_tools += f"""
-{tool_num}. execute_query_skill(skill_name, params) - Execute a query skill with structured parameters"""
+{tool_num}. execute_query_skill(skill_name, params, connection_id) - Execute a query skill with structured parameters on the selected target"""
         tool_num += 1
 
         # Mutation tool: supports two-phase workflow (confirm=false preview, confirm=true execute)
         # 变更工具：支持两阶段工作流（confirm=false 预览, confirm=true 执行）
         if caps.has_mutation_skills:
             skills_tools += f"""
-{tool_num}. execute_mutation_skill(skill_name, params, confirm) - Execute a mutation skill
-   - confirm=false (default): Preview mode — validates and shows planned changes, NO database writes
-   - confirm=true: Execute mode — commits changes after validation (requires prior user approval)"""
+{tool_num}. execute_mutation_skill(skill_name, params, confirm, preview_token, connection_id) - Preview or execute a mutation skill
+   - confirm=false: Preview on the selected target; returns a one-time preview_token and performs NO database writes
+   - confirm=true: Use the unchanged token plus the same params and connection_id after user approval"""
             tool_num += 1
 
     # --- Skills usage guide (tells the agent how to properly use Skills) ---
@@ -576,10 +582,10 @@ Skills tools (pre-defined parameterized operations):
         skills_guide = """
 SKILLS USAGE:
 - Skills are pre-audited, parameterized operations — safer and more token-efficient than raw SQL.
-- Use list_skills() to discover currently executable skills. Use search/category filters when the intent is clear.
+- Use list_skills(..., connection_id=target) to discover currently executable skills. Use search/category filters when the intent is clear.
 - Use available_only=false only when explicitly auditing the full developer catalog.
-- If list_skills() does not include params, call get_skill_detail(skill_name) before execute_query_skill or execute_mutation_skill.
-- For query skills: call execute_query_skill(skill_name, params) with required parameters.
+- If list_skills() does not include params, call get_skill_detail(skill_name, connection_id=target, detail_level="execution") before execution.
+- For query skills: call execute_query_skill(skill_name, params, connection_id=target) with required parameters.
 - Skill results have the same format as query() results (data, row_count, truncated).
 """
         # Two-phase workflow explanation for mutation Skills
@@ -587,9 +593,10 @@ SKILLS USAGE:
         if caps.has_mutation_skills:
             skills_guide += """
 MUTATION SKILLS (TWO-PHASE WORKFLOW):
-- Mutations ALWAYS start with confirm=false (preview). Report the preview to PlanningAgent.
+- Mutations ALWAYS start with confirm=false on the selected connection. Report the preview without exposing the bearer token to the User.
 - PlanningAgent will present preview to User. Only call confirm=true after User approves.
-- Never call confirm=true on your own initiative.
+- On execute, pass the returned preview_token unchanged with the same params and connection_id.
+- Never call confirm=true on your own initiative or retry an uncertain execute.
 """
 
     # --- Server prompt supplement (append sql_assistant prompt as extra context) ---
@@ -620,21 +627,21 @@ DATABASE COMPATIBILITY:
 - Write portable SQL when possible. If a query fails due to database-specific syntax, try an alternative.
 
 PRE-QUERY VALIDATION (Microsoft Azure Best Practices):
-Before executing any SELECT query on data tables:
-1. If table structure is unknown, use list_tables() first, then describe_table() for details
+Before executing a SELECT on data tables when structure is not already known:
+1. Use list_tables() when names/counts are enough; use get_full_schema(detail_level="compact") directly for broad columns; use describe_table() for one selected table
 2. Check is_large flag in describe_table response - if true, use LIMIT or aggregation
 3. Never fetch all rows from large tables - use sampling or aggregation
-4. For multi-table JOINs, use get_full_schema() to get all tables at once
+4. For multi-table JOINs, use grouped compact first; request full only when nullable/default/key metadata is needed
 
 CRITICAL TOKEN OPTIMIZATION RULES:
-1. ALWAYS use LIMIT clause in SELECT queries - default to LIMIT 20 unless user specifies otherwise
-2. For large tables (>100 rows), first get COUNT(*), then retrieve samples with LIMIT
+1. Bound row-returning SELECT queries with WHERE/LIMIT/ORDER BY; aggregation queries need not use LIMIT
+2. For is_large tables, prefer estimates, sampling, or aggregation; run exact COUNT(*) only when precision is required
 3. Never SELECT * without LIMIT - select only needed columns
 4. Summarize large results - don't return raw data exceeding 20 rows
 5. Use aggregation (COUNT, SUM, AVG, MAX, MIN) instead of returning all rows
 
 Example of good queries:
-- SELECT COUNT(*) FROM users;  -- Get count first
+- SELECT COUNT(*) FROM users;  -- Use when the user needs an exact count
 - SELECT id, name FROM users LIMIT 20;  -- Sample with limit
 - SELECT status, COUNT(*) FROM orders GROUP BY status;  -- Aggregate instead of raw data
 
@@ -939,7 +946,7 @@ def _print_capabilities(caps: ServerCapabilities) -> None:
     """Print detected server capabilities to console.
     将检测到的服务器能力打印到控制台，便于用户确认配置。"""
     print(f"  📦 Tools detected: {len(caps.tool_names)}")
-    print(f"     Core: query, list_tables, describe_table, get_full_schema, check_connection")
+    print(f"     Core: list_connections, query, list_tables, describe_table, get_full_schema, check_connection")
     
     optional = []
     if caps.has_sample:

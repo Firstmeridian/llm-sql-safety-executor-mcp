@@ -177,6 +177,101 @@ def test_default_availability_hides_missing_required_tables(monkeypatch):
     assert result["filtered_unavailable_skills"] == 4
 
 
+def test_metadata_failure_marks_table_dependent_skills_unverified(
+    skills_server,
+    monkeypatch,
+):
+    """An enabled readiness check must not treat unavailable metadata as ready."""
+    adapter = skills_server.get_adapter()
+
+    def fail_metadata():
+        raise skills_server.MetadataQueryError("listing tables")
+
+    monkeypatch.setattr(adapter, "get_tables", fail_metadata)
+
+    catalog = run_tool(
+        skills_server.list_skills(
+            ctx=DummyContext(),
+            available_only=False,
+        )
+    )
+
+    assert catalog["schema_check_enabled"] is True
+    assert catalog["schema_check_available"] is False
+    assert catalog["available_skills"] == 0
+    assert catalog["schema_unready_skills"] == 4
+    assert catalog["matched_skills"] == 4
+    assert all(skill["schema_ready"] is False for skill in catalog["skills"])
+    assert all(skill["executable"] is False for skill in catalog["skills"])
+    assert all(
+        "could not be verified" in skill["disabled_reason"]
+        for skill in catalog["skills"]
+    )
+    assert all("missing_tables" not in skill for skill in catalog["skills"])
+
+    filtered = run_tool(
+        skills_server.list_skills(
+            ctx=DummyContext(),
+            available_only=True,
+        )
+    )
+    assert filtered["matched_skills"] == 0
+    assert filtered["filtered_unavailable_skills"] == 4
+
+    detail = run_tool(
+        skills_server.get_skill_detail(
+            skill_name="monthly-sales-report-sqlite",
+            ctx=DummyContext(),
+        )
+    )
+    assert detail["schema_check_enabled"] is True
+    assert detail["schema_check_available"] is False
+    assert detail["skill"]["schema_ready"] is False
+    assert detail["skill"]["executable"] is False
+    assert "could not be verified" in detail["usage_hint"]
+
+
+def test_schema_readiness_does_not_swallow_programming_errors(
+    skills_server,
+    monkeypatch,
+):
+    """Only the adapter's sanitized metadata exception is recoverable."""
+    adapter = skills_server.get_adapter()
+    monkeypatch.setattr(
+        adapter,
+        "get_tables",
+        lambda: (_ for _ in ()).throw(RuntimeError("programming defect")),
+    )
+
+    with pytest.raises(RuntimeError, match="programming defect"):
+        run_tool(skills_server.list_skills(ctx=DummyContext()))
+
+
+def test_disabled_schema_readiness_does_not_access_metadata(
+    skills_server,
+    monkeypatch,
+):
+    """An explicitly disabled check preserves the opt-out behavior."""
+    monkeypatch.setattr(skills_server, "SKILLS_CHECK_SCHEMA_ON_LIST", False)
+    monkeypatch.setattr(
+        skills_server.get_adapter(),
+        "get_tables",
+        lambda: pytest.fail("Disabled readiness checks must not read metadata"),
+    )
+
+    catalog = run_tool(
+        skills_server.list_skills(
+            ctx=DummyContext(),
+            available_only=False,
+        )
+    )
+
+    assert catalog["schema_check_enabled"] is False
+    assert catalog["schema_check_available"] is False
+    assert catalog["schema_unready_skills"] == 0
+    assert all(skill["schema_ready"] is True for skill in catalog["skills"])
+
+
 def test_list_compact_excludes_summary_fields(skills_server):
     """compact returns a lightweight but semantically useful catalog."""
     result = run_tool(
@@ -310,6 +405,36 @@ def test_per_call_detail_overrides_env(skills_server):
     assert result["detail_level"] == "compact"
 
 
+@pytest.mark.parametrize("invalid_detail_level", [None, "FULL", " full "])
+def test_list_skills_direct_call_rejects_non_schema_detail_values(
+    skills_server,
+    invalid_detail_level,
+):
+    """Direct calls follow the same non-null, exact enum contract as MCP."""
+    with pytest.raises(skills_server.ToolError, match="compact, full, summary"):
+        run_tool(
+            skills_server.list_skills(
+                ctx=DummyContext(),
+                detail_level=invalid_detail_level,
+            )
+        )
+
+
+@pytest.mark.parametrize("invalid_available_only", [None, 0, 1, "true"])
+def test_list_skills_direct_call_rejects_non_boolean_availability_filter(
+    skills_server,
+    invalid_available_only,
+):
+    """Direct calls must not reinterpret non-booleans as the startup default."""
+    with pytest.raises(skills_server.ToolError, match="must be a boolean"):
+        run_tool(
+            skills_server.list_skills(
+                ctx=DummyContext(),
+                available_only=invalid_available_only,
+            )
+        )
+
+
 def test_get_skill_detail_returns_full_metadata(skills_server):
     """get_skill_detail returns full cached metadata for one skill."""
     result = run_tool(
@@ -380,6 +505,22 @@ def test_get_skill_detail_rejects_unknown_projection(skills_server):
                 skill_name="monthly-sales-report-sqlite",
                 ctx=DummyContext(),
                 detail_level="compact",
+            )
+        )
+
+
+@pytest.mark.parametrize("invalid_detail_level", [None, "FULL", " full "])
+def test_get_skill_detail_direct_call_rejects_non_schema_projection(
+    skills_server,
+    invalid_detail_level,
+):
+    """Direct calls follow the same non-null, exact enum contract as MCP."""
+    with pytest.raises(skills_server.ToolError, match="execution, full"):
+        run_tool(
+            skills_server.get_skill_detail(
+                skill_name="monthly-sales-report-sqlite",
+                ctx=DummyContext(),
+                detail_level=invalid_detail_level,
             )
         )
 
@@ -582,12 +723,13 @@ def test_query_skill_audit_is_opt_in(monkeypatch, tmp_path):
 
 
 def test_env_available_only_default_can_show_full_catalog(monkeypatch):
-    """SKILLS_LIST_AVAILABLE_ONLY_DEFAULT=0 restores full-catalog default listing."""
+    """Startup defaults match both list_skills behavior and its MCP schema."""
     disable_optional_skill_policies(monkeypatch)
     monkeypatch.setenv("ENABLE_SKILLS", "1")
     monkeypatch.setenv("SKILLS_DIR", "skills/")
     configure_demo_sqlite_connection(monkeypatch)
     monkeypatch.setenv("SKILLS_ALLOW_MUTATIONS", "0")
+    monkeypatch.setenv("SKILLS_LIST_DEFAULT_DETAIL", "full")
     monkeypatch.setenv("SKILLS_LIST_AVAILABLE_ONLY_DEFAULT", "0")
     monkeypatch.delenv("SKILLS_CHECK_SCHEMA_ON_LIST", raising=False)
 
@@ -599,16 +741,29 @@ def test_env_available_only_default_can_show_full_catalog(monkeypatch):
     sys.modules.pop("db_adapter", None)
     sys.modules.pop("sql_safety_checker", None)
     module = importlib.import_module("mcp_sql_server")
+
+    async def inspect_list_skills_schema():
+        from fastmcp import Client
+
+        async with Client(module.mcp) as client:
+            tools = await client.list_tools()
+        return next(tool.inputSchema for tool in tools if tool.name == "list_skills")
+
     try:
         create_demo_orders_table(module)
         result = run_tool(module.list_skills(ctx=DummyContext()))
+        input_schema = run_tool(inspect_list_skills_schema())
     finally:
         sys.modules.pop("mcp_sql_server", None)
         sys.modules.pop("db_adapter", None)
         sys.modules.pop("sql_safety_checker", None)
 
+    assert result["detail_level"] == "full"
     assert result["available_only"] is False
     assert result["matched_skills"] == 4
+    properties = input_schema["properties"]
+    assert properties["detail_level"]["default"] == "full"
+    assert properties["available_only"]["default"] is False
 
 
 def test_mysql_database_hides_sqlite_skill_by_default(monkeypatch):
@@ -630,7 +785,15 @@ def test_mysql_database_hides_sqlite_skill_by_default(monkeypatch):
     sys.modules.pop("sql_safety_checker", None)
     module = importlib.import_module("mcp_sql_server")
     try:
-        monkeypatch.setattr(module, "_get_skill_schema_table_names", lambda _connection: {"orders"})
+        monkeypatch.setattr(
+            module,
+            "_get_skill_schema_snapshot",
+            lambda _connection: module._SkillSchemaSnapshot(
+                enabled=True,
+                available=True,
+                table_names=frozenset({"orders"}),
+            ),
+        )
         result = run_tool(module.list_skills(ctx=DummyContext()))
     finally:
         sys.modules.pop("mcp_sql_server", None)
@@ -679,8 +842,24 @@ def test_fastmcp_tool_schema_exposes_skill_parameters(monkeypatch):
     annotations = {tool.name: tool.annotations for tool in tools}
 
     list_props = schemas["list_skills"]["properties"]
-    assert "available_only" in list_props
-    assert list_props["available_only"]["anyOf"][0]["type"] == "boolean"
+    list_description = next(
+        tool.description for tool in tools if tool.name == "list_skills"
+    )
+    assert list_description is not None
+    assert "summary: compatibility-oriented metadata projection" in (
+        list_description
+    )
+    assert "Omitting detail_level uses the startup-resolved" in list_description
+    assert "summary: default" not in list_description
+    assert list_props["detail_level"]["enum"] == ["compact", "summary", "full"]
+    assert list_props["detail_level"]["default"] == module.SKILLS_LIST_DEFAULT_DETAIL
+    assert "anyOf" not in list_props["detail_level"]
+    assert list_props["available_only"]["type"] == "boolean"
+    assert (
+        list_props["available_only"]["default"]
+        is module.SKILLS_LIST_AVAILABLE_ONLY_DEFAULT
+    )
+    assert "anyOf" not in list_props["available_only"]
 
     raw_query_schema = schemas["query"]
     assert raw_query_schema["properties"]["sql"]["minLength"] == 1
@@ -699,11 +878,9 @@ def test_fastmcp_tool_schema_exposes_skill_parameters(monkeypatch):
     assert "detail_level" in detail_schema["properties"]
     detail_level_schema = detail_schema["properties"]["detail_level"]
     assert "execution (recommended)" in detail_level_schema["description"]
-    assert {"execution", "full"} in [
-        set(branch["enum"])
-        for branch in detail_level_schema["anyOf"]
-        if "enum" in branch
-    ]
+    assert detail_level_schema["enum"] == ["execution", "full"]
+    assert detail_level_schema["default"] == "full"
+    assert "anyOf" not in detail_level_schema
 
     mutation_schema = schemas["execute_mutation_skill"]
     assert "params" in mutation_schema["properties"]

@@ -114,5 +114,8 @@ local_data/live-test.db
 # .codex directory
 .codex/
 
+# .agents directory
+.agents/
+
 # Local VS Code custom agents
 .github/agents/

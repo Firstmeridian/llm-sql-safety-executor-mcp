@@ -85,17 +85,53 @@ v3.7.0 没有改变 preview-token 格式、store、TTL、容量或既有写授�
 
 | 项目 | v3.7.0 | v3.7.1 |
 |------|--------|--------|
-| Preview 值 | Self-describing HMAC envelope + 进程内 Store | 公共字段名不变，值改为随机 256-bit opaque bearer handle；完整绑定只保存在 Store |
-| 请求匹配 | 解析/校验签名 payload，再查询并消费 Store record | 对 handle 做 digest lookup，在锁内精确比较 request binding；不匹配保留有效 record，匹配后原子消费 |
+| 客户端看到的值 | 包含请求元数据的 signed JSON payload + HMAC 签名 | 32 字节随机值的 URL-safe 编码；当前实现为 43 字符的 opaque bearer handle |
+| 状态位置 | Token 携带部分签名状态；一次性消费和 preview-time execution state 仍依赖进程内 Store | Request binding、execution binding、过期时间和消费状态均以 Store record 为准 |
+| 请求匹配 | 解析并校验 HMAC payload，再查询 Store | 计算 handle digest 查找 record，在同一把锁内精确比较 request binding 并消费；不匹配保留有效 record |
+| 一次性消费 | 有 | 保留 |
+| Skill/参数/连接绑定 | 有 | 保留；execute 时重新计算并与 Store record 比较 |
+| Replay/并发防护 | 有 | 保留 |
+| 多 worker/重启连续性 | 不支持；权威 Store 原本就是进程内状态 | 仍不支持；record 不存在时 fail closed，调用方必须重新 preview |
 | Secret | `MUTATION_PREVIEW_TOKEN_SECRET` 参与 envelope 签名 | 配置已废弃并忽略；存在时只输出不含值的 warning |
 | Preview 响应 | 同时返回绝对/相对过期时间、执行 hint 和嵌套确认字段 | 保留 `preview_token_expires_at`；移除三个重复 convenience 字段并明确兼容影响 |
-| Skill detail | `get_skill_detail()` 固定 full | 新增可选 `execution` 投影；省略仍为 full，保持旧调用兼容 |
+| Skill detail | `get_skill_detail()` 固定 full | 新增可选 `execution` 投影；省略仍为 full，并以非空 enum/default 明确暴露机器契约 |
 | Agent 流程 | 容易形成固定 list → detail → execute | 参数已知或 list full 已提供参数时直接执行；未知参数才取 execution detail |
 | 连接/UNION 提示 | 全局 prompt 可能把默认连接 policy 当成全局建议 | 模糊用途不猜 alias；UNION 提示保持 target-neutral，运行时仍按目标连接权威校验 |
 
 没有改变的边界包括：mutation 仍是 preview/execute 两次调用、execute 仍重传
 Skill/params/connection、TTL 与默认容量不变、写授权层不变、preview/execute 必须到达
 同一进程。Handle 仍是 bearer secret；缩短它不会使泄漏无害。
+
+#### 为什么采用“随机 handle + 服务端 Store”
+
+它不是把旧 token 截短，而是把客户端凭证改成不可猜测的随机引用：客户端不需要
+理解其内容；服务端通过 handle 的 SHA-256 digest 查找 record，并以 Store 中的
+请求绑定、执行绑定、过期和消费状态为准。`secrets.token_urlsafe(32)` 使用适合安全
+用途的随机源生成 32 字节（256-bit）随机值；Store 不持久保存完整 bearer handle。
+
+这与常见 opaque identifier 的设计方向一致。OWASP 的 session 指南建议客户端
+标识符应随机、不可预测、没有可解码的业务含义，并把关联状态放在服务端；其日志
+指南建议不要直接记录 session id 或 access token。RFC 7662 也说明 unstructured
+token 可以通过服务端 data-store lookup 取得上下文。这里仅采用这些原则作为设计
+类比：本项目没有因此实现 OAuth introspection，preview handle 也不是 Web session、
+人类批准证明或完整授权边界。
+
+更准确地说，Store 是本次 preview record 有效性和绑定/消费状态的权威来源；连接
+写开关、Mutation Skill allowlist、profile/schema/table policy 等授权仍在独立的
+运行时层检查。随机 handle 不携带内部 payload，减少了 Agent 上下文、复制错误和
+客户端可见状态，但它仍是 bearer secret：泄漏者若同时掌握匹配请求，可能在消费
+或过期前执行这一次 mutation。
+
+状态化设计的代价也没有消失：进程重启或请求进入其他 worker 时 handle 失效；没有
+Store 就不能离线判断有效性；大量只 preview 不 execute 的调用仍会占用有界容量；
+handle 消费后若数据库提交或响应阶段断连，结果仍可能不确定。因此必须继续保留短
+TTL、容量上限、容量满时 fail closed、同进程部署约束，以及“先核对业务状态、不得
+盲目重试”的规则。
+
+- [OWASP Session Management Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html)
+- [OWASP Logging Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Logging_Cheat_Sheet.html)
+- [Python `secrets` 文档](https://docs.python.org/3/library/secrets.html)
+- [RFC 7662: OAuth 2.0 Token Introspection](https://datatracker.ietf.org/doc/html/rfc7662)
 
 ## 2. `DB_CONNECTIONS` 和 `connection_id`
 
@@ -375,6 +411,12 @@ tables: [orders]
 - Skill 详情和发现信息；
 - Query Skill 的目标连接表白名单检查。
 
+启用 `SKILLS_CHECK_SCHEMA_ON_LIST=1` 后，如果目标数据库 metadata 暂时不可用，
+服务端不会把“无法核验”误报为“已经 ready”，也不会伪造 `missing_tables`。依赖表的
+Skill 会显示 `schema_check_available=false`、`schema_ready=false`、
+`executable=false`，从默认发现面隐藏，并在直接执行时 fail closed。传
+`available_only=false` 仍可查看完整开发者目录和拒绝原因。
+
 它不等于：
 
 ```text
@@ -446,7 +488,7 @@ flowchart TD
     C --> D["目标 connection_id 在\nSKILLS_ALLOW_MUTATION_CONNECTIONS"]
     D --> E["DB_<ID>_ALLOW_MUTATIONS=1"]
     E --> F["DB_<ID>_MUTATION_SKILLS\n包含当前 Skill"]
-    F --> G["db_type 兼容 + schema_ready"]
+    F --> G["db_type 兼容 + schema readiness\n可验证且通过"]
     G --> H["参数与业务 validate 通过"]
     H --> I["preview_token 有效"]
     I --> J["允许执行一次"]
@@ -565,7 +607,7 @@ confirm=true  -> execute 分支
 
 ### 8.2 `preview_token` 对应的 Store record 绑定什么？
 
-Handle 本身是随机值，不携带客户端可读授权状态。其服务端 Store record 绑定的是
+Handle 本身是随机值，不携带客户端可读的请求或执行绑定状态。其服务端 Store record 绑定的是
 “一次具体的预览操作”，不是泛化的“允许这个 Skill”标记：
 
 ```text
@@ -596,7 +638,8 @@ preview-time execution binding
 
 服务端只用 handle 的 SHA-256 digest 索引 record，不持久保存完整 bearer 值。
 Store 在同一把锁内完成 request binding 比较和一次性消费；随机 256-bit handle
-提供不可猜测性，Store record 才是授权状态的权威来源。
+提供不可猜测性，Store record 是本次 preview 的绑定、过期和消费状态的权威来源；
+连接写权限与 Skill allowlist 等授权仍由独立 policy 层决定。
 
 ### 8.3 为什么 execute 不再次调用 `preview()`？
 

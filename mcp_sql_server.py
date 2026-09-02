@@ -58,6 +58,7 @@ from db_adapter import (
     ConnectionPolicy,
     DatabaseAdapter,
     DatabaseConfig,
+    MetadataQueryError,
     get_adapter,
     get_connection_config,
     get_default_connection_id,
@@ -67,6 +68,11 @@ from db_adapter import (
 from preview_token_store import InMemoryPreviewTokenStore
 
 logger = logging.getLogger(__name__)
+
+
+SchemaDetailLevel = Literal["compact", "full"]
+SkillListDetailLevel = Literal["compact", "summary", "full"]
+SkillDetailProjection = Literal["execution", "full"]
 
 
 @dataclass(frozen=True)
@@ -81,6 +87,15 @@ class ConnectionContext:
     @property
     def db_type(self) -> str:
         return self.config.db_type
+
+
+@dataclass(frozen=True)
+class _SkillSchemaSnapshot:
+    """Distinguish disabled, successful, and unavailable readiness checks."""
+
+    enabled: bool
+    available: bool
+    table_names: frozenset[str]
 
 
 def _parse_env_bool(name: str, default: bool) -> bool:
@@ -177,6 +192,7 @@ MAX_RESULT_CHARS = int(os.getenv("MAX_RESULT_CHARS", "16000"))  # Max chars (0=u
 MAX_SQL_LENGTH = int(os.getenv("MAX_SQL_LENGTH", "20000"))  # Max input SQL chars (0=unlimited)
 MAX_SCHEMA_TABLES = int(os.getenv("MAX_SCHEMA_TABLES", "50"))  # Max tables in get_full_schema
 MAX_OVERVIEW_TABLES = int(os.getenv("MAX_OVERVIEW_TABLES", "100"))  # Max tables in list_tables
+_SCHEMA_DETAIL_LEVELS: tuple[SchemaDetailLevel, ...] = ("compact", "full")
 
 # FastMCP foreground tool timeout. This is intentionally higher than the DB
 # query timeout because schema tools may perform multiple metadata reads.
@@ -329,19 +345,37 @@ SKILLS_DIR = os.getenv("SKILLS_DIR", "skills/")
 # Default metadata projection for list_skills(). This controls only what is
 # disclosed to the Agent; startup discovery, SQL validation, and in-memory
 # execution caches remain eager for TOCTOU protection.
-_SKILLS_DETAIL_LEVELS = {"compact", "summary", "full"}
-_SKILL_DETAIL_PROJECTION_LEVELS = {"execution", "full"}
-SKILLS_LIST_DEFAULT_DETAIL = os.getenv(
-    "SKILLS_LIST_DEFAULT_DETAIL",
+_SKILLS_DETAIL_LEVELS: tuple[SkillListDetailLevel, ...] = (
+    "compact",
     "summary",
-).strip().lower()
-if SKILLS_LIST_DEFAULT_DETAIL not in _SKILLS_DETAIL_LEVELS:
+    "full",
+)
+_SKILL_DETAIL_PROJECTION_LEVELS: tuple[SkillDetailProjection, ...] = (
+    "execution",
+    "full",
+)
+
+
+def _parse_skills_list_default_detail() -> SkillListDetailLevel:
+    """Parse the startup default while preserving its finite static type."""
+    raw = os.getenv("SKILLS_LIST_DEFAULT_DETAIL", "summary").strip().lower()
+    if raw == "compact":
+        return "compact"
+    if raw == "summary":
+        return "summary"
+    if raw == "full":
+        return "full"
     logger.warning(
         "Invalid SKILLS_LIST_DEFAULT_DETAIL=%r; falling back to 'summary'. "
         "Allowed values: compact, summary, full",
-        SKILLS_LIST_DEFAULT_DETAIL,
+        raw,
     )
-    SKILLS_LIST_DEFAULT_DETAIL = "summary"
+    return "summary"
+
+
+SKILLS_LIST_DEFAULT_DETAIL: SkillListDetailLevel = (
+    _parse_skills_list_default_detail()
+)
 
 # Agent-facing default for list_skills(). When enabled, discovery hides skills
 # that cannot execute in the current server state (for example wrong DB_TYPE or
@@ -353,8 +387,9 @@ SKILLS_LIST_AVAILABLE_ONLY_DEFAULT = _parse_env_bool(
 )
 
 # When enabled, list_skills()/get_skill_detail() also consider whether a skill's
-# declared/derived tables exist in the current database schema. This is still a
-# discovery/readiness signal; execution-time validation remains authoritative.
+# declared/derived tables exist in the current database schema. An unavailable
+# metadata check marks table-dependent Skills non-executable; execution repeats
+# the same fail-closed readiness guard.
 SKILLS_CHECK_SCHEMA_ON_LIST = _parse_env_bool(
     "SKILLS_CHECK_SCHEMA_ON_LIST",
     True,
@@ -879,11 +914,12 @@ _CONNECTION_ROUTING_GUIDANCE = """Connection routing:
 mcp = FastMCP(
     name="sql-safety-executor",
     instructions=f"""Database safety gateway with read-only core SQL tools and configured connection routing.
-Use query() for free-form reads. Use describe_table() or get_full_schema() first if structure is unknown.
+Use query() for free-form reads. If structure is unknown, use list_tables() when names/counts are enough; use get_full_schema(detail_level="compact") directly when broad columns or multi-table planning are needed.
 Optional Skills provide reviewed queries and, when enabled, controlled mutations that require preview plus a matching one-time token.
 {_CONNECTION_ROUTING_GUIDANCE}""",
     lifespan=lifespan,
     mask_error_details=True,
+    strict_input_validation=True,
 )
 
 
@@ -991,19 +1027,21 @@ def _serialize_result(data: Any) -> Any:
 
 def _is_valid_identifier(name: str) -> bool:
     """
-    Validate table/column name to prevent SQL injection.
+    Validate a table/column name before it is used as an SQL identifier.
     
     Security measures:
-    - Only allow ASCII alphanumeric and underscore (stricter than before)
-    - Block quotes and special characters
-    - Length limit to prevent buffer issues
-    - Reject MySQL reserved words that could be exploited
+    - Allow a conservative letter/digit/underscore/CJK grammar
+    - Block quotes, comments, and other SQL syntax characters
+    - Enforce the MySQL-compatible 64-character identifier limit
+
+    Reserved words are not rejected here. Callers quote identifiers for the
+    selected adapter; this helper limits identifier shape, not SQL vocabulary.
     """
     if not name or len(name) > 64:  # MySQL identifier max length
         return False
     
-    # Strict ASCII pattern: letters, digits, underscore only
-    # Chinese characters are allowed but validated separately
+    # Conservative pattern: Latin letters, digits, underscores, and the
+    # explicitly supported CJK range. The first character cannot be a digit.
     if not re.match(r'^[a-zA-Z_\u4e00-\u9fff][a-zA-Z0-9_\u4e00-\u9fff]*$', name):
         return False
     
@@ -1442,6 +1480,62 @@ def _tool_result(
     return ToolResult(structured_content=payload, meta=runtime_meta)
 
 
+def _normalize_schema_detail_level(
+    detail_level: SchemaDetailLevel,
+) -> SchemaDetailLevel:
+    """Validate the already non-null schema projection argument."""
+    if detail_level not in _SCHEMA_DETAIL_LEVELS:
+        allowed = ", ".join(sorted(_SCHEMA_DETAIL_LEVELS))
+        raise ValueError(
+            f"Invalid detail_level '{detail_level}'. Allowed values: {allowed}"
+        )
+    return detail_level
+
+
+def _require_boolean(value: bool, parameter_name: str) -> bool:
+    """Reject Python values that do not match an MCP boolean schema."""
+    if type(value) is not bool:
+        raise ValueError(f"{parameter_name} must be a boolean")
+    return value
+
+
+def _schema_metadata_signature(columns: list[dict[str, Any]]) -> str:
+    """Return an order-sensitive signature over adapter-visible column metadata."""
+    return json.dumps(
+        columns,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+        default=str,
+    )
+
+
+async def _metadata_failure_result(
+    *,
+    ctx: Context,
+    tool_name: str,
+    start_time: float,
+    connection: ConnectionContext,
+    error: Exception,
+    error_code: str = "metadata_query_failed",
+) -> ToolResult:
+    """Return a stable, sanitized failure instead of an empty metadata result."""
+    await ctx.error(str(error))
+    return _tool_result(
+        {
+            "success": False,
+            "error": str(error),
+            "error_code": error_code,
+            "connection_id": connection.connection_id,
+            "db_type": connection.db_type,
+        },
+        tool_name=tool_name,
+        start_time=start_time,
+        connection=connection,
+        success=False,
+    )
+
+
 # =============================================================================
 # MCP Tools (Following FastMCP Best Practices)
 # =============================================================================
@@ -1461,8 +1555,11 @@ async def list_connections(ctx: Context) -> ToolResult:
     List configured database connection ids and non-sensitive policy metadata.
 
     This tool never returns DSNs, credentials, host names, passwords, or SQLite
-    file paths. Use a returned connection_id with read-only tools and query
-    skills; omit connection_id to use the default connection.
+    file paths. A returned alias may be passed to read-only tools and Query
+    Skills, subject to their policies and Skill scope. Mutation Skills may use
+    the default alias in compatibility mode; non-default aliases require the
+    strict named-write policy to authorize that connection and Skill. Discovery
+    itself never authorizes writes. This tool takes no arguments.
     """
     start_time = time.perf_counter()
     await ctx.info("Listing configured database connections")
@@ -1509,9 +1606,10 @@ async def query(
     connection_id: Annotated[str | None, _CONNECTION_ID_FIELD] = None,
 ) -> ToolResult:
     """
-    Execute a SQL SELECT query on the database.
-    
-    This is the PRIMARY tool for all database queries.
+    Execute one policy-approved read-only SQL statement on the database.
+
+    This is the primary tool for free-form read-only SQL. Use metadata tools
+    for schema discovery and reviewed Query Skills for defined workflows.
     Safety validation is automatic - only read-only statements are allowed.
     Supported: SELECT, DESCRIBE, and non-ANALYZE EXPLAIN. Use list_tables()
     and describe_table() instead of raw SHOW statements.
@@ -1519,7 +1617,7 @@ async def query(
     limit database work. Add WHERE/LIMIT/ORDER BY in SQL when needed.
     
     Args:
-        sql: A SQL SELECT query to execute
+        sql: One SELECT, DESCRIBE, or non-ANALYZE EXPLAIN statement
         
     Returns:
         Query results with data rows, or error message if query fails
@@ -1639,7 +1737,9 @@ async def check_connection(
     """
     Check if the database connection is working.
 
-    Use this to verify database connectivity before running queries.
+    Use this only when the user requests a connectivity check or after a
+    database operation reports a connection failure. Do not call it as a
+    routine prerequisite before queries.
 
     Returns:
         Connection status, database type, and configuration check
@@ -1696,12 +1796,19 @@ async def list_tables(
     """
     Visible database overview: list allowed tables with approximate row counts.
     
-    Lightweight initial discovery tool. Results may be truncated by
+    Use this lightweight tool when table names, counts, and approximate row
+    counts are enough. If broad columns or multi-table planning are needed,
+    call get_full_schema(detail_level="compact") directly; it already includes
+    returned table names and row estimates. Results may be truncated by
     MAX_OVERVIEW_TABLES. Row counts are estimates:
-    - MySQL: from INFORMATION_SCHEMA (InnoDB may vary ±40%)
+    - MySQL: from INFORMATION_SCHEMA (InnoDB is a rough estimate)
     - SQLite: from sqlite_stat1 or bounded sampling
+
+    An individual row_count is null when the adapter cannot safely provide an
+    estimate; null does not mean that the table is empty.
     
-    For column details, use describe_table(name).
+    Use describe_table(name) for full adapter-visible column metadata of one
+    selected table, not complete DDL.
 
     Returns:
         Database name, visible table counts, and returned table rows
@@ -1714,7 +1821,16 @@ async def list_tables(
     database_name = _public_database_name(connection)
     
     # Use adapter method for cross-database compatibility
-    tables = adapter.get_tables()
+    try:
+        tables = adapter.get_tables()
+    except MetadataQueryError as exc:
+        return await _metadata_failure_result(
+            ctx=ctx,
+            tool_name="list_tables",
+            start_time=start_time,
+            connection=connection,
+            error=exc,
+        )
     
     if not tables:
         await ctx.info(f"No tables found in {database_name}")
@@ -1768,7 +1884,14 @@ async def list_tables(
         "truncation_note": (
             f"Showing {len(tables)}/{total_tables} tables. Use describe_table(name) for specific tables."
         ) if truncated else None,
-        "hint": f"Row counts are estimates. total_tables = visible after allowlist. DB type: {connection.db_type}"
+        "hint": (
+            "Row counts are estimates; null means an estimate is unavailable, "
+            "not that the table is empty. For broad columns, call "
+            "get_full_schema(detail_level='compact') directly; for one selected "
+            "table's full adapter-visible column metadata, use "
+            "describe_table(name). This is not complete DDL. total_tables = "
+            f"visible after allowlist. DB type: {connection.db_type}"
+        )
     }
     return _tool_result(
         payload, tool_name="list_tables", start_time=start_time, success=True,
@@ -1793,11 +1916,21 @@ async def describe_table(
     connection_id: Annotated[str | None, _CONNECTION_ID_FIELD] = None,
 ) -> ToolResult:
     """
-    Get table structure: columns, row count estimate, and query hints.
+    Get one selected table's full adapter-visible column metadata and row count
+    estimate. This is not complete DDL: indexes, foreign keys, checks, and other
+    backend-specific properties may be absent.
+
+    Do not call repeatedly to survey many tables. Use get_full_schema with
+    detail_level="compact" for broad columns, or detail_level="full" when full
+    adapter-visible column metadata is needed across several tables.
     
     Returns column details plus approximate row count:
-    - MySQL: from INFORMATION_SCHEMA (InnoDB ±40% variance)
+    - MySQL: from INFORMATION_SCHEMA (InnoDB is a rough estimate)
     - SQLite: from sqlite_stat1 or bounded sampling
+
+    If the backend cannot provide an estimate, row_count,
+    row_count_approximate, and is_large are null. Null means unknown, not an
+    empty or small table.
     
     Includes is_large flag and recommendations for large tables.
 
@@ -1834,8 +1967,17 @@ async def describe_table(
     # Use adapter methods for cross-database compatibility
     adapter = connection.adapter
     
-    columns_data = adapter.get_columns(table_name)
-    row_count = adapter.get_row_estimate(table_name)
+    try:
+        columns_data = adapter.get_columns(table_name)
+        row_count = adapter.get_row_estimate(table_name)
+    except MetadataQueryError as exc:
+        return await _metadata_failure_result(
+            ctx=ctx,
+            tool_name="describe_table",
+            start_time=start_time,
+            connection=connection,
+            error=exc,
+        )
     
     if not columns_data:
         await ctx.error(f"Table not found: {table_name}")
@@ -1846,10 +1988,19 @@ async def describe_table(
             "db_type": connection.db_type,
         }, tool_name="describe_table", start_time=start_time, connection=connection, success=False)
     
-    # Determine if table is large (needs LIMIT)
-    is_large = row_count > LARGE_TABLE_THRESHOLD
-    
-    await ctx.info(f"Table {table_name}: ~{row_count} rows, {len(columns_data)} columns")
+    # Do not turn an unavailable estimate into a false "small table" signal.
+    row_count_approximate = True if row_count is not None else None
+    is_large = (
+        row_count > LARGE_TABLE_THRESHOLD
+        if row_count is not None
+        else None
+    )
+    displayed_row_count = f"~{row_count}" if row_count is not None else "unknown"
+
+    await ctx.info(
+        f"Table {table_name}: {displayed_row_count} rows, "
+        f"{len(columns_data)} columns"
+    )
     
     # Build response with query recommendations
     result_payload = {
@@ -1858,14 +2009,14 @@ async def describe_table(
         "db_type": connection.db_type,
         "connection_id": connection.connection_id,
         "row_count": row_count,
-        "row_count_approximate": True,
+        "row_count_approximate": row_count_approximate,
         "column_count": len(columns_data),
         "columns": columns_data,
         "is_large": is_large,
     }
     
     # Add recommendation only for large tables (reduce token overhead)
-    if is_large:
+    if is_large is True:
         result_payload["recommendation"] = (
             f"Large table (~{row_count} rows). Use LIMIT or aggregation (COUNT/GROUP BY)."
         )
@@ -1895,34 +2046,102 @@ async def describe_table(
 async def get_full_schema(
     ctx: Context,
     connection_id: Annotated[str | None, _CONNECTION_ID_FIELD] = None,
+    detail_level: Annotated[
+        SchemaDetailLevel,
+        Field(
+            description=(
+                "Use compact for table discovery, broad schema explanation, or "
+                "multi-table planning. Use full for nullable, default, and key "
+                "metadata. Defaults to compact."
+            )
+        ),
+    ] = "compact",
+    group_identical: Annotated[
+        bool,
+        Field(
+            description=(
+                "Compact mode only; defaults to true. Group tables when their "
+                "complete current adapter-visible column metadata and column "
+                "order are equal. This is not proof of full DDL, index, or "
+                "constraint equivalence. Ignored in full mode."
+            )
+        ),
+    ] = True,
 ) -> ToolResult:
     """
-    Get a visible database schema overview in one call.
+    Get a compact or full visible database schema overview in one call.
     
-    Best for: exploring unknown databases, multi-table queries, or complex JOINs.
+    Use compact for exploring unknown databases, explaining table purposes, or
+    planning across tables. Compact columns are returned as [name, type] pairs;
+    tables with equal adapter-visible column metadata can share one group while
+    retaining every table and row estimate. This grouping does not establish
+    complete DDL, index, or constraint equivalence. Call compact directly instead
+    of list_tables when the task already needs broad columns. Use full only when
+    nullable, default, or key metadata is needed across several tables. The
+    parameter defaults to compact; request full explicitly when its additional
+    metadata is needed.
+
     Results may be filtered by allowlist and truncated by MAX_SCHEMA_TABLES.
     
     Works with both MySQL and SQLite databases.
 
     Returns:
-        Returned schema tables with column definitions and visible table counts
+        Compact schema groups or full table schemas plus visible table counts
     """
     start_time = time.perf_counter()
     connection = _resolve_connection_context(connection_id)
-    await ctx.info(f"Fetching visible database schema for connection '{connection.connection_id}'...")
+    try:
+        resolved_detail_level = _normalize_schema_detail_level(detail_level)
+        resolved_group_identical = _require_boolean(
+            group_identical,
+            "group_identical",
+        )
+    except ValueError as exc:
+        await ctx.warning(f"Schema projection parameter error: {exc}")
+        raise ToolError(str(exc)) from exc
+
+    await ctx.info(
+        "Fetching visible database schema for connection "
+        f"'{connection.connection_id}' (detail_level={resolved_detail_level}, "
+        f"group_identical={resolved_group_identical})..."
+    )
     
     adapter = connection.adapter
     
     # Step 1: Get all tables with row counts using adapter
-    tables_data = adapter.get_tables()
+    try:
+        tables_data = adapter.get_tables()
+    except MetadataQueryError as exc:
+        return await _metadata_failure_result(
+            ctx=ctx,
+            tool_name="get_full_schema",
+            start_time=start_time,
+            connection=connection,
+            error=exc,
+        )
     
     if not tables_data:
         await ctx.info("No tables found in database")
+        empty_projection = (
+            {
+                "schema_groups": [],
+                "schema_group_count": 0,
+                "grouped_by_schema": resolved_group_identical,
+                "grouping_basis": (
+                    "adapter_visible_column_metadata_and_order"
+                    if resolved_group_identical
+                    else "none"
+                ),
+            }
+            if resolved_detail_level == "compact"
+            else {"schema": {}}
+        )
         return _tool_result({
             "success": True,
-            "schema": {},
+            **empty_projection,
             "db_type": connection.db_type,
             "connection_id": connection.connection_id,
+            "detail_level": resolved_detail_level,
             "returned_table_count": 0,
             "total_tables": 0,
             "total_columns": 0,
@@ -1931,7 +2150,8 @@ async def get_full_schema(
             "truncation_note": None,
             "hint": "No tables found in database."
         }, tool_name="get_full_schema", start_time=start_time, connection=connection, success=True,
-           returned_table_count=0, total_tables=0, truncated=False)
+           returned_table_count=0, total_tables=0, truncated=False,
+           detail_level=resolved_detail_level)
     
     # Filter tables by allowlist if configured (P1 Security)
     # Skip filtering if ALLOWED_TABLES=* (explicit allow all)
@@ -1950,50 +2170,150 @@ async def get_full_schema(
         truncated = True
         await ctx.warning(f"Schema truncated: showing {MAX_SCHEMA_TABLES}/{total_tables} tables")
     
-    # Step 3: Get columns for each table and organize into structured schema
-    schema = {}
+    # Step 3: Read each table once, then project the same metadata for either mode.
+    table_metadata = []
     for table in tables_data:
         table_name = table["table_name"]
-        columns_data = adapter.get_columns(table_name)
-        
-        schema[table_name] = {
-            "row_count": table["row_count"],
-            "columns": [
-                {
-                    "name": col["column_name"],
-                    "type": col["data_type"],
-                    "nullable": col["nullable"],
-                    "key": col["key_type"]
+        if not _is_valid_identifier(table_name):
+            return await _metadata_failure_result(
+                ctx=ctx,
+                tool_name="get_full_schema",
+                start_time=start_time,
+                connection=connection,
+                error=ValueError(
+                    "Database contains a table name that schema tools cannot "
+                    "safely describe."
+                ),
+                error_code="unsupported_metadata_identifier",
+            )
+        try:
+            columns_data = adapter.get_columns(table_name)
+        except MetadataQueryError as exc:
+            return await _metadata_failure_result(
+                ctx=ctx,
+                tool_name="get_full_schema",
+                start_time=start_time,
+                connection=connection,
+                error=exc,
+            )
+        if not columns_data:
+            return await _metadata_failure_result(
+                ctx=ctx,
+                tool_name="get_full_schema",
+                start_time=start_time,
+                connection=connection,
+                error=MetadataQueryError(
+                    "reading columns for a table returned by table discovery"
+                ),
+            )
+        table_metadata.append((table, columns_data))
+
+    total_columns_shown = sum(len(columns) for _, columns in table_metadata)
+    if resolved_detail_level == "compact":
+        groups_by_signature: dict[str, dict[str, Any]] = {}
+        for index, (table, columns_data) in enumerate(table_metadata):
+            signature = (
+                _schema_metadata_signature(columns_data)
+                if resolved_group_identical
+                else f"table:{index}"
+            )
+            group = groups_by_signature.get(signature)
+            if group is None:
+                group = {
+                    "tables": [],
+                    "column_count": len(columns_data),
+                    "columns": [
+                        [column["column_name"], column["data_type"]]
+                        for column in columns_data
+                    ],
+                    "primary_key": [
+                        column["column_name"]
+                        for column in columns_data
+                        if column["key_type"] == "PRI"
+                    ],
                 }
-                for col in columns_data
-            ]
+                groups_by_signature[signature] = group
+            group["tables"].append({
+                "name": table["table_name"],
+                "row_count": table["row_count"],
+            })
+        schema_groups = list(groups_by_signature.values())
+        projection = {
+            "schema_groups": schema_groups,
+            "schema_group_count": len(schema_groups),
+            "grouped_by_schema": resolved_group_identical,
+            "grouping_basis": (
+                "adapter_visible_column_metadata_and_order"
+                if resolved_group_identical
+                else "none"
+            ),
         }
-    
-    total_columns_shown = sum(len(t["columns"]) for t in schema.values())
-    await ctx.info(f"Schema loaded: {len(schema)} tables, {total_columns_shown} columns")
+        hint = (
+            "Columns are [name, type] pairs. Tables in one group have identical "
+            "current adapter-visible column metadata and order; this does not "
+            "prove full DDL, index, or constraint equivalence. Use "
+            "describe_table(name) for one table's nullable, default, and "
+            "non-primary key details, or get_full_schema(detail_level='full') "
+            "when those fields are needed across several tables."
+        )
+    else:
+        schema = {
+            table["table_name"]: {
+                "row_count": table["row_count"],
+                "columns": [
+                    {
+                        "name": column["column_name"],
+                        "type": column["data_type"],
+                        "nullable": column["nullable"],
+                        "key": column["key_type"],
+                        "default": column["default_value"],
+                    }
+                    for column in columns_data
+                ],
+            }
+            for table, columns_data in table_metadata
+        }
+        projection = {"schema": schema}
+        hint = (
+            "Full adapter column metadata is shown. Use LIMIT for large tables "
+            f"(row_count > {LARGE_TABLE_THRESHOLD})."
+        )
+
+    returned_table_count = len(table_metadata)
+    await ctx.info(
+        f"Schema loaded: {returned_table_count} tables, "
+        f"{total_columns_shown} columns ({resolved_detail_level})"
+    )
     
     # Use consistent field names: returned_table_count vs total_tables (visible before truncation)
     # Note: total_tables is after allowlist filtering, before truncation
     # "returned_" prefix avoids confusion with "total tables in database"
     payload = {
         "success": True,
-        "schema": schema,
+        **projection,
         "db_type": connection.db_type,
         "connection_id": connection.connection_id,
-        "returned_table_count": len(schema),
+        "detail_level": resolved_detail_level,
+        "returned_table_count": returned_table_count,
         "total_tables": total_tables,  # Visible tables (after allowlist, before truncation)
         "total_columns": total_columns_shown,
         "row_count_approximate": True,
         "truncated": truncated,
         "truncation_note": (
-            f"Showing {len(schema)}/{total_tables} tables. Use describe_table(name) for specific tables."
+            f"Showing {returned_table_count}/{total_tables} tables. "
+            "Use describe_table(name) for specific tables."
         ) if truncated else None,
-        "hint": f"Row counts are estimates. Use LIMIT for large tables (row_count > {LARGE_TABLE_THRESHOLD}). total_tables = visible after allowlist. DB type: {connection.db_type}"
+        "hint": (
+            f"Row counts are estimates; null means unavailable, not empty. "
+            f"{hint} total_tables = visible after "
+            f"allowlist. DB type: {connection.db_type}"
+        ),
     }
     return _tool_result(
         payload, tool_name="get_full_schema", start_time=start_time, success=True,
         connection=connection,
-        returned_table_count=len(schema), total_tables=total_tables, truncated=truncated,
+        returned_table_count=returned_table_count, total_tables=total_tables,
+        truncated=truncated, detail_level=resolved_detail_level,
     )
 
 
@@ -2014,7 +2334,17 @@ if TABLE_SUMMARY_ENABLED:
     async def get_table_summary(
         table_name: str, 
         ctx: Context, 
-        exact_count: bool = False,
+        exact_count: Annotated[
+            bool,
+            Field(
+                description=(
+                    "When true, execute SELECT COUNT(*) for an exact row count. "
+                    "This may require a full scan, be slow on large tables, and "
+                    "encounter MySQL metadata-lock contention. Use only when "
+                    "precision is required. Defaults to false."
+                )
+            ),
+        ] = False,
         connection_id: Annotated[str | None, _CONNECTION_ID_FIELD] = None,
     ) -> ToolResult:
         """
@@ -2025,6 +2355,10 @@ if TABLE_SUMMARY_ENABLED:
         
         Default: Uses adapter estimates (INFORMATION_SCHEMA for MySQL;
         sqlite_stat1 or bounded sampling for SQLite).
+
+        If an approximate estimate is unavailable, row_count,
+        row_count_approximate, and is_large are null. Exact counts retain
+        their ordinary integer/false/boolean values.
         
         Args:
             table_name: Name of the table
@@ -2034,6 +2368,11 @@ if TABLE_SUMMARY_ENABLED:
             Table statistics with row count, columns, and query hints
         """
         start_time = time.perf_counter()
+        try:
+            resolved_exact_count = _require_boolean(exact_count, "exact_count")
+        except ValueError as exc:
+            await ctx.warning(f"Table summary parameter error: {exc}")
+            raise ToolError(str(exc)) from exc
         connection = _resolve_connection_context(connection_id)
         # Validate table name
         if not _is_valid_identifier(table_name):
@@ -2065,14 +2404,13 @@ if TABLE_SUMMARY_ENABLED:
         
         await ctx.info(
             f"Getting summary for table on connection '{connection.connection_id}': "
-            f"{table_name} (exact_count={exact_count})"
+            f"{table_name} (exact_count={resolved_exact_count})"
         )
         
         adapter = connection.adapter
         
         # Get row count — use adapter for cross-database compatibility
-        row_count_approximate = True
-        if exact_count:
+        if resolved_exact_count:
             # WARNING: COUNT(*) can be slow on large tables
             row_count_approximate = False
             await ctx.warning(f"Running COUNT(*) on {table_name} - may be slow on large tables")
@@ -2096,15 +2434,62 @@ if TABLE_SUMMARY_ENABLED:
             total_rows = total_rows or 0
         else:
             # Fast estimate via adapter (uses INFORMATION_SCHEMA or sqlite_stat1)
-            total_rows = adapter.get_row_estimate(table_name)
+            try:
+                total_rows = adapter.get_row_estimate(table_name)
+            except MetadataQueryError as exc:
+                return await _metadata_failure_result(
+                    ctx=ctx,
+                    tool_name="get_table_summary",
+                    start_time=start_time,
+                    connection=connection,
+                    error=exc,
+                )
+            row_count_approximate = True if total_rows is not None else None
         
         # Get column info via adapter (cross-database)
-        columns_data = adapter.get_columns(table_name)
+        try:
+            columns_data = adapter.get_columns(table_name)
+        except MetadataQueryError as exc:
+            return await _metadata_failure_result(
+                ctx=ctx,
+                tool_name="get_table_summary",
+                start_time=start_time,
+                connection=connection,
+                error=exc,
+            )
+
+        if not columns_data:
+            await ctx.error(f"Table not found: {table_name}")
+            return _tool_result(
+                {
+                    "success": False,
+                    "error": f"Table '{table_name}' not found",
+                    "connection_id": connection.connection_id,
+                    "db_type": connection.db_type,
+                },
+                tool_name="get_table_summary",
+                start_time=start_time,
+                connection=connection,
+                success=False,
+            )
         
-        # Determine if table is large
-        is_large = total_rows > LARGE_TABLE_THRESHOLD
-        
-        await ctx.info(f"Table {table_name}: {'~' if row_count_approximate else ''}{total_rows} rows, {len(columns_data)} columns")
+        # An unavailable estimate is not evidence that the table is small.
+        is_large = (
+            total_rows > LARGE_TABLE_THRESHOLD
+            if total_rows is not None
+            else None
+        )
+        if total_rows is None:
+            displayed_row_count = "unknown"
+        elif row_count_approximate:
+            displayed_row_count = f"~{total_rows}"
+        else:
+            displayed_row_count = str(total_rows)
+
+        await ctx.info(
+            f"Table {table_name}: {displayed_row_count} rows, "
+            f"{len(columns_data)} columns"
+        )
         
         result_payload = {
             "success": True,
@@ -2118,7 +2503,7 @@ if TABLE_SUMMARY_ENABLED:
             "is_large": is_large,
         }
         
-        if is_large:
+        if is_large is True:
             result_payload["recommendation"] = (
                 f"Large table ({'~' if row_count_approximate else ''}{total_rows} rows). "
                 "Use LIMIT or aggregation (COUNT/GROUP BY)."
@@ -2127,7 +2512,8 @@ if TABLE_SUMMARY_ENABLED:
         return _tool_result(
             result_payload, tool_name="get_table_summary", start_time=start_time, success=True,
             connection=connection,
-            row_count=total_rows, is_large=is_large, exact_count=exact_count,
+            row_count=total_rows, is_large=is_large,
+            exact_count=resolved_exact_count,
         )
 
 
@@ -2146,7 +2532,17 @@ if SCHEMA_TOOLS_ENABLED:
     async def sample(
         table_name: str,
         ctx: Context,
-        limit: int = 5,
+        limit: Annotated[
+            int,
+            Field(
+                ge=1,
+                le=20,
+                description=(
+                    "Number of sample rows to return, from 1 through 20. "
+                    "Defaults to 5; out-of-range values are rejected."
+                ),
+            ),
+        ] = 5,
         connection_id: Annotated[str | None, _CONNECTION_ID_FIELD] = None,
     ) -> ToolResult:
         """
@@ -2154,7 +2550,7 @@ if SCHEMA_TOOLS_ENABLED:
         
         Args:
             table_name: Name of the table to sample
-            limit: Number of rows to return (max 20)
+            limit: Number of rows to return (1 through 20)
             
         Returns:
             Sample rows from the table
@@ -2181,7 +2577,12 @@ if SCHEMA_TOOLS_ENABLED:
                 "db_type": connection.db_type,
             }, tool_name="sample", start_time=start_time, connection=connection, success=False)
         
-        limit = min(max(1, limit), 20)  # Clamp between 1-20
+        # FastMCP enforces the same range at the MCP boundary. Keep an explicit
+        # handler check so direct Python callers receive the same rejection.
+        if type(limit) is not int or not 1 <= limit <= 20:
+            message = "limit must be an integer from 1 through 20"
+            await ctx.warning(f"Sample parameter error: {message}")
+            raise ToolError(message)
         
         await ctx.info(f"Sampling {limit} rows from connection '{connection.connection_id}': {table_name}")
         
@@ -2322,33 +2723,33 @@ if SKILLS_ENABLED:
         f"Skills extension enabled: {len(_discovered_skills)} skill(s) discovered"
     )
 
-    def _normalize_skill_detail_level(detail_level: str | None) -> str:
-        """Resolve and validate the metadata projection level for list_skills()."""
-        level = (detail_level or SKILLS_LIST_DEFAULT_DETAIL).strip().lower()
-        if level not in _SKILLS_DETAIL_LEVELS:
+    def _normalize_skill_detail_level(
+        detail_level: SkillListDetailLevel,
+    ) -> SkillListDetailLevel:
+        """Validate the already non-null list_skills projection argument."""
+        if detail_level not in _SKILLS_DETAIL_LEVELS:
             allowed = ", ".join(sorted(_SKILLS_DETAIL_LEVELS))
             raise ValueError(
                 f"Invalid detail_level '{detail_level}'. Allowed values: {allowed}"
             )
-        return level
+        return detail_level
 
 
-    def _normalize_skill_detail_projection(detail_level: str | None) -> str:
-        """Resolve the get_skill_detail() projection without changing its default."""
-        level = (detail_level or "full").strip().lower()
-        if level not in _SKILL_DETAIL_PROJECTION_LEVELS:
+    def _normalize_skill_detail_projection(
+        detail_level: SkillDetailProjection,
+    ) -> SkillDetailProjection:
+        """Validate the already non-null get_skill_detail projection argument."""
+        if detail_level not in _SKILL_DETAIL_PROJECTION_LEVELS:
             allowed = ", ".join(sorted(_SKILL_DETAIL_PROJECTION_LEVELS))
             raise ValueError(
                 f"Invalid detail_level '{detail_level}'. Allowed values: {allowed}"
             )
-        return level
+        return detail_level
 
 
-    def _resolve_available_only(available_only: bool | None) -> bool:
-        """Resolve the optional availability filter for list_skills()."""
-        if available_only is None:
-            return SKILLS_LIST_AVAILABLE_ONLY_DEFAULT
-        return available_only
+    def _resolve_available_only(available_only: bool) -> bool:
+        """Validate the already non-null list_skills availability filter."""
+        return _require_boolean(available_only, "available_only")
 
 
     def _normalize_optional_filter(
@@ -2477,22 +2878,36 @@ if SKILLS_ENABLED:
         )
 
 
-    def _get_skill_schema_table_names(connection: ConnectionContext) -> set[str] | None:
-        """Return current database table names for Skills readiness checks."""
+    def _get_skill_schema_snapshot(
+        connection: ConnectionContext,
+    ) -> _SkillSchemaSnapshot:
+        """Return an explicit Skills schema-readiness observation."""
         if not SKILLS_CHECK_SCHEMA_ON_LIST:
-            return None
+            return _SkillSchemaSnapshot(
+                enabled=False,
+                available=False,
+                table_names=frozenset(),
+            )
 
         try:
             tables = connection.adapter.get_tables()
-        except Exception as e:
-            logger.warning("Skills schema readiness check failed: %s", e)
-            return None
+        except MetadataQueryError as exc:
+            logger.warning("Skills schema readiness check unavailable: %s", exc)
+            return _SkillSchemaSnapshot(
+                enabled=True,
+                available=False,
+                table_names=frozenset(),
+            )
 
-        return {
-            str(table.get("table_name", "")).lower()
-            for table in tables
-            if table.get("table_name")
-        }
+        return _SkillSchemaSnapshot(
+            enabled=True,
+            available=True,
+            table_names=frozenset(
+                str(table.get("table_name", "")).lower()
+                for table in tables
+                if table.get("table_name")
+            ),
+        )
 
 
     def _query_skill_blocked_tables(
@@ -2561,7 +2976,7 @@ if SKILLS_ENABLED:
 
     def _skill_availability_state(
         meta: SkillMetadata,
-        schema_table_names: set[str] | None,
+        schema_snapshot: _SkillSchemaSnapshot,
         connection: ConnectionContext,
     ) -> dict[str, Any]:
         """Describe whether a discovered skill can execute in the current state."""
@@ -2615,17 +3030,24 @@ if SKILLS_ENABLED:
                 f"connection allowlist: {blocked_tables}."
             )
 
-        if SKILLS_CHECK_SCHEMA_ON_LIST and meta.tables and schema_table_names is not None:
-            missing_tables = [
-                table for table in meta.tables
-                if table.lower() not in schema_table_names
-            ]
-            if missing_tables:
+        if schema_snapshot.enabled and meta.tables:
+            if not schema_snapshot.available:
                 schema_ready = False
                 reasons.append(
-                    "Required table(s) are missing from the current database "
-                    f"schema: {missing_tables}."
+                    "Required table readiness could not be verified because "
+                    "database metadata is unavailable for the target connection."
                 )
+            else:
+                missing_tables = [
+                    table for table in meta.tables
+                    if table.lower() not in schema_snapshot.table_names
+                ]
+                if missing_tables:
+                    schema_ready = False
+                    reasons.append(
+                        "Required table(s) are missing from the current database "
+                        f"schema: {missing_tables}."
+                    )
 
         executable = not reasons
         return {
@@ -2641,8 +3063,8 @@ if SKILLS_ENABLED:
             "policy_allowed": policy_allowed,
             "blocked_tables": blocked_tables,
             "schema_ready": schema_ready,
-            "schema_check_enabled": SKILLS_CHECK_SCHEMA_ON_LIST,
-            "schema_check_available": schema_table_names is not None,
+            "schema_check_enabled": schema_snapshot.enabled,
+            "schema_check_available": schema_snapshot.available,
             "missing_tables": missing_tables,
         }
 
@@ -2652,11 +3074,14 @@ if SKILLS_ENABLED:
         if not SKILLS_CHECK_SCHEMA_ON_LIST or not meta.tables:
             return
 
-        schema_table_names = _get_skill_schema_table_names(connection)
-        if schema_table_names is None:
-            return
+        schema_snapshot = _get_skill_schema_snapshot(connection)
+        if not schema_snapshot.available:
+            raise ToolError(
+                f"Skill '{meta.name}' schema readiness could not be verified "
+                "because database metadata is unavailable for the target connection."
+            )
 
-        availability = _skill_availability_state(meta, schema_table_names, connection)
+        availability = _skill_availability_state(meta, schema_snapshot, connection)
         if availability["missing_tables"]:
             raise ToolError(
                 f"Skill '{meta.name}' requires table(s) not found in the "
@@ -2916,25 +3341,29 @@ if SKILLS_ENABLED:
             ),
         ] = None,
         detail_level: Annotated[
-            str | None,
+            SkillListDetailLevel,
             Field(
                 description=(
                     "Metadata projection: compact, summary, or full. Full "
-                    "includes params and needs no get_skill_detail() follow-up."
+                    "includes params and needs no get_skill_detail() follow-up. "
+                    "The default is the server's SKILLS_LIST_DEFAULT_DETAIL "
+                    "startup setting."
                 )
             ),
-        ] = None,
+        ] = SKILLS_LIST_DEFAULT_DETAIL,
         available_only: Annotated[
-            bool | None,
+            bool,
             Field(
                 description=(
                     "When true, return only skills executable for the target "
                     "connection, including Skill connection_ids scope, DB "
                     "compatibility, mutation switch, connection policy, and "
-                    "schema readiness. Pass false to inspect the full catalog."
+                    "schema readiness. Pass false to inspect the full catalog. "
+                    "The default is the server's "
+                    "SKILLS_LIST_AVAILABLE_ONLY_DEFAULT startup setting."
                 ),
             ),
-        ] = None,
+        ] = SKILLS_LIST_AVAILABLE_ONLY_DEFAULT,
         connection_id: Annotated[str | None, _CONNECTION_ID_FIELD] = None,
     ) -> ToolResult:
         """
@@ -2942,8 +3371,11 @@ if SKILLS_ENABLED:
 
         Supports MCP-level progressive disclosure:
         - compact: lightweight catalog for discovery
-        - summary: default compatibility-oriented metadata projection
+        - summary: compatibility-oriented metadata projection
         - full: full cached parameter schema for planning execution
+
+        Omitting detail_level uses the startup-resolved
+        SKILLS_LIST_DEFAULT_DETAIL setting.
 
         This tool never reads skill files at runtime. It only projects metadata
         from the startup-validated in-memory skill cache.
@@ -2979,14 +3411,14 @@ if SKILLS_ENABLED:
         )
 
         skills = get_skills_cache()
-        schema_table_names = _get_skill_schema_table_names(connection)
+        schema_snapshot = _get_skill_schema_snapshot(connection)
         matched_catalog = [
             meta
             for name, meta in sorted(skills.items())
             if _skill_matches(meta, normalized_search, normalized_category)
         ]
         availability_by_name = {
-            meta.name: _skill_availability_state(meta, schema_table_names, connection)
+            meta.name: _skill_availability_state(meta, schema_snapshot, connection)
             for meta in matched_catalog
         }
         available_count = sum(
@@ -3058,8 +3490,8 @@ if SKILLS_ENABLED:
             "query_skills": query_count,
             "mutation_skills": mutation_count,
             "mutations_enabled": SKILLS_ALLOW_MUTATIONS,
-            "schema_check_enabled": SKILLS_CHECK_SCHEMA_ON_LIST,
-            "schema_check_available": schema_table_names is not None,
+            "schema_check_enabled": schema_snapshot.enabled,
+            "schema_check_available": schema_snapshot.available,
             "excluded_profiles": sorted(SKILLS_EXCLUDE_PROFILES),
             "detail_level": resolved_detail_level,
             "available_only": resolved_available_only,
@@ -3098,16 +3530,15 @@ if SKILLS_ENABLED:
         ctx: Context,
         connection_id: Annotated[str | None, _CONNECTION_ID_FIELD] = None,
         detail_level: Annotated[
-            Literal["execution", "full"] | None,
+            SkillDetailProjection,
             Field(
                 description=(
                     "Use execution (recommended) for params/schema and the next "
                     "action. Use full only when catalog or readiness diagnostics "
-                    "are explicitly needed; omission defaults to full for "
-                    "compatibility."
+                    "are explicitly needed. Defaults to full."
                 )
             ),
-        ] = None,
+        ] = "full",
     ) -> ToolResult:
         """
         Return cached execution fields or full metadata for one Skill.
@@ -3139,8 +3570,8 @@ if SKILLS_ENABLED:
             raise ToolError(msg)
 
         meta = skills[skill_name]
-        schema_table_names = _get_skill_schema_table_names(connection)
-        availability = _skill_availability_state(meta, schema_table_names, connection)
+        schema_snapshot = _get_skill_schema_snapshot(connection)
+        availability = _skill_availability_state(meta, schema_snapshot, connection)
         if meta.type == "query" and availability["executable"]:
             usage_hint = (
                 "Call execute_query_skill(skill_name, params, connection_id) "
@@ -3174,8 +3605,8 @@ if SKILLS_ENABLED:
         if resolved_detail_level == "full":
             result.update({
                 "mutations_enabled": SKILLS_ALLOW_MUTATIONS,
-                "schema_check_enabled": SKILLS_CHECK_SCHEMA_ON_LIST,
-                "schema_check_available": schema_table_names is not None,
+                "schema_check_enabled": schema_snapshot.enabled,
+                "schema_check_available": schema_snapshot.available,
             })
 
         return _tool_result(
@@ -3436,7 +3867,13 @@ if SKILLS_ENABLED:
             Returns:
                 Preview result (confirm=false) or execution result (confirm=true)
             """
-            mode = "execute" if confirm else "preview"
+            try:
+                resolved_confirm = _require_boolean(confirm, "confirm")
+            except ValueError as exc:
+                await ctx.warning(f"Mutation skill parameter error: {exc}")
+                raise ToolError(str(exc)) from exc
+
+            mode = "execute" if resolved_confirm else "preview"
             await ctx.info(f"Mutation skill '{skill_name}' mode={mode}")
             start_time = time.perf_counter()
 
@@ -3481,7 +3918,7 @@ if SKILLS_ENABLED:
                     raise
                 raise ToolError(str(e)) from e
 
-            if not confirm:
+            if not resolved_confirm:
                 # Phase 1: validate + preview (no writes)
                 try:
                     validation = mutation.validate(validated_params)
@@ -3836,7 +4273,7 @@ def sql_assistant() -> str:
     skills_info = ""
     if SKILLS_ENABLED:
         skills_info = """
-- list_skills(search, category, detail_level, available_only): Search pre-defined skills; full includes params
+- list_skills(search, category, detail_level, available_only, connection_id): Search pre-defined skills; full includes params
 - get_skill_detail(skill_name, connection_id, detail_level): Get params/schema for one known Skill
 - execute_query_skill(name, params, connection_id): Execute a query skill with parameters
 """
@@ -3848,17 +4285,18 @@ def sql_assistant() -> str:
     return f"""Database query assistant.
 
 Tools (choose based on need):
-- list_connections(): Show configured connection ids; omit connection_id to use default
-- query(sql, connection_id): Execute conservative read queries; EXPLAIN ANALYZE is rejected
+- list_connections(): Show configured connection ids and their non-sensitive policies; takes no arguments
+- query(sql, connection_id): Execute conservative free-form read-only SQL; EXPLAIN ANALYZE is rejected
 - list_tables(connection_id): Visible table overview with row estimates; may be truncated
-- describe_table(name, connection_id): Single table columns + row estimate + is_large hint
-- get_full_schema(connection_id): Visible schema overview; may be truncated; use for multi-table JOINs
+- describe_table(name, connection_id): Single-table adapter-visible column metadata + row estimate + is_large hint; not complete DDL
+- get_full_schema(connection_id, detail_level, group_identical): Compact adapter-visible column groups or full adapter-visible column metadata; grouping is not full DDL equivalence
 - check_connection(connection_id): Verify database connectivity (use only on connection errors)
 {skills_info}
 {_CONNECTION_ROUTING_GUIDANCE}
 
 Decision rules:
-- Unknown structure? list_tables() for overview, then describe_table() for details
+- Unknown structure? Use list_tables() when names/counts are enough. If broad columns or multi-table planning are needed, call get_full_schema(detail_level="compact") directly; it already includes table names and row estimates.
+- Need nullable, default, or key metadata? Use describe_table() for one selected table or get_full_schema(detail_level="full") across several tables.
 - For single-table queries, if schema/columns unknown, call describe_table(table_name) before query().
 - Know the table? Query directly with appropriate LIMIT
 - is_large=true in response? Use LIMIT or aggregation

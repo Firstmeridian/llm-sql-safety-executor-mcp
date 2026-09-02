@@ -1,10 +1,17 @@
 # MCP Client Test - Usage Guide
 
-**Updated:** August 28, 2026 (v3.7.1)
+**Updated:** September 2, 2026 (v3.7.1)
 
 ## Purpose
 
 `test_mcp_client.py` tests the SQL Safety Checker MCP server via the MCP protocol using FastMCP's Client API.
+
+This guide verifies protocol registration and tool responses. To test whether
+an Agent naturally chooses the correct tool sequence, connection, and metadata
+projection, use the separate
+[MCP Agent behavior validation method](RELEASE_NOTES/GUIDE/MCP_AGENT_BEHAVIOR_VALIDATION_ZH.md).
+That layer requires repeated black-box Agent traces; a fixed Client call sequence
+cannot prove model orchestration behavior.
 
 **Supported Databases:** MySQL, SQLite (v2.2+), configured named connections (v3.5+)
 
@@ -214,7 +221,7 @@ TEST 2: list_tables
 ✓ All new fields present: returned_table_count=2, total_tables=2, db_type=mysql
 
 ----------------------------------------------------------------------
-TEST 3: query (Primary Tool)
+TEST 3: query (Free-form Read Tool)
 ----------------------------------------------------------------------
 Query 1: SELECT 1 as test
 {
@@ -232,17 +239,21 @@ Query 1: SELECT 1 as test
 
 The script tests the following tools:
 
-1. ✅ `list_connections` - Configured connection discovery without DSNs, hosts, users, passwords, or SQLite paths
+1. ✅ `list_connections` - Configured connection discovery without DSNs, hosts, users, passwords, or SQLite paths; discovery does not authorize writes, the default alias remains available to Mutation Skills in compatibility mode, and non-default aliases require strict named-write authorization
 2. ✅ `check_connection` - Database connectivity test (includes `connection_id` and `db_type` fields)
-3. ✅ `list_tables` - Database overview with new fields (`returned_table_count`, `total_tables`, `truncated`, `connection_id`, `db_type`)
-4. ✅ `query` - SQL execution (Primary Tool):
+3. ✅ `list_tables` - Database overview with new fields (`returned_table_count`, `total_tables`, `truncated`, `connection_id`, `db_type`); a per-table `row_count=null` means the estimate is unavailable, not that the table is empty
+4. ✅ `query` - Free-form read-only SQL execution:
    - Simple SELECT query
    - COUNT query
    - Unsafe query rejection
-5. ✅ `describe_table` - Table structure with row count estimate and `is_large` hint
-6. ✅ `get_full_schema` - Visible schema overview in one call; may be truncated
-7. ✅ `get_table_summary` - Table statistics with optional exact count (requires `ENABLE_TABLE_SUMMARY=1`)
-8. ✅ `sample` - Sample data retrieval (requires `ENABLE_SCHEMA_TOOLS=1`)
+5. ✅ `describe_table` - Full adapter-visible column metadata with row count estimate and `is_large` hint; an unavailable estimate returns null for `row_count`, `row_count_approximate`, and `is_large` rather than implying a small table; not a complete DDL projection
+6. ✅ `get_full_schema` - Verifies the machine schema exposes non-null
+   `compact|full` with default `compact`, then calls grouped compact through a
+   fresh stdio server. `grouping_basis` means adapter-visible column metadata
+   and order, not complete DDL/index/constraint equivalence; results may be
+   truncated.
+7. ✅ `get_table_summary` - Table statistics with optional exact count; its approximate path preserves the same unavailable-estimate nulls, while the machine parameter description warns that `COUNT(*)` may be expensive (requires `ENABLE_TABLE_SUMMARY=1`)
+8. ✅ `sample` - Sample data retrieval with a machine-visible inclusive `limit` range of 1-20; out-of-range MCP and direct Python input is rejected before execution (requires `ENABLE_SCHEMA_TOOLS=1`)
 9. ✅ `list_skills` - List/search skills with `compact`/`summary`/`full` metadata, optional `available_only` filtering, v3.7 Skill `connection_ids` scope, connection-scoped policy/readiness fields, and schema readiness fields (requires `ENABLE_SKILLS=1`)
 10. ✅ `get_skill_detail` - Fetch one Skill's compact `execution` projection or backward-compatible `full` cached metadata/readiness view (requires `ENABLE_SKILLS=1`)
 11. ✅ `execute_query_skill` - Execute a parameterized query skill against the resolved target connection (requires `ENABLE_SKILLS=1`)
@@ -421,13 +432,17 @@ connection_id=...)` when the Skill is unknown. If the Skill name is already
 known but params are not, call `get_skill_detail(...,
 detail_level="execution", connection_id=...)` directly. When
 `list_skills(detail_level="full")` already returned params—or the caller already
-knows them—execute directly. Omitted `detail_level` on `get_skill_detail`
-continues to return `full` for compatibility. Use `available_only=false` for
+knows them—execute directly. `get_skill_detail.detail_level` is a non-null
+`execution|full` enum whose machine-visible default is `full`. `list_skills`
+likewise exposes its startup-resolved `detail_level` and `available_only`
+defaults instead of nullable `null` defaults. Use `available_only=false` for
 developer catalog review, including Skills that are currently incompatible with
 the target connection's DB type, disabled by mutation switches, limited to the
 default connection when `SKILLS_ALLOW_MUTATION_CONNECTIONS` is omitted, blocked
 by connection policy, or marked `schema_ready=false` because required tables are
-missing. The discovery target should match the `connection_id` used for
+missing or target metadata is unavailable (`schema_check_available=false`). An
+unavailable check does not invent `missing_tables`, and direct execution still
+fails closed. The discovery target should match the `connection_id` used for
 execution.
 
 Since v3.7.1, preview returns an opaque handle plus
