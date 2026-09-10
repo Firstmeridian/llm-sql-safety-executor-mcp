@@ -674,11 +674,24 @@ def test_preview_validation_failure_reports_explicit_token_metadata(
 
         assert payload["success"] is False
         assert payload["validation"]["valid"] is False
-        assert meta["audit_logged"] is False
+        assert payload["execution_outcome"] == "not_executed"
+        assert payload["error_code"] == "validation_failed"
+        assert meta["audit_logged"] is True
         assert meta["preview_token_required"] is False
         assert meta["preview_token_validated"] is False
         assert meta["preview_token_consumed"] is False
         assert len(module._MUTATION_PREVIEW_TOKEN_STORE) == 0
+        audit_entries = [
+            json.loads(line)
+            for line in (tmp_path / "mutation-audit.jsonl")
+            .read_text(encoding="utf-8")
+            .splitlines()
+        ]
+        assert len(audit_entries) == 1
+        assert audit_entries[0]["mode"] == "preview"
+        assert audit_entries[0]["success"] is False
+        assert audit_entries[0]["execution_outcome"] == "not_executed"
+        assert audit_entries[0]["error_code"] == "validation_failed"
     finally:
         _cleanup_modules()
 
@@ -1141,19 +1154,20 @@ def test_execute_uses_previewed_state_for_optimistic_lock(tmp_path, monkeypatch)
         # confirmed -> cancelled is valid, so dynamic validation passes. The
         # write must still use the previewed pending status and fail its lock.
         _set_order_status(mysql_db, 1, "confirmed")
-        with pytest.raises(
-            module.ToolError,
-            match="Optimistic lock failed.*preview_token has been consumed",
-        ):
-            run_tool(
-                module.execute_mutation_skill(
-                    skill_name="update-order-status",
-                    params=params,
-                    ctx=DummyContext(),
-                    confirm=True,
-                    preview_token=preview["preview_token"],
-                )
+        rejected, rejected_meta = run_tool(
+            module.execute_mutation_skill(
+                skill_name="update-order-status",
+                params=params,
+                ctx=DummyContext(),
+                confirm=True,
+                preview_token=preview["preview_token"],
             )
+        )
+        assert rejected["success"] is False
+        assert rejected["execution_outcome"] == "rolled_back"
+        assert rejected["error_code"] == "expected_rowcount_mismatch"
+        assert rejected_meta["success"] is False
+        assert rejected_meta["execution_outcome"] == "rolled_back"
         assert _order_status(mysql_db, 1) == "confirmed"
 
         with pytest.raises(module.ToolError, match="already been used"):
@@ -1480,30 +1494,27 @@ def test_dynamic_validation_toolerror_is_audited_once_after_consumption(
 
         monkeypatch.setattr(module._audit_logger, "log", recording_audit_log)
 
-        with pytest.raises(
-            module.ToolError,
-            match=(
-                "simulated dynamic validation failure.*"
-                "No database write was attempted.*"
-                "preview_token has been consumed"
-            ),
-        ) as exc_info:
-            run_tool(
-                module.execute_mutation_skill(
-                    skill_name="update-order-status",
-                    params=_params(),
-                    ctx=DummyContext(),
-                    confirm=True,
-                    preview_token=preview["preview_token"],
-                )
+        rejected, rejected_meta = run_tool(
+            module.execute_mutation_skill(
+                skill_name="update-order-status",
+                params=_params(),
+                ctx=DummyContext(),
+                confirm=True,
+                preview_token=preview["preview_token"],
             )
-        assert "write outcome may be unknown" not in str(exc_info.value)
+        )
+        assert rejected["success"] is False
+        assert rejected["execution_outcome"] == "not_executed"
+        assert rejected["error_code"] == "validation_failed"
+        assert rejected_meta["preview_token_consumed"] is True
 
         assert len(audit_calls) == 1
         assert audit_calls[0]["mode"] == "execute"
         assert audit_calls[0]["result"] == {
             "success": False,
-            "error": "simulated dynamic validation failure",
+            "error": "Validation failed for mutation.",
+            "execution_outcome": "not_executed",
+            "error_code": "validation_failed",
         }
         assert _order_status(mysql_db, 1) == "pending"
 
@@ -1588,22 +1599,19 @@ def test_database_write_failure_still_consumes_token(tmp_path, monkeypatch):
             raise RuntimeError("simulated database write failure")
 
         monkeypatch.setattr(adapter, "execute_write", fail_write)
-        with pytest.raises(
-            module.ToolError,
-            match=(
-                "preview_token has been consumed.*write outcome may be "
-                "unknown.*verify the current database state"
-            ),
-        ):
-            run_tool(
-                module.execute_mutation_skill(
-                    skill_name="update-order-status",
-                    params=_params(),
-                    ctx=DummyContext(),
-                    confirm=True,
-                    preview_token=preview["preview_token"],
-                )
+        failed, failed_meta = run_tool(
+            module.execute_mutation_skill(
+                skill_name="update-order-status",
+                params=_params(),
+                ctx=DummyContext(),
+                confirm=True,
+                preview_token=preview["preview_token"],
             )
+        )
+        assert failed["success"] is False
+        assert failed["execution_outcome"] == "unknown"
+        assert failed["error_code"] == "execution_outcome_unknown"
+        assert failed_meta["preview_token_consumed"] is True
 
         with pytest.raises(module.ToolError, match="already been used"):
             run_tool(
@@ -1626,9 +1634,340 @@ def test_database_write_failure_still_consumes_token(tmp_path, monkeypatch):
         _cleanup_modules()
 
 
-def test_response_failure_after_write_keeps_single_success_audit(
+def test_commit_ack_failure_returns_structured_unknown(tmp_path, monkeypatch):
+    mysql_db = tmp_path / "mysql.db"
+    analytics_db = tmp_path / "analytics.db"
+    _create_orders_db(mysql_db, "mysql")
+    _create_orders_db(analytics_db, "analytics")
+    module = _reload_server(monkeypatch, mysql_db, analytics_db)
+    try:
+        preview, _ = run_tool(
+            module.execute_mutation_skill(
+                skill_name="update-order-status",
+                params=_params(),
+                ctx=DummyContext(),
+                confirm=False,
+            )
+        )
+        adapter = module.get_adapter("mysql")
+        import db_adapter
+
+        def fail_commit(*_args, **_kwargs):
+            raise db_adapter.WriteExecutionError(
+                "commit acknowledgement lost",
+                execution_outcome=db_adapter.WriteExecutionOutcome.UNKNOWN,
+                phase=db_adapter.WriteExecutionPhase.COMMIT,
+                error_code="commit_outcome_unknown",
+                original_error=ConnectionError("connection lost"),
+            )
+
+        monkeypatch.setattr(adapter, "execute_write", fail_commit)
+        failed, meta = run_tool(
+            module.execute_mutation_skill(
+                skill_name="update-order-status",
+                params=_params(),
+                ctx=DummyContext(),
+                confirm=True,
+                preview_token=preview["preview_token"],
+            )
+        )
+        assert failed["success"] is False
+        assert failed["execution_outcome"] == "unknown"
+        assert failed["error_code"] == "commit_outcome_unknown"
+        assert "connection lost" not in failed["error"]
+        assert meta["execution_outcome"] == "unknown"
+        assert _order_status(mysql_db, 1) == "pending"
+    finally:
+        _cleanup_modules()
+
+
+def test_custom_style_success_is_not_upgraded_to_committed(tmp_path, monkeypatch):
+    """A custom Skill success remains unknown without whole-Skill evidence."""
+    mysql_db = tmp_path / "mysql.db"
+    analytics_db = tmp_path / "analytics.db"
+    _create_orders_db(mysql_db, "mysql")
+    _create_orders_db(analytics_db, "analytics")
+    module = _reload_server(monkeypatch, mysql_db, analytics_db)
+    try:
+        mutation_class = module.get_skills_cache()[
+            "update-order-status"
+        ]._mutation_class
+        assert mutation_class is not None
+        monkeypatch.setattr(
+            mutation_class,
+            "exact_transaction_outcome",
+            False,
+        )
+
+        preview, _ = run_tool(
+            module.execute_mutation_skill(
+                skill_name="update-order-status",
+                params=_params(),
+                ctx=DummyContext(),
+                confirm=False,
+            )
+        )
+        completed, meta = run_tool(
+            module.execute_mutation_skill(
+                skill_name="update-order-status",
+                params=_params(),
+                ctx=DummyContext(),
+                confirm=True,
+                preview_token=preview["preview_token"],
+            )
+        )
+
+        assert completed["success"] is True
+        assert completed["execution_outcome"] == "unknown"
+        assert meta["execution_outcome"] == "unknown"
+        assert _order_status(mysql_db, 1) == "confirmed"
+
+        audit_entries = [
+            json.loads(line)
+            for line in (tmp_path / "mutation-audit.jsonl")
+            .read_text(encoding="utf-8")
+            .splitlines()
+        ]
+        assert audit_entries[-1]["success"] is True
+        assert audit_entries[-1]["execution_outcome"] == "unknown"
+    finally:
+        _cleanup_modules()
+
+
+def test_server_downgrades_custom_lookalike_commit_evidence(tmp_path, monkeypatch):
+    """A custom run_execute override cannot self-upgrade to committed."""
+    mysql_db = tmp_path / "mysql.db"
+    analytics_db = tmp_path / "analytics.db"
+    _create_orders_db(mysql_db, "mysql")
+    _create_orders_db(analytics_db, "analytics")
+    module = _reload_server(monkeypatch, mysql_db, analytics_db)
+    try:
+        mutation_class = module.get_skills_cache()[
+            "update-order-status"
+        ]._mutation_class
+        assert mutation_class is not None
+
+        class LookalikeResult(dict):
+            execution_outcome = "committed"
+
+        def bypass_base(_self, *_args, **_kwargs):
+            return LookalikeResult(success=True, rowcount=99)
+
+        monkeypatch.setattr(mutation_class, "exact_transaction_outcome", False)
+        monkeypatch.setattr(mutation_class, "run_execute", bypass_base)
+
+        preview, _ = run_tool(
+            module.execute_mutation_skill(
+                skill_name="update-order-status",
+                params=_params(),
+                ctx=DummyContext(),
+                confirm=False,
+            )
+        )
+        completed, meta = run_tool(
+            module.execute_mutation_skill(
+                skill_name="update-order-status",
+                params=_params(),
+                ctx=DummyContext(),
+                confirm=True,
+                preview_token=preview["preview_token"],
+            )
+        )
+
+        assert completed["success"] is True
+        assert completed["execution_outcome"] == "unknown"
+        assert meta["execution_outcome"] == "unknown"
+        assert meta["audit_logged"] is True
+        assert _order_status(mysql_db, 1) == "pending"
+    finally:
+        _cleanup_modules()
+
+
+def test_server_rejects_invalid_result_from_run_execute_override(
     tmp_path,
     monkeypatch,
+):
+    """MCP validates the result even when custom code bypasses MutationBase."""
+    mysql_db = tmp_path / "mysql.db"
+    analytics_db = tmp_path / "analytics.db"
+    _create_orders_db(mysql_db, "mysql")
+    _create_orders_db(analytics_db, "analytics")
+    module = _reload_server(monkeypatch, mysql_db, analytics_db)
+    try:
+        mutation_class = module.get_skills_cache()[
+            "update-order-status"
+        ]._mutation_class
+        assert mutation_class is not None
+
+        def bypass_base(_self, *_args, **_kwargs):
+            return {"success": False, "error": "caught write failure"}
+
+        monkeypatch.setattr(mutation_class, "exact_transaction_outcome", False)
+        monkeypatch.setattr(mutation_class, "run_execute", bypass_base)
+
+        preview, _ = run_tool(
+            module.execute_mutation_skill(
+                skill_name="update-order-status",
+                params=_params(),
+                ctx=DummyContext(),
+                confirm=False,
+            )
+        )
+        rejected, meta = run_tool(
+            module.execute_mutation_skill(
+                skill_name="update-order-status",
+                params=_params(),
+                ctx=DummyContext(),
+                confirm=True,
+                preview_token=preview["preview_token"],
+            )
+        )
+
+        assert rejected["success"] is False
+        assert rejected["execution_outcome"] == "unknown"
+        assert rejected["error_code"] == "invalid_skill_result"
+        assert meta["audit_logged"] is True
+        assert _order_status(mysql_db, 1) == "pending"
+    finally:
+        _cleanup_modules()
+
+
+@pytest.mark.parametrize("failure_kind", ["runtime", "tool", "rowcount"])
+@pytest.mark.parametrize("audit_fails", [False, True])
+def test_custom_run_execute_failure_after_write_is_unknown(
+    tmp_path, monkeypatch, failure_kind, audit_fails,
+):
+    mysql_db = tmp_path / "mysql.db"
+    analytics_db = tmp_path / "analytics.db"
+    _create_orders_db(mysql_db, "mysql")
+    _create_orders_db(analytics_db, "analytics")
+    module = _reload_server(monkeypatch, mysql_db, analytics_db)
+    try:
+        mutation_class = module.get_skills_cache()["update-order-status"]._mutation_class
+        assert mutation_class is not None
+
+        def bypass_base(self, params, **kwargs):
+            self.adapter.execute_write(
+                "UPDATE orders SET status = 'confirmed' WHERE id = :order_id",
+                {"order_id": params["order_id"]},
+            )
+            if failure_kind == "rowcount":
+                return self.adapter.execute_write(
+                    "UPDATE orders SET status = 'cancelled' WHERE id = 999",
+                    {},
+                    expected_rowcount=1,
+                )
+            error_type = module.ToolError if failure_kind == "tool" else RuntimeError
+            raise error_type("private-failure-sentinel")
+
+        monkeypatch.setattr(mutation_class, "exact_transaction_outcome", False)
+        monkeypatch.setattr(mutation_class, "run_execute", bypass_base)
+        original_log = module._audit_logger.log
+        execute_audits = []
+
+        def record_audit(**kwargs):
+            if kwargs["mode"] == "execute":
+                execute_audits.append(kwargs)
+                if audit_fails:
+                    raise OSError("audit failure")
+            return original_log(**kwargs)
+
+        monkeypatch.setattr(module._audit_logger, "log", record_audit)
+        preview, _ = run_tool(module.execute_mutation_skill(
+            skill_name="update-order-status", params=_params(), ctx=DummyContext(),
+        ))
+        failed, metadata = run_tool(module.execute_mutation_skill(
+            skill_name="update-order-status", params=_params(), ctx=DummyContext(),
+            confirm=True, preview_token=preview["preview_token"],
+        ))
+        assert failed["success"] is False
+        assert failed["execution_outcome"] == "unknown"
+        assert failed["error_code"] == "execution_outcome_unknown"
+        assert "private-failure-sentinel" not in json.dumps(failed)
+        assert metadata["audit_logged"] is (not audit_fails)
+        assert _order_status(mysql_db, 1) == "confirmed"
+        assert len(execute_audits) == 1
+        assert execute_audits[0]["result"]["execution_outcome"] == "unknown"
+        with pytest.raises(module.ToolError, match="already been used"):
+            run_tool(module.execute_mutation_skill(
+                skill_name="update-order-status", params=_params(), ctx=DummyContext(),
+                confirm=True, preview_token=preview["preview_token"],
+            ))
+        assert len(execute_audits) == 1
+    finally:
+        _cleanup_modules()
+
+
+@pytest.mark.parametrize("failure_kind", ["audit", "result", "rowcount"])
+@pytest.mark.parametrize("exact_outcome", [False, True])
+def test_custom_success_cleanup_keeps_outcome_and_serializable_response(
+    tmp_path, monkeypatch, failure_kind, exact_outcome,
+):
+    mysql_db = tmp_path / "mysql.db"
+    analytics_db = tmp_path / "analytics.db"
+    _create_orders_db(mysql_db, "mysql")
+    _create_orders_db(analytics_db, "analytics")
+    module = _reload_server(monkeypatch, mysql_db, analytics_db)
+    try:
+        mutation_class = module.get_skills_cache()["update-order-status"]._mutation_class
+        assert mutation_class is not None
+
+        def bypass_base(self, params, **kwargs):
+            result = self.adapter.execute_write(
+                "UPDATE orders SET status = 'confirmed' WHERE id = :order_id",
+                {"order_id": params["order_id"]},
+                expected_rowcount=1,
+            )
+            if failure_kind == "result":
+                result["extra"] = object()
+            elif failure_kind == "rowcount":
+                result["rowcount"] = object()
+            return result
+
+        monkeypatch.setattr(mutation_class, "exact_transaction_outcome", exact_outcome)
+        monkeypatch.setattr(mutation_class, "run_execute", bypass_base)
+        original_log = module._audit_logger.log
+        execute_audits = []
+
+        def record_audit(**kwargs):
+            if kwargs["mode"] == "execute":
+                execute_audits.append(kwargs)
+                if failure_kind == "audit":
+                    raise OSError("audit failure")
+            return original_log(**kwargs)
+
+        monkeypatch.setattr(module._audit_logger, "log", record_audit)
+        preview, _ = run_tool(module.execute_mutation_skill(
+            skill_name="update-order-status", params=_params(), ctx=DummyContext(),
+        ))
+        completed, metadata = run_tool(module.execute_mutation_skill(
+            skill_name="update-order-status", params=_params(), ctx=DummyContext(),
+            confirm=True, preview_token=preview["preview_token"],
+        ))
+        assert completed["success"] is (failure_kind == "audit")
+        assert completed["execution_outcome"] == ("committed" if exact_outcome else "unknown")
+        assert metadata["audit_logged"] is (failure_kind != "audit")
+        if failure_kind != "audit":
+            assert completed["error_code"] == "response_preparation_failed"
+            assert completed["result"] == ({} if failure_kind == "rowcount" else {"rowcount": 1})
+        json.dumps(completed)
+        json.dumps(metadata)
+        assert _order_status(mysql_db, 1) == "confirmed"
+        assert len(execute_audits) == 1
+        assert execute_audits[0]["result"]["success"] is True
+    finally:
+        _cleanup_modules()
+
+
+@pytest.mark.parametrize(
+    ("exact_transaction_outcome", "expected_outcome"),
+    [(True, "committed"), (False, "unknown")],
+)
+def test_response_failure_after_write_preserves_evidence_and_single_audit(
+    tmp_path,
+    monkeypatch,
+    exact_transaction_outcome,
+    expected_outcome,
 ):
     mysql_db = tmp_path / "mysql.db"
     analytics_db = tmp_path / "analytics.db"
@@ -1636,6 +1975,15 @@ def test_response_failure_after_write_keeps_single_success_audit(
     _create_orders_db(analytics_db, "analytics")
 
     module = _reload_server(monkeypatch, mysql_db, analytics_db)
+    mutation_class = module.get_skills_cache()[
+        "update-order-status"
+    ]._mutation_class
+    assert mutation_class is not None
+    monkeypatch.setattr(
+        mutation_class,
+        "exact_transaction_outcome",
+        exact_transaction_outcome,
+    )
 
     class FailAfterWriteContext(DummyContext):
         def __init__(self) -> None:
@@ -1656,22 +2004,19 @@ def test_response_failure_after_write_keeps_single_success_audit(
             )
         )
 
-        with pytest.raises(
-            module.ToolError,
-            match=(
-                "Mutation execution completed, but the tool response failed.*"
-                "verify the current database state"
-            ),
-        ):
-            run_tool(
-                module.execute_mutation_skill(
-                    skill_name="update-order-status",
-                    params=_params(),
-                    ctx=FailAfterWriteContext(),
-                    confirm=True,
-                    preview_token=preview["preview_token"],
-                )
+        failed, failed_meta = run_tool(
+            module.execute_mutation_skill(
+                skill_name="update-order-status",
+                params=_params(),
+                ctx=FailAfterWriteContext(),
+                confirm=True,
+                preview_token=preview["preview_token"],
             )
+        )
+        assert failed["success"] is False
+        assert failed["execution_outcome"] == expected_outcome
+        assert failed["error_code"] == "response_preparation_failed"
+        assert failed_meta["execution_outcome"] == expected_outcome
 
         assert _order_status(mysql_db, 1) == "confirmed"
         with pytest.raises(module.ToolError, match="already been used"):
@@ -1696,6 +2041,97 @@ def test_response_failure_after_write_keeps_single_success_audit(
         ]
         assert len(execute_entries) == 1
         assert execute_entries[0]["success"] is True
+        assert execute_entries[0]["execution_outcome"] == expected_outcome
+    finally:
+        _cleanup_modules()
+
+
+def test_success_audit_exception_does_not_downgrade_commit(tmp_path, monkeypatch):
+    mysql_db = tmp_path / "mysql.db"
+    analytics_db = tmp_path / "analytics.db"
+    _create_orders_db(mysql_db, "mysql")
+    _create_orders_db(analytics_db, "analytics")
+    module = _reload_server(monkeypatch, mysql_db, analytics_db)
+    try:
+        preview, _ = run_tool(
+            module.execute_mutation_skill(
+                skill_name="update-order-status",
+                params=_params(),
+                ctx=DummyContext(),
+                confirm=False,
+            )
+        )
+
+        def fail_audit(**_kwargs):
+            raise RuntimeError("audit sink unavailable")
+
+        monkeypatch.setattr(module._audit_logger, "log", fail_audit)
+        committed, meta = run_tool(
+            module.execute_mutation_skill(
+                skill_name="update-order-status",
+                params=_params(),
+                ctx=DummyContext(),
+                confirm=True,
+                preview_token=preview["preview_token"],
+            )
+        )
+        assert committed["success"] is True
+        assert committed["execution_outcome"] == "committed"
+        assert meta["audit_logged"] is False
+        assert _order_status(mysql_db, 1) == "confirmed"
+    finally:
+        _cleanup_modules()
+
+
+def test_cancellation_after_token_consumption_does_not_restore_token(
+    tmp_path,
+    monkeypatch,
+):
+    mysql_db = tmp_path / "mysql.db"
+    analytics_db = tmp_path / "analytics.db"
+    _create_orders_db(mysql_db, "mysql")
+    _create_orders_db(analytics_db, "analytics")
+    module = _reload_server(monkeypatch, mysql_db, analytics_db)
+    try:
+        preview, _ = run_tool(
+            module.execute_mutation_skill(
+                skill_name="update-order-status",
+                params=_params(),
+                ctx=DummyContext(),
+                confirm=False,
+            )
+        )
+        mutation_class = module.get_skills_cache()[
+            "update-order-status"
+        ]._mutation_class
+        assert mutation_class is not None
+
+        def cancel_run_execute(_self, *_args, **_kwargs):
+            raise asyncio.CancelledError()
+
+        monkeypatch.setattr(mutation_class, "run_execute", cancel_run_execute)
+        with pytest.raises(asyncio.CancelledError):
+            run_tool(
+                module.execute_mutation_skill(
+                    skill_name="update-order-status",
+                    params=_params(),
+                    ctx=DummyContext(),
+                    confirm=True,
+                    preview_token=preview["preview_token"],
+                )
+            )
+
+        with pytest.raises(module.ToolError, match="already been used"):
+            run_tool(
+                module.execute_mutation_skill(
+                    skill_name="update-order-status",
+                    params=_params(),
+                    ctx=DummyContext(),
+                    confirm=True,
+                    preview_token=preview["preview_token"],
+                )
+            )
+        assert _order_status(mysql_db, 1) == "pending"
     finally:
         _cleanup_modules()
 

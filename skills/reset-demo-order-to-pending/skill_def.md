@@ -74,6 +74,9 @@ state created by a preceding mutation and then restore the reusable fixture:
   arbitrary target state.
 - The required `expected_status` both checks the preceding test result and is
   bound into the token and optimistic-lock predicate.
+- The write requires exactly one affected row inside the transaction before
+  COMMIT. Zero or multiple rows roll back; COMMIT acknowledgement failure is
+  reported as `unknown` and is never automatically retried.
 - `orders.id` must be `PRIMARY KEY` or `UNIQUE`. The portable SQL relies on that
   database constraint; its read-side cardinality check is diagnostic defense,
   not a substitute for schema-enforced uniqueness.

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from argparse import Namespace
 from datetime import datetime, timedelta, timezone
 import importlib
 import io
@@ -11,7 +12,6 @@ from pathlib import Path
 import sqlite3
 import sys
 import threading
-from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -39,6 +39,7 @@ def _preview(**overrides: Any) -> dict[str, Any]:
         "mode": "preview",
         "connection_id": "orders_primary",
         "db_type": "sqlite",
+        "execution_outcome": "not_executed",
         "preview": {"order_id": 1, "current_status": "pending"},
         "preview_token": TOKEN,
         "preview_token_expires_at": (NOW + timedelta(minutes=5)).isoformat(),
@@ -55,6 +56,7 @@ def _execute(**overrides: Any) -> dict[str, Any]:
         "mode": "execute",
         "connection_id": "orders_primary",
         "db_type": "sqlite",
+        "execution_outcome": "committed",
         "result": {"rowcount": 1},
     }
     payload.update(overrides)
@@ -154,6 +156,7 @@ def test_non_approval_never_calls_execute(decision: ApprovalDecision) -> None:
         _preview(preview_token=""),
         _preview(preview_token_expires_at="not-a-date"),
         _preview(idempotent="false"),
+        _preview(execution_outcome="committed"),
     ],
 )
 def test_malformed_or_failed_preview_fails_closed(preview_payload) -> None:
@@ -274,11 +277,12 @@ def test_non_json_params_are_rejected_before_preview() -> None:
 
 
 def test_non_string_json_keys_are_rejected_before_preview() -> None:
+    invalid_params: Any = {1: "not-json-object-key"}
     with pytest.raises(ValueError, match="non-string JSON key"):
         _run(
             FakeClient([]),
             FakeApprover(ApprovalDecision.APPROVE),
-            MutationRequest("update-order-status", {1: "not-json-object-key"}),
+            MutationRequest("update-order-status", invalid_params),
         )
 
 
@@ -297,13 +301,14 @@ def test_execute_non_success_is_returned_without_token() -> None:
             _preview(),
             _execute(
                 success=False,
+                error_code="response_preparation_failed",
                 error=f"write rejected; echoed secret: {TOKEN}",
                 preview_token=TOKEN,
             ),
         ]
     )
     outcome = _run(client, FakeApprover(ApprovalDecision.APPROVE))
-    assert outcome.status == "execute_failed"
+    assert outcome.status == "execute_committed"
     assert outcome.payload is not None
     assert "preview_token" not in outcome.payload
     assert TOKEN not in repr(outcome)
@@ -311,12 +316,20 @@ def test_execute_non_success_is_returned_without_token() -> None:
 
 def test_execute_result_redacts_token_from_abnormal_mapping_key() -> None:
     client = FakeClient(
-        [_preview(), _execute(success=False, **{f"echo-{TOKEN}": "bad"})]
+        [
+            _preview(),
+            _execute(
+                success=False,
+                error_code="response_preparation_failed",
+                error="response failed",
+                **{f"echo-{TOKEN}": "bad"},
+            ),
+        ]
     )
 
     outcome = _run(client, FakeApprover(ApprovalDecision.APPROVE))
 
-    assert outcome.status == "execute_failed"
+    assert outcome.status == "execute_committed"
     assert TOKEN not in repr(outcome)
 
 
@@ -332,7 +345,87 @@ def test_execute_result_redacts_token_from_abnormal_mapping_key() -> None:
 def test_execute_identity_mismatch_fails_closed(override) -> None:
     client = FakeClient([_preview(), _execute(**override)])
     outcome = _run(client, FakeApprover(ApprovalDecision.APPROVE))
-    assert outcome.status == "execute_failed"
+    assert outcome.status == "execute_unknown"
+    assert len(client.calls) == 2
+
+
+@pytest.mark.parametrize(
+    ("execution_outcome", "expected_status"),
+    [
+        ("not_executed", "execute_not_executed"),
+        ("rolled_back", "execute_rolled_back"),
+        ("unknown", "execute_unknown"),
+    ],
+)
+def test_host_interprets_non_committed_outcomes_without_retry(
+    execution_outcome: str,
+    expected_status: str,
+) -> None:
+    response = _execute(
+        success=False,
+        execution_outcome=execution_outcome,
+        error_code="simulated_failure",
+        error="sanitized failure",
+    )
+    client = FakeClient([_preview(), response])
+    outcome = _run(client, FakeApprover(ApprovalDecision.APPROVE))
+    assert outcome.status == expected_status
+    assert len(client.calls) == 2
+
+
+def test_successful_custom_skill_without_commit_evidence_is_terminal_unknown() -> None:
+    response = _execute(success=True, execution_outcome="unknown")
+    client = FakeClient([_preview(), response])
+
+    outcome = _run(client, FakeApprover(ApprovalDecision.APPROVE))
+
+    assert outcome.status == "execute_unknown"
+    assert "without whole-operation COMMIT evidence" in outcome.message
+    assert len(client.calls) == 2
+
+
+def test_strict_legacy_success_is_accepted_but_legacy_failure_is_unknown() -> None:
+    old_success = _execute()
+    old_success.pop("execution_outcome")
+    success_client = FakeClient([_preview(), old_success])
+    assert _run(
+        success_client,
+        FakeApprover(ApprovalDecision.APPROVE),
+    ).status == "executed"
+
+    old_failure = _execute(success=False, error="legacy failure")
+    old_failure.pop("execution_outcome")
+    failure_client = FakeClient([_preview(), old_failure])
+    assert _run(
+        failure_client,
+        FakeApprover(ApprovalDecision.APPROVE),
+    ).status == "execute_unknown"
+    assert len(failure_client.calls) == 2
+
+
+@pytest.mark.parametrize(
+    "response",
+    [
+        _execute(execution_outcome="future_value"),
+        _execute(execution_outcome=None),
+        _execute(execution_outcome=[]),
+        _execute(execution_outcome={}),
+        _execute(execution_outcome=True),
+        _execute(execution_outcome=1),
+        _execute(success="true"),
+        _execute(success=True, execution_outcome="rolled_back"),
+        _execute(
+            success=False,
+            execution_outcome="unknown",
+            error_code="",
+            error="bad",
+        ),
+    ],
+)
+def test_malformed_execute_responses_are_unknown_and_terminal(response) -> None:
+    client = FakeClient([_preview(), response])
+    outcome = _run(client, FakeApprover(ApprovalDecision.APPROVE))
+    assert outcome.status == "execute_unknown"
     assert len(client.calls) == 2
 
 
@@ -429,7 +522,7 @@ def test_stdio_transport_inherits_complete_operator_environment(
 
 
 def test_cli_rejects_invalid_timeout_before_reading_params() -> None:
-    args = SimpleNamespace(
+    args = Namespace(
         approval_timeout=0.0,
         tool_timeout=15.0,
         params_file=Path("/definitely/missing/params.json"),

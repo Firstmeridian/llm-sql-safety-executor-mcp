@@ -6,7 +6,7 @@ Each line is a self-contained JSON object with:
 - who: Agent identity (ctx.client_id or AGENT_ID env var)
 - what: skill_name + params + mode (query/preview/execute)
 - when: ISO 8601 timestamp
-- result: success/failure + rowcount
+- result: success/failure + rowcount + transaction outcome/error code when known
 
 Concurrency Safety:
 - A process-local threading.Lock prevents concurrent calls in this process from
@@ -109,6 +109,10 @@ class AuditLogger:
             entry["total_rows"] = result.get("total_rows")
         if "truncated" in result:
             entry["truncated"] = result.get("truncated")
+        if "execution_outcome" in result:
+            entry["execution_outcome"] = result.get("execution_outcome")
+        if "error_code" in result:
+            entry["error_code"] = result.get("error_code")
 
         try:
             line = json.dumps(entry, ensure_ascii=False, default=str) + "\n"

@@ -1,7 +1,8 @@
 """Portable demo mutation that resets an expected order state to pending."""
 
 from fastmcp.exceptions import ToolError
-from mutation_base import MutationBase  # type: ignore[import-not-found]
+from mutation_base import MutationBase, MutationWriteError  # type: ignore[import-not-found]
+from db_adapter import ExpectedRowcountMismatchError, WriteExecutionError
 
 
 RESETTABLE_STATUSES = frozenset(
@@ -11,6 +12,8 @@ RESETTABLE_STATUSES = frozenset(
 
 class Mutation(MutationBase):
     """Reset a demo order to pending with preview-state optimistic locking."""
+
+    exact_transaction_outcome = True
 
     def _read_status(self, order_id: int) -> tuple[str | None, str | None]:
         result = self.adapter.execute(
@@ -133,25 +136,31 @@ class Mutation(MutationBase):
             )
 
         order_id = params["order_id"]
-        write_result = self.adapter.execute_write(
-            "UPDATE orders SET status = 'pending' "
-            "WHERE id = :order_id AND status = :expected_status",
-            params={
-                "order_id": order_id,
-                "expected_status": expected_status,
-            },
-        )
-        if write_result["rowcount"] == 0:
-            raise ToolError(
-                f"Optimistic lock failed: order {order_id} is no longer "
-                f"in expected status '{expected_status}'"
+        try:
+            write_result = self.adapter.execute_write(
+                "UPDATE orders SET status = 'pending' "
+                "WHERE id = :order_id AND status = :expected_status",
+                params={
+                    "order_id": order_id,
+                    "expected_status": expected_status,
+                },
+                expected_rowcount=1,
             )
-        return {
-            "success": True,
-            "rowcount": write_result["rowcount"],
-            "previous_status": expected_status,
-            "new_status": "pending",
-        }
+        except ExpectedRowcountMismatchError as error:
+            raise MutationWriteError(
+                error,
+                f"Optimistic lock failed: order {order_id} is no longer "
+                f"in expected status '{expected_status}'",
+            ) from error
+        except WriteExecutionError as error:
+            raise MutationWriteError(error) from error
+        # Preserve WriteExecutionResult's internal COMMIT evidence while
+        # keeping the public mapping shape unchanged.
+        write_result.update(
+            previous_status=expected_status,
+            new_status="pending",
+        )
+        return write_result
 
     def execute(self, params: dict) -> dict:
         raise ToolError(

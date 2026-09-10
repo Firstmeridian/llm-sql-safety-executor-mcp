@@ -1,6 +1,6 @@
 # LLM Database Safety Gateway - MCP Service
 
-![Version](https://img.shields.io/badge/version-3.7.1-blue)
+![Version](https://img.shields.io/badge/version-3.7.2-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Python](https://img.shields.io/badge/python-3.12+-blue?logo=python)
 ![MCP](https://img.shields.io/badge/MCP-Protocol-orange)
@@ -103,6 +103,12 @@ conservative gate, not comprehensive SQL semantic analysis for arbitrary dialect
 - Pre-defined parameterized operations: Encapsulate complex queries and sensitive writes as reusable skills — Agents only need to pass parameters, no need to write SQL
 - Server-side enforcement: SQL safety checks at startup + strong parameter type validation (type/min/max/enum) + best-effort audit state for write operations
 - Two-phase write protocol: Mutation skills require preview (`confirm=false`) → execute with the returned `preview_token` (`confirm=true`) to bind the reviewed request/state and reject replay or preview/execute drift. Human approval exists only when a trusted client presents the preview and collects it; see the v3.7 host example.
+- Transaction outcomes (v3.7.2): built-in single-statement mutations enforce
+  `expected_rowcount=1` before COMMIT. Structured results separate tool
+  `success` from `execution_outcome` (`not_executed`, `rolled_back`,
+  `committed`, or `unknown`); hosts must never retry an uncertain execute.
+  Only preserved adapter COMMIT evidence can produce `committed`. An ordinary
+  custom-Skill success is conservatively `success=true, unknown`.
 - Progressive disclosure: Agents can search a lightweight catalog with
   `list_skills()`, request `get_skill_detail(detail_level="execution")` only
   when a known Skill's params are still unknown, and execute directly when the
@@ -149,7 +155,7 @@ Skills Scenario: unknown Skill → list_skills(search=..., detail_level="compact
 - **Skills Strong Parameter Validation**: type/min/max/enum constraints + rejection of parameters outside schema (prevents injection/hallucination)
 - **Skills Dual-Layer Switches**: `ENABLE_SKILLS` + `SKILLS_ALLOW_MUTATIONS` for least-privilege control
 - **Closed-World Tool Hints**: MCP tools set `openWorldHint=false` because they interact with the configured database/server boundary, not arbitrary external entities. These hints improve client UX but are advisory, not security controls. **Future-tool checklist**: any newly added tool that reaches outside the configured database (external HTTP APIs, webhooks, third-party services, cross-instance DB calls, etc.) MUST set `openWorldHint=true` and be reviewed against this list; `tests/test_annotations_consistency.py` provides a pytest/local-test guardrail through an explicit allowlist. Add a CI workflow before describing this as CI enforcement.
-- **Skills Runtime Metadata**: All registered MCP tools in the full profile (up to 12 as of v3.5) wrap their structured payloads in `ToolResult` and expose runtime `meta` fields (`tool_name`, `db_type`, `connection_id`, `execution_ms`, `success`, plus tool-specific counters such as `row_count`, `total_rows`, `truncated`, `skill_version`, etc.). Metadata intentionally excludes raw SQL, returned rows, parameter values, DSNs, credentials, hosts, and SQLite file paths.
+- **Skills Runtime Metadata**: All registered MCP tools in the full profile (up to 12 as of v3.5) wrap their structured payloads in `ToolResult` and expose runtime `meta` fields (`tool_name`, `db_type`, `connection_id`, `execution_ms`, `success`, plus tool-specific counters such as `row_count`, `total_rows`, `truncated`, `skill_version`, etc.). Mutation results also mirror `execution_outcome` and structured-failure `error_code`. Metadata intentionally excludes raw SQL, returned rows, parameter values, DSNs, credentials, hosts, and SQLite file paths.
   - **Raw SQL visibility policy**: The raw `query(sql)` tool currently echoes the submitted SQL in its structured payload and may log it to the MCP context for transparency and debugging. Do not place secrets, tokens, credentials, or sensitive personal data in SQL literals. Use reviewed Skills, low-sensitivity predicates, or database views for repeatable sensitive workflows.
   - **Scope (v3.5)**: Uniform `ToolResult.meta` across base tools (`list_connections`, `query`, `check_connection`, `list_tables`, `describe_table`, `get_full_schema`, `get_table_summary`, `sample`) **and** Skills tools (`list_skills`, `get_skill_detail`, `execute_query_skill`, `execute_mutation_skill`). Base tools use the shared `_tool_result(...)` helper; Skills tools use `_skill_tool_result(...)`. Direct Python callers can read `result.structured_content` for the payload and `result.meta` for metadata uniformly.
   - **Client visibility**: Per MCP spec, the `_meta` field is OPTIONAL and clients MAY ignore it. Real-world behavior varies: server-side middleware, MCP Inspector, and clients that explicitly surface `_meta` will see runtime metadata; VS Code's MCP UI (as of testing) does not display it. Treat `ToolResult.meta` primarily as a server-side observability hook and an opt-in client signal, not as a guaranteed user-visible diagnostic.
@@ -414,7 +420,7 @@ If the standard Agent Skills model were adopted, it would mean letting the Agent
 | **Strong Parameter Validation** | `validate_params()` enforces type/min/max/enum | Agent understands parameters from natural language, no hard constraints |
 | **Anti-Parameter Injection** | Rejects parameters outside schema (`unexpected` check) | Agent decides what parameters to pass |
 | **TOCTOU Protection** | Loaded into memory at startup, zero disk I/O at runtime | Agent reads files via bash each time, files may have been tampered with |
-| **Mutation Transaction Safety** | `MutationBase` enforces BEGIN→UPDATE→verify→COMMIT/ROLLBACK | Agent writes transaction code itself, may miss rollback |
+| **Mutation Transaction Safety** | Adapter enforces BEGIN→UPDATE→pre-COMMIT rowcount check→COMMIT/ROLLBACK and reports uncertainty | Agent writes transaction code itself, may miss rollback or misclassify COMMIT failure |
 | **Audit Logging** | Mutation preview/execute paths attempt best-effort writes to `_audit.jsonl`; normal results report `audit_logged` | Depends on Agent voluntarily calling logging (unreliable) |
 | **Confirmation Mechanism** | Server enforces preview → one-time bound token → execute; optional v3.7 host collects exact `APPROVE`, without proving human identity to the server | Agent decides whether to confirm, with no hard server-side preview/replay boundary |
 
@@ -813,7 +819,7 @@ its value.
 - Do not place multiple mutation-enabled workers behind ordinary load balancing.
   Read-only capacity may scale only through a separate read-only endpoint,
   profile, or pool. Cross-worker or cross-replica mutation execution is not
-  supported in v3.6.1 through v3.7.1.
+  supported in v3.6.1 through v3.7.2.
 - There is no stateless token fallback and no SQLite, SQL-table, or external
   shared token backend.
 
@@ -835,7 +841,7 @@ and payload-level protocol/debug logging may still expose tokens. Multi-user
 authenticated HTTP approval and compliance-grade approver audit remain outside
 the current design. Custom approval providers must cooperate with async cancellation; a
 hostile provider requires process isolation for hard termination. See
-[Release Notes v3.7/v3.7.1](RELEASE_NOTES/RELEASE_NOTES_v3_7.md).
+[Release Notes v3.7/v3.7.2](RELEASE_NOTES/RELEASE_NOTES_v3_7.md).
 This trusted local example forwards the complete process environment so it does
 not silently switch to another `.env`; consequently, every exported secret and
 Python control variable enters the child/Skill trust boundary. A productized
@@ -846,7 +852,7 @@ host should maintain a project-specific environment allowlist.
 - Skill audit params are truncated for log size, not key/value redacted. Treat skill parameters as business audit data and do not pass secrets, tokens, credentials, or sensitive personal data as skill params.
 - Mutation audit is attempted automatically when mutation skills are enabled, but audit write failures do not block the operation. Query skill audit remains opt-in (`SKILLS_AUDIT_QUERIES=0` by default) to avoid surprising read-query parameter logs. v3.5 audit entries may include a safe `connection_id` alias and actual `db_type`; they still do not contain DSNs, hosts, passwords, SQLite file paths, SQL text, or returned rows.
 - Pre-token parameter/validation rejection and audit write failures can return a normal tool result with `audit_logged=false`. Once execute has consumed a valid token, later dynamic validation rejection attempts a best-effort execute audit. The JSONL file remains a visibility aid, not a fail-closed transaction control.
-- If a write commits but context notification or response construction later fails, the existing success audit is retained without a contradictory failure record. The client must verify current database state before another mutation; the token remains consumed.
+- If a write commits but context notification or response construction later fails, the existing success audit is retained without a contradictory failure record. When a fallback response is deliverable it says `success=false, execution_outcome=committed`; complete response loss remains unknown to the client. Either case is terminal and the token remains consumed.
 - The process-local preview-token store supports the recommended stdio path and, conditionally, one trusted private HTTP mutation process. Multi-user authenticated HTTP mutation, cross-worker execution, and cross-replica execution are outside the current design; the server never falls back to stateless token acceptance.
 - `SKILLS_AUDIT_LOG`, `TOOL_TELEMETRY_LOG_PATH`, and `logs/sql_safety_checker_*.log` are local files. In production, place them on trusted storage with restricted permissions and external rotation/retention, such as `logrotate`, platform logging, cron cleanup, or a managed log sink. A typical starting point is daily or size-based rotation, compression, and 14-90 days retention depending on compliance needs.
 
@@ -914,6 +920,27 @@ Additional server-side protections are enabled by default: FastMCP masks unexpec
 For a complete client configuration example, please refer to `mcp_config.json`.
 
 ## Changelog
+
+### v3.7.2 Transaction Outcomes and No-Retry Host (September 2026)
+
+- Added keyword-only `expected_rowcount` to MySQL/SQLite `execute_write()` and
+  moved both built-in mutation Skills' exact-one check before COMMIT, so zero or
+  multi-row updates are rolled back.
+- Added structured `execution_outcome` and stable failure `error_code` fields;
+  `success` now describes tool handling independently from database state.
+- Treats any COMMIT exception as `unknown`; later rollback/cleanup cannot prove
+  that COMMIT failed. A confirmed COMMIT stays `committed` through audit or
+  response errors.
+- Tightened the approval host to validate response identity first and never
+  retry, re-preview, or switch targets after its single execute call.
+- Removed an unconditional success-path `committed` claim: the built-ins now
+  preserve typed adapter evidence, custom success without whole-operation proof
+  remains `unknown`, and malformed/self-reported-failure Skill results become
+  structured unknown failures. COMMIT-stage `asyncio.CancelledError` is also
+  converted to typed `commit_outcome_unknown` when a response remains possible.
+- Full contract, compatibility impact, accepted boundaries, tests, and reviewed
+  primary references are in the
+  [v3.7.2 release notes](RELEASE_NOTES/RELEASE_NOTES_v3_7.md#v372--write-transactions-and-uncertain-results).
 
 ### v3.7.1 Opaque Preview Handles and Agent Workflow Efficiency (August 2026)
 
@@ -1569,7 +1596,17 @@ Input:
 
 `confirm=false` (default) returns a preview and `preview_token`. `confirm=true`
 executes the mutation only when the same call includes the matching
-`preview_token`.
+`preview_token`. Every returned payload includes `execution_outcome`; returned
+failures also include stable `error_code` and sanitized `error`. Static
+parameter/permission/Skill/token rejection still raises `ToolError`. Clients
+must inspect both `success` and `execution_outcome`: a committed response-stage
+failure can be `success=false, execution_outcome=committed`, while an exception
+or missing response remains unknown to the client. `committed` is emitted only
+from preserved successful adapter COMMIT evidence for the two exact built-ins;
+an ordinary custom-Skill success is `success=true, execution_outcome=unknown`
+and is terminal in the reference host. A custom result with missing/false/
+malformed `success` becomes a structured unknown failure rather than being
+upgraded by the server.
 
 ### Skills Extension Details (v3.0)
 
@@ -1750,8 +1787,8 @@ nor that short identifier.
 - **One-time consumption**: a token can authorize at most one execute attempt; uncertain outcomes are not automatically retried
 - **Preview-state binding**: state-sensitive Skills can implement `build_execution_binding()` / `execute_with_binding()` so execution honors the state the server displayed; human review exists only when a client presents it
 - **Failed-preview handling**: a preview result containing `error` or reporting `success=false` receives no token
-- **Optimistic locking**: Uses `WHERE status = :expected_status` at execution time; if the status was modified between preview and execute, the update fails (rowcount=0)
-- **Transaction protection**: Write operations run inside a database transaction; automatic rollback on failure
+- **Optimistic locking**: Uses `WHERE status = :expected_status` at execution time and `expected_rowcount=1` before COMMIT; zero or multiple rows roll back
+- **Transaction outcome**: pre-COMMIT failures report `rolled_back` only when rollback is confirmed; COMMIT acknowledgement failure reports `unknown`; MySQL guarantees are limited to transactional InnoDB DML
 - **Audit logging**: Mutation preview/execute paths attempt best-effort JSONL audit logging; audit write failures do not roll back data changes
 
 #### Example 3: `reset-demo-order-to-pending` (Portable Demo Reset)
@@ -2022,12 +2059,12 @@ This script:
 - [Skills Security Policy](skills/SAFETY.md): security governance for skill authors
 - [Release Notes v3.5](RELEASE_NOTES/RELEASE_NOTES_v3_5.md): named multi-connection release summary, compatibility notes, limits, and validation evidence
 - [Release Notes v3.6/v3.6.1](RELEASE_NOTES/RELEASE_NOTES_v3_6.md): mutation preview tokens, named-write policy, execution binding fixes, and the formalized same-process deployment boundary
-- [Release Notes v3.7/v3.7.1](RELEASE_NOTES/RELEASE_NOTES_v3_7.md): v3.7 capabilities plus opaque preview handles and Agent workflow efficiency
+- [Release Notes v3.7/v3.7.2](RELEASE_NOTES/RELEASE_NOTES_v3_7.md): v3.7 capabilities plus opaque preview handles, transaction outcomes, and no-retry host behavior
 - [v3.5-v3.7 Skills Guide (Chinese)](RELEASE_NOTES/GUIDE/V3_5-V3_7_SKILLS_GUIDE_ZH.md): connection routing, write policy, preview tokens, Skill scope, and approval boundaries
 - [Design Risk Register](DESIGN_RISK_REGISTER.md): Long-term design, security, and operations risk register
 - [Feasibility Analysis](LLM_TO_MCP_FEASIBILITY_ANALYSIS.md): Detailed analysis of LLM to MCP conversion
 - [Original Context](GEMINI.md): Project background and development guide
-- [Refactoring Log](REFACTORING_LOG.md): Refactoring change documentation (v2.0 — v3.7.1)
+- [Refactoring Log](REFACTORING_LOG.md): Refactoring change documentation (v2.0 — v3.7.2)
 - [MCP Client Test Guide](TEST_MCP_CLIENT_GUIDE.md): Guide for testing MCP Server via client
 - [MCP Agent Behavior Validation Method (Chinese)](RELEASE_NOTES/GUIDE/MCP_AGENT_BEHAVIOR_VALIDATION_ZH.md): Method for validating natural tool selection, redundant calls, connection routing, and progressive disclosure
 - [MCP Tool Contract and Evaluation Guide](PROMPT_ENGINEERING_BEST_PRACTICES.md): Project guidance for tool schemas, descriptions, instructions, safety boundaries, and evaluation

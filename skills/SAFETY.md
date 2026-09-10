@@ -75,6 +75,51 @@ indefinitely.
 
 ## 6. Idempotency
 
+Before considering idempotency, callers must interpret the v3.7.2 mutation
+result contract. `success` is tool-handling status; `execution_outcome` is one
+of `not_executed`, `rolled_back`, `committed`, or `unknown`. A COMMIT exception
+is `unknown` even if a subsequent rollback cleanup returns normally. No outcome
+authorizes automatic retry in the reference host: `committed` must not repeat,
+and every other execute result terminates the current flow for operator/business
+state review.
+
+The two built-in single-statement mutations call
+`execute_write(..., expected_rowcount=1)`. The adapter executes the statement,
+checks its exact row count, and only then commits. Zero rows means preview-state
+conflict; multiple rows mean unsafe target cardinality; both are rolled back
+when rollback succeeds. Omitting `expected_rowcount` deliberately preserves the
+old legal batch-write behavior for custom Skills.
+
+Custom Skills retain the existing dict result/call interface, but both their
+success and failure are `unknown` unless there is complete whole-Skill evidence.
+An ordinary custom return therefore becomes `success=true,
+execution_outcome=unknown`; it is not upgraded merely because Python returned
+normally or one `execute_write()` call committed. A false, missing, or malformed
+Skill `success` result becomes structured `invalid_skill_result, unknown`.
+
+The two built-ins opt into the exact single-statement contract and must preserve
+the adapter's typed successful `WriteExecutionResult`; declaration without that
+evidence fails as `missing_commit_evidence, unknown`. The MCP boundary repeats
+these checks in case custom code overrides `run_execute()`, forces non-exact
+lookalike evidence back to unknown, and attempts the audit itself if the base
+audit marker is absent. A rollback reported for one adapter statement must not
+be used to claim that earlier statements,
+nontransactional tables, implicit commits, files, subprocesses, network calls,
+or other external side effects were rolled back. v3.7.2 does not introduce a
+multi-statement transaction framework. Because Mutation Python is trusted
+in-process code, this evidence prevents accidental overclaim but cannot stop a
+malicious Skill from forging objects or performing hidden side effects.
+
+MySQL rollback claims apply only to transactional InnoDB DML. MySQL
+nontransactional tables and implicit-commit statements are outside that claim.
+SQLite's progress handler, MySQL's InnoDB lock-wait guard, transactions, and
+connections are cleaned on exception/cancellation paths; SQL is never retried.
+`asyncio.CancelledError` raised during COMMIT is converted to typed
+`commit_outcome_unknown` when the call can still return. Pre-COMMIT cancellation
+and unrelated process-control exceptions propagate after cleanup so server
+shutdown/timeout cancellation is not silently suppressed. Transport cancellation
+can still prevent delivery; a client with no response must report unknown.
+
 Mutation authors should prefer idempotent write patterns:
 - `INSERT OR IGNORE` / `ON DUPLICATE KEY UPDATE`
 - Optimistic locking (`WHERE status = :expected`)
@@ -135,7 +180,7 @@ handle.
 The database transaction cannot make Store consumption, database commit, audit,
 and MCP response delivery one atomic event. Fully queryable retry semantics
 would require a durable operation/idempotency record committed with the business
-write plus an authenticated status lookup after reconnect; v3.7.1 does not add
+write plus an authenticated status lookup after reconnect; v3.7.2 does not add
 that product-level protocol.
 
 This mechanism proves that the execute request matches a server-issued preview
@@ -215,9 +260,10 @@ transaction control.
 `MutationBase.run_execute()` owns the audit outcome for the database execution.
 If the write commits and later context notification or response construction
 fails, the server preserves the success audit rather than appending a
-contradictory execute failure. The client receives an indeterminate-response
-error and must verify current database state before attempting another mutation;
-the consumed token is never restored.
+contradictory execute failure. If a fallback result can be delivered it says
+`success=false, execution_outcome=committed`; total response loss is still
+unknown to the client. Both are terminal and the consumed token is never
+restored.
 
 The full `preview_token` is never written to audit or tool telemetry. A short
 `preview_token_id` correlation hint is returned in applicable `ToolResult`

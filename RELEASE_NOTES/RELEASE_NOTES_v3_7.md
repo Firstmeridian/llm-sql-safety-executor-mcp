@@ -1,10 +1,207 @@
-# Release Notes v3.7 — Scoped Skills and v3.7.1 Maintenance
+# Release Notes v3.7 — Scoped Skills and v3.7.2 Maintenance
 
 - Release family: v3.7
 - Initial release: v3.7.0 (2026-08-22)
-- Current maintenance update: v3.7.1 (2026-08-28)
-- Last implementation review: 2026-09-03
-- Latest tool-contract validation: 2026-09-03
+- Current maintenance update: v3.7.2 (2026-09-10)
+
+## v3.7.2 — Write Transactions and Uncertain Results
+
+v3.7.2 moves exact affected-row enforcement into `execute_write()` before
+COMMIT and makes the mutation outcome machine-readable. Its rule is: roll back
+errors proved before COMMIT; report `unknown` when a COMMIT acknowledgement is
+lost; never let post-COMMIT cleanup, audit, or response preparation claim that
+the write rolled back. The design follows SQLAlchemy's explicit
+`Connection.begin()`/`Transaction.commit()` boundary and Microsoft's documented
+commit-failure ambiguity: a COMMIT exception can mean either server-side abort
+or successful commit with a lost acknowledgement. A later rollback attempt is
+cleanup, not proof that the earlier COMMIT failed.
+
+### Adapter and built-in Skill changes
+
+- `DatabaseAdapter.execute_write()` and both adapters accept keyword-only
+  `expected_rowcount: int | None = None`. `None` preserves legal batch writes;
+  any specified value must be a non-negative integer, and booleans are rejected
+  before connection acquisition.
+- Statement execution is followed by the row-count check and only then COMMIT.
+  Mismatch raises `ExpectedRowcountMismatchError`; a confirmed rollback carries
+  `rolled_back`, while rollback failure carries `unknown`.
+- Rollback confirmation also requires an active transaction and a valid
+  SQLAlchemy/DBAPI connection before rollback and a valid connection afterward.
+  An invalidated/closed connection or an inactive transaction can make rollback
+  a local no-op; this remains `unknown` with `rollback_failed`, even when the
+  method returns normally. Inspection must not reconnect to a different session.
+- `WriteExecutionResult`, `WriteExecutionError`, `WriteExecutionPhase`, and
+  `WriteExecutionOutcome` preserve phase/outcome evidence internally while the
+  public successful result remains the compatible
+  `{"success": true, "rowcount": N}` mapping.
+- MySQL retains `innodb_lock_wait_timeout`; SQLite retains its progress handler.
+  Every exception/cancellation path attempts transaction, handler, and
+  connection cleanup, and neither adapter retries SQL.
+- `update-order-status` and `reset-demo-order-to-pending` now pass
+  `expected_rowcount=1`; their old post-COMMIT `rowcount == 0` checks were
+  removed. Zero rows therefore roll back a stale-preview update, and more than
+  one row rolls back an unsafe target-cardinality update.
+- Precise whole-Skill success and rollback evidence is intentionally enabled
+  only for these two built-in single-statement Skills. They preserve the
+  adapter's typed `WriteExecutionResult` while keeping its public dict shape;
+  `MutationBase` and the MCP boundary independently require that evidence before
+  they can emit `committed`.
+  Custom Skills keep the existing dict interface, but an ordinary successful
+  return is conservatively `success=true, execution_outcome=unknown`. Neither
+  success nor statement-local rollback evidence is promoted to a whole-Skill
+  transaction claim, because custom code may have issued other writes or
+  external side effects. No general multi-statement framework was added.
+
+### MCP contract
+
+Every structured `execute_mutation_skill()` result now includes
+`execution_outcome`:
+
+| Value | Meaning |
+|---|---|
+| `not_executed` | No business write was attempted. |
+| `rolled_back` | The supported transaction was confirmed rolled back. |
+| `committed` | Database COMMIT was confirmed. |
+| `unknown` | The final business-write state could not be confirmed. |
+
+`success` describes tool handling, not database state. A normal built-in execute
+with adapter COMMIT evidence returns `success=true,
+execution_outcome=committed`; a custom Skill's normal completion without
+whole-operation evidence returns `success=true, execution_outcome=unknown`. A
+recoverable execution failure returns `success=false`, a stable `error_code`,
+and a sanitized `error` instead of raising `ToolError`. Static parameter,
+permission, Skill loading, and preview-token rejection still raise `ToolError`.
+Preview and dynamic-validation results use `not_executed`.
+
+Stable failure codes are `validation_failed`, `preview_failed`,
+`expected_rowcount_mismatch`, `database_execution_failed`, `rollback_failed`,
+`commit_outcome_unknown`, `execution_outcome_unknown`, and
+`response_preparation_failed`; custom/exact-Skill contract violations use
+`invalid_skill_result` and `missing_commit_evidence`. `outputSchema`,
+`ToolResult.meta`, and JSONL audit entries carry the corresponding outcome/code.
+Business failures set metadata
+`success=false`; every structured validation, preview, or transaction failure
+is submitted to the best-effort audit path as a business failure, with
+`audit_logged` reporting whether persistence succeeded. If response preparation
+fails after confirmed COMMIT and a fallback can still be delivered, it returns
+`success=false, execution_outcome=committed`; for a custom success lacking
+COMMIT evidence, the fallback preserves `unknown` rather than upgrading it. The
+already-written success audit is retained and no contradictory “database
+execution failed” audit is added.
+If the transport loses the entire response, the client can only classify the
+result as unknown.
+
+This is a compatibility change: callers must inspect both `success` and
+`execution_outcome`; “the tool did not raise” no longer proves a mutation
+succeeded. The tool annotation remains `idempotentHint=false`.
+
+### Approval host and retry rule
+
+The reference host validates `mode`, `skill_name`, resolved `connection_id`,
+and `db_type` before interpreting an outcome. It maps unknown enums, missing or
+contradictory fields, malformed responses, identity mismatch, exceptions, and
+timeouts to terminal `execute_unknown`. A valid `success=true,
+execution_outcome=unknown` custom-Skill response is also terminal unknown rather
+than a contradictory response. `committed` is terminal even when
+`success=false`; `rolled_back` and `not_executed` are also terminal. The current
+workflow performs at most one execute and never automatically re-previews,
+re-executes, changes server instance, or switches connection after any execute
+result.
+
+For old servers, only a fully identified `success=true`, `mode=execute` response
+with an object `result` is accepted as executed. An old failure without explicit
+transaction evidence is `execute_unknown`. This deliberately retained legacy
+success classification is compatibility behavior, not new COMMIT evidence: an
+old server cannot distinguish a custom handler return from a confirmed commit.
+Upgrade the server before relying on the v3.7.2 outcome guarantee.
+
+### Verification, compromises, and remaining risks
+
+- Review regressions use real SQLAlchemy RootTransaction objects to cover
+  connection invalidation during execution or rollback and already-closed
+  connections. Both adapter control flows are exercised with isolated SQLite
+  engines; these are SQLAlchemy evidence tests, not MySQL network-failure proof.
+- Custom `run_execute()` overrides that raise ordinary exceptions or ToolError
+  now return sanitized `unknown` and attempt one failure audit. A previously
+  committed statement cannot be reclassified from a later statement's rollback.
+  Fallback audit exceptions report `audit_logged=false`; cancellation still
+  propagates. Host array/object/boolean/numeric outcomes remain terminal unknown.
+- If response serialization fails, the fallback discards the original result
+  and includes only an integer rowcount when available. It retains the known
+  outcome and the existing execution audit, without reusing unserializable
+  result values or issuing another write.
+- SQLite tests prove exact match commit, zero/multi-row mismatch rollback using
+  actual persisted data, and unrestricted batch behavior when the invariant is
+  omitted. Fault doubles cover pre-write/setup failure, execution failure,
+  rollback failure, ambiguous COMMIT, post-COMMIT connection cleanup, progress
+  handler cleanup, execution cancellation, COMMIT cancellation on both adapters,
+  audit failure, and response failure. COMMIT cancellation is converted to
+  `commit_outcome_unknown` if server execution can still prepare a result.
+- Host tests cover all four outcomes, strict legacy success, legacy failure,
+  identity mismatch, malformed fields, unknown enum, timeout, and the invariant
+  of no calls after the single execute. Token tests retain atomic one-time
+  consumption, terminal consumption after failure/cancellation, restart
+  invalidation, and same-process limits.
+- Success-evidence regressions cover a custom-style handler that really writes
+  but still receives `unknown`, an exact Skill missing typed COMMIT evidence,
+  malformed/explicit-failure custom returns, an overridden base wrapper with
+  lookalike evidence, response-failure preservation, truthful fallback audit
+  status, metadata/audit propagation, and the host's terminal interpretation of
+  `success=true, unknown`.
+- `test_mysql_stale_conditional_updates_allow_at_most_one_commit` is isolated
+  behind `RUN_MYSQL_INTEGRATION_TESTS=1` and uses independent pooled
+  connections. Default pytest does not contact MySQL; a skipped test is not
+  evidence of MySQL concurrency behavior, and SQLite/mock results do not replace
+  that proof.
+- The initial 2026-09-10 default verification completed with `561 passed, 4 skipped`.
+  The skips are environment/opt-in cases, including the new real-MySQL race;
+  no live MySQL concurrency conclusion is claimed from that run. Protocol tests
+  route Skill audit output to a temporary path, so validation does not append
+  generated records to the repository's example audit file.
+- After the review fixes, the default suite completed with `583 passed, 4 skipped`.
+  Targeted Pyright checking of the seven edited Python paths reported `0 errors`
+  and 35 unresolved third-party-import warnings; `git diff --check` also passed.
+- Targeted Pyright checking of the changed Python paths reported `0 errors` and
+  39 unresolved third-party-import warnings. The virtualenv executes those
+  imports in pytest, but the Pyright resolver in this workspace does not locate
+  them; this is recorded as a tooling/configuration warning rather than claimed
+  as a warning-free static-analysis result.
+- MySQL rollback guarantees are limited to DML on transactional InnoDB tables.
+  Nontransactional tables are not undone, and MySQL documents statements that
+  implicitly commit; external side effects are also outside the transaction.
+- No operation table, receipt, result-query API, Redis dependency, durable state
+  machine, or background worker was added. Those remain the future direction
+  for resolving unknown commits. There is no generic request deduplication, no
+  ABA protection for state cycles, no recovery of unknown operations after
+  restart, and no expansion of multi-replica HTTP mutation support.
+- Conditional UPDATEs and database constraints still protect only the business
+  invariants they explicitly encode. The project cannot force arbitrary
+  third-party Agents to obey “unknown means do not retry”; manual database or
+  business-state inspection is the accepted recovery cost.
+- `asyncio.CancelledError` during COMMIT is handled as typed `unknown`, but
+  pre-COMMIT cancellation still propagates after cleanup so shutdown/timeout
+  cancellation is not silently defeated. `KeyboardInterrupt`, `SystemExit`, and
+  other process-control `BaseException` values also propagate after cleanup.
+  When propagation or transport loss prevents a response, the client necessarily
+  classifies the call as unknown even if the server had stronger local evidence.
+
+Primary references reviewed for this design:
+
+- [SQLAlchemy explicit transaction management](https://docs.sqlalchemy.org/en/20/core/connections.html#using-transactions)
+- [Microsoft: handling transaction commit failures](https://learn.microsoft.com/en-us/ef/ef6/fundamentals/connection-resiliency/commit-failures)
+- [MySQL: statements that cause an implicit commit](https://dev.mysql.com/doc/refman/8.0/en/implicit-commit.html)
+- [MySQL: rollback failure for nontransactional tables](https://dev.mysql.com/doc/refman/8.0/en/nontransactional-tables.html)
+- [MCP tools: structured content and output schemas](https://modelcontextprotocol.io/specification/2025-06-18/server/tools)
+- [FastMCP ToolResult and output schemas](https://gofastmcp.com/servers/tools)
+
+The Microsoft operation-table approach was reviewed but deliberately deferred:
+it is the right family of solution for queryable commit resolution, but would
+add the durable operation protocol explicitly excluded from v3.7.2. SQLAlchemy
+context managers remain good ordinary transaction practice; this path uses
+explicit commit because it must distinguish pre-COMMIT failure from uncertain
+COMMIT acknowledgement.
+- Last implementation review: 2026-09-10
+- Latest default regression validation: 2026-09-10 (`583 passed, 4 skipped`)
 - Latest successful MySQL read-only data-plane validation: 2026-09-03
 - Status: implemented
 

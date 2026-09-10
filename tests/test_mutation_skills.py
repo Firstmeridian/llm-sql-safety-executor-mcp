@@ -467,6 +467,7 @@ class TestRunExecuteAudit:
 
         assert result["success"] is True
         assert result["_audit_logged"] is True
+        assert result.execution_outcome == "unknown"
 
         # Check audit log
         log_content = log_path.read_text(encoding="utf-8").strip()
@@ -474,6 +475,7 @@ class TestRunExecuteAudit:
         assert entry["skill_name"] == "test-success"
         assert entry["mode"] == "execute"
         assert entry["success"] is True
+        assert entry["execution_outcome"] == "unknown"
 
     def test_run_execute_reports_audit_write_failure(self, adapter_with_orders):
         """run_execute() exposes best-effort audit write failure in the result."""
@@ -502,6 +504,75 @@ class TestRunExecuteAudit:
 
         assert result["success"] is True
         assert result["_audit_logged"] is False
+        assert result.execution_outcome == "unknown"
+
+    def test_exact_skill_success_requires_adapter_commit_evidence(
+        self,
+        adapter_with_orders,
+        mock_audit_logger,
+    ):
+        """A declaration alone cannot manufacture a committed outcome."""
+        from mutation_base import MutationBase, MutationExecutionError
+
+        class MissingEvidenceMutation(MutationBase):
+            exact_transaction_outcome = True
+
+            def validate(self, params):
+                return {"valid": True}
+
+            def preview(self, params):
+                return {}
+
+            def execute(self, params):
+                return {"success": True, "rowcount": 1}
+
+        mutation = MissingEvidenceMutation(adapter_with_orders, mock_audit_logger)
+        with pytest.raises(MutationExecutionError) as raised:
+            mutation.run_execute(
+                {"order_id": 1},
+                skill_name="test-missing-commit-evidence",
+            )
+
+        assert raised.value.execution_outcome == "unknown"
+        assert raised.value.error_code == "missing_commit_evidence"
+
+    @pytest.mark.parametrize(
+        "invalid_result",
+        [
+            None,
+            {},
+            {"success": "true"},
+            {"success": False, "error": "caught write failure"},
+        ],
+    )
+    def test_custom_skill_invalid_success_result_is_structured_unknown(
+        self,
+        adapter_with_orders,
+        mock_audit_logger,
+        invalid_result,
+    ):
+        """Malformed or self-reported failures cannot be upgraded to success."""
+        from mutation_base import MutationBase, MutationExecutionError
+
+        class InvalidResultMutation(MutationBase):
+            def validate(self, params):
+                return {"valid": True}
+
+            def preview(self, params):
+                return {}
+
+            def execute(self, params):
+                return invalid_result
+
+        mutation = InvalidResultMutation(adapter_with_orders, mock_audit_logger)
+        with pytest.raises(MutationExecutionError) as raised:
+            mutation.run_execute(
+                {"order_id": 1},
+                skill_name="test-invalid-success-result",
+            )
+
+        assert raised.value.execution_outcome == "unknown"
+        assert raised.value.error_code == "invalid_skill_result"
 
     def test_run_execute_rejects_unhandled_execution_binding(
         self,

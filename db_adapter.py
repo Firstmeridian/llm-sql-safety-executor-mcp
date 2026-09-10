@@ -23,6 +23,7 @@ References:
 - aiosqlite architecture (for future async): https://github.com/omnilib/aiosqlite
 """
 
+import asyncio
 import os
 import re
 import time
@@ -30,6 +31,7 @@ import logging
 import sqlite3
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from enum import Enum
 from typing import Any, cast
 from dotenv import load_dotenv
 from sqlalchemy.engine import Engine
@@ -76,6 +78,146 @@ class MetadataQueryError(RuntimeError):
 
     def __init__(self, operation: str):
         super().__init__(f"Database metadata query failed while {operation}.")
+
+
+class WriteExecutionOutcome(str, Enum):
+    """Database state supported by evidence collected inside execute_write()."""
+
+    NOT_EXECUTED = "not_executed"
+    ROLLED_BACK = "rolled_back"
+    COMMITTED = "committed"
+    UNKNOWN = "unknown"
+
+
+class WriteExecutionPhase(str, Enum):
+    """Last transaction phase reached by a write attempt."""
+
+    SETUP = "setup"
+    EXECUTE = "execute"
+    ROWCOUNT_CHECK = "rowcount_check"
+    COMMIT = "commit"
+
+
+class WriteExecutionResult(dict[str, Any]):
+    """Backward-compatible dict result with typed internal commit evidence."""
+
+    execution_outcome = WriteExecutionOutcome.COMMITTED
+
+    def __init__(self, rowcount: int):
+        super().__init__(success=True, rowcount=rowcount)
+
+
+class WriteExecutionError(RuntimeError):
+    """Typed adapter failure carrying the strongest known transaction outcome."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        execution_outcome: WriteExecutionOutcome,
+        phase: WriteExecutionPhase,
+        error_code: str,
+        original_error: BaseException | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.execution_outcome = execution_outcome
+        self.phase = phase
+        self.error_code = error_code
+        self.original_error = original_error
+
+
+class ExpectedRowcountMismatchError(WriteExecutionError):
+    """Raised before COMMIT when a write affects an unexpected row count."""
+
+    def __init__(
+        self,
+        *,
+        expected_rowcount: int,
+        actual_rowcount: int,
+        execution_outcome: WriteExecutionOutcome,
+        original_error: BaseException | None = None,
+    ) -> None:
+        super().__init__(
+            (
+                "Write affected an unexpected number of rows "
+                f"(expected {expected_rowcount}, actual {actual_rowcount})."
+            ),
+            execution_outcome=execution_outcome,
+            phase=WriteExecutionPhase.ROWCOUNT_CHECK,
+            error_code=(
+                "expected_rowcount_mismatch"
+                if execution_outcome is WriteExecutionOutcome.ROLLED_BACK
+                else "rollback_failed"
+            ),
+            original_error=original_error,
+        )
+        self.expected_rowcount = expected_rowcount
+        self.actual_rowcount = actual_rowcount
+
+
+def _validate_expected_rowcount(expected_rowcount: int | None) -> None:
+    """Validate the row-count invariant before opening a connection."""
+    if expected_rowcount is None:
+        return
+    if isinstance(expected_rowcount, bool) or not isinstance(expected_rowcount, int):
+        raise TypeError("expected_rowcount must be a non-negative integer or None")
+    if expected_rowcount < 0:
+        raise ValueError("expected_rowcount must be a non-negative integer or None")
+
+
+def _write_connection_is_valid(connection: Any) -> bool:
+    """Inspect without reconnecting an invalidated SQLAlchemy connection."""
+    try:
+        return (
+            connection.closed is False
+            and connection.invalidated is False
+            and connection.connection.is_valid is True
+        )
+    except Exception:
+        return False
+
+
+def _rollback_outcome(
+    transaction: Any,
+    *,
+    connection: Any,
+    business_write_attempted: bool,
+) -> tuple[WriteExecutionOutcome, BaseException | None]:
+    """Attempt rollback without treating a post-COMMIT rollback as evidence."""
+    # SQLAlchemy can finish rollback locally when the transaction is inactive
+    # or its DBAPI connection was invalidated. That is not a server acknowledgement.
+    rollback_can_be_confirmed = (
+        getattr(transaction, "is_active", False) is True
+        and _write_connection_is_valid(connection)
+    )
+    try:
+        transaction.rollback()
+    except BaseException as rollback_error:
+        logger.warning(
+            "Write transaction rollback failed: %s",
+            rollback_error.__class__.__name__,
+        )
+        if business_write_attempted:
+            return WriteExecutionOutcome.UNKNOWN, rollback_error
+        return WriteExecutionOutcome.NOT_EXECUTED, rollback_error
+    if business_write_attempted:
+        if rollback_can_be_confirmed and _write_connection_is_valid(connection):
+            return WriteExecutionOutcome.ROLLED_BACK, None
+        return WriteExecutionOutcome.UNKNOWN, None
+    return WriteExecutionOutcome.NOT_EXECUTED, None
+
+
+def _close_write_connection(connection: Any) -> None:
+    """Best-effort connection cleanup that never changes a known DB outcome."""
+    if connection is None:
+        return
+    try:
+        connection.close()
+    except BaseException as close_error:
+        logger.warning(
+            "Write connection cleanup failed after transaction resolution: %s",
+            close_error.__class__.__name__,
+        )
 
 
 @dataclass(frozen=True)
@@ -557,7 +699,14 @@ class DatabaseAdapter(ABC):
         pass
 
     @abstractmethod
-    def execute_write(self, sql: str, params: dict, timeout: int | None = None) -> dict:
+    def execute_write(
+        self,
+        sql: str,
+        params: dict,
+        timeout: int | None = None,
+        *,
+        expected_rowcount: int | None = None,
+    ) -> dict:
         """
         Execute a parameterized write SQL statement within a transaction.
 
@@ -570,13 +719,15 @@ class DatabaseAdapter(ABC):
             sql: SQL with named parameters (e.g., "UPDATE t SET col=:val WHERE id=:id")
             params: Parameter dict for binding
             timeout: Optional timeout override in seconds
+            expected_rowcount: Optional exact affected-row invariant. It is
+                checked after statement execution and before COMMIT.
 
         Returns:
             {"success": True, "rowcount": N} on success
 
         Raises:
-            SQLAlchemyError (or subclass) on failure — not caught here,
-            propagates to caller (MutationBase) for error sanitization.
+            ExpectedRowcountMismatchError: The pre-COMMIT invariant failed.
+            WriteExecutionError: A typed write/rollback/commit failure.
         """
         pass
     
@@ -815,30 +966,51 @@ class MySQLAdapter(DatabaseAdapter):
         except Exception as e:
             return self._handle_error(e, timeout)
 
-    def execute_write(self, sql: str, params: dict, timeout: int | None = None) -> dict:
-        """
-        Execute a parameterized write SQL within a MySQL transaction.
+    def execute_write(
+        self,
+        sql: str,
+        params: dict,
+        timeout: int | None = None,
+        *,
+        expected_rowcount: int | None = None,
+    ) -> dict:
+        """Execute one parameterized write with explicit transaction evidence.
 
-        Configures InnoDB row-lock wait timeout before executing the mutation,
-        then relies on engine.begin() for explicit transaction handling
-        (auto-commit on success, auto-rollback on exception). MySQL
-        MAX_EXECUTION_TIME is SELECT-oriented and is not used as mutation
-        timeout protection here. Exceptions propagate to caller (MutationBase)
-        for error sanitization.
+        The optional row-count invariant is checked before COMMIT. A COMMIT
+        exception is always classified as unknown, even if a subsequent
+        rollback call returns normally, because the server may already have
+        made the transaction durable before the acknowledgement was lost.
         """
+        _validate_expected_rowcount(expected_rowcount)
         if not self._engine:
             if not self.connect():
-                raise RuntimeError("Database engine could not be initialized.")
+                raise WriteExecutionError(
+                    "Database engine could not be initialized.",
+                    execution_outcome=WriteExecutionOutcome.NOT_EXECUTED,
+                    phase=WriteExecutionPhase.SETUP,
+                    error_code="database_execution_failed",
+                )
         engine = self._engine
         if engine is None:
-            raise RuntimeError("Database engine could not be initialized.")
+            raise WriteExecutionError(
+                "Database engine could not be initialized.",
+                execution_outcome=WriteExecutionOutcome.NOT_EXECUTED,
+                phase=WriteExecutionPhase.SETUP,
+                error_code="database_execution_failed",
+            )
 
         timeout = timeout if timeout is not None else self._query_timeout_seconds
 
         from sqlalchemy import text
         from sqlalchemy.exc import SQLAlchemyError
 
-        with engine.begin() as connection:
+        connection = None
+        transaction = None
+        business_write_attempted = False
+        phase = WriteExecutionPhase.SETUP
+        try:
+            connection = engine.connect()
+            transaction = connection.begin()
             lock_wait_timeout = max(1, int(timeout))
             try:
                 connection.execute(
@@ -854,8 +1026,82 @@ class MySQLAdapter(DatabaseAdapter):
                     "MySQL mutation lock-wait timeout could not be configured."
                 ) from exc
 
+            phase = WriteExecutionPhase.EXECUTE
+            business_write_attempted = True
             result = connection.execute(text(sql), params)
-            return {"success": True, "rowcount": result.rowcount}
+            rowcount = result.rowcount
+
+            phase = WriteExecutionPhase.ROWCOUNT_CHECK
+            if expected_rowcount is not None and rowcount != expected_rowcount:
+                raise ExpectedRowcountMismatchError(
+                    expected_rowcount=expected_rowcount,
+                    actual_rowcount=rowcount,
+                    execution_outcome=WriteExecutionOutcome.UNKNOWN,
+                )
+        except BaseException as error:
+            if transaction is None:
+                outcome = WriteExecutionOutcome.NOT_EXECUTED
+                rollback_error = None
+            else:
+                outcome, rollback_error = _rollback_outcome(
+                    transaction,
+                    connection=connection,
+                    business_write_attempted=business_write_attempted,
+                )
+            _close_write_connection(connection)
+            if not isinstance(error, Exception):
+                raise
+            if isinstance(error, ExpectedRowcountMismatchError):
+                raise ExpectedRowcountMismatchError(
+                    expected_rowcount=error.expected_rowcount,
+                    actual_rowcount=error.actual_rowcount,
+                    execution_outcome=outcome,
+                    original_error=rollback_error,
+                ) from error
+            raise WriteExecutionError(
+                "Parameterized write failed before COMMIT.",
+                execution_outcome=outcome,
+                phase=phase,
+                error_code=(
+                    "rollback_failed"
+                    if outcome is WriteExecutionOutcome.UNKNOWN
+                    else "database_execution_failed"
+                ),
+                original_error=rollback_error or error,
+            ) from error
+
+        phase = WriteExecutionPhase.COMMIT
+        active_transaction = transaction
+        assert active_transaction is not None
+        try:
+            active_transaction.commit()
+        except BaseException as error:
+            # Cleanup after a failed COMMIT acknowledgement is not evidence
+            # that the server did not commit.
+            try:
+                active_transaction.rollback()
+            except BaseException as rollback_error:
+                logger.warning(
+                    "Rollback cleanup after uncertain COMMIT failed: %s",
+                    rollback_error.__class__.__name__,
+                )
+            _close_write_connection(connection)
+            # Cancellation during COMMIT has the same acknowledgement
+            # ambiguity as a connection exception. Convert it to typed
+            # `unknown` evidence when execution can still return a result;
+            # preserve other process-control BaseExceptions after cleanup.
+            if not isinstance(error, (Exception, asyncio.CancelledError)):
+                raise
+            raise WriteExecutionError(
+                "Database COMMIT acknowledgement failed.",
+                execution_outcome=WriteExecutionOutcome.UNKNOWN,
+                phase=phase,
+                error_code="commit_outcome_unknown",
+                original_error=error,
+            ) from error
+
+        _close_write_connection(connection)
+        return WriteExecutionResult(rowcount)
 
     def _handle_error(self, e: Exception, timeout: int | None = None) -> str:
         """
@@ -1135,26 +1381,46 @@ class SQLiteAdapter(DatabaseAdapter):
         except Exception as e:
             return self._handle_error(e, timeout)
 
-    def execute_write(self, sql: str, params: dict, timeout: int | None = None) -> dict:
-        """
-        Execute a parameterized write SQL within a SQLite transaction.
-
-        Uses set_progress_handler for timeout, connection.begin() for explicit
-        transaction (auto-commit on success, auto-rollback on exception).
-        Exceptions propagate to caller (MutationBase) for error sanitization.
-        """
+    def execute_write(
+        self,
+        sql: str,
+        params: dict,
+        timeout: int | None = None,
+        *,
+        expected_rowcount: int | None = None,
+    ) -> dict:
+        """Execute one parameterized SQLite write with transaction evidence."""
+        _validate_expected_rowcount(expected_rowcount)
         if not self._engine:
             if not self.connect():
-                raise RuntimeError("Database engine could not be initialized.")
+                raise WriteExecutionError(
+                    "Database engine could not be initialized.",
+                    execution_outcome=WriteExecutionOutcome.NOT_EXECUTED,
+                    phase=WriteExecutionPhase.SETUP,
+                    error_code="database_execution_failed",
+                )
         engine = self._engine
         if engine is None:
-            raise RuntimeError("Database engine could not be initialized.")
+            raise WriteExecutionError(
+                "Database engine could not be initialized.",
+                execution_outcome=WriteExecutionOutcome.NOT_EXECUTED,
+                phase=WriteExecutionPhase.SETUP,
+                error_code="database_execution_failed",
+            )
 
         timeout = timeout if timeout is not None else self._query_timeout_seconds
 
         from sqlalchemy import text
 
-        with engine.begin() as connection:
+        connection = None
+        transaction = None
+        sqlite_conn: sqlite3.Connection | None = None
+        handler_installed = False
+        business_write_attempted = False
+        phase = WriteExecutionPhase.SETUP
+        try:
+            connection = engine.connect()
+            transaction = connection.begin()
             raw_conn = connection.connection.dbapi_connection
             if raw_conn is None:
                 raise RuntimeError("Database engine could not be initialized.")
@@ -1166,12 +1432,96 @@ class SQLiteAdapter(DatabaseAdapter):
                     return 1
                 return 0
 
-            sqlite_conn.set_progress_handler(timeout_handler, self._progress_handler_interval)
+            sqlite_conn.set_progress_handler(
+                timeout_handler,
+                self._progress_handler_interval,
+            )
+            handler_installed = True
+            phase = WriteExecutionPhase.EXECUTE
+            business_write_attempted = True
+            result = connection.execute(text(sql), params)
+            rowcount = result.rowcount
+
+            phase = WriteExecutionPhase.ROWCOUNT_CHECK
+            if expected_rowcount is not None and rowcount != expected_rowcount:
+                raise ExpectedRowcountMismatchError(
+                    expected_rowcount=expected_rowcount,
+                    actual_rowcount=rowcount,
+                    execution_outcome=WriteExecutionOutcome.UNKNOWN,
+                )
+
+            # Handler cleanup is pre-COMMIT: cleanup failure remains safely
+            # rollback-capable rather than being reported after a commit.
+            sqlite_conn.set_progress_handler(None, 0)
+            handler_installed = False
+        except BaseException as error:
+            if handler_installed and sqlite_conn is not None:
+                try:
+                    sqlite_conn.set_progress_handler(None, 0)
+                except BaseException as handler_error:
+                    logger.warning(
+                        "SQLite progress handler cleanup failed: %s",
+                        handler_error.__class__.__name__,
+                    )
+            if transaction is None:
+                outcome = WriteExecutionOutcome.NOT_EXECUTED
+                rollback_error = None
+            else:
+                outcome, rollback_error = _rollback_outcome(
+                    transaction,
+                    connection=connection,
+                    business_write_attempted=business_write_attempted,
+                )
+            _close_write_connection(connection)
+            if not isinstance(error, Exception):
+                raise
+            if isinstance(error, ExpectedRowcountMismatchError):
+                raise ExpectedRowcountMismatchError(
+                    expected_rowcount=error.expected_rowcount,
+                    actual_rowcount=error.actual_rowcount,
+                    execution_outcome=outcome,
+                    original_error=rollback_error,
+                ) from error
+            raise WriteExecutionError(
+                "Parameterized write failed before COMMIT.",
+                execution_outcome=outcome,
+                phase=phase,
+                error_code=(
+                    "rollback_failed"
+                    if outcome is WriteExecutionOutcome.UNKNOWN
+                    else "database_execution_failed"
+                ),
+                original_error=rollback_error or error,
+            ) from error
+
+        phase = WriteExecutionPhase.COMMIT
+        active_transaction = transaction
+        assert active_transaction is not None
+        try:
+            active_transaction.commit()
+        except BaseException as error:
             try:
-                result = connection.execute(text(sql), params)
-                return {"success": True, "rowcount": result.rowcount}
-            finally:
-                sqlite_conn.set_progress_handler(None, 0)
+                active_transaction.rollback()
+            except BaseException as rollback_error:
+                logger.warning(
+                    "Rollback cleanup after uncertain COMMIT failed: %s",
+                    rollback_error.__class__.__name__,
+                )
+            _close_write_connection(connection)
+            # See the MySQL path: COMMIT cancellation is typed as unknown;
+            # unrelated process-control exceptions still propagate.
+            if not isinstance(error, (Exception, asyncio.CancelledError)):
+                raise
+            raise WriteExecutionError(
+                "Database COMMIT acknowledgement failed.",
+                execution_outcome=WriteExecutionOutcome.UNKNOWN,
+                phase=phase,
+                error_code="commit_outcome_unknown",
+                original_error=error,
+            ) from error
+
+        _close_write_connection(connection)
+        return WriteExecutionResult(rowcount)
 
     def _handle_error(self, e: Exception, timeout: int | None = None) -> str:
         """

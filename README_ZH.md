@@ -1,6 +1,6 @@
 # 面向 AI Agent 的数据库安全访问入口 - MCP 服务
 
-![Version](https://img.shields.io/badge/version-3.7.1-blue)
+![Version](https://img.shields.io/badge/version-3.7.2-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Python](https://img.shields.io/badge/python-3.12+-blue?logo=python)
 ![MCP](https://img.shields.io/badge/MCP-Protocol-orange)
@@ -102,6 +102,12 @@ SQL 方言的全面语义分析。
 - 预定义参数化操作：将复杂查询和敏感写入封装为可复用的 skill，Agent 只需传参数，无需自行编写 SQL
 - 服务端强制约束：启动时 SQL 安全校验 + 参数强类型验证（type/min/max/enum）+ 写操作 best-effort 审计状态
 - 两阶段写协议：mutation skill 需经 preview（`confirm=false`）→ 携带返回的 `preview_token` execute（`confirm=true`），用于绑定已预览的请求/状态并拒绝 replay 或 preview/execute 漂移。只有可信客户端真正展示 preview 并收集批准时才构成人工批准；参见 v3.7 host 示例。
+- 事务结论（v3.7.2）：两个内置单语句 mutation 在 COMMIT 前强制
+  `expected_rowcount=1`。结构化结果把工具处理 `success` 与
+  `execution_outcome`（`not_executed`、`rolled_back`、`committed`、
+  `unknown`）分开；宿主不得自动重试结果不确定的 execute。只有保留下来的
+  adapter COMMIT 证据才能产生 `committed`；普通自定义 Skill 成功保守返回
+  `success=true, unknown`。
 - 渐进式发现：Agent 可先用 `list_skills()` 搜索轻量目录；仅在已知 Skill 但
   参数仍未知时调用 `get_skill_detail(detail_level="execution")`；参数已知（包括
   `list_skills(..., detail_level="full")` 已返回）时直接执行。
@@ -143,7 +149,7 @@ Skills 场景：未知 Skill → list_skills(search=..., detail_level="compact",
 - **Skills 参数强类型验证**：type/min/max/enum 约束 + 拒绝 schema 之外的参数（防 injection/hallucination）
 - **Skills 双层开关**：`ENABLE_SKILLS` + `SKILLS_ALLOW_MUTATIONS` 最小权限控制
 - **闭合世界工具提示**：MCP 工具统一设置 `openWorldHint=false`，表示工具只触达已配置的数据库连接/服务边界，不访问任意外部实体。该提示用于改善客户端展示和工具选择，不替代权限控制。**未来新增工具检查清单**：任何新工具如果会越过已配置数据库边界（外部 HTTP API、webhook、第三方服务、未配置 DB 调用等），**必须**显式设置 `openWorldHint=true` 并在 review 时核对此条；`tests/test_annotations_consistency.py` 通过显式 allowlist 提供 pytest/本地测试 guardrail。只有真正加入 CI workflow 后，才应把它描述为 CI enforcement。
-- **Skills 运行元数据**：完整 profile 下注册的所有 MCP 工具（v3.5 起最多 12 个）均使用 `ToolResult` 包装结构化 payload，并通过 `meta` 暴露 `tool_name`、`db_type`、`connection_id`、`execution_ms`、`success` 等通用字段，以及 `row_count`、`total_rows`、`truncated`、`skill_version` 等工具特定计数。元数据有意不包含原始 SQL、返回数据行、参数值、DSN、凭据、host 或 SQLite 文件路径。
+- **Skills 运行元数据**：完整 profile 下注册的所有 MCP 工具（v3.5 起最多 12 个）均使用 `ToolResult` 包装结构化 payload，并通过 `meta` 暴露 `tool_name`、`db_type`、`connection_id`、`execution_ms`、`success` 等通用字段，以及 `row_count`、`total_rows`、`truncated`、`skill_version` 等工具特定计数。Mutation 结果还会镜像 `execution_outcome` 和结构化失败的 `error_code`。元数据有意不包含原始 SQL、返回数据行、参数值、DSN、凭据、host 或 SQLite 文件路径。
   - **原始 SQL 可见性策略**：原始 `query(sql)` 工具当前会在结构化 payload 中回显提交的 SQL，并可能为了透明排障写入 MCP context。不要在 SQL literal 中放 secret、token、凭据或敏感个人数据。重复且敏感的工作流优先使用经过 review 的 Skills、低敏谓词或数据库 view。
   - **作用范围（v3.5）**：`ToolResult.meta` 在基础工具（`query`、`check_connection`、`list_connections`、`list_tables`、`describe_table`、`get_full_schema`、`get_table_summary`、`sample`、`list_skills`、`get_skill_detail`）与 Skills 工具（`execute_query_skill`、`execute_mutation_skill`）之间保持一致。基础工具走共享的 `_tool_result(...)`，Skills 工具走 `_skill_tool_result(...)`。Python 直接调用方可统一通过 `result.structured_content` 读取 payload、`result.meta` 读取元数据。
   - **客户端可见性**：依据 MCP 规范，`_meta` 字段是**可选**的，客户端 *MAY* 忽略。实测：服务器中间件、MCP Inspector、显式读取 `_meta` 的客户端可以看到；VS Code 的 MCP UI 当前不展示。请把 `ToolResult.meta` 主要视为服务端可观测钩子和"愿意读 meta 的客户端"的可选信号，而**不能**假定它一定对终端用户可见。
@@ -406,7 +412,7 @@ Agent **既是决策者又是执行者**，安全保障依赖于：
 | **参数强类型验证** | `validate_params()` 强制 type/min/max/enum | Agent 从自然语言理解参数，无硬约束 |
 | **防参数注入** | 拒绝 schema 之外的参数 (`unexpected` check) | Agent 自己决定传什么参数 |
 | **TOCTOU 防护** | 启动时读入内存，运行时零磁盘 I/O | Agent 每次用 bash 读文件，文件可能已被篡改 |
-| **Mutation 事务安全** | `MutationBase` 强制 BEGIN→UPDATE→verify→COMMIT/ROLLBACK | Agent 自己写事务代码，可能遗漏回滚 |
+| **Mutation 事务安全** | Adapter 强制 BEGIN→UPDATE→提交前行数检查→COMMIT/ROLLBACK，并显式报告不确定状态 | Agent 自己写事务代码，可能遗漏回滚或误判 COMMIT 失败 |
 | **审计日志** | mutation preview/execute 路径尝试写入 `_audit.jsonl`，正常返回中报告 `audit_logged` | 依赖 Agent 自觉调logging（不可靠） |
 | **确认机制** | 服务端强制 preview → 一次性绑定 token → execute；可选 v3.7 host 收集精确 `APPROVE`，但服务端不能据此证明人类身份 | Agent 自行决定是否确认，没有硬性的服务端 preview/replay 边界 |
 
@@ -769,7 +775,7 @@ Skills 层允许你将常用的 SQL 查询和数据变更操作封装为可复�
 - 进程重启会使全部未消费 handle 失效。这是有意的 fail-closed 连续性边界；若
   execute 结果不确定，必须先核查当前业务状态，再决定是否重新 preview。
 - 不得把多个启用 mutation 的 worker 放在普通负载均衡器后。只读容量只能通过
-  独立的 read-only endpoint、profile 或 pool 扩展；v3.6.1-v3.7.1 不支持跨 worker 或
+  独立的 read-only endpoint、profile 或 pool 扩展；v3.6.1-v3.7.2 不支持跨 worker 或
   跨副本 mutation。
 - 不存在 stateless token fallback，也不提供 SQLite、SQL 表或其他外部共享
   token backend。
@@ -788,7 +794,7 @@ preview，workflow 会拒绝执行。只有在强制截止时间内输入精确�
 前撤销未用 token record，外部 payload/debug logging 仍可能泄露 token。多用户认证
 HTTP 批准和合规级批准人审计不属于当前设计。自定义批准 provider 必须配合 async
 取消；恶意 provider 的硬终止需要进程隔离。详见
-[v3.7/v3.7.1 发布说明](RELEASE_NOTES/RELEASE_NOTES_v3_7.md)。
+[v3.7/v3.7.2 发布说明](RELEASE_NOTES/RELEASE_NOTES_v3_7.md)。
 该可信本地示例为避免静默切换到另一套 `.env`，会转发完整进程环境；因此所有
 已导出的 secret 与 Python 控制变量也进入子进程/Skill 信任边界。产品化 host
 应维护项目专用环境 allowlist。
@@ -798,7 +804,7 @@ HTTP 批准和合规级批准人审计不属于当前设计。自定义批准 pr
 - Skill audit params 只做长度截断，不按 key/value 脱敏。请把 Skill 参数视为业务审计数据，不要把 secret、token、凭据或敏感个人数据作为 Skill 参数传入。
 - 开启 mutation skills 后，mutation audit 会自动尝试记录，但审计写入失败不会阻断操作；query skill audit 仍保持 opt-in（`SKILLS_AUDIT_QUERIES=0` 默认关闭），避免意外记录读查询参数。v3.5 审计条目可包含安全别名 `connection_id` 和实际 `db_type`，仍不包含 DSN、host、密码、SQLite 文件路径、SQL 文本或返回行。
 - Token 前的参数/validation 拒绝和审计写入失败可能返回 `audit_logged=false` 的正常工具结果。有效 token 一旦被 execute 消费，后续动态 validation 拒绝会尝试 best-effort execute audit。JSONL audit 仍是可见性辅助，不是 fail-closed 事务控制。
-- 如果数据库写入已经提交，但随后 context 通知或响应构造失败，系统会保留已有 success audit，不再追加矛盾的 failure。客户端在再次 mutation 前必须核查当前数据库状态；token 仍保持已消费。
+- 如果数据库写入已经提交，但随后 context 通知或响应构造失败，系统会保留已有 success audit，不再追加矛盾的 failure。能返回 fallback 时结果为 `success=false, execution_outcome=committed`；响应完全丢失时客户端仍只能判为未知。两者都必须终止当前流程，token 仍保持已消费。
 - 进程本地 preview-token store 支持推荐的 stdio 路径，以及有条件的单个受信任私有 HTTP mutation 进程；多用户认证 HTTP、跨 worker/跨副本 mutation 不属于当前设计，且绝不回退到 stateless token acceptance。
 - `SKILLS_AUDIT_LOG`、`TOOL_TELEMETRY_LOG_PATH` 和 `logs/sql_safety_checker_*.log` 都是本地文件。生产环境应放在可信存储上，限制文件权限，并使用外部轮转/保留机制，例如 `logrotate`、平台日志、cron cleanup 或托管日志 sink。常见起点是按天或按大小轮转、压缩，并根据合规需求保留 14-90 天。
 
@@ -866,6 +872,23 @@ SKILLS_AUDIT_QUERIES=1
 有关完整的客户端配置示例，请参阅 `mcp_config.json`。
 
 ## 更新日志
+
+### v3.7.2 写事务结论与宿主不重试（2026年9月）
+
+- MySQL/SQLite `execute_write()` 新增仅限关键字的 `expected_rowcount`；两个
+  内置 Mutation Skill 的预期一行检查移到 COMMIT 前，零行或多行均回滚。
+- 新增结构化 `execution_outcome` 和稳定失败 `error_code`；`success` 只说明
+  工具处理结果，与数据库状态分开。
+- COMMIT 抛错一律视为 `unknown`；之后的 rollback/cleanup 不能证明 COMMIT
+  失败。已确认的 COMMIT 不会因审计或响应错误降级成 rolled back。
+- 人工批准 host 会先校验 Skill、连接和 DB 类型身份；一次 execute 后绝不自动
+  重试、重新 preview 或切换目标。
+- 修复成功路径无条件声明 `committed`：内置 Skill 保留类型化 adapter 证据，
+  缺少整个操作证据的自定义成功保持 `unknown`，畸形或自报失败的 Skill 结果改为
+  结构化 unknown 失败；COMMIT 阶段的 `asyncio.CancelledError` 在仍可响应时也会
+  转换为类型化 `commit_outcome_unknown`。
+- 完整公共契约、兼容影响、接受边界、测试和经过 review 的一手资料见
+  [v3.7.2 发布说明](RELEASE_NOTES/RELEASE_NOTES_v3_7.md#v372--write-transactions-and-uncertain-results)。
 
 ### v3.7.1 不透明 Preview Handle 与 Agent 工作流优化（2026年8月）
 
@@ -1485,7 +1508,15 @@ summary/full 输出中的 `configured_connection_ids` 只表示该 Skill 声明�
 }
 ```
 
-`confirm=false`（默认）返回预览和 `preview_token`。`confirm=true` 只有在同一次调用携带匹配的 `preview_token` 时才会执行写操作。
+`confirm=false`（默认）返回预览和 `preview_token`。`confirm=true` 只有在同一次调用携带匹配的 `preview_token` 时才会执行写操作。每个可返回 payload 都包含
+`execution_outcome`；结构化失败还带稳定 `error_code` 和脱敏 `error`。静态参数、
+权限、Skill 或 token 拒绝仍抛 `ToolError`。客户端必须同时检查 `success` 和
+`execution_outcome`：提交后响应阶段失败可能是
+`success=false, execution_outcome=committed`，而异常或响应缺失对客户端仍是未知。
+`committed` 只来自两个 exact 内置 Skill 保留下来的成功 adapter COMMIT 证据；
+普通自定义 Skill 成功为 `success=true, execution_outcome=unknown`，参考宿主将其作为
+terminal unknown。自定义结果若缺失 `success`、类型错误或显式为 false，会成为
+结构化 unknown 失败，不会被服务端升级。
 
 ### Skills 扩展详解（v3.0）
 
@@ -1661,8 +1692,8 @@ Bearer confidentiality 在 token 消费或过期前仍然重要；短 TTL、精�
 - **一次性消费**：一个 token 最多授权一次 execute 尝试；结果不确定时不自动重试
 - **Preview 状态绑定**：状态敏感 Skill 可实现 `build_execution_binding()` / `execute_with_binding()`，确保执行遵守服务端展示的状态；只有客户端实际展示时才存在人类审阅
 - **失败 preview 处理**：preview 结果含 `error` 或报告 `success=false` 时不签发 token
-- **乐观锁**：执行时使用 `WHERE status = :expected_status`，如果在预览和执行之间状态被其他人修改，则更新失败（返回 rowcount=0）
-- **事务保护**：写操作在数据库事务中执行，失败时自动回滚
+- **乐观锁**：执行时使用 `WHERE status = :expected_status`，并在 COMMIT 前强制 `expected_rowcount=1`；零行或多行都会回滚
+- **事务结论**：只有确认 rollback 的提交前失败才报告 `rolled_back`；COMMIT 回执失败报告 `unknown`；MySQL 保证仅限事务性 InnoDB DML
 - **审计日志**：mutation preview/execute 路径尝试 best-effort 写入 JSONL 审计文件；审计写入失败不会回滚数据变更
 
 #### 示例 3：`reset-demo-order-to-pending`（跨数据库 Demo Reset）
@@ -1924,11 +1955,11 @@ python test_mcp_client.py
 - [v3.5-v3.7 命名连接、Skills 与批准流程说明](RELEASE_NOTES/GUIDE/V3_5-V3_7_SKILLS_GUIDE_ZH.md)：解释命名连接、Mutation 写策略、preview-token、Skill 连接范围、单 mutation worker 与批准边界
 - [v3.5 发布说明](RELEASE_NOTES/RELEASE_NOTES_v3_5.md)：命名多连接版本摘要、兼容性、限制和验证证据
 - [v3.6/v3.6.1 发布说明](RELEASE_NOTES/RELEASE_NOTES_v3_6.md)：Mutation preview-token、命名写策略、execution binding 修复与同进程部署边界定稿
-- [v3.7/v3.7.1 发布说明](RELEASE_NOTES/RELEASE_NOTES_v3_7.md)：v3.7 能力、opaque preview handle 与 Agent 工作流优化
+- [v3.7/v3.7.2 发布说明](RELEASE_NOTES/RELEASE_NOTES_v3_7.md)：v3.7 能力、opaque preview handle、事务结论与宿主不重试行为
 - [设计风险登记表](DESIGN_RISK_REGISTER_ZH.md)：长期维护的设计、安全与运维风险登记
 - [可行性分析](LLM_TO_MCP_FEASIBILITY_ANALYSIS.md)：LLM 到 MCP 转换的详细分析
 - [原始上下文](GEMINI.md)：项目背景和开发指南
-- [重构日志](REFACTORING_LOG.md)：重构变更文档（v2.0 — v3.7.1）
+- [重构日志](REFACTORING_LOG.md)：重构变更文档（v2.0 — v3.7.2）
 - [MCP 客户端测试指南](TEST_MCP_CLIENT_GUIDE.md)：通过客户端测试 MCP 服务器的指南
 - [MCP Agent 编排行为验证方法](RELEASE_NOTES/GUIDE/MCP_AGENT_BEHAVIOR_VALIDATION_ZH.md)：验证 Agent 自然工具选择、重复调用、连接路由和渐进披露效果
 - [MCP 工具契约与评测指南](PROMPT_ENGINEERING_BEST_PRACTICES.md)：面向本项目的工具 schema、描述、instructions、安全边界与评测指南

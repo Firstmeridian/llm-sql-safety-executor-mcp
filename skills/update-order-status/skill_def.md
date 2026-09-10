@@ -84,5 +84,6 @@ See [status-transitions.md](references/status-transitions.md)
 - One-time token: replay and concurrent reuse fail closed before the write
 - Preview-state binding: `expected_status` is captured during preview
 - Optimistic locking: `WHERE status = expected_status`
-- Transaction: BEGIN → UPDATE → verify rowcount → COMMIT/ROLLBACK
+- Transaction: BEGIN → UPDATE → require exactly one affected row before COMMIT;
+  zero/multiple rows roll back, while an unacknowledged COMMIT is `unknown`
 - Audit log: preview/execute paths attempt best-effort JSONL logging; normal tool results report `audit_logged`

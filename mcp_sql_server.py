@@ -2669,6 +2669,7 @@ if SKILLS_ENABLED:
         SkillMetadata,
     )
     from audit import AuditLogger
+    from mutation_base import MutationExecutionError
 
     # Discover skills at module load time (synchronous, consistent with
     # existing ENABLE_SCHEMA_TOOLS conditional registration pattern)
@@ -3160,6 +3161,10 @@ if SKILLS_ENABLED:
             "success": payload_success if isinstance(payload_success, bool) else True,
             "idempotent": meta.idempotent,
         }
+        if meta.type == "mutation":
+            runtime_meta["execution_outcome"] = payload.get("execution_outcome")
+            if "error_code" in payload:
+                runtime_meta["error_code"] = payload.get("error_code")
         optional_fields = {
             "row_count": row_count,
             "total_rows": total_rows,
@@ -3806,6 +3811,27 @@ if SKILLS_ENABLED:
                     "mode": {"type": "string", "enum": ["preview", "execute"]},
                     "connection_id": {"type": "string"},
                     "db_type": {"type": "string"},
+                    "execution_outcome": {
+                        "type": "string",
+                        "enum": [
+                            "not_executed",
+                            "rolled_back",
+                            "committed",
+                            "unknown",
+                        ],
+                        "description": (
+                            "Database write conclusion. success describes tool "
+                            "handling; this field describes transaction state."
+                        ),
+                    },
+                    "error_code": {
+                        "type": "string",
+                        "description": "Stable machine-readable code on structured failures.",
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Sanitized explanation on structured failures.",
+                    },
                     # Preview branch (success=true, mode=preview)
                     "preview": {
                         "type": "object",
@@ -3835,7 +3861,7 @@ if SKILLS_ENABLED:
                     # Common (both success branches)
                     "idempotent": {"type": "boolean"},
                 },
-                "required": ["success", "skill_name", "mode"],
+                "required": ["success", "skill_name", "mode", "execution_outcome"],
                 "additionalProperties": True,
             },
         )
@@ -3854,8 +3880,9 @@ if SKILLS_ENABLED:
                 1. confirm=false (default) — validate + preview, no database changes;
                     registers and returns a one-time preview_token
                 2. confirm=true — verify and atomically consume preview_token,
-                    re-validate + execute with preview-state binding, commits changes
-                    in a transaction
+                    re-validate + execute with preview-state binding. The exact
+                    built-ins return adapter COMMIT evidence; custom Skills do
+                    not receive an inferred whole-operation commit claim.
 
             Args:
                 skill_name: The mutation skill name (e.g., "update-order-status")
@@ -3865,7 +3892,11 @@ if SKILLS_ENABLED:
                 connection_id: Configured target connection; omit for the default
 
             Returns:
-                Preview result (confirm=false) or execution result (confirm=true)
+                Preview result (confirm=false) or execution result (confirm=true).
+                Every returned payload includes execution_outcome. Processable
+                execute failures return success=false plus a stable error_code;
+                callers must not infer success merely because no ToolError was
+                raised and must never retry an unknown outcome automatically.
             """
             try:
                 resolved_confirm = _require_boolean(confirm, "confirm")
@@ -3925,12 +3956,29 @@ if SKILLS_ENABLED:
                     if not validation.get("valid", False):
                         errors = validation.get("errors", ["Validation failed"])
                         await ctx.warning(f"Validation failed: {errors}")
+                        audit_logged = _audit_logger.log(
+                            skill_name=skill_name,
+                            params=validated_params,
+                            mode="preview",
+                            result={
+                                "success": False,
+                                "error": "Validation failed for mutation.",
+                                "execution_outcome": "not_executed",
+                                "error_code": "validation_failed",
+                            },
+                            client_id=client_id,
+                            connection_id=connection.connection_id,
+                            db_type=connection.db_type,
+                        )
                         payload = {
                             "success": False,
                             "skill_name": skill_name,
                             "mode": "preview",
                             "connection_id": connection.connection_id,
                             "db_type": connection.db_type,
+                            "execution_outcome": "not_executed",
+                            "error_code": "validation_failed",
+                            "error": "Validation failed for mutation.",
                             "validation": validation,
                         }
                         return _skill_tool_result(
@@ -3939,7 +3987,7 @@ if SKILLS_ENABLED:
                             mode="preview",
                             start_time=start_time,
                             connection=connection,
-                            audit_logged=False,
+                            audit_logged=audit_logged,
                             preview_token_required=False,
                             preview_token_validated=False,
                             preview_token_consumed=False,
@@ -3975,6 +4023,8 @@ if SKILLS_ENABLED:
                                 "success": False,
                                 "preview": False,
                                 "error": preview_error,
+                                "execution_outcome": "not_executed",
+                                "error_code": "preview_failed",
                             },
                             client_id=client_id,
                             connection_id=connection.connection_id,
@@ -3986,6 +4036,8 @@ if SKILLS_ENABLED:
                             "mode": "preview",
                             "connection_id": connection.connection_id,
                             "db_type": connection.db_type,
+                            "execution_outcome": "not_executed",
+                            "error_code": "preview_failed",
                             "preview": preview_result,
                             "error": preview_error,
                         }
@@ -4031,6 +4083,7 @@ if SKILLS_ENABLED:
                         result={
                             "success": True,
                             "preview": True,
+                            "execution_outcome": "not_executed",
                         },
                         client_id=client_id,
                         connection_id=connection.connection_id,
@@ -4044,6 +4097,7 @@ if SKILLS_ENABLED:
                         "mode": "preview",
                         "connection_id": connection.connection_id,
                         "db_type": connection.db_type,
+                        "execution_outcome": "not_executed",
                         "preview": {
                             key: value
                             for key, value in preview_result.items()
@@ -4076,9 +4130,6 @@ if SKILLS_ENABLED:
                     raise ToolError(sanitized) from e
             else:
                 # Phase 2: validate + execute (commits to database)
-                token_consumed = False
-                execution_started = False
-                write_completed = False
                 try:
                     execution_binding = _consume_mutation_preview_token(
                         preview_token,
@@ -4088,61 +4139,79 @@ if SKILLS_ENABLED:
                         connection=connection,
                     )
                     token_id = _preview_token_id(preview_token or "")
-                    token_consumed = True
+                except ToolError:
+                    # Parameter/setup checks happened earlier; token rejection
+                    # remains an MCP ToolError and never becomes a business
+                    # execution result.
+                    raise
 
+                try:
+                    validation = mutation.validate(validated_params)
+                except ToolError as validation_error:
+                    validation = {
+                        "valid": False,
+                        "errors": [str(validation_error)],
+                    }
+                except Exception as validation_error:
+                    validation = {
+                        "valid": False,
+                        "errors": [adapter._handle_error(validation_error)],
+                    }
+
+                if not isinstance(validation, dict):
+                    validation = {
+                        "valid": False,
+                        "errors": ["Mutation validation returned an invalid result."],
+                    }
+
+                if not validation.get("valid", False):
+                    errors = validation.get("errors", ["Validation failed"])
                     try:
-                        validation = mutation.validate(validated_params)
-                    except ToolError as validation_error:
-                        _audit_logger.log(
-                            skill_name=skill_name,
-                            params=validated_params,
-                            mode="execute",
-                            result={
-                                "success": False,
-                                "error": str(validation_error),
-                            },
-                            client_id=client_id,
-                            connection_id=connection.connection_id,
-                            db_type=connection.db_type,
-                        )
-                        raise
-                    if not validation.get("valid", False):
-                        errors = validation.get("errors", ["Validation failed"])
                         await ctx.warning(f"Validation failed: {errors}")
-                        audit_logged = _audit_logger.log(
-                            skill_name=skill_name,
-                            params=validated_params,
-                            mode="execute",
-                            result={
-                                "success": False,
-                                "error": f"Validation failed: {errors}",
-                            },
-                            client_id=client_id,
-                            connection_id=connection.connection_id,
-                            db_type=connection.db_type,
+                    except Exception as notification_error:
+                        logger.warning(
+                            "Mutation validation notification failed: %s",
+                            notification_error.__class__.__name__,
                         )
-                        payload = {
+                    audit_logged = _audit_logger.log(
+                        skill_name=skill_name,
+                        params=validated_params,
+                        mode="execute",
+                        result={
                             "success": False,
-                            "skill_name": skill_name,
-                            "mode": "execute",
-                            "connection_id": connection.connection_id,
-                            "db_type": connection.db_type,
-                            "validation": validation,
-                        }
-                        return _skill_tool_result(
-                            payload,
-                            meta,
-                            mode="execute",
-                            start_time=start_time,
-                            connection=connection,
-                            audit_logged=audit_logged,
-                            preview_token_required=True,
-                            preview_token_validated=True,
-                            preview_token_consumed=True,
-                            preview_token_id=token_id,
-                        )
+                            "error": "Validation failed for mutation.",
+                            "execution_outcome": "not_executed",
+                            "error_code": "validation_failed",
+                        },
+                        client_id=client_id,
+                        connection_id=connection.connection_id,
+                        db_type=connection.db_type,
+                    )
+                    payload = {
+                        "success": False,
+                        "skill_name": skill_name,
+                        "mode": "execute",
+                        "connection_id": connection.connection_id,
+                        "db_type": connection.db_type,
+                        "execution_outcome": "not_executed",
+                        "error_code": "validation_failed",
+                        "error": "Validation failed for mutation.",
+                        "validation": validation,
+                    }
+                    return _skill_tool_result(
+                        payload,
+                        meta,
+                        mode="execute",
+                        start_time=start_time,
+                        connection=connection,
+                        audit_logged=audit_logged,
+                        preview_token_required=True,
+                        preview_token_validated=True,
+                        preview_token_consumed=True,
+                        preview_token_id=token_id,
+                    )
 
-                    execution_started = True
+                try:
                     result = mutation.run_execute(
                         validated_params,
                         skill_name=skill_name,
@@ -4152,21 +4221,173 @@ if SKILLS_ENABLED:
                         db_type=connection.db_type,
                         execution_binding=execution_binding,
                     )
-                    write_completed = True
-                    audit_logged = bool(result.pop("_audit_logged", True))
+                    if not isinstance(result, dict) or result.get("success") is not True:
+                        contract_message = (
+                            "Mutation Skill returned an invalid success result; "
+                            "its final write outcome cannot be confirmed."
+                        )
+                        contract_audit_logged = _audit_logger.log(
+                            skill_name=skill_name,
+                            params=validated_params,
+                            mode="execute",
+                            result={
+                                "success": False,
+                                "error": contract_message,
+                                "execution_outcome": "unknown",
+                                "error_code": "invalid_skill_result",
+                            },
+                            client_id=client_id,
+                            connection_id=connection.connection_id,
+                            db_type=connection.db_type,
+                        )
+                        raise MutationExecutionError(
+                            contract_message,
+                            execution_outcome="unknown",
+                            error_code="invalid_skill_result",
+                            audit_logged=contract_audit_logged,
+                        )
 
-                    await ctx.info(
-                        f"Mutation '{skill_name}' executed: rowcount={result.get('rowcount')}"
+                    reported_outcome = getattr(
+                        result,
+                        "execution_outcome",
+                        "unknown",
                     )
+                    reported_outcome = getattr(
+                        reported_outcome,
+                        "value",
+                        reported_outcome,
+                    )
+                    if getattr(mutation, "exact_transaction_outcome", False) is True:
+                        if reported_outcome != "committed":
+                            contract_message = (
+                                "Mutation Skill reported success without confirmed "
+                                "COMMIT evidence; its final write outcome cannot be "
+                                "confirmed."
+                            )
+                            contract_audit_logged = _audit_logger.log(
+                                skill_name=skill_name,
+                                params=validated_params,
+                                mode="execute",
+                                result={
+                                    "success": False,
+                                    "error": contract_message,
+                                    "execution_outcome": "unknown",
+                                    "error_code": "missing_commit_evidence",
+                                },
+                                client_id=client_id,
+                                connection_id=connection.connection_id,
+                                db_type=connection.db_type,
+                            )
+                            raise MutationExecutionError(
+                                contract_message,
+                                execution_outcome="unknown",
+                                error_code="missing_commit_evidence",
+                                audit_logged=contract_audit_logged,
+                            )
+                        result_outcome = "committed"
+                    else:
+                        # A custom result cannot opt itself into a whole-Skill
+                        # commit claim, even if it supplies a lookalike attribute.
+                        result_outcome = "unknown"
+                except Exception as execution_error:
+                    if isinstance(execution_error, MutationExecutionError):
+                        execution_failure = execution_error
+                    else:
+                        # Overrides of run_execute() can bypass MutationBase's
+                        # exception and audit wrapper, including after a write.
+                        sanitized = adapter._handle_error(execution_error)
+                        try:
+                            failure_audit_logged = _audit_logger.log(
+                                skill_name=skill_name,
+                                params=validated_params,
+                                mode="execute",
+                                result={
+                                    "success": False,
+                                    "error": sanitized,
+                                    "execution_outcome": "unknown",
+                                    "error_code": "execution_outcome_unknown",
+                                },
+                                client_id=client_id,
+                                connection_id=connection.connection_id,
+                                db_type=connection.db_type,
+                            )
+                        except Exception as audit_error:
+                            logger.warning(
+                                "Mutation fallback failure audit failed: %s",
+                                audit_error.__class__.__name__,
+                            )
+                            failure_audit_logged = False
+                        execution_failure = MutationExecutionError(
+                            sanitized,
+                            execution_outcome="unknown",
+                            error_code="execution_outcome_unknown",
+                            audit_logged=failure_audit_logged,
+                        )
                     payload = {
-                        "success": True,
+                        "success": False,
                         "skill_name": skill_name,
                         "mode": "execute",
                         "connection_id": connection.connection_id,
                         "db_type": connection.db_type,
-                        "result": result,
+                        "execution_outcome": execution_failure.execution_outcome,
+                        "error_code": execution_failure.error_code,
+                        "error": str(execution_failure),
                         "idempotent": meta.idempotent,
                     }
+                    return _skill_tool_result(
+                        payload,
+                        meta,
+                        mode="execute",
+                        start_time=start_time,
+                        connection=connection,
+                        audit_logged=execution_failure.audit_logged,
+                        preview_token_required=True,
+                        preview_token_validated=True,
+                        preview_token_consumed=True,
+                        preview_token_id=token_id,
+                    )
+
+                # The base returns whole-Skill COMMIT evidence only for an
+                # exact, adapter-backed built-in. An ordinary custom-Skill
+                # return proves handler completion but not database COMMIT.
+                audit_marker = result.pop("_audit_logged", None)
+                if isinstance(audit_marker, bool):
+                    audit_logged = audit_marker
+                else:
+                    # A custom override of run_execute() may bypass the base
+                    # audit wrapper. Attempt one server-side success audit and
+                    # report its real result rather than defaulting to true.
+                    try:
+                        audit_logged = _audit_logger.log(
+                            skill_name=skill_name,
+                            params=validated_params,
+                            mode="execute",
+                            result={**result, "execution_outcome": result_outcome},
+                            client_id=client_id,
+                            connection_id=connection.connection_id,
+                            db_type=connection.db_type,
+                        )
+                    except Exception as audit_error:
+                        logger.warning(
+                            "Mutation fallback success audit failed: %s",
+                            audit_error.__class__.__name__,
+                        )
+                        audit_logged = False
+                payload = {
+                    "success": True,
+                    "skill_name": skill_name,
+                    "mode": "execute",
+                    "connection_id": connection.connection_id,
+                    "db_type": connection.db_type,
+                    "execution_outcome": result_outcome,
+                    "result": result,
+                    "idempotent": meta.idempotent,
+                }
+                try:
+                    await ctx.info(
+                        f"Mutation '{skill_name}' handler completed: "
+                        f"outcome={result_outcome}, rowcount={result.get('rowcount')}"
+                    )
                     return _skill_tool_result(
                         payload,
                         meta,
@@ -4180,68 +4401,47 @@ if SKILLS_ENABLED:
                         preview_token_consumed=True,
                         preview_token_id=token_id,
                     )
-                except ToolError as e:
-                    if write_completed:
-                        logger.error(
-                            "Mutation response handling failed after a "
-                            "successful write: %s",
-                            e.__class__.__name__,
-                        )
-                        raise ToolError(
-                            "Mutation execution completed, but the tool response "
-                            "failed. The preview_token has been consumed; verify "
-                            "the current database state before another mutation."
-                        ) from e
-                    if token_consumed:
-                        if not execution_started:
-                            raise ToolError(
-                                f"{e} No database write was attempted. The "
-                                "preview_token has been consumed; run preview "
-                                "again before another mutation."
-                            ) from e
-                        raise ToolError(
-                            f"{e} The preview_token has been consumed and the "
-                            "write outcome may be unknown; verify the current "
-                            "database state before another preview or mutation."
-                        ) from e
-                    raise
-                except Exception as e:
-                    if write_completed:
-                        logger.error(
-                            "Mutation response handling failed after a "
-                            "successful write: %s",
-                            e.__class__.__name__,
-                        )
-                        raise ToolError(
-                            "Mutation execution completed, but the tool response "
-                            "failed. The preview_token has been consumed; verify "
-                            "the current database state before another mutation."
-                        ) from e
-                    sanitized = adapter._handle_error(e)
-                    if token_consumed:
-                        if not execution_started:
-                            sanitized = (
-                                f"{sanitized} No database write was attempted. "
-                                "The preview_token has been consumed; run "
-                                "preview again before another mutation."
-                            )
-                        else:
-                            sanitized = (
-                                f"{sanitized} The preview_token has been "
-                                "consumed; the write outcome may be unknown. "
-                                "Verify the current database state before "
-                                "another preview or mutation."
-                            )
-                    _audit_logger.log(
-                        skill_name=skill_name,
-                        params=validated_params,
-                        mode="execute",
-                        result={"success": False, "error": sanitized},
-                        client_id=client_id,
-                        connection_id=connection.connection_id,
-                        db_type=connection.db_type,
+                except Exception as response_error:
+                    logger.error(
+                        "Mutation response handling failed after Skill outcome "
+                        "%s: %s",
+                        result_outcome,
+                        response_error.__class__.__name__,
                     )
-                    raise ToolError(sanitized) from e
+                    fallback_payload = {
+                        **payload,
+                        "success": False,
+                        "execution_outcome": result_outcome,
+                        "error_code": "response_preparation_failed",
+                        "error": (
+                            "Mutation handling completed, but response preparation "
+                            "did not complete normally; the database outcome shown "
+                            "in execution_outcome has not been upgraded."
+                        ),
+                    }
+                    # The original result may itself be unserializable. Keep
+                    # only a bounded scalar summary in the fallback response.
+                    fallback_rowcount = result.get("rowcount")
+                    if type(fallback_rowcount) is not int:
+                        fallback_rowcount = None
+                    fallback_payload["result"] = (
+                        {"rowcount": fallback_rowcount}
+                        if fallback_rowcount is not None
+                        else {}
+                    )
+                    return _skill_tool_result(
+                        fallback_payload,
+                        meta,
+                        mode="execute",
+                        start_time=start_time,
+                        connection=connection,
+                        row_count=fallback_rowcount,
+                        audit_logged=audit_logged,
+                        preview_token_required=True,
+                        preview_token_validated=True,
+                        preview_token_consumed=True,
+                        preview_token_id=token_id,
+                    )
 
         logger.info("Mutation skills enabled (SKILLS_ALLOW_MUTATIONS=1)")
         _log_mutation_security_startup()

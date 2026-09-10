@@ -41,7 +41,11 @@ class TestAuditLogger:
             skill_name="update-order-status",
             params={"order_id": 42, "new_status": "shipped"},
             mode="execute",
-            result={"success": True, "rowcount": 1},
+            result={
+                "success": True,
+                "rowcount": 1,
+                "execution_outcome": "committed",
+            },
             client_id="test-agent-001",
         )
 
@@ -54,6 +58,7 @@ class TestAuditLogger:
         assert entry["mode"] == "execute"
         assert entry["success"] is True
         assert entry["rowcount"] == 1
+        assert entry["execution_outcome"] == "committed"
         assert entry["agent_id"] == "test-agent-001"
         assert entry["params"]["order_id"] == 42
         assert entry["params"]["new_status"] == "shipped"
@@ -130,13 +135,20 @@ class TestAuditLogger:
             skill_name="failing-skill",
             params={"id": 1},
             mode="execute",
-            result={"success": False, "error": "Error: table not found"},
+            result={
+                "success": False,
+                "error": "Error: table not found",
+                "execution_outcome": "rolled_back",
+                "error_code": "database_execution_failed",
+            },
         )
 
         content = log_path.read_text(encoding="utf-8").strip()
         entry = json.loads(content)
         assert entry["success"] is False
         assert "table not found" in entry["error"]
+        assert entry["execution_outcome"] == "rolled_back"
+        assert entry["error_code"] == "database_execution_failed"
 
     def test_audit_log_creates_directory(self, tmp_path):
         """AuditLogger creates parent directory if it doesn't exist."""

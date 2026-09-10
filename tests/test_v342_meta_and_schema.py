@@ -763,6 +763,14 @@ def test_skill_tools_declare_output_schema(monkeypatch):
         assert "mode" in mut_schema["properties"], mut_schema
         mode_enum = mut_schema["properties"]["mode"].get("enum")
         assert mode_enum == ["preview", "execute"], mut_schema
+        outcome_schema = mut_schema["properties"]["execution_outcome"]
+        assert outcome_schema["enum"] == [
+            "not_executed",
+            "rolled_back",
+            "committed",
+            "unknown",
+        ]
+        assert "execution_outcome" in mut_schema["required"]
     finally:
         for mod in ("mcp_sql_server", "db_adapter", "sql_safety_checker"):
             sys.modules.pop(mod, None)
@@ -805,6 +813,8 @@ def test_skill_tool_meta_has_uniform_fields(monkeypatch, tmp_path):
         assert mutation_result.meta["success"] is True
         assert mutation_result.meta["skill_name"] == "update-order-status"
         assert mutation_result.meta["mode"] == "preview"
+        assert mutation_result.structured_content["execution_outcome"] == "not_executed"
+        assert mutation_result.meta["execution_outcome"] == "not_executed"
         assert mutation_result.meta["audit_logged"] is True
         assert mutation_result.meta["preview_token_required"] is True
         assert mutation_result.meta["preview_token_validated"] is False
@@ -822,6 +832,8 @@ def test_skill_tool_meta_has_uniform_fields(monkeypatch, tmp_path):
         assert mutation_execute_result.structured_content["success"] is True
         assert mutation_execute_result.meta["success"] is True
         assert mutation_execute_result.meta["mode"] == "execute"
+        assert mutation_execute_result.structured_content["execution_outcome"] == "committed"
+        assert mutation_execute_result.meta["execution_outcome"] == "committed"
         assert mutation_execute_result.meta["audit_logged"] is True
         assert mutation_execute_result.meta["preview_token_required"] is True
         assert mutation_execute_result.meta["preview_token_validated"] is True
@@ -897,6 +909,7 @@ def test_skill_telemetry_end_to_end_honors_business_failure(monkeypatch, tmp_pat
         ENABLE_SKILLS="1",
         SKILLS_DIR="skills/",
         SKILLS_ALLOW_MUTATIONS="1",
+        SKILLS_AUDIT_LOG=str(tmp_path / "skill_audit.jsonl"),
         ENABLE_TOOL_TELEMETRY="1",
         TOOL_TELEMETRY_LOG_PATH=str(log_path),
     )

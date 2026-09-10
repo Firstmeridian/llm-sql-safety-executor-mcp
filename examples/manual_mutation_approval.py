@@ -324,6 +324,11 @@ def _validated_preview(
         raise ApprovalWorkflowError("Server did not return a successful preview")
     if payload.get("skill_name") != request.skill_name:
         raise ApprovalWorkflowError("Preview skill_name does not match the request")
+    if (
+        "execution_outcome" in payload
+        and payload.get("execution_outcome") != "not_executed"
+    ):
+        raise ApprovalWorkflowError("Preview execution_outcome is invalid")
 
     connection_id = payload.get("connection_id")
     if not isinstance(connection_id, str) or not connection_id:
@@ -355,6 +360,118 @@ def _validated_preview(
         idempotent=idempotent,
     )
     return token, view
+
+
+def _interpret_execute_payload(
+    payload: dict[str, Any],
+    request: MutationRequest,
+    view: ApprovalView,
+) -> tuple[str, str]:
+    """Validate identity first, then classify new or legacy execute results."""
+    if (
+        payload.get("mode") != "execute"
+        or payload.get("skill_name") != request.skill_name
+        or payload.get("connection_id") != view.connection_id
+        or payload.get("db_type") != view.db_type
+    ):
+        return (
+            "execute_unknown",
+            "Execute response identity was missing or mismatched; it was not retried.",
+        )
+
+    success = payload.get("success")
+    if not isinstance(success, bool):
+        return (
+            "execute_unknown",
+            "Execute response success flag was malformed; it was not retried.",
+        )
+
+    if "execution_outcome" not in payload:
+        # Compatibility with old servers is deliberately narrow: only a fully
+        # identified success with an object result is treated as executed.
+        if success is True and isinstance(payload.get("result"), dict):
+            return (
+                "executed",
+                "Mutation executed after explicit host-side approval (legacy response).",
+            )
+        return (
+            "execute_unknown",
+            "Legacy execute failure lacked transaction evidence; it was not retried.",
+        )
+
+    execution_outcome = payload.get("execution_outcome")
+    if not isinstance(execution_outcome, str) or execution_outcome not in {
+        "not_executed",
+        "rolled_back",
+        "committed",
+        "unknown",
+    }:
+        return (
+            "execute_unknown",
+            "Execute response outcome was missing or unknown; it was not retried.",
+        )
+
+    if execution_outcome == "committed":
+        if not isinstance(payload.get("result"), dict):
+            return (
+                "execute_unknown",
+                "Committed response omitted its result object; it was not retried.",
+            )
+        if success:
+            return (
+                "executed",
+                "Mutation committed after explicit host-side approval.",
+            )
+        if not (
+            isinstance(payload.get("error_code"), str)
+            and payload.get("error_code")
+            and isinstance(payload.get("error"), str)
+            and payload.get("error")
+        ):
+            return (
+                "execute_unknown",
+                "Committed failure response was malformed; it was not retried.",
+            )
+        return (
+            "execute_committed",
+            "Database COMMIT was confirmed despite a tool-handling failure; it was not retried.",
+        )
+
+    if success is True and execution_outcome == "unknown":
+        return (
+            "execute_unknown",
+            "The Skill handler completed without whole-operation COMMIT evidence; "
+            "it was not retried.",
+        )
+    if success is True:
+        return (
+            "execute_unknown",
+            "Execute response contained contradictory success/outcome fields; it was not retried.",
+        )
+    if not (
+        isinstance(payload.get("error_code"), str)
+        and payload.get("error_code")
+        and isinstance(payload.get("error"), str)
+        and payload.get("error")
+    ):
+        return (
+            "execute_unknown",
+            "Execute failure response was malformed; it was not retried.",
+        )
+    if execution_outcome == "rolled_back":
+        return (
+            "execute_rolled_back",
+            "The supported database transaction was confirmed rolled back; it was not retried.",
+        )
+    if execution_outcome == "not_executed":
+        return (
+            "execute_not_executed",
+            "The server reported that no business write was attempted; it was not retried.",
+        )
+    return (
+        "execute_unknown",
+        "The server could not confirm the database outcome; it was not retried.",
+    )
 
 
 async def run_approved_mutation(
@@ -516,21 +633,14 @@ async def run_approved_mutation(
             )
 
         safe_payload = _redact_token_fields(execute_payload, preview_token)
-        if (
-            execute_payload.get("success") is True
-            and execute_payload.get("mode") == "execute"
-            and execute_payload.get("skill_name") == normalized_request.skill_name
-            and execute_payload.get("connection_id") == view.connection_id
-            and execute_payload.get("db_type") == view.db_type
-        ):
-            return MutationOutcome(
-                status="executed",
-                message="Mutation executed after explicit host-side approval.",
-                payload=safe_payload,
-            )
+        outcome_status, outcome_message = _interpret_execute_payload(
+            execute_payload,
+            normalized_request,
+            view,
+        )
         return MutationOutcome(
-            status="execute_failed",
-            message="Server returned a non-success execute result; it was not retried.",
+            status=outcome_status,
+            message=outcome_message,
             payload=safe_payload,
         )
     finally:

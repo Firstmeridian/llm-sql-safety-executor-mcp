@@ -48,6 +48,7 @@ schema 和响应没有回归，协议测试可证明新 schema 已被 Host 发�
 | Agent/模型 | Agent 名称和模型；无法确定时明确写未知 |
 | Transport | stdio、HTTP 或当前聊天已连接 MCP |
 | 工具契约 | 已注册工具、相关 input schema 和 description，以及获取时间和来源 |
+| Server instructions | 分别记录原始 `InitializeResult.instructions` 与可观察到的 Host 组装结果；不要把某个 Host 的注入、复制或忽略行为外推到其他 Host |
 | Prompt | 是否显式选择 MCP Prompt；不要假设 Host 自动注入 |
 | 配置 | exact connection aliases、结构化 `db_type`、默认连接 |
 | 数据 | fixture/测试数据范围、写操作的恢复方式 |
@@ -148,7 +149,16 @@ Mutation 行为测试必须使用 disposable fixture 或明确可恢复记录，
 4. 成功 execute 后 replay 被拒绝；
 5. 只读查询验证最终状态；
 6. 独立补偿操作或快照恢复测试数据；
-7. 最终只读查询确认恢复完成。
+7. 最终只读查询确认恢复完成；
+8. v3.7.2 四类 `execution_outcome` 均按结构化字段判定，而不是解析错误文本；
+9. timeout、异常、字段缺失/畸形、未知枚举和 Skill/连接/DB 类型身份不匹配均
+   结束为 `execute_unknown`；
+10. 每条批准流程最多一次 execute；`committed` 即使伴随 `success=false` 也不
+    重做，其他非成功结果同样不自动 preview、execute 或切换实例；
+11. 注入 `success=true, execution_outcome=unknown`，确认自定义 Skill 缺少整个
+    操作 COMMIT 证据时仍为 terminal `execute_unknown`；
+12. 对 COMMIT 阶段取消分别验证 adapter 的类型化 `unknown` 和 transport 已经
+    无法返回时宿主的缺失响应 `execute_unknown`。
 
 Agent 轨迹验证不能替代服务端安全校验。即使 Agent 总是按提示执行，权限、绑定、
 一次性消费和 fail-closed 仍必须由代码强制。
@@ -274,6 +284,10 @@ tokenizer。提示词长度应与路由正确率、重复调用、延迟和 toke
 广播和连接选择正确率的变化归因于该说明本身。若没有实际行为或成本回归证据，
 不应为了满足固定 token 数而删除必要的安全边界。
 
+测量时还应区分原始 MCP 初始化响应、Host 实际提供给模型的上下文和逐工具 schema。
+原始响应只有一个 instructions 字段，不证明所有 Host 都只注入一次，也不代表其内容
+在整个会话中只产生一次模型输入成本。
+
 对 Prompt 的验证至少应分两组：
 
 ```text
@@ -368,6 +382,14 @@ payload-only 估算，不是完整会话账单。
 - [ ] 至少 3 次重复关键自然选择场景；
 - [ ] 没有无价值 `full -> detail` 或已知参数后的 discovery；
 - [ ] Mutation 使用可恢复 fixture，并完成最终状态核验；
+- [ ] Mutation 响应先校验 Skill、connection、DB type 身份，再解释
+  `success` 与 `execution_outcome`；
+- [ ] 注入四类结果、旧成功/失败响应、畸形响应、身份不匹配和 timeout，并断言
+  execute 后没有任何后续写调用；
+- [ ] 自定义 Skill 普通成功没有被升级为 `committed`；exact 内置 Skill 丢失
+  adapter 证据时 fail closed；
+- [ ] MySQL/SQLite COMMIT 取消均得到类型化 `commit_outcome_unknown`，并单独记录
+  transport 可能无法投递该结构化结果的边界；
 - [ ] 报告没有凭据、完整 bearer handle 或敏感业务数据；
 - [ ] Opaque handle 的长度/字符形态只作为实现观测，没有写成客户端契约；
 - [ ] 明确写出未覆盖的 Host、模型、transport 和故障分支。

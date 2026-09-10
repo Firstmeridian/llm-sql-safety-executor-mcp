@@ -1,8 +1,8 @@
 # MCP Agents Skills Design Document
 
-> **Version**: 3.7.1
+> **Version**: 3.7.2
 > **Status**: Implemented
-> **Date**: 2026-09-02
+> **Date**: 2026-09-10
 > **References**: [Skills safety policy](skills/SAFETY.md), [design risk register](DESIGN_RISK_REGISTER.md), [v3.6 release-family notes](RELEASE_NOTES/RELEASE_NOTES_v3_6.md), and [v3.7 release notes](RELEASE_NOTES/RELEASE_NOTES_v3_7.md)
 
 ## 1. Overview
@@ -794,16 +794,52 @@ Fully backward compatible — `params` defaults to `None`.
 ### execute_write() — New method (Step 3b)
 
 ```python
-def execute_write(self, sql, params, timeout=None) -> dict:
-    with self._engine.begin() as connection:
+def execute_write(self, sql, params, timeout=None, *, expected_rowcount=None) -> dict:
+    connection = self._engine.connect()
+    transaction = connection.begin()
+    try:
         result = connection.execute(text(sql), params)
-    return {"success": True, "rowcount": result.rowcount}
+        if expected_rowcount is not None and result.rowcount != expected_rowcount:
+            raise ExpectedRowcountMismatchError(...)
+        transaction.commit()
+        return {"success": True, "rowcount": result.rowcount}
+    except failure_before_commit:
+        transaction.rollback()
+        raise typed_write_error
 ```
 
-- Uses `engine.begin()` for explicit transaction (auto-commit on success, auto-rollback on exception)
-- Avoids `engine.connect()` + `connection.begin()` pattern which conflicts with SQLAlchemy 2.0 autobegin
-- Returns dict (not str on error — exceptions propagate)
+- v3.7.2 uses `engine.connect()` followed immediately by `connection.begin()`;
+  no SQL precedes `begin()`, so the historical autobegin conflict does not recur
+- Checks optional exact row count before explicit COMMIT
+- A COMMIT exception is always `unknown`; a later rollback attempt is cleanup,
+  not proof that COMMIT failed
+- Returns the compatible dict on success and typed phase/outcome exceptions on failure
 - Read/write separation by convention (SAFETY.md #16)
+
+The successful adapter mapping is a `WriteExecutionResult` dict subtype whose
+internal `execution_outcome=committed` attribute is not serialized as business
+data. The two built-in exact, single-statement Skills update and return that same
+object instead of reconstructing a plain dict. `MutationBase.run_execute()`
+requires both the reviewed `exact_transaction_outcome=True` declaration and the
+preserved adapter evidence before producing whole-Skill `committed`.
+
+Custom Skills default to no whole-operation evidence. A normal custom dict
+return is therefore `success=true, execution_outcome=unknown`, even if one
+adapter statement committed, because earlier writes or external effects cannot
+be excluded. Missing/false/malformed success results are structured unknown
+failures; an exact Skill that discards adapter evidence is also a structured
+unknown failure. MCP independently repeats the result/evidence check in case a
+custom class overrides `run_execute()`, and non-exact lookalike evidence is
+forced to unknown. When that override omits the base audit marker, MCP attempts
+the success audit itself and reports the actual outcome instead of defaulting
+`audit_logged=true`. MCP never synthesizes `committed` merely because
+`run_execute()` returned.
+
+COMMIT handlers convert operational exceptions and `asyncio.CancelledError` to
+typed `commit_outcome_unknown` after cleanup. Other process-control exceptions,
+and pre-COMMIT cancellation after cleanup, continue to propagate. This preserves
+shutdown semantics; it also means transport-level cancellation may prevent any
+structured response, in which case the host must remain at unknown.
 
 ## 8. Progressive Disclosure
 
@@ -1027,8 +1063,8 @@ persist neither the full token nor that short identifier in the current design.
 | Example skill SQL | Separate MySQL and SQLite examples | One cross-DB SQL template with runtime branching | Keeps templates clear, keeps startup validation deterministic, and lets availability filtering hide incompatible dialects before execution planning |
 | Table name extraction | `_extract_table_names()` ignores `schema.table` | Full `schema.table` regex | Function only used for `SKILLS.md` generation (non-security); core path `_extract_tables_from_sql()` handles `schema.table` correctly |
 | Mutation duplicate SELECT | `execute()` re-runs `validate()` SELECT | Single SELECT in `validate()` only | Intentional TOCTOU prevention — user review gap between preview and confirm requires re-verification of data state |
-| Mutation error contract | `execute()` raises `ToolError` on failure | Return `{"success": False}` dict | Exceptions follow `run_execute()` error handling chain; return-dict failures bypass audit logging and cause semantic contradiction in MCP tool response |
-| Mutation read-write gap | Separate `execute()` + `execute_write()` calls | Single SQL merging SELECT+UPDATE | Optimistic locking `WHERE status = :expected` + `rowcount == 0` is the effective safety net; merging adds complexity with minimal gain |
+| Mutation error contract | Setup/token rejection uses `ToolError`; processable execute failures return structured `success=false` plus outcome/code | All text exceptions or all result dicts | MCP callers need machine-readable DB state, while invalid invocation/authorization remains an exceptional tool rejection |
+| Mutation read-write gap | Separate `execute()` + `execute_write(..., expected_rowcount=1)` calls | Single SQL merging SELECT+UPDATE | Optimistic locking plus the pre-COMMIT exact-row invariant rejects stale or unsafe targets without committing |
 | `_coerce_type()` bool | `bool(value)` (Python built-in) | Explicit `"true"/"false"` mapping | No bool params in current skills; acceptable for MVP, should be revisited when bool params are added |
 | Annotation evaluation | `from __future__ import annotations` (PEP 563) in `skill_loader.py` | Runtime annotation evaluation (default) | Python 3.12 `type` soft keyword conflicts with `SkillMetadata.type` field annotation; PEP 563 deferred evaluation resolves Pylance parsing ambiguity |
 | Database compatibility | Optional `databases` field | No DB type declaration | Follows npm `engines`, Python `requires-python`, Terraform `required_providers` pattern; runtime target connection `db_type` check prevents incompatible skill execution; `None` = all databases (zero overhead for cross-DB skills) |
@@ -1343,8 +1379,8 @@ practices from major AI platform providers and security standards.
 
 | Pattern | Source | How Applied |
 |---------|--------|-------------|
-| `ToolError` for expected failures | [FastMCP — Error Handling](https://gofastmcp.com/servers/tools#errors) | Mutation failures raise `ToolError` (passed to client) vs generic exceptions (masked) |
+| `ToolError` for invocation rejection | [FastMCP — Error Handling](https://gofastmcp.com/servers/tools#errors) | Static parameters, permission, Skill loading, and preview-token rejection use `ToolError`; processable transaction failures use structured results |
 | `ToolAnnotations` metadata | [FastMCP — Tool Annotations](https://gofastmcp.com/servers/tools#tool-annotations) | `readOnlyHint`, `destructiveHint`, `idempotentHint`, and `openWorldHint=false` for MCP tools |
 | Runtime tool metadata | [FastMCP — ToolResult and Metadata](https://gofastmcp.com/servers/tools#toolresult-and-metadata) | All registered tools return `ToolResult` with unchanged structured payload plus non-sensitive runtime `meta`, including safe `connection_id` aliases in v3.5 |
-| Explicit transaction via `engine.begin()` | [SQLAlchemy 2.0 — Transactions](https://docs.sqlalchemy.org/en/20/core/connections.html#using-transactions) | `execute_write()` uses `engine.begin()` context manager (auto-commit/auto-rollback) |
+| Explicit transaction phase tracking | [SQLAlchemy 2.0 — Transactions](https://docs.sqlalchemy.org/en/20/core/connections.html#using-transactions) | `execute_write()` calls `connect()`, `begin()`, statement, invariant check, and `commit()` explicitly so COMMIT exceptions remain distinguishable from pre-COMMIT rollback |
 | Identifier quoting | [SQLAlchemy — `quoted_name()`](https://docs.sqlalchemy.org/en/20/core/sqlelement.html#sqlalchemy.sql.expression.quoted_name) | Table names quoted to prevent SQL injection in dynamic identifiers |

@@ -6,7 +6,8 @@ Uses optimistic locking to prevent concurrent conflicting updates.
 """
 
 from fastmcp.exceptions import ToolError
-from mutation_base import MutationBase  # type: ignore[import-not-found]
+from mutation_base import MutationBase, MutationWriteError  # type: ignore[import-not-found]
+from db_adapter import WriteExecutionError
 
 
 # Valid state transitions (from -> allowed to states)
@@ -23,6 +24,10 @@ VALID_TRANSITIONS: dict[str, list[str]] = {
 
 class Mutation(MutationBase):
     """Update order status with state machine validation."""
+
+    # v3.7.2: this built-in performs exactly one adapter-managed write, so the
+    # adapter's transaction evidence describes the whole Skill write phase.
+    exact_transaction_outcome = True
 
     def validate(self, params: dict) -> dict:
         """
@@ -174,25 +179,24 @@ class Mutation(MutationBase):
         new_status = params["new_status"]
 
         # Execute the update with optimistic locking
-        write_result = self.adapter.execute_write(
-            "UPDATE orders SET status = :new_status "
-            "WHERE id = :order_id AND status = :expected_status",
-            params={
-                "new_status": new_status,
-                "order_id": order_id,
-                "expected_status": expected_status,
-            },
-        )
-
-        if write_result["rowcount"] == 0:
-            raise ToolError(
-                f"Optimistic lock failed: order {order_id} status has "
-                f"changed from '{expected_status}' (concurrent modification)"
+        try:
+            write_result = self.adapter.execute_write(
+                "UPDATE orders SET status = :new_status "
+                "WHERE id = :order_id AND status = :expected_status",
+                params={
+                    "new_status": new_status,
+                    "order_id": order_id,
+                    "expected_status": expected_status,
+                },
+                expected_rowcount=1,
             )
+        except WriteExecutionError as error:
+            raise MutationWriteError(error) from error
 
-        return {
-            "success": True,
-            "rowcount": write_result["rowcount"],
-            "previous_status": expected_status,
-            "new_status": new_status,
-        }
+        # Preserve WriteExecutionResult's internal COMMIT evidence while
+        # keeping the public mapping shape unchanged.
+        write_result.update(
+            previous_status=expected_status,
+            new_status=new_status,
+        )
+        return write_result

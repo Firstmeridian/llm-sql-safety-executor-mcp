@@ -807,27 +807,24 @@ class TestMySQLAdapter:
         class DummyConnection:
             def __init__(self):
                 self.calls = []
+                self.transaction = MagicMock()
 
             def execute(self, statement, params=None):
                 self.calls.append((str(statement), params))
                 return DummyResult()
 
-        class DummyBegin:
-            def __init__(self, connection):
-                self.connection = connection
+            def begin(self):
+                return self.transaction
 
-            def __enter__(self):
-                return self.connection
-
-            def __exit__(self, exception_type, exception, traceback):
-                return False
+            def close(self):
+                pass
 
         class DummyEngine:
             def __init__(self, connection):
                 self.connection = connection
 
-            def begin(self):
-                return DummyBegin(self.connection)
+            def connect(self):
+                return self.connection
 
         connection = DummyConnection()
         adapter = MySQLAdapter()
@@ -840,6 +837,7 @@ class TestMySQLAdapter:
         )
 
         assert result == {"success": True, "rowcount": 2}
+        connection.transaction.commit.assert_called_once_with()
         assert connection.calls == [
             (
                 "SET SESSION innodb_lock_wait_timeout = :timeout_seconds",
@@ -865,27 +863,24 @@ class TestMySQLAdapter:
         class DummyConnection:
             def __init__(self):
                 self.calls = []
+                self.transaction = MagicMock()
 
             def execute(self, statement, params=None):
                 self.calls.append((str(statement), params))
                 return DummyResult()
 
-        class DummyBegin:
-            def __init__(self, connection):
-                self.connection = connection
+            def begin(self):
+                return self.transaction
 
-            def __enter__(self):
-                return self.connection
-
-            def __exit__(self, exception_type, exception, traceback):
-                return False
+            def close(self):
+                pass
 
         class DummyEngine:
             def __init__(self, connection):
                 self.connection = connection
 
-            def begin(self):
-                return DummyBegin(self.connection)
+            def connect(self):
+                return self.connection
 
         connection = DummyConnection()
         adapter = MySQLAdapter()
@@ -902,6 +897,61 @@ class TestMySQLAdapter:
             {"timeout_seconds": 1},
         )
 
+    def test_mysql_expected_rowcount_mismatch_rolls_back_before_commit(self):
+        """The shared exact-row contract must also hold on the MySQL path."""
+        from db_adapter import (
+            ExpectedRowcountMismatchError,
+            MySQLAdapter,
+            WriteExecutionOutcome,
+        )
+
+        class DummyResult:
+            rowcount = 2
+
+        class DummyConnection:
+            def __init__(self):
+                self.transaction = MagicMock()
+                self.transaction.is_active = True
+                self.closed = False
+                self.invalidated = False
+                self.connection = MagicMock()
+                self.connection.is_valid = True
+
+            def execute(self, _statement, _params=None):
+                return DummyResult()
+
+            def begin(self):
+                return self.transaction
+
+            def close(self):
+                pass
+
+        class DummyEngine:
+            def __init__(self, connection):
+                self.connection = connection
+
+            def connect(self):
+                return self.connection
+
+        connection = DummyConnection()
+        adapter = MySQLAdapter()
+        adapter._engine = cast(Engine, DummyEngine(connection))
+
+        with pytest.raises(ExpectedRowcountMismatchError) as raised:
+            adapter.execute_write(
+                "UPDATE orders SET status = :status",
+                {"status": "new"},
+                expected_rowcount=1,
+            )
+
+        assert raised.value.actual_rowcount == 2
+        assert (
+            raised.value.execution_outcome
+            is WriteExecutionOutcome.ROLLED_BACK
+        )
+        connection.transaction.rollback.assert_called_once_with()
+        connection.transaction.commit.assert_not_called()
+
     def test_mysql_execute_write_fails_closed_when_lock_wait_timeout_fails(self):
         """Mutation SQL should not run if the lock-wait guard cannot be set."""
         from sqlalchemy.exc import SQLAlchemyError
@@ -910,38 +960,39 @@ class TestMySQLAdapter:
         class DummyConnection:
             def __init__(self):
                 self.calls = []
+                self.transaction = MagicMock()
 
             def execute(self, statement, params=None):
                 self.calls.append((str(statement), params))
                 raise SQLAlchemyError("unsupported session variable")
 
-        class DummyBegin:
-            def __init__(self, connection):
-                self.connection = connection
+            def begin(self):
+                return self.transaction
 
-            def __enter__(self):
-                return self.connection
-
-            def __exit__(self, exception_type, exception, traceback):
-                return False
+            def close(self):
+                pass
 
         class DummyEngine:
             def __init__(self, connection):
                 self.connection = connection
 
-            def begin(self):
-                return DummyBegin(self.connection)
+            def connect(self):
+                return self.connection
 
         connection = DummyConnection()
         adapter = MySQLAdapter()
         adapter._engine = cast(Engine, DummyEngine(connection))
 
-        with pytest.raises(RuntimeError, match="lock-wait timeout"):
+        from db_adapter import WriteExecutionError, WriteExecutionOutcome
+
+        with pytest.raises(WriteExecutionError) as raised:
             adapter.execute_write(
                 "UPDATE orders SET status = :status",
                 {"status": "new"},
                 timeout=3,
             )
+        assert raised.value.execution_outcome is WriteExecutionOutcome.NOT_EXECUTED
+        connection.transaction.rollback.assert_called_once_with()
 
         assert connection.calls == [
             (

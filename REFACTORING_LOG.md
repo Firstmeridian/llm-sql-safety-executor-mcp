@@ -1,11 +1,72 @@
 # MCP SQL Server Refactoring Log
 
-**Date:** December 2, 2025 (Updated: September 3, 2026)
+**Date:** December 2, 2025 (Updated: September 10, 2026)
 **Author:** Code Refactoring Session
 
 ## Overview
 
 This document records the major refactoring changes made to `mcp_sql_server.py` to follow FastMCP best practices and improve the overall design.
+
+---
+
+## Follow-up: Transaction Outcomes and Uncertain COMMIT (September 10, 2026)
+
+v3.7.2 replaces the mutation write path's `engine.begin()` context-manager
+boundary with an explicit `connect()` → immediate `begin()` → execute → optional
+row-count invariant → `commit()` sequence. Unlike the historical buggy pattern,
+no `SET` or other SQL precedes `begin()`, so SQLAlchemy autobegin does not
+conflict. The explicit boundary is required to classify a statement failure plus
+confirmed rollback separately from a COMMIT acknowledgement failure, which is
+always unknown.
+
+Both adapters now accept keyword-only `expected_rowcount`; the built-in status
+and demo-reset Skills require exactly one affected row before COMMIT. Typed
+adapter results/exceptions carry phase and transaction evidence, while the
+successful dict interface remains compatible. MCP results add
+`execution_outcome`; processable execute failures become structured business
+failures with stable codes, and static setup/token rejection remains
+`ToolError`. The host validates response identity before outcome and performs no
+automatic follow-up after its one execute. Custom Skills are not given a false
+whole-Skill rollback guarantee from one adapter statement, and no generic
+multi-statement framework or durable operation ledger was added. Full rationale,
+tests, public compatibility notes, sources, and remaining boundaries are in the
+v3.7 release notes and DRR-2026-058 through DRR-2026-063.
+
+The final evidence-hardening review removed a symmetric success-path overclaim:
+MCP had still hard-coded `committed` after any custom `run_execute()` return.
+Successful adapter results now carry internal COMMIT evidence through both
+built-in Skills and `MutationBase`; MCP only forwards it. Ordinary custom success
+is `success=true, unknown`, while malformed/self-reported failure results and an
+exact Skill that drops its evidence become structured unknown failures. The host
+accepts `success=true, unknown` as a valid terminal custom-Skill outcome rather
+than as successful execution. MCP repeats the base validation for custom
+`run_execute()` overrides, downgrades non-exact lookalike evidence, and performs
+an honest fallback audit attempt when the base audit marker is absent.
+
+Both adapters now also convert `asyncio.CancelledError` raised specifically by
+COMMIT into typed `commit_outcome_unknown` after cleanup. Pre-COMMIT cancellation
+and unrelated process-control exceptions still propagate after cleanup, and a
+transport that has already disappeared cannot receive a structured response.
+These corrections and their trust/compatibility boundaries are recorded in
+DRR-2026-062 and DRR-2026-063.
+
+The subsequent review closed three additional gaps: SQLAlchemy may return from
+rollback without calling the driver after connection invalidation; custom
+`run_execute()` exceptions can bypass the base wrapper; and JSON arrays/objects
+in `execution_outcome` must be classified rather than hashed. Rollback evidence
+now requires an active transaction and a valid connection before rollback and
+a still-valid connection afterward, without reconnecting. Custom execution
+exceptions become sanitized, audited `unknown` results, and non-string host
+outcomes are terminal unknown. Real SQLAlchemy transaction tests cover these
+local no-op rollback paths for both adapter control flows.
+
+Adjacent response paths were also hardened: fallback success/failure audit
+exceptions cannot replace the write outcome, and serialization-error responses
+discard the original custom result in favor of a scalar row-count summary.
+This prevents the fallback from failing on the same unserializable value.
+Post-review validation: `583 passed, 4 skipped`; targeted Pyright reported
+`0 errors` and 35 third-party-import resolution warnings. Live MySQL tests were
+not enabled, and no live network-failure guarantee is inferred from this run.
 
 ---
 
@@ -1605,7 +1666,12 @@ SQLAlchemy 2.0 uses "autobegin" — any `execute()` call on a connection implici
 
 **Why unit tests didn't catch it**: All 111 tests use SQLite in-memory with `StaticPool` (shared single connection), where the connection lifecycle differs. The timeout mechanism uses `set_progress_handler()` instead of `SET SESSION`, so the autobegin trigger path doesn't exist in SQLite tests.
 
-**Fix**: Replace `engine.connect()` + `connection.begin()` with `engine.begin()`:
+**Historical fix**: Replace the then-buggy `engine.connect()` + SQL-before-
+`connection.begin()` sequence with `engine.begin()`:
+
+> v3.7.2 supersedes this implementation, but not the lesson: it again uses
+> `connect()` + `begin()` only with `begin()` called immediately before any SQL,
+> then tracks COMMIT explicitly to preserve uncertain-outcome evidence.
 
 ```python
 # AFTER (fixed) — both MySQL and SQLite adapters

@@ -7,7 +7,8 @@
 > 版本范围：v3.5 命名连接与只读 Skills，v3.6 命名 Mutation、preview-token
 > 和严格写策略，v3.6.1 的 preview/binding 修复与同进程部署契约定稿，
 > v3.7.0 的可选 Skill 连接范围、人工批准 host 和跨数据库 demo reset，以及
-> v3.7.1 的 opaque preview handle、精简响应与 Agent 渐进披露优化。
+> v3.7.1 的 opaque preview handle、精简响应与 Agent 渐进披露优化，
+> 以及 v3.7.2 的提交前影响行数约束、结构化事务结果和未知结果不重做。
 
 > **v3.7.1 迁移说明：** 本文的 v3.6/v3.6.1 比较保留 HMAC token 历史事实。
 > v3.7.1 仍使用 `preview_token` 字段，但其值是 256-bit opaque handle；请求与
@@ -683,6 +684,49 @@ provider 的硬终止仍需要进程隔离。token 不进入批准视图或该�
 - 参数、preview 与打印的 execute result 都可能是敏感业务数据；
 - 多用户、批准人认证、职责分离和合规审计需要产品自己的批准服务，本版本没有提供。
 
+### 8.5 v3.7.2 宿主如何判定 execute 结果？
+
+宿主必须先严格匹配 `mode=execute`、请求的 `skill_name`、preview 返回的
+`connection_id` 和 `db_type`，再读取 `execution_outcome`。身份缺失或不匹配时，
+即使响应声称 `committed` 也只能得到 `execute_unknown`，因为它可能不是本流程的
+回执。
+
+| MCP 结果 | 参考宿主状态 | 当前流程动作 |
+|---|---|---|
+| `success=true, execution_outcome=committed` | `executed` | 结束，不重做 |
+| `success=true, execution_outcome=unknown` | `execute_unknown` | 自定义 Skill handler 已完成但没有整个操作的 COMMIT 证据；结束并核查 |
+| `success=false, execution_outcome=committed` | `execute_committed` | 结束，不重做；数据库已确认提交 |
+| `success=false, execution_outcome=rolled_back` | `execute_rolled_back` | 结束，不自动重新 preview/execute |
+| `success=false, execution_outcome=not_executed` | `execute_not_executed` | 结束，不自动重新 preview/execute |
+| `success=false, execution_outcome=unknown` | `execute_unknown` | 结束并人工核查业务状态 |
+
+超时、客户端异常、响应缺失、未知枚举、非布尔 `success`、矛盾字段、缺少稳定
+`error_code`/脱敏 `error` 的失败，以及任何身份不匹配，均为 terminal
+`execute_unknown`。参考 host 每个流程最多调用一次 execute；结果出来后不会自动
+重新 preview、重新提交、切换 connection 或切换 server instance。
+
+`committed` 不是 MCP 成功分支自行生成的默认值。两个内置单语句 Skill 必须保留
+adapter 的类型化成功结果，`MutationBase` 同时验证 exact 声明和 COMMIT 证据后才会
+返回该值。普通自定义 Skill 的 dict 成功只能证明 Python handler 正常返回，因此是
+`success=true, execution_outcome=unknown`。缺失/非布尔/false 的 Skill `success`
+结果会变成 `success=false, invalid_skill_result, unknown`；声明 exact 但丢失 adapter
+证据会变成 `missing_commit_evidence, unknown`。
+
+COMMIT 阶段的 `asyncio.CancelledError` 与连接异常具有相同确认歧义；MySQL/SQLite
+adapter 在清理后将其转换成 `commit_outcome_unknown`，只要 MCP 调用仍有机会返回
+结果。COMMIT 前取消和其它进程控制异常在清理后仍传播，以免阻止 shutdown/timeout；
+如果 transport 已无法投递响应，宿主仍按缺失响应得到 `execute_unknown`。
+
+兼容 v3.7.1 及更早服务端时，只把身份严格匹配、`success=true`、
+`mode=execute` 且 `result` 为对象的旧响应识别为 `executed`。没有
+`execution_outcome` 的旧失败响应缺少数据库状态证据，按 `execute_unknown` 处理。
+这意味着客户端不能再以“工具没有抛异常”作为成功标准；必须同时检查
+`success` 与 `execution_outcome`。
+
+旧成功识别是本版明确保留的兼容行为，不是补造的 COMMIT 证据；旧服务端无法区分
+自定义 handler 正常返回和数据库确认提交。依赖严格事务结论前必须升级服务端，
+不能把 legacy `executed` 外推成 v3.7.2 的 `committed` 保证。
+
 ## 9. 数据库状态变化与乐观锁
 
 preview 和 execute 之间数据库当然可能变化：
@@ -708,7 +752,10 @@ WHERE id = :order_id
   AND status = :expected_status
 ```
 
-如果状态已经变成 `cancelled`，影响行数为 0，系统报告乐观锁失败，不会覆盖后来发生的修改。
+如果状态已经变成 `cancelled`，影响行数为 0。v3.7.2 会在 COMMIT 前发现不匹配并
+回滚，再返回 `success=false, execution_outcome=rolled_back,
+error_code=expected_rowcount_mismatch`，不会覆盖后来发生的修改。若异常发生在
+COMMIT 阶段，则无论后续 rollback cleanup 是否报错，都只能返回 `unknown`。
 
 注意：token 不会冻结数据库，也不会锁住 preview 到 execute 的整个时间间隔。每个状态敏感 Skill 都应实现自己的 `build_execution_binding()` 和 `execute_with_binding()`。
 
@@ -981,7 +1028,7 @@ MySQL 和 SQLite 两端都使用临时订单完成 preview/execute/replay 测试
 清理临时数据。因此，“本节批次未执行远程 MySQL 写入”和“完整 fixture 批次验证了
 MySQL 写入”并不矛盾，不能把两批写入范围合并描述。
 
-真实联调不是穷尽式生产证明。尤其需要持续注意：MySQL 当前若配置 `ALLOWED_TABLES=*` 和 Mutation 写权限，会扩大真实数据库的 blast radius；v3.6.1-v3.7.1 的 mutation endpoint 只支持单个启用 mutation 的进程，不能将多个 memory worker 放在普通负载均衡器后。v3.7.0 的 in-memory FastMCP contract 和 2026-08-21 的 subprocess stdio 复验均已通过；2026-08-26 又在重启后的已配置 MCP 服务上完成 v3.7.1 opaque-handle direct live mutation 与恢复，但它本身不是 fresh-subprocess approval-host 复验。2026-08-28 又在 fresh subprocess 完成人工批准 Host 的 `APPROVE` 成功写入与 `NO` 拒绝且未调用 execute；另在临时只为 `analytics_demo_sqlite` 开启 UNION 的 subprocess 中，raw query 和 Query Skill allow 分支均返回真实两行，而默认 MySQL 仍按目标 policy 拒绝 UNION。MySQL 早先超时后，后续只读连接复验恢复成功；早先超时作为负面环境观察保留在 live 文档中。2026-08-13、2026-08-19/20 的 initialize 阻塞保留为历史环境观察，不能与最新通过结果混淆。
+真实联调不是穷尽式生产证明。尤其需要持续注意：MySQL 当前若配置 `ALLOWED_TABLES=*` 和 Mutation 写权限，会扩大真实数据库的 blast radius；v3.6.1-v3.7.2 的 mutation endpoint 只支持单个启用 mutation 的进程，不能将多个 memory worker 放在普通负载均衡器后。v3.7.0 的 in-memory FastMCP contract 和 2026-08-21 的 subprocess stdio 复验均已通过；2026-08-26 又在重启后的已配置 MCP 服务上完成 v3.7.1 opaque-handle direct live mutation 与恢复，但它本身不是 fresh-subprocess approval-host 复验。2026-08-28 又在 fresh subprocess 完成人工批准 Host 的 `APPROVE` 成功写入与 `NO` 拒绝且未调用 execute；另在临时只为 `analytics_demo_sqlite` 开启 UNION 的 subprocess 中，raw query 和 Query Skill allow 分支均返回真实两行，而默认 MySQL 仍按目标 policy 拒绝 UNION。MySQL 早先超时后，后续只读连接复验恢复成功；早先超时作为负面环境观察保留在 live 文档中。2026-08-13、2026-08-19/20 的 initialize 阻塞保留为历史环境观察，不能与最新通过结果混淆。v3.7.2 的真实 MySQL 并发测试仍须通过显式 opt-in 单独运行；默认 SQLite/mock 结果不能替代该结论。
 
 ## 15. 相关文档
 
