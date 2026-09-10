@@ -24,12 +24,14 @@ cleanup, not proof that the earlier COMMIT failed.
   before connection acquisition.
 - Statement execution is followed by the row-count check and only then COMMIT.
   Mismatch raises `ExpectedRowcountMismatchError`; a confirmed rollback carries
-  `rolled_back`, while rollback failure carries `unknown`.
+  `rolled_back`, while a rollback exception or insufficient confirmation carries
+  `unknown`.
 - Rollback confirmation also requires an active transaction and a valid
   SQLAlchemy/DBAPI connection before rollback and a valid connection afterward.
   An invalidated/closed connection or an inactive transaction can make rollback
-  a local no-op; this remains `unknown` with `rollback_failed`, even when the
-  method returns normally. Inspection must not reconnect to a different session.
+  a local no-op; a normal method return without sufficient evidence is
+  `unknown` with `rollback_unconfirmed`. `rollback_failed` is reserved for a
+  rollback call that raises. Inspection must not reconnect to a different session.
 - `WriteExecutionResult`, `WriteExecutionError`, `WriteExecutionPhase`, and
   `WriteExecutionOutcome` preserve phase/outcome evidence internally while the
   public successful result remains the compatible
@@ -75,7 +77,7 @@ Preview and dynamic-validation results use `not_executed`.
 
 Stable failure codes are `validation_failed`, `preview_failed`,
 `expected_rowcount_mismatch`, `database_execution_failed`, `rollback_failed`,
-`commit_outcome_unknown`, `execution_outcome_unknown`, and
+`rollback_unconfirmed`, `commit_outcome_unknown`, `execution_outcome_unknown`, and
 `response_preparation_failed`; custom/exact-Skill contract violations use
 `invalid_skill_result` and `missing_commit_evidence`. `outputSchema`,
 `ToolResult.meta`, and JSONL audit entries carry the corresponding outcome/code.
@@ -161,6 +163,14 @@ Upgrade the server before relying on the v3.7.2 outcome guarantee.
 - After the review fixes, the default suite completed with `583 passed, 4 skipped`.
   Targeted Pyright checking of the seven edited Python paths reported `0 errors`
   and 35 unresolved third-party-import warnings; `git diff --check` also passed.
+- The 2026-09-11 diagnostic follow-up reserves `rollback_failed` for an exception
+  raised by rollback and reports a locally completed but unprovable rollback as
+  `rollback_unconfirmed`. Both remain `execution_outcome=unknown`; this improves
+  diagnostics and does not authorize retry. The default suite then completed
+  with `584 passed, 4 skipped`; the skips remain opt-in real-MySQL cases, so this
+  run adds no live MySQL claim. Targeted Pyright for the two changed Python paths
+  reported `0 errors` and 16 unresolved third-party-import warnings from the
+  workspace resolver.
 - Targeted Pyright checking of the changed Python paths reported `0 errors` and
   39 unresolved third-party-import warnings. The virtualenv executes those
   imports in pytest, but the Pyright resolver in this workspace does not locate
@@ -173,7 +183,16 @@ Upgrade the server before relying on the v3.7.2 outcome guarantee.
   machine, or background worker was added. Those remain the future direction
   for resolving unknown commits. There is no generic request deduplication, no
   ABA protection for state cycles, no recovery of unknown operations after
-  restart, and no expansion of multi-replica HTTP mutation support.
+  restart, and no expansion of multi-replica HTTP mutation support. Current
+  business state matching the requested state does not attribute that state to
+  this request. Until a future protocol defines authoritative consistency,
+  in-progress, retention, and terminal-not-found semantics, an absent receipt
+  must not be interpreted as rollback evidence or permission to retry.
+- The deferred receipt direction remains canonically tracked in DRR-2026-061
+  instead of a separate speculative plan that could drift. Promote it to a
+  versioned design/ADR only when restart-time result lookup, unattended recovery,
+  or measured manual-reconciliation cost becomes a concrete requirement with an
+  owner and migration scope.
 - Conditional UPDATEs and database constraints still protect only the business
   invariants they explicitly encode. The project cannot force arbitrary
   third-party Agents to obey “unknown means do not retry”; manual database or
@@ -188,7 +207,10 @@ Upgrade the server before relying on the v3.7.2 outcome guarantee.
 Primary references reviewed for this design:
 
 - [SQLAlchemy explicit transaction management](https://docs.sqlalchemy.org/en/20/core/connections.html#using-transactions)
+- [SQLAlchemy connection invalidation and local transaction cleanup](https://docs.sqlalchemy.org/en/20/core/connections.html#sqlalchemy.engine.Connection.invalidate)
 - [Microsoft: handling transaction commit failures](https://learn.microsoft.com/en-us/ef/ef6/fundamentals/connection-resiliency/commit-failures)
+- [AWS: making retries safe with idempotent APIs](https://aws.amazon.com/builders-library/making-retries-safe-with-idempotent-APIs/)
+- [Google AIP-155: request identification and idempotency](https://google.aip.dev/155)
 - [MySQL: statements that cause an implicit commit](https://dev.mysql.com/doc/refman/8.0/en/implicit-commit.html)
 - [MySQL: rollback failure for nontransactional tables](https://dev.mysql.com/doc/refman/8.0/en/nontransactional-tables.html)
 - [MCP tools: structured content and output schemas](https://modelcontextprotocol.io/specification/2025-06-18/server/tools)
@@ -200,8 +222,8 @@ add the durable operation protocol explicitly excluded from v3.7.2. SQLAlchemy
 context managers remain good ordinary transaction practice; this path uses
 explicit commit because it must distinguish pre-COMMIT failure from uncertain
 COMMIT acknowledgement.
-- Last implementation review: 2026-09-10
-- Latest default regression validation: 2026-09-10 (`583 passed, 4 skipped`)
+- Last implementation review: 2026-09-11
+- Latest default regression validation: 2026-09-11 (`584 passed, 4 skipped`)
 - Latest successful MySQL read-only data-plane validation: 2026-09-03
 - Status: implemented
 

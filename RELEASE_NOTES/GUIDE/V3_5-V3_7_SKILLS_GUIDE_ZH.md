@@ -700,6 +700,16 @@ provider 的硬终止仍需要进程隔离。token 不进入批准视图或该�
 | `success=false, execution_outcome=not_executed` | `execute_not_executed` | 结束，不自动重新 preview/execute |
 | `success=false, execution_outcome=unknown` | `execute_unknown` | 结束并人工核查业务状态 |
 
+COMMIT 前失败中，`rollback_failed` 表示 rollback 调用确实抛出异常；
+`rollback_unconfirmed` 表示调用在本地返回，但事务活跃状态或连接有效性不足以证明
+数据库已回滚。两者都保持 `execution_outcome=unknown`，只用于诊断，不能授权重试。
+
+本版没有持久 operation ID 或回执查询。人工看到当前业务状态符合预期，只能辅助
+恢复，不能证明该状态由本次请求造成；未来若提供查询，在协议尚未明确权威一致性、
+处理中状态、保留期和 terminal-not-found 语义前，“查不到”也不能解释为已回滚或
+允许重试。出现重启后查询、无人值守恢复或可量化的人工核查成本时，再按
+DRR-2026-061 启动独立版本设计。
+
 超时、客户端异常、响应缺失、未知枚举、非布尔 `success`、矛盾字段、缺少稳定
 `error_code`/脱敏 `error` 的失败，以及任何身份不匹配，均为 terminal
 `execute_unknown`。参考 host 每个流程最多调用一次 execute；结果出来后不会自动

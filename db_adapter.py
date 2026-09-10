@@ -147,7 +147,11 @@ class ExpectedRowcountMismatchError(WriteExecutionError):
             error_code=(
                 "expected_rowcount_mismatch"
                 if execution_outcome is WriteExecutionOutcome.ROLLED_BACK
-                else "rollback_failed"
+                else (
+                    "rollback_failed"
+                    if original_error is not None
+                    else "rollback_unconfirmed"
+                )
             ),
             original_error=original_error,
         )
@@ -205,6 +209,18 @@ def _rollback_outcome(
             return WriteExecutionOutcome.ROLLED_BACK, None
         return WriteExecutionOutcome.UNKNOWN, None
     return WriteExecutionOutcome.NOT_EXECUTED, None
+
+
+def _precommit_failure_error_code(
+    outcome: WriteExecutionOutcome,
+    rollback_error: BaseException | None,
+) -> str:
+    """Distinguish a raised rollback error from insufficient rollback proof."""
+    if outcome is not WriteExecutionOutcome.UNKNOWN:
+        return "database_execution_failed"
+    if rollback_error is not None:
+        return "rollback_failed"
+    return "rollback_unconfirmed"
 
 
 def _close_write_connection(connection: Any) -> None:
@@ -1062,11 +1078,7 @@ class MySQLAdapter(DatabaseAdapter):
                 "Parameterized write failed before COMMIT.",
                 execution_outcome=outcome,
                 phase=phase,
-                error_code=(
-                    "rollback_failed"
-                    if outcome is WriteExecutionOutcome.UNKNOWN
-                    else "database_execution_failed"
-                ),
+                error_code=_precommit_failure_error_code(outcome, rollback_error),
                 original_error=rollback_error or error,
             ) from error
 
@@ -1486,11 +1498,7 @@ class SQLiteAdapter(DatabaseAdapter):
                 "Parameterized write failed before COMMIT.",
                 execution_outcome=outcome,
                 phase=phase,
-                error_code=(
-                    "rollback_failed"
-                    if outcome is WriteExecutionOutcome.UNKNOWN
-                    else "database_execution_failed"
-                ),
+                error_code=_precommit_failure_error_code(outcome, rollback_error),
                 original_error=rollback_error or error,
             ) from error
 

@@ -201,6 +201,7 @@ def test_execute_failure_and_successful_rollback_is_rolled_back() -> None:
         adapter.execute_write("UPDATE t SET x = 1", {})
     assert raised.value.phase is WriteExecutionPhase.EXECUTE
     assert raised.value.execution_outcome is WriteExecutionOutcome.ROLLED_BACK
+    assert raised.value.error_code == "database_execution_failed"
     assert connection.transaction.rollback_calls == 1
     assert connection.raw.handlers[-1] is None
     assert connection.closed is True
@@ -216,6 +217,24 @@ def test_rollback_failure_makes_execution_outcome_unknown() -> None:
     adapter = _adapter_with_fake_connection(connection)
     with pytest.raises(WriteExecutionError) as raised:
         adapter.execute_write("UPDATE t SET x = 1", {})
+    assert raised.value.execution_outcome is WriteExecutionOutcome.UNKNOWN
+    assert raised.value.error_code == "rollback_failed"
+
+
+def test_rowcount_mismatch_and_rollback_failure_keeps_failed_code() -> None:
+    from db_adapter import ExpectedRowcountMismatchError, WriteExecutionOutcome
+
+    connection = _FakeConnection(
+        rowcount=2,
+        rollback_error=RuntimeError("rollback disconnected"),
+    )
+    adapter = _adapter_with_fake_connection(connection)
+    with pytest.raises(ExpectedRowcountMismatchError) as raised:
+        adapter.execute_write(
+            "UPDATE t SET x = 1",
+            {},
+            expected_rowcount=1,
+        )
     assert raised.value.execution_outcome is WriteExecutionOutcome.UNKNOWN
     assert raised.value.error_code == "rollback_failed"
 
@@ -282,7 +301,7 @@ def test_real_sqlalchemy_local_rollback_is_not_confirmation(
         )
 
     assert raised.value.execution_outcome is WriteExecutionOutcome.UNKNOWN
-    assert raised.value.error_code == "rollback_failed"
+    assert raised.value.error_code == "rollback_unconfirmed"
     # Closing the connection can already have resolved the transaction, but a
     # subsequent no-op rollback cannot independently certify that resolution.
     assert len(rollback_calls) == (1 if disconnect_at == "closed" else 0)

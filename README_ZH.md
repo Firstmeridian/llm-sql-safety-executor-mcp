@@ -1516,7 +1516,13 @@ summary/full 输出中的 `configured_connection_ids` 只表示该 Skill 声明�
 `committed` 只来自两个 exact 内置 Skill 保留下来的成功 adapter COMMIT 证据；
 普通自定义 Skill 成功为 `success=true, execution_outcome=unknown`，参考宿主将其作为
 terminal unknown。自定义结果若缺失 `success`、类型错误或显式为 false，会成为
-结构化 unknown 失败，不会被服务端升级。
+结构化 unknown 失败，不会被服务端升级。对 COMMIT 前清理，`rollback_failed`
+表示 rollback 调用抛异常；`rollback_unconfirmed` 表示调用在本地正常返回，但事务/
+连接无法提供充分的数据库侧证据。两者均为 `execution_outcome=unknown`，不得自动重试。
+本版没有持久 operation ID 或回执查询。后来观察到业务状态符合请求预期，不能证明
+请求级归因；未来查询不到回执，也不能单独证明已回滚，除非该协议已明确权威一致性、
+处理中状态、保留期和 terminal-not-found 语义。暂缓设计的触发条件统一登记在
+DRR-2026-061，不另建推测性计划文档。
 
 ### Skills 扩展详解（v3.0）
 

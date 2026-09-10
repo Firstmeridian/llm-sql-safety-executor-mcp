@@ -1,6 +1,6 @@
 # MCP SQL Server Refactoring Log
 
-**Date:** December 2, 2025 (Updated: September 10, 2026)
+**Date:** December 2, 2025 (Updated: September 11, 2026)
 **Author:** Code Refactoring Session
 
 ## Overview
@@ -64,9 +64,26 @@ Adjacent response paths were also hardened: fallback success/failure audit
 exceptions cannot replace the write outcome, and serialization-error responses
 discard the original custom result in favor of a scalar row-count summary.
 This prevents the fallback from failing on the same unserializable value.
-Post-review validation: `583 passed, 4 skipped`; targeted Pyright reported
+
+The September 11 diagnostic follow-up separates two `unknown` rollback reasons:
+`rollback_failed` now requires an exception from the rollback call, while
+`rollback_unconfirmed` means local cleanup returned but the original transaction
+or connection could not provide sufficient database evidence. Both adapters and
+the row-count-mismatch path use consistent classification rules; this diagnostic
+distinction does not change host behavior or authorize a retry. Deferred
+durable receipts remain in DRR-2026-061 rather than a separate speculative plan.
+A versioned design/ADR is reserved for a concrete restart-query,
+unattended-recovery, or measured manual-reconciliation requirement with an
+owner and migration scope.
+
+Earlier post-review validation: `583 passed, 4 skipped`; targeted Pyright reported
 `0 errors` and 35 third-party-import resolution warnings. Live MySQL tests were
-not enabled, and no live network-failure guarantee is inferred from this run.
+not enabled, and no live network-failure guarantee is inferred from that run.
+After the September 11 follow-up, the default suite completed with
+`584 passed, 4 skipped`; the four opt-in real-MySQL cases remained unexecuted,
+and Python compilation plus `git diff --check` passed. Targeted Pyright for the
+two changed Python paths reported `0 errors` and 16 unresolved third-party-import
+warnings from the workspace resolver.
 
 ---
 

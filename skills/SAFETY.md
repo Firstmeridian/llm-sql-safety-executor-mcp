@@ -112,6 +112,10 @@ malicious Skill from forging objects or performing hidden side effects.
 
 MySQL rollback claims apply only to transactional InnoDB DML. MySQL
 nontransactional tables and implicit-commit statements are outside that claim.
+For pre-COMMIT cleanup, `rollback_failed` specifically means rollback raised;
+`rollback_unconfirmed` means local cleanup returned but active-transaction or
+connection-validity evidence was insufficient. Both are `unknown` and neither
+permits retry.
 SQLite's progress handler, MySQL's InnoDB lock-wait guard, transactions, and
 connections are cleaned on exception/cancellation paths; SQL is never retried.
 `asyncio.CancelledError` raised during COMMIT is converted to typed

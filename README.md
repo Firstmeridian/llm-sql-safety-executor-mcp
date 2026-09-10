@@ -1606,7 +1606,16 @@ from preserved successful adapter COMMIT evidence for the two exact built-ins;
 an ordinary custom-Skill success is `success=true, execution_outcome=unknown`
 and is terminal in the reference host. A custom result with missing/false/
 malformed `success` becomes a structured unknown failure rather than being
-upgraded by the server.
+upgraded by the server. For pre-COMMIT cleanup, `rollback_failed` means the
+rollback call raised; `rollback_unconfirmed` means it returned locally but the
+transaction/connection could not provide sufficient database-side evidence.
+Both carry `execution_outcome=unknown` and must not be retried automatically.
+This release has no durable operation ID or receipt lookup. A later business
+state that matches the request does not prove request-level attribution, and an
+absent future receipt would not by itself prove rollback unless that protocol
+explicitly defines authoritative consistency, in-progress, retention, and
+terminal-not-found semantics. The deferred design trigger is tracked in
+DRR-2026-061 rather than a separate speculative plan.
 
 ### Skills Extension Details (v3.0)
 
