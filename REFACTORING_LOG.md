@@ -7,6 +7,41 @@
 
 This document records the major refactoring changes made to `mcp_sql_server.py` to follow FastMCP best practices and improve the overall design.
 
+## Follow-up: Sample Skill names and local files (September 12, 2026)
+
+Renamed all four bundled Skill directories with `git mv` to the `sample-`
+namespace, including `sample-reset-order-to-pending`. Frontmatter, related
+Skills, exact-outcome registration, configuration templates, clients, tests,
+and current documentation use the new identifiers. Old names are not aliases;
+existing connection allowlists must migrate and clients must obtain fresh
+previews after restart. Historical release and live-test records retain their
+original identifiers with a link to the migration table.
+
+The dated entries below this migration retain the names used at the time,
+including historical source paths and recorded test calls. For current names,
+see the [v3.7.2 migration table](RELEASE_NOTES/RELEASE_NOTES_v3_7.md#sample-skill-names-and-local-files).
+
+Non-sample directories under `skills/` are now ignored, with `_lib/` explicitly
+retained as framework code. The generated catalog and default audit log were
+removed from the index with local copies preserved. Shared example documentation
+remains in README and the sample definitions. The prefix is only a naming and
+Git convention; exact transaction attribution still requires the reviewed
+source path, loaded class identity, declaration, and adapter evidence.
+
+Validation: `600 passed, 4 skipped`; the renamed real in-memory MCP flows and
+the additional custom `sample-` exact-declaration rejection passed. Ten
+isolated Git-ignore cases passed, both generated files remained on disk after
+index removal, and the local audit content was preserved. The default MySQL
+opt-in tests remained skipped; no live database writes were performed for this
+migration. `git diff --check` passed.
+
+Final review repeated the full suite from a clean index export, without the
+ignored runtime files: `600 passed, 4 skipped`. Two existing MCP regressions
+gained explicit dict assertions before reading optional structured content;
+their targeted rerun passed both tests. Pyright 1.1.411, using the project
+virtualenv, then checked the 16 changed Python paths with `0 errors, 0 warnings`.
+Changed Markdown relative-link targets were also checked against tracked files.
+
 ---
 
 ## Follow-up: Transaction Outcomes and Uncertain COMMIT (September 10, 2026)

@@ -35,7 +35,7 @@ NOW = datetime(2026, 8, 19, 12, 0, tzinfo=timezone.utc)
 def _preview(**overrides: Any) -> dict[str, Any]:
     payload: dict[str, Any] = {
         "success": True,
-        "skill_name": "update-order-status",
+        "skill_name": "sample-update-order-status",
         "mode": "preview",
         "connection_id": "orders_primary",
         "db_type": "sqlite",
@@ -52,7 +52,7 @@ def _preview(**overrides: Any) -> dict[str, Any]:
 def _execute(**overrides: Any) -> dict[str, Any]:
     payload: dict[str, Any] = {
         "success": True,
-        "skill_name": "update-order-status",
+        "skill_name": "sample-update-order-status",
         "mode": "execute",
         "connection_id": "orders_primary",
         "db_type": "sqlite",
@@ -100,7 +100,7 @@ def _run(client, approver, request=None) -> MutationOutcome:
             client,
             request
             or MutationRequest(
-                "update-order-status",
+                "sample-update-order-status",
                 {"order_id": 1, "new_status": "confirmed"},
             ),
             approver,
@@ -172,7 +172,7 @@ def test_malformed_or_failed_preview_fails_closed(preview_payload) -> None:
 def test_explicit_connection_mismatch_fails_closed() -> None:
     client = FakeClient([_preview(connection_id="different")])
     request = MutationRequest(
-        "update-order-status",
+        "sample-update-order-status",
         {"order_id": 1, "new_status": "confirmed"},
         connection_id="orders_primary",
     )
@@ -211,7 +211,7 @@ def test_workflow_enforces_timeout_against_late_approval() -> None:
     outcome = asyncio.run(
         run_approved_mutation(
             client,
-            MutationRequest("update-order-status", {"order_id": 1}),
+            MutationRequest("sample-update-order-status", {"order_id": 1}),
             SlowApprover(),
             approval_timeout_seconds=0.01,
             now=lambda: NOW,
@@ -233,7 +233,7 @@ def test_external_request_mutation_cannot_change_execute_snapshot() -> None:
     outcome = _run(
         client,
         MutatingApprover(ApprovalDecision.APPROVE),
-        MutationRequest("update-order-status", params),
+        MutationRequest("sample-update-order-status", params),
     )
     assert outcome.status == "executed"
     assert client.calls[1][1]["params"]["order_id"] == 1
@@ -255,7 +255,7 @@ def test_approval_provider_mutation_of_displayed_view_fails_closed() -> None:
 def test_explicit_connection_id_is_canonicalized_before_preview() -> None:
     client = FakeClient([_preview(), _execute()])
     request = MutationRequest(
-        "update-order-status",
+        "sample-update-order-status",
         {"order_id": 1, "new_status": "confirmed"},
         connection_id=" Orders_Primary ",
     )
@@ -272,7 +272,7 @@ def test_non_json_params_are_rejected_before_preview() -> None:
         _run(
             FakeClient([]),
             FakeApprover(ApprovalDecision.APPROVE),
-            MutationRequest("update-order-status", {"order_id": float("nan")}),
+            MutationRequest("sample-update-order-status", {"order_id": float("nan")}),
         )
 
 
@@ -282,7 +282,7 @@ def test_non_string_json_keys_are_rejected_before_preview() -> None:
         _run(
             FakeClient([]),
             FakeApprover(ApprovalDecision.APPROVE),
-            MutationRequest("update-order-status", invalid_params),
+            MutationRequest("sample-update-order-status", invalid_params),
         )
 
 
@@ -496,7 +496,7 @@ def test_invalid_timeouts_are_rejected(timeout: float) -> None:
         asyncio.run(
             run_approved_mutation(
                 FakeClient([_preview()]),
-                MutationRequest("update-order-status", {"order_id": 1}),
+                MutationRequest("sample-update-order-status", {"order_id": 1}),
                 FakeApprover(ApprovalDecision.APPROVE),
                 approval_timeout_seconds=timeout,
             )
@@ -526,7 +526,7 @@ def test_cli_rejects_invalid_timeout_before_reading_params() -> None:
         approval_timeout=0.0,
         tool_timeout=15.0,
         params_file=Path("/definitely/missing/params.json"),
-        skill="update-order-status",
+        skill="sample-update-order-status",
         connection_id=None,
     )
     with pytest.raises(ValueError, match="finite and positive"):
@@ -541,7 +541,7 @@ def test_main_maps_keyboard_interrupt_to_safe_exit(monkeypatch, capsys) -> None:
     exit_code = approval_host.main(
         [
             "--skill",
-            "update-order-status",
+            "sample-update-order-status",
             "--params-file",
             "/does/not/need/to/exist.json",
         ]
@@ -559,7 +559,7 @@ def test_expiry_is_rechecked_after_approval_before_execute() -> None:
         run_approved_mutation(
             client,
             MutationRequest(
-                "update-order-status",
+                "sample-update-order-status",
                 {"order_id": 1, "new_status": "confirmed"},
             ),
             FakeApprover(ApprovalDecision.APPROVE),
@@ -624,7 +624,7 @@ def test_workflow_contract_via_in_memory_fastmcp_client(
                 return await run_approved_mutation(
                     client,
                     MutationRequest(
-                        "update-order-status",
+                        "sample-update-order-status",
                         {"order_id": 1, "new_status": "confirmed"},
                     ),
                     FakeApprover(ApprovalDecision.APPROVE),

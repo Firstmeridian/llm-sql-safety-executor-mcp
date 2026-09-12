@@ -286,8 +286,8 @@ async def _test_mcp_server_async():
                 query_skill = next(
                     (
                         skill_name for skill_name in (
-                            "monthly-sales-report",
-                            "monthly-sales-report-sqlite",
+                            "sample-monthly-sales-report",
+                            "sample-monthly-sales-report-sqlite",
                         )
                         if skill_name in skill_names
                     ),
@@ -295,7 +295,7 @@ async def _test_mcp_server_async():
                 )
                 query_skill_params = (
                     {"year": 2026, "month": 1}
-                    if query_skill in {"monthly-sales-report", "monthly-sales-report-sqlite"}
+                    if query_skill in {"sample-monthly-sales-report", "sample-monthly-sales-report-sqlite"}
                     else {}
                 )
                 if query_skill:
@@ -308,7 +308,7 @@ async def _test_mcp_server_async():
                     })
                     content = parse_result(result)
                     print(json.dumps(content, indent=2, ensure_ascii=False))
-                    if query_skill in {"monthly-sales-report", "monthly-sales-report-sqlite"}:
+                    if query_skill in {"sample-monthly-sales-report", "sample-monthly-sales-report-sqlite"}:
                         assert content.get("success") is True, f"execute_query_skill failed: {content}"
                     print()
                 else:

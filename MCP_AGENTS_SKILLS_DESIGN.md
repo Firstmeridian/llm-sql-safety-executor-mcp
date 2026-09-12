@@ -106,10 +106,10 @@ flowchart TD
     B --> B3[mutation_base.py<br/>Base class for write skills]
     B --> B4[audit.py<br/>JSONL audit logging]
 
-    C --> C1[monthly-sales-report<br/>skill_def.md + query.sql]
-    C --> C2[monthly-sales-report-sqlite<br/>skill_def.md + query.sql]
-    C --> C3[update-order-status<br/>skill_def.md + mutation.py]
-    C --> C4[reset-demo-order-to-pending<br/>skill_def.md + mutation.py]
+    C --> C1[sample-monthly-sales-report<br/>skill_def.md + query.sql]
+    C --> C2[sample-monthly-sales-report-sqlite<br/>skill_def.md + query.sql]
+    C --> C3[sample-update-order-status<br/>skill_def.md + mutation.py]
+    C --> C4[sample-reset-order-to-pending<br/>skill_def.md + mutation.py]
 
     B2 --> D[mcp_sql_server.py startup discover]
     D --> E[In-memory skill cache]
@@ -421,18 +421,18 @@ skills/
 │   ├── skill_loader.py                # Discovery, loading, validation
 │   ├── mutation_base.py               # ABC for write operations
 │   └── audit.py                       # JSONL audit logger
-├── monthly-sales-report/              # Example MySQL query skill
+├── sample-monthly-sales-report/              # Example MySQL query skill
 │   ├── skill_def.md                   # YAML frontmatter + documentation
 │   └── query.sql                      # Parameterized SQL template
-├── monthly-sales-report-sqlite/       # Example SQLite query skill
+├── sample-monthly-sales-report-sqlite/       # Example SQLite query skill
 │   ├── skill_def.md                   # YAML frontmatter + documentation
 │   └── query.sql                      # Parameterized SQL template
-├── update-order-status/               # General example mutation skill
+├── sample-update-order-status/               # General example mutation skill
     ├── skill_def.md                   # YAML frontmatter + documentation
     ├── mutation.py                    # validate/preview/execute logic
     └── references/
         └── status-transitions.md      # State machine documentation
-└── reset-demo-order-to-pending/       # Portable demo/test reset mutation
+└── sample-reset-order-to-pending/       # Portable demo/test reset mutation
     ├── skill_def.md                   # Explicit source state, fixed pending target
     └── mutation.py                    # Preview binding + optimistic lock
 ```
@@ -1232,12 +1232,12 @@ specific skills (higher token cost only when needed).
 
 **Composability via `related_skills`**: The `related_skills` field in
 `skill_def.md` allows skills to declare associations with other skills.
-For example, `update-order-status` declares:
+For example, `sample-update-order-status` declares:
 
 ```yaml
 related_skills:
-  - monthly-sales-report
-  - monthly-sales-report-sqlite
+  - sample-monthly-sales-report
+  - sample-monthly-sales-report-sqlite
 ```
 
 This indicates a business-level association — after updating order status,
@@ -1260,13 +1260,13 @@ flowchart TB
     P1 --> P11[skill_loader.py]
     P1 --> P12[mutation_base.py]
     P1 --> P13[audit.py]
-    P0 --> P2[monthly-sales-report]
+    P0 --> P2[sample-monthly-sales-report]
     P2 --> P21[skill_def.md]
     P2 --> P22[query.sql]
-    P0 --> P3[monthly-sales-report-sqlite]
+    P0 --> P3[sample-monthly-sales-report-sqlite]
     P3 --> P31[skill_def.md]
     P3 --> P32[query.sql]
-    P0 --> P4[update-order-status]
+    P0 --> P4[sample-update-order-status]
     P4 --> P41[skill_def.md]
     P4 --> P42[mutation.py]
     P4 --> P43[references]

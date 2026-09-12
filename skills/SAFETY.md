@@ -4,6 +4,15 @@ This document defines the security policies and constraints for the
 Skills extension layer. All skill authors and code reviewers should
 read this before creating or approving skills.
 
+Bundled examples reserve the `sample-` prefix; custom Skill directories under
+`skills/` without that prefix are ignored by Git. The prefix does not establish
+trust, grant write permission, or enable exact transaction outcomes. Only the
+explicitly registered bundled source paths and loaded classes qualify for the
+exact contract. The default generated `skills/SKILLS.md` and audit output
+`skills/_audit.jsonl` are local ignored files. Git ignore rules do not remove
+already tracked data, erase Git history, or protect secrets; configure ignore
+rules separately for alternate local Skill roots and audit paths.
+
 ## 1. Template/Script as Whitelist
 
 Only execution files explicitly declared via the `source` field in
@@ -474,7 +483,7 @@ the `databases` DB-type values. Direct Python consumers of `skill_loader` or a
 Mutation class bypass the MCP routing layer and must enforce an equivalent
 connection policy themselves.
 
-The bundled `reset-demo-order-to-pending` demo supports MySQL and SQLite. It
+The bundled `sample-reset-order-to-pending` demo supports MySQL and SQLite. It
 requires an explicit non-pending `expected_status` while reviewed code fixes the
 target to `pending`; its commented `connection_ids` example is inactive until
 an operator enables it. Database type and alias metadata remain restrictions,

@@ -11,6 +11,10 @@
 > 以及 v3.7.2 的提交前影响行数约束、结构化事务结果、未知结果不重做和
 > framework-owned `run_execute()` 扩展边界。
 
+> **示例名称迁移：** 版本对比和历史验证记录保留当时的 Skill 原名；当前配置、
+> 字段说明和调用示例使用 v3.7.2 的 `sample-` 名称。新旧名称对应关系见
+> [v3.7.2 迁移表](../RELEASE_NOTES_v3_7.md#sample-skill-names-and-local-files)。
+
 > **v3.7.1 迁移说明：** 本文的 v3.6/v3.6.1 比较保留 HMAC token 历史事实。
 > v3.7.1 仍使用 `preview_token` 字段，但其值是 256-bit opaque handle；请求与
 > 执行绑定状态全部位于进程内 Store。签名 secret 配置及
@@ -268,7 +272,7 @@ connection_id=analytics_demo_sqlite   -> 只允许 orders
 ```dotenv
 SKILLS_ALLOW_MUTATION_CONNECTIONS=analytics_demo_sqlite
 DB_ANALYTICS_DEMO_SQLITE_ALLOW_MUTATIONS=1
-DB_ANALYTICS_DEMO_SQLITE_MUTATION_SKILLS=update-order-status,reset-demo-order-to-pending
+DB_ANALYTICS_DEMO_SQLITE_MUTATION_SKILLS=sample-update-order-status,sample-reset-order-to-pending
 ```
 
 当前本地 `.env` 中 MySQL 使用 `DB_TRADE_ANALYSIS_MYSQL_ALLOWED_TABLES=*`，这适合联调但扩大了读权限；生产环境应改成实际需要的明确列表。
@@ -299,10 +303,10 @@ ANALYZE 与 FOR CONNECTION 形式继续拒绝。
 
 ## 4. `skill_def.md` 中各字段是什么？
 
-以 `update-order-status` 为例：
+以 `sample-update-order-status` 为例：
 
 ```yaml
-name: update-order-status
+name: sample-update-order-status
 version: "1.0"
 type: mutation
 source: mutation.py
@@ -331,8 +335,8 @@ databases: [mysql, sqlite]
 
 表示 Skill 支持 MySQL 和 SQLite 两种数据库类型，不表示连接 ID。
 
-这里是可选字段的通用示例；当前仓库的 `update-order-status/skill_def.md` 和
-`reset-demo-order-to-pending/skill_def.md` 都显式声明
+这里是可选字段的通用示例；当前仓库的 `sample-update-order-status/skill_def.md` 和
+`sample-reset-order-to-pending/skill_def.md` 都显式声明
 `databases: [mysql, sqlite]`。二者仍必须通过目标连接的表、policy、业务校验和
 Mutation 写策略；数据库类型兼容本身不授予执行权限。
 
@@ -429,7 +433,7 @@ Skill 会显示 `schema_check_available=false`、`schema_ready=false`、
 
 ### 4.4 v3.7 的跨数据库 Demo Reset Mutation
 
-`reset-demo-order-to-pending` 是刻意收窄的 demo/test 补偿操作：输入包含
+`sample-reset-order-to-pending` 是刻意收窄的 demo/test 补偿操作：输入包含
 `order_id` 和前一项测试应产生的非 `pending` `expected_status`，目标状态固定为
 `pending`。只有 preview 实际读到相同来源状态时才会签发 token。其 frontmatter
 明确写 `databases: [mysql, sqlite]`，可选的
@@ -456,10 +460,10 @@ SKILLS_ALLOW_MUTATIONS=1
 SKILLS_ALLOW_MUTATION_CONNECTIONS=trade_analysis_mysql,analytics_demo_sqlite
 
 DB_TRADE_ANALYSIS_MYSQL_ALLOW_MUTATIONS=1
-DB_TRADE_ANALYSIS_MYSQL_MUTATION_SKILLS=update-order-status
+DB_TRADE_ANALYSIS_MYSQL_MUTATION_SKILLS=sample-update-order-status
 
 DB_ANALYTICS_DEMO_SQLITE_ALLOW_MUTATIONS=1
-DB_ANALYTICS_DEMO_SQLITE_MUTATION_SKILLS=update-order-status,reset-demo-order-to-pending
+DB_ANALYTICS_DEMO_SQLITE_MUTATION_SKILLS=sample-update-order-status,sample-reset-order-to-pending
 ```
 
 各配置解决不同问题：
@@ -1007,7 +1011,7 @@ DB_ANALYTICS_DEMO_SQLITE_TYPE=sqlite
 DB_ANALYTICS_DEMO_SQLITE_SQLITE_DATABASE_PATH=./sample_data/demo.db
 DB_ANALYTICS_DEMO_SQLITE_ALLOWED_TABLES=orders
 DB_ANALYTICS_DEMO_SQLITE_ALLOW_MUTATIONS=1
-DB_ANALYTICS_DEMO_SQLITE_MUTATION_SKILLS=update-order-status,reset-demo-order-to-pending
+DB_ANALYTICS_DEMO_SQLITE_MUTATION_SKILLS=sample-update-order-status,sample-reset-order-to-pending
 
 ENABLE_SKILLS=1
 SKILLS_ALLOW_MUTATIONS=1

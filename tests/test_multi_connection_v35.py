@@ -299,7 +299,7 @@ def test_query_skill_union_policy_follows_selected_connection(
 
     module = _reload_server(monkeypatch, default_db, analytics_db, skills=True)
     union_sql = "SELECT label FROM items UNION SELECT label FROM items"
-    skill_name = "monthly-sales-report-sqlite"
+    skill_name = "sample-monthly-sales-report-sqlite"
     try:
         module.get_skills_cache()[skill_name].tables = ["items"]
         monkeypatch.setattr(
@@ -454,7 +454,7 @@ def test_query_skills_are_displayed_and_executed_for_target_connection(tmp_path,
     try:
         assert (
             module.get_skills_cache()[
-                "monthly-sales-report-sqlite"
+                "sample-monthly-sales-report-sqlite"
             ].connection_ids
             is None
         )
@@ -472,12 +472,12 @@ def test_query_skills_are_displayed_and_executed_for_target_connection(tmp_path,
         assert analytics_skills["connection_id"] == "analytics"
         assert [skill["name"] for skill in default_skills["skills"]] == []
         assert [skill["name"] for skill in analytics_skills["skills"]] == [
-            "monthly-sales-report-sqlite"
+            "sample-monthly-sales-report-sqlite"
         ]
 
         result, meta = run_tool(
             module.execute_query_skill(
-                skill_name="monthly-sales-report-sqlite",
+                skill_name="sample-monthly-sales-report-sqlite",
                 params={"year": 2026, "month": 1},
                 ctx=DummyContext(),
                 connection_id="analytics",
@@ -492,7 +492,7 @@ def test_query_skills_are_displayed_and_executed_for_target_connection(tmp_path,
         with pytest.raises(module.ToolError, match="requires table.*not found"):
             run_tool(
                 module.execute_query_skill(
-                    skill_name="monthly-sales-report-sqlite",
+                    skill_name="sample-monthly-sales-report-sqlite",
                     params={"year": 2026, "month": 1},
                     ctx=DummyContext(),
                     connection_id="default",
@@ -514,7 +514,7 @@ def test_query_skill_connection_scope_is_targeted_and_does_not_auto_route(
 
     module = _reload_server(monkeypatch, default_db, analytics_db, skills=True)
     try:
-        meta = module.get_skills_cache()["monthly-sales-report-sqlite"]
+        meta = module.get_skills_cache()["sample-monthly-sales-report-sqlite"]
         meta.connection_ids = ["analytics", "not_configured_here"]
 
         default_catalog, _ = run_tool(
@@ -585,7 +585,7 @@ def test_query_skill_scope_rejects_before_adapter_construction(
 
     module = _reload_server(monkeypatch, default_db, analytics_db, skills=True)
     try:
-        meta = module.get_skills_cache()["monthly-sales-report-sqlite"]
+        meta = module.get_skills_cache()["sample-monthly-sales-report-sqlite"]
         meta.connection_ids = ["analytics"]
 
         def unexpected_adapter(_connection_id):
@@ -726,7 +726,7 @@ def test_mutation_skills_remain_default_connection_only_when_enabled(tmp_path, m
         mutation_skill = next(
             skill
             for skill in analytics_skills["skills"]
-            if skill["name"] == "update-order-status"
+            if skill["name"] == "sample-update-order-status"
         )
         assert mutation_skill["executable"] is False
         assert mutation_skill["disabled_reason"] == (

@@ -38,7 +38,7 @@ class TestAuditLogger:
         logger = AuditLogger(log_path=log_path)
 
         result = logger.log(
-            skill_name="update-order-status",
+            skill_name="sample-update-order-status",
             params={"order_id": 42, "new_status": "shipped"},
             mode="execute",
             result={
@@ -54,7 +54,7 @@ class TestAuditLogger:
         content = log_path.read_text(encoding="utf-8").strip()
         entry = json.loads(content)
 
-        assert entry["skill_name"] == "update-order-status"
+        assert entry["skill_name"] == "sample-update-order-status"
         assert entry["mode"] == "execute"
         assert entry["success"] is True
         assert entry["rowcount"] == 1
@@ -90,7 +90,7 @@ class TestAuditLogger:
         logger = AuditLogger(log_path=log_path)
 
         logger.log(
-            skill_name="monthly-sales-report-sqlite",
+            skill_name="sample-monthly-sales-report-sqlite",
             params={"year": 2026, "month": 1},
             mode="query",
             result={"success": True, "rowcount": 1},

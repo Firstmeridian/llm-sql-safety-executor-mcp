@@ -47,8 +47,8 @@ logger = logging.getLogger(__name__)
 # register its loaded class. A custom Skill can use the same public name.
 BUILTIN_EXACT_TRANSACTION_OUTCOME_SKILLS = frozenset(
     {
-        "reset-demo-order-to-pending",
-        "update-order-status",
+        "sample-reset-order-to-pending",
+        "sample-update-order-status",
     }
 )
 _registered_exact_transaction_classes: dict[str, type[MutationBase]] = {}

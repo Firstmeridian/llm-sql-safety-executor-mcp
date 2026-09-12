@@ -65,7 +65,7 @@ database, put parameters in a JSON object file and run from the active venv:
 
 ```bash
 .venv/bin/python examples/manual_mutation_approval.py \
-  --skill update-order-status \
+  --skill sample-update-order-status \
   --params-file /path/to/update-order.json \
   --connection-id orders_primary
 ```
@@ -121,9 +121,9 @@ execute. It is a client example, not proof of authenticated human identity; see
   # Optional strict mutation routing (all three layers are required)
   SKILLS_ALLOW_MUTATION_CONNECTIONS=trade_analysis_mysql,analytics_demo_sqlite
   DB_TRADE_ANALYSIS_MYSQL_ALLOW_MUTATIONS=1
-  DB_TRADE_ANALYSIS_MYSQL_MUTATION_SKILLS=update-order-status
+  DB_TRADE_ANALYSIS_MYSQL_MUTATION_SKILLS=sample-update-order-status
   DB_ANALYTICS_DEMO_SQLITE_ALLOW_MUTATIONS=1
-  DB_ANALYTICS_DEMO_SQLITE_MUTATION_SKILLS=update-order-status,reset-demo-order-to-pending
+  DB_ANALYTICS_DEMO_SQLITE_MUTATION_SKILLS=sample-update-order-status,sample-reset-order-to-pending
   ```
 
   Core read-only tools and query Skills accept optional `connection_id`.
@@ -282,13 +282,13 @@ Skills execution tools. `structuredContent` is the business payload (stable
 contract); `_meta` is runtime diagnostics added in v3.4.1 and made uniform
 across all tools in v3.4.2.
 
-**Query skill — `execute_query_skill(skill_name="monthly-sales-report", params={"year": 2024, "month": 1})`**
+**Query skill — `execute_query_skill(skill_name="sample-monthly-sales-report", params={"year": 2024, "month": 1})`**
 
 ```jsonc
 {
   "structuredContent": {
     "success": true,
-    "skill_name": "monthly-sales-report",
+    "skill_name": "sample-monthly-sales-report",
     "data": [
       { "date": "2024-01-15", "order_count": 1, "revenue": "100.00", "avg_order_value": "100.00" },
       { "date": "2024-01-20", "order_count": 1, "revenue": "250.00", "avg_order_value": "250.00" }
@@ -301,7 +301,7 @@ across all tools in v3.4.2.
   "_meta": {
     "tool_name": "execute_query_skill",
     "success": true,
-    "skill_name": "monthly-sales-report",
+    "skill_name": "sample-monthly-sales-report",
     "skill_type": "query",
     "skill_version": "1.0.0",
     "mode": "query",
@@ -317,13 +317,13 @@ across all tools in v3.4.2.
 }
 ```
 
-**Mutation skill (preview phase) — `execute_mutation_skill(skill_name="update-order-status", params={"order_id": 1, "new_status": "shipped"}, confirm=false)`**
+**Mutation skill (preview phase) — `execute_mutation_skill(skill_name="sample-update-order-status", params={"order_id": 1, "new_status": "shipped"}, confirm=false)`**
 
 ```jsonc
 {
   "structuredContent": {
     "success": true,
-    "skill_name": "update-order-status",
+    "skill_name": "sample-update-order-status",
     "mode": "preview",
     "connection_id": "trade_analysis_mysql",
     "db_type": "mysql",
@@ -335,7 +335,7 @@ across all tools in v3.4.2.
   "_meta": {
     "tool_name": "execute_mutation_skill",
     "success": true,
-    "skill_name": "update-order-status",
+    "skill_name": "sample-update-order-status",
     "skill_type": "mutation",
     "skill_version": "1.0.0",
     "mode": "preview",
@@ -359,7 +359,7 @@ across all tools in v3.4.2.
 {
   "structuredContent": {
     "success": true,
-    "skill_name": "update-order-status",
+    "skill_name": "sample-update-order-status",
     "mode": "execute",
     "connection_id": "trade_analysis_mysql",
     "db_type": "mysql",
@@ -369,7 +369,7 @@ across all tools in v3.4.2.
   "_meta": {
     "tool_name": "execute_mutation_skill",
     "success": true,
-    "skill_name": "update-order-status",
+    "skill_name": "sample-update-order-status",
     "skill_type": "mutation",
     "skill_version": "1.0.0",
     "mode": "execute",
@@ -409,7 +409,7 @@ transport completion from business success.
 
 When Skills are enabled, a minimal progressive-disclosure check should follow this order. The bundled monthly report examples are demo-profile skills and require an `orders` table; with `SKILLS_CHECK_SCHEMA_ON_LIST=1`, `available_only=true` hides them when the target connection does not have the demo schema.
 
-To create the demo MySQL table used by `monthly-sales-report` and `update-order-status`, run:
+To create the demo MySQL table used by `sample-monthly-sales-report` and `sample-update-order-status`, run:
 
 ```bash
 .venv/bin/python scripts/setup_demo_db.py
@@ -419,10 +419,10 @@ The script refuses to modify an existing `orders` table unless `--drop-existing`
 
 ```python
 skills = await client.call_tool("list_skills", {"detail_level": "compact", "search": "monthly sales", "connection_id": "analytics_demo_sqlite"})
-detail = await client.call_tool("get_skill_detail", {"skill_name": "monthly-sales-report-sqlite", "connection_id": "analytics_demo_sqlite", "detail_level": "execution"})
+detail = await client.call_tool("get_skill_detail", {"skill_name": "sample-monthly-sales-report-sqlite", "connection_id": "analytics_demo_sqlite", "detail_level": "execution"})
 result = await client.call_tool(
   "execute_query_skill",
-  {"skill_name": "monthly-sales-report-sqlite", "params": {"year": 2026, "month": 1}, "connection_id": "analytics_demo_sqlite"},
+  {"skill_name": "sample-monthly-sales-report-sqlite", "params": {"year": 2026, "month": 1}, "connection_id": "analytics_demo_sqlite"},
 )
 # FastMCP clients can inspect result.meta for runtime diagnostics.
 ```

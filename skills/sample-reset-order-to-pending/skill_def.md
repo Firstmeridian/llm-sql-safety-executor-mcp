@@ -1,6 +1,6 @@
 ---
 # Stable public identifier; it must match this Skill directory name.
-name: reset-demo-order-to-pending
+name: sample-reset-order-to-pending
 # Skill implementation version, independent from the server release version.
 version: "1.0"
 # Short catalog description shown to Agents and operators.
@@ -52,7 +52,7 @@ params:
 category: test-operations
 # Related catalog entries for navigation; this does not invoke them.
 related_skills:
-  - update-order-status
+  - sample-update-order-status
 ---
 
 ## Purpose and workflow

@@ -342,7 +342,7 @@ non-default SQLite mutation targets, so deployments must review aliases that
 share a file and should serialize writes or use a server database when write
 concurrency is expected.
 
-The v3.7 `reset-demo-order-to-pending` demo is portable across MySQL and SQLite
+The v3.7 `sample-reset-order-to-pending` demo is portable across MySQL and SQLite
 and assumes one business order per `orders.id`; supported schemas must enforce
 that with `PRIMARY KEY` or `UNIQUE`. Its read-side cardinality check diagnoses
 an already malformed fixture, but it is not an atomic replacement for the
@@ -660,9 +660,9 @@ DB_ANALYTICS_DEMO_SQLITE_QUERY_TIMEOUT_SECONDS=30
 # Optional strict v3.6+ mutation routing
 SKILLS_ALLOW_MUTATION_CONNECTIONS=trade_analysis_mysql,analytics_demo_sqlite
 DB_TRADE_ANALYSIS_MYSQL_ALLOW_MUTATIONS=1
-DB_TRADE_ANALYSIS_MYSQL_MUTATION_SKILLS=update-order-status
+DB_TRADE_ANALYSIS_MYSQL_MUTATION_SKILLS=sample-update-order-status
 DB_ANALYTICS_DEMO_SQLITE_ALLOW_MUTATIONS=1
-DB_ANALYTICS_DEMO_SQLITE_MUTATION_SKILLS=update-order-status,reset-demo-order-to-pending
+DB_ANALYTICS_DEMO_SQLITE_MUTATION_SKILLS=sample-update-order-status,sample-reset-order-to-pending
 ```
 
 Core read-only tools and query Skills can then pass

@@ -3669,7 +3669,7 @@ if SKILLS_ENABLED:
         Uses named parameters (:param_name) via SQLAlchemy text() for SQL injection prevention.
 
         Args:
-            skill_name: The skill name (e.g., "monthly-sales-report")
+            skill_name: The skill name (e.g., "sample-monthly-sales-report")
             params: Parameter dict matching the skill's frontmatter schema
 
         Returns:
@@ -3889,7 +3889,7 @@ if SKILLS_ENABLED:
                     not receive an inferred whole-operation commit claim.
 
             Args:
-                skill_name: The mutation skill name (e.g., "update-order-status")
+                skill_name: The mutation skill name (e.g., "sample-update-order-status")
                 params: Parameter dict matching the skill's frontmatter schema
                 confirm: False=dry-run preview (default), True=actual execution
                 preview_token: Required when confirm=True; returned by preview

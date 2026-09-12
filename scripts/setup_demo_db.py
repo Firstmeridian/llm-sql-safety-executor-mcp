@@ -2,8 +2,8 @@
 """Create the MySQL demo table required by bundled demo Skills.
 
 The bundled demo Skills use an `orders` table:
-- monthly-sales-report reads `order_date` and `amount`
-- update-order-status reads and updates `status`
+- sample-monthly-sales-report reads `order_date` and `amount`
+- sample-update-order-status reads and updates `status`
 
 This script is intentionally MySQL-only. It reads the normal project `.env`
 database settings through `db_adapter.py` and refuses to modify an existing
@@ -217,8 +217,8 @@ def setup_demo_db(args: argparse.Namespace) -> int:
             f"Demo table ready: {database_name}.orders "
             f"({seeded} seed rows inserted/upserted)."
         )
-        print("Try monthly-sales-report with params: {'year': 2026, 'month': 5}")
-        print("Try update-order-status dry-run with order_id=1, new_status='confirmed'")
+        print("Try sample-monthly-sales-report with params: {'year': 2026, 'month': 5}")
+        print("Try sample-update-order-status dry-run with order_id=1, new_status='confirmed'")
         return 0
     except Exception as exc:
         print(f"Error: {exc}", file=sys.stderr)

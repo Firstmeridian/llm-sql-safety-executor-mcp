@@ -1,5 +1,7 @@
 # Release Notes v3.5 — Named Multi-Connection Read Tools and Query Skills
 
+> Historical record: Skill names below reflect that release/test run. For current `sample-` names and configuration migration, see [the v3.7.2 migration guide](RELEASE_NOTES_v3_7.md#sample-skill-names-and-local-files).
+
 Date: 2026-05-30
 
 ## Summary

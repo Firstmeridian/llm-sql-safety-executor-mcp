@@ -122,3 +122,12 @@ local_data/live-test.db
 
 # AI_COLLABORATION_GUIDE.md
 AI_COLLABORATION_GUIDE.md
+
+# Local Skill directories; reserve sample-* for bundled examples.
+/skills/*/
+!/skills/_lib/
+!/skills/sample-*/
+
+# Generated catalog and runtime audit data (kept locally).
+/skills/SKILLS.md
+/skills/_audit.jsonl

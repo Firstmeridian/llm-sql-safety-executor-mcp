@@ -6,6 +6,61 @@
 
 ## v3.7.2 — Write Transactions and Uncertain Results
 
+### Sample Skill names and local files
+
+The pre-release examples now reserve `sample-` as their directory and public
+Skill-name prefix. This is an intentional identifier migration with no old-name
+aliases:
+
+| Previous name | Current name |
+|---|---|
+| `monthly-sales-report` | `sample-monthly-sales-report` |
+| `monthly-sales-report-sqlite` | `sample-monthly-sales-report-sqlite` |
+| `update-order-status` | `sample-update-order-status` |
+| `reset-demo-order-to-pending` | `sample-reset-order-to-pending` |
+
+The reset identifier also drops `demo-` as a naming simplification; this is an
+additional rename, not a prefix-only change. The operation remains restricted
+to its documented demo/test purpose and retains `profiles: [demo]`.
+
+Update MCP requests, host configuration, `related_skills`, and connection-level
+`DB_<ALIAS>_MUTATION_SKILLS` allowlists, then restart the server and obtain fresh
+previews. Tokens from the previous process/names are not reusable. The prefix
+does not grant trust: exact outcomes still require the two explicitly registered
+bundled mutation sources, their loaded class identities, and adapter evidence.
+`profiles: [demo]` and the flat discovery layout remain unchanged.
+
+Git now ignores non-sample directories directly under `skills/`, except the
+tracked framework directory `_lib/`. Custom authors should use names without
+`sample-`. The generated `skills/SKILLS.md` and default `skills/_audit.jsonl`
+have been removed from the index and ignored; their local copies are preserved.
+This does not erase prior Git history. Previously tracked custom files require
+an explicit `git rm --cached` to become untracked. Alternate Skill roots and
+audit paths need their own ignore rules. Shared example documentation remains
+in README and each sample's `skill_def.md`.
+
+Historical v3.5/v3.6 release notes and live-test records retain the names used
+at the time, as do older version sections in this file, README changelogs,
+version comparisons, and dated refactoring entries. Current usage examples,
+tests, and configuration templates use the names above. Migration instructions
+apply to existing local `.env` files as well.
+
+Validation: `600 passed, 4 skipped` in the hermetic default suite, including
+the real in-memory MCP regressions under the new names. An additional loader
+case verifies that `sample-` alone cannot grant exact-outcome eligibility.
+Ten isolated Git-ignore checks cover custom directories, bundled samples,
+framework files, Python caches, runtime outputs, and test fixtures. The four
+real-MySQL opt-in tests were not rerun for this identifier migration.
+
+Final review also ran the default suite from a clean index export without the
+local generated catalog or audit log: `600 passed, 4 skipped`. Pyright 1.1.411
+with the project virtualenv checked all 16 changed Python paths and reported
+`0 errors, 0 warnings` after explicit structured-content type assertions were
+added to two MCP tests; those two tests were rerun and passed. Changed Markdown
+relative-link targets and the staged whitespace check passed.
+
+### Transaction outcome contract
+
 v3.7.2 moves exact affected-row enforcement into `execute_write()` before
 COMMIT and makes the mutation outcome machine-readable. Its rule is: roll back
 errors proved before COMMIT; report `unknown` when a COMMIT acknowledgement is
@@ -39,7 +94,7 @@ cleanup, not proof that the earlier COMMIT failed.
 - MySQL retains `innodb_lock_wait_timeout`; SQLite retains its progress handler.
   Every exception/cancellation path attempts transaction, handler, and
   connection cleanup, and neither adapter retries SQL.
-- `update-order-status` and `reset-demo-order-to-pending` now pass
+- `sample-update-order-status` and `sample-reset-order-to-pending` now pass
   `expected_rowcount=1`; their old post-COMMIT `rowcount == 0` checks were
   removed. Zero rows therefore roll back a stale-preview update, and more than
   one row rolls back an unsafe target-cardinality update.
@@ -225,7 +280,7 @@ Upgrade the server before relying on the v3.7.2 outcome guarantee.
   the skipped real-MySQL opt-in tests were not run.
 - Follow-up coverage restored the distinct *registered built-in missing COMMIT
   evidence* branch for both built-in names and checks its structured failure
-  through a real in-memory FastMCP Client for `update-order-status`. The latest
+  through a real in-memory FastMCP Client for `sample-update-order-status`. The latest
   default suite result is `599 passed, 4 skipped`; opt-in real MySQL integration
   had not yet been run at that point.
 - On 2026-09-12, the four real-MySQL opt-in cases passed separately on the
@@ -291,7 +346,7 @@ context managers remain good ordinary transaction practice; this path uses
 explicit commit because it must distinguish pre-COMMIT failure from uncertain
 COMMIT acknowledgement.
 - Last implementation review: 2026-09-12
-- Latest default regression validation: 2026-09-12 (`599 passed, 4 skipped`)
+- Latest default regression validation: 2026-09-12 (`600 passed, 4 skipped`)
 - Latest MySQL opt-in validation: 2026-09-12 (4 passed: 3 read-only, 1 InnoDB race)
 - Status: implemented
 

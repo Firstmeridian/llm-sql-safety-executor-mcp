@@ -136,7 +136,7 @@ def test_list_default_summary_uses_env_default(skills_server):
     assert "detail_level='execution'" in result["hint"]
 
     report = result["skills"][0]
-    assert report["name"] == "monthly-sales-report-sqlite"
+    assert report["name"] == "sample-monthly-sales-report-sqlite"
     assert report["schema_ready"] is True
     assert "source" in report
     assert "triggers" in report
@@ -220,7 +220,7 @@ def test_metadata_failure_marks_table_dependent_skills_unverified(
 
     detail = run_tool(
         skills_server.get_skill_detail(
-            skill_name="monthly-sales-report-sqlite",
+            skill_name="sample-monthly-sales-report-sqlite",
             ctx=DummyContext(),
         )
     )
@@ -298,7 +298,7 @@ def test_list_full_includes_params_and_tables(skills_server):
         )
     )
 
-    report = next(s for s in result["skills"] if s["name"] == "monthly-sales-report-sqlite")
+    report = next(s for s in result["skills"] if s["name"] == "sample-monthly-sales-report-sqlite")
     assert "hint" not in result
     assert report["params"]["year"]["type"] == "int"
     assert report["version"] == "1.0"
@@ -317,7 +317,7 @@ def test_list_search_matches_description_and_is_case_insensitive(skills_server):
 
     assert result["matched_catalog_skills"] == 2
     assert result["matched_skills"] == 1
-    assert result["skills"][0]["name"] == "monthly-sales-report-sqlite"
+    assert result["skills"][0]["name"] == "sample-monthly-sales-report-sqlite"
 
 
 def test_list_search_no_match_returns_empty(skills_server):
@@ -347,7 +347,7 @@ def test_list_category_filter_and_categories_aggregation(skills_server):
 
     assert result["matched_catalog_skills"] == 2
     assert result["matched_skills"] == 1
-    assert result["skills"][0]["name"] == "monthly-sales-report-sqlite"
+    assert result["skills"][0]["name"] == "sample-monthly-sales-report-sqlite"
     assert result["categories"] == [{"category": "reporting", "count": 1}]
 
 
@@ -439,13 +439,13 @@ def test_get_skill_detail_returns_full_metadata(skills_server):
     """get_skill_detail returns full cached metadata for one skill."""
     result = run_tool(
         skills_server.get_skill_detail(
-            skill_name="monthly-sales-report-sqlite",
+            skill_name="sample-monthly-sales-report-sqlite",
             ctx=DummyContext(),
         )
     )
 
     assert result["success"] is True
-    assert result["skill"]["name"] == "monthly-sales-report-sqlite"
+    assert result["skill"]["name"] == "sample-monthly-sales-report-sqlite"
     assert result["skill"]["params"]["month"]["max"] == 12
     assert result["skill"]["executable"] is True
     assert result["skill"]["schema_ready"] is True
@@ -458,7 +458,7 @@ def test_get_skill_detail_execution_returns_invocation_fields(skills_server):
     """execution projection omits catalog and readiness diagnostics."""
     result = run_tool(
         skills_server.get_skill_detail(
-            skill_name="monthly-sales-report-sqlite",
+            skill_name="sample-monthly-sales-report-sqlite",
             ctx=DummyContext(),
             detail_level="execution",
         )
@@ -487,7 +487,7 @@ def test_get_skill_detail_execution_includes_disabled_reason(skills_server):
     """execution projection preserves the actionable rejection reason."""
     result = run_tool(
         skills_server.get_skill_detail(
-            skill_name="monthly-sales-report",
+            skill_name="sample-monthly-sales-report",
             ctx=DummyContext(),
             detail_level="execution",
         )
@@ -502,7 +502,7 @@ def test_get_skill_detail_rejects_unknown_projection(skills_server):
     with pytest.raises(skills_server.ToolError, match="execution, full"):
         run_tool(
             skills_server.get_skill_detail(
-                skill_name="monthly-sales-report-sqlite",
+                skill_name="sample-monthly-sales-report-sqlite",
                 ctx=DummyContext(),
                 detail_level="compact",
             )
@@ -518,7 +518,7 @@ def test_get_skill_detail_direct_call_rejects_non_schema_projection(
     with pytest.raises(skills_server.ToolError, match="execution, full"):
         run_tool(
             skills_server.get_skill_detail(
-                skill_name="monthly-sales-report-sqlite",
+                skill_name="sample-monthly-sales-report-sqlite",
                 ctx=DummyContext(),
                 detail_level=invalid_detail_level,
             )
@@ -529,12 +529,12 @@ def test_get_skill_detail_marks_database_incompatible(skills_server):
     """Full details remain available for incompatible skills with a clear reason."""
     result = run_tool(
         skills_server.get_skill_detail(
-            skill_name="monthly-sales-report",
+            skill_name="sample-monthly-sales-report",
             ctx=DummyContext(),
         )
     )
 
-    assert result["skill"]["name"] == "monthly-sales-report"
+    assert result["skill"]["name"] == "sample-monthly-sales-report"
     assert result["skill"]["executable"] is False
     assert "not compatible" in result["skill"]["disabled_reason"]
     assert "sqlite" in result["skill"]["disabled_reason"]
@@ -551,10 +551,10 @@ def test_available_only_false_returns_full_catalog(skills_server):
 
     names = [skill["name"] for skill in result["skills"]]
     assert names == [
-        "monthly-sales-report",
-        "monthly-sales-report-sqlite",
-        "reset-demo-order-to-pending",
-        "update-order-status",
+        "sample-monthly-sales-report",
+        "sample-monthly-sales-report-sqlite",
+        "sample-reset-order-to-pending",
+        "sample-update-order-status",
     ]
     assert result["available_only"] is False
     assert result["matched_catalog_skills"] == 4
@@ -566,15 +566,15 @@ def test_available_only_false_returns_full_catalog(skills_server):
     reset = next(
         skill
         for skill in result["skills"]
-        if skill["name"] == "reset-demo-order-to-pending"
+        if skill["name"] == "sample-reset-order-to-pending"
     )
     assert reset["databases"] == ["mysql", "sqlite"]
 
-    mysql_report = next(skill for skill in result["skills"] if skill["name"] == "monthly-sales-report")
+    mysql_report = next(skill for skill in result["skills"] if skill["name"] == "sample-monthly-sales-report")
     assert mysql_report["executable"] is False
     assert "not compatible" in mysql_report["disabled_reason"]
 
-    mutation = next(skill for skill in result["skills"] if skill["name"] == "update-order-status")
+    mutation = next(skill for skill in result["skills"] if skill["name"] == "sample-update-order-status")
     assert mutation["executable"] is False
     assert "SKILLS_ALLOW_MUTATIONS=0" in mutation["disabled_reason"]
 
@@ -614,7 +614,7 @@ def test_excluded_profiles_hide_demo_skills_by_default(monkeypatch):
 
     sqlite_report = next(
         skill for skill in full_catalog["skills"]
-        if skill["name"] == "monthly-sales-report-sqlite"
+        if skill["name"] == "sample-monthly-sales-report-sqlite"
     )
     assert sqlite_report["executable"] is False
     assert sqlite_report["profile_allowed"] is False
@@ -644,7 +644,7 @@ def test_profile_exclusion_blocks_direct_query_skill(monkeypatch):
         with pytest.raises(module.ToolError, match="SKILLS_EXCLUDE_PROFILES"):
             run_tool(
                 module.execute_query_skill(
-                    skill_name="monthly-sales-report-sqlite",
+                    skill_name="sample-monthly-sales-report-sqlite",
                     params={"year": 2026, "month": 1},
                     ctx=DummyContext(),
                 )
@@ -693,7 +693,7 @@ def test_query_skill_audit_is_opt_in(monkeypatch, tmp_path):
 
         tool_result = run_tool_result(
             module.execute_query_skill(
-                skill_name="monthly-sales-report-sqlite",
+                skill_name="sample-monthly-sales-report-sqlite",
                 params={"year": 2026, "month": 1},
                 ctx=DummyContext(),
             )
@@ -705,7 +705,7 @@ def test_query_skill_audit_is_opt_in(monkeypatch, tmp_path):
         sys.modules.pop("sql_safety_checker", None)
 
     assert result["success"] is True
-    assert tool_result.meta["skill_name"] == "monthly-sales-report-sqlite"
+    assert tool_result.meta["skill_name"] == "sample-monthly-sales-report-sqlite"
     assert tool_result.meta["skill_type"] == "query"
     assert tool_result.meta["mode"] == "query"
     assert tool_result.meta["row_count"] == 1
@@ -714,7 +714,7 @@ def test_query_skill_audit_is_opt_in(monkeypatch, tmp_path):
     assert tool_result.meta["audit_logged"] is True
     assert "execution_ms" in tool_result.meta
     entry = json.loads(audit_log.read_text().strip())
-    assert entry["skill_name"] == "monthly-sales-report-sqlite"
+    assert entry["skill_name"] == "sample-monthly-sales-report-sqlite"
     assert entry["mode"] == "query"
     assert entry["success"] is True
     assert entry["rowcount"] == 1
@@ -802,7 +802,7 @@ def test_mysql_database_hides_sqlite_skill_by_default(monkeypatch):
 
     assert result["current_database_type"] == "mysql"
     assert result["available_only"] is True
-    assert [skill["name"] for skill in result["skills"]] == ["monthly-sales-report"]
+    assert [skill["name"] for skill in result["skills"]] == ["sample-monthly-sales-report"]
 
 
 def test_fastmcp_tool_schema_exposes_skill_parameters(monkeypatch):
@@ -932,7 +932,7 @@ def test_mutation_skill_marked_non_executable_when_disabled(skills_server):
     """Mutation metadata remains visible but execution availability is explicit."""
     result = run_tool(
         skills_server.get_skill_detail(
-            skill_name="update-order-status",
+            skill_name="sample-update-order-status",
             ctx=DummyContext(),
         )
     )

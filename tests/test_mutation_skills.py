@@ -143,7 +143,7 @@ def _load_demo_reset_mutation(adapter, audit_logger):
     mutation_path = (
         Path(__file__).parent.parent
         / "skills"
-        / "reset-demo-order-to-pending"
+        / "sample-reset-order-to-pending"
         / "mutation.py"
     )
     spec = importlib.util.spec_from_file_location(
@@ -529,14 +529,14 @@ class TestRunExecuteAudit:
         mutation = MissingEvidenceMutation(adapter_with_orders, mock_audit_logger)
         result = mutation.run_execute(
             {"order_id": 1},
-            skill_name="update-order-status",
+            skill_name="sample-update-order-status",
         )
 
         assert result.execution_outcome == "unknown"
 
     @pytest.mark.parametrize(
         "skill_name",
-        ["update-order-status", "reset-demo-order-to-pending"],
+        ["sample-update-order-status", "sample-reset-order-to-pending"],
     )
     def test_registered_builtin_success_requires_adapter_commit_evidence(
         self,

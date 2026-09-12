@@ -78,7 +78,7 @@ class TestExecuteWithParams:
         from skill_loader import discover, load_query, validate_params
 
         discover(PROJECT_ROOT / "skills")
-        sql_template, param_schema = load_query("monthly-sales-report-sqlite")
+        sql_template, param_schema = load_query("sample-monthly-sales-report-sqlite")
         params = validate_params({"year": 2024, "month": 1}, param_schema)
 
         adapter = SQLiteAdapter(":memory:")

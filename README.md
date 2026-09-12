@@ -164,11 +164,11 @@ Skills Scenario: unknown Skill → list_skills(search=..., detail_level="compact
     ```jsonc
     // execute_query_skill response
     {
-      "structuredContent": { "success": true, "skill_name": "monthly-sales-report",
+      "structuredContent": { "success": true, "skill_name": "sample-monthly-sales-report",
                               "data": [/* rows */], "row_count": 2, "total_rows": 2,
                               "truncated": false, "truncation_note": null },
       "_meta": { "tool_name": "execute_query_skill", "success": true,
-          "skill_name": "monthly-sales-report", "skill_type": "query",
+          "skill_name": "sample-monthly-sales-report", "skill_type": "query",
           "mode": "query", "execution_ms": 12.3, "row_count": 2,
                   "total_rows": 2, "truncated": false, "audit_logged": false,
                   "db_type": "mysql", "connection_id": "trade_analysis_mysql", "idempotent": true, "skill_version": "1.0.0" }
@@ -859,11 +859,11 @@ host should maintain a project-specific environment allowlist.
 **Typical configuration scenarios**:
 
 ```bash
-# Scenario 1: Read-only query skills only (e.g. monthly-sales-report)
+# Scenario 1: Read-only query skills only (e.g. sample-monthly-sales-report)
 ENABLE_SKILLS=1
 SKILLS_ALLOW_MUTATIONS=0
 
-# Scenario 2: Both query and mutation skills (e.g. update-order-status)
+# Scenario 2: Both query and mutation skills (e.g. sample-update-order-status)
 ENABLE_SKILLS=1
 SKILLS_ALLOW_MUTATIONS=1
 
@@ -874,9 +874,9 @@ DB_CONNECTIONS=trade_analysis_mysql,analytics_demo_sqlite
 DEFAULT_DB_CONNECTION=trade_analysis_mysql
 SKILLS_ALLOW_MUTATION_CONNECTIONS=trade_analysis_mysql,analytics_demo_sqlite
 DB_TRADE_ANALYSIS_MYSQL_ALLOW_MUTATIONS=1
-DB_TRADE_ANALYSIS_MYSQL_MUTATION_SKILLS=update-order-status
+DB_TRADE_ANALYSIS_MYSQL_MUTATION_SKILLS=sample-update-order-status
 DB_ANALYTICS_DEMO_SQLITE_ALLOW_MUTATIONS=1
-DB_ANALYTICS_DEMO_SQLITE_MUTATION_SKILLS=update-order-status,reset-demo-order-to-pending
+DB_ANALYTICS_DEMO_SQLITE_MUTATION_SKILLS=sample-update-order-status,sample-reset-order-to-pending
 
 # Scenario 3: Custom skills directory and audit log path
 ENABLE_SKILLS=1
@@ -904,7 +904,7 @@ SKILLS_AUDIT_QUERIES=1
 
 **Demo Skills schema**:
 
-The bundled `monthly-sales-report` and `update-order-status` Skills are demo-profile examples that require an `orders` table. For MySQL demos, create the compatible table and seed rows with:
+The bundled `sample-monthly-sales-report` and `sample-update-order-status` Skills are demo-profile examples that require an `orders` table. For MySQL demos, create the compatible table and seed rows with:
 
 ```bash
 .venv/bin/python scripts/setup_demo_db.py
@@ -920,6 +920,9 @@ Additional server-side protections are enabled by default: FastMCP masks unexpec
 For a complete client configuration example, please refer to `mcp_config.json`.
 
 ## Changelog
+
+Historical version entries retain their original Skill names. Current names
+are listed in the [v3.7.2 migration table](RELEASE_NOTES/RELEASE_NOTES_v3_7.md#sample-skill-names-and-local-files).
 
 ### v3.7.2 Transaction Outcomes and No-Retry Host (September 2026)
 
@@ -1500,7 +1503,7 @@ Output:
   "success": true,
   "skills": [
     {
-      "name": "monthly-sales-report-sqlite",
+      "name": "sample-monthly-sales-report-sqlite",
       "type": "query",
       "risk": "low",
       "description": "Generate a SQLite monthly sales summary report...",
@@ -1552,7 +1555,7 @@ Usage: Retrieve cached execution fields or full metadata for a single skill.
 Input:
 ```json
 {
-  "skill_name": "monthly-sales-report",
+  "skill_name": "sample-monthly-sales-report",
   "connection_id": "trade_analysis_mysql",
   "detail_level": "execution"
 }
@@ -1563,7 +1566,7 @@ Output:
 {
   "success": true,
   "skill": {
-    "name": "monthly-sales-report",
+    "name": "sample-monthly-sales-report",
     "type": "query",
     "params": {
       "year": {"type": "int", "required": true},
@@ -1586,7 +1589,7 @@ Usage: Execute a pre-defined query skill with parameterized SQL.
 Input:
 ```json
 {
-  "skill_name": "monthly-sales-report",
+  "skill_name": "sample-monthly-sales-report",
   "params": {"year": 2026, "month": 1}
 }
 ```
@@ -1599,7 +1602,7 @@ Usage: Execute a pre-defined mutation (write) skill through the two-phase previe
 Input:
 ```json
 {
-  "skill_name": "update-order-status",
+  "skill_name": "sample-update-order-status",
   "params": {"order_id": 42, "new_status": "shipped"},
   "confirm": false
 }
@@ -1654,20 +1657,20 @@ Skills are pre-defined, parameterized SQL operations that encapsulate common bus
 - **Efficiency**: Agent skips multi-round schema exploration and SQL authoring — one call does the job
 - **Extensible**: Developers can add custom Skills for their specific business needs
 
-#### Example 1: `monthly-sales-report` (Query Skill)
+#### Example 1: `sample-monthly-sales-report` (Query Skill)
 
 **Goal**: Generate a daily sales summary for a specified month, including revenue, order count, and average order value.
 
 **Directory structure**:
 ```
-skills/monthly-sales-report/
+skills/sample-monthly-sales-report/
 ├── skill_def.md    # Skill definition (YAML metadata + usage docs)
 └── query.sql       # SQL template
 ```
 
 **Metadata** (YAML frontmatter in `skill_def.md`):
 ```yaml
-name: monthly-sales-report   # Required; must match the skill directory name
+name: sample-monthly-sales-report   # Required; must match the skill directory name
 type: query              # Read-only, no data modification
 source: query.sql        # Explicit execution file declaration (required)
 risk: low
@@ -1698,17 +1701,17 @@ ORDER BY date ASC
 
 **Invocation**: Agent calls via `execute_query_skill`:
 ```json
-{"skill_name": "monthly-sales-report", "params": {"year": 2026, "month": 1}}
+{"skill_name": "sample-monthly-sales-report", "params": {"year": 2026, "month": 1}}
 ```
 
 **How it works**: On server startup, `skill_loader.py` scans the `skills/` directory, parses the YAML frontmatter from `skill_def.md`, reads the source file declared by the `source` field, and validates it via `is_sql_safe()`. At runtime, the Agent passes `year` and `month` parameters, and the server executes the query safely using SQLAlchemy's parameterized binding (`:year`, `:month`), preventing SQL injection.
 
-#### SQLite counterpart: `monthly-sales-report-sqlite`
+#### SQLite counterpart: `sample-monthly-sales-report-sqlite`
 
-The repository also includes `monthly-sales-report-sqlite` for the sample SQLite database. It is intentionally a separate skill instead of a dialect branch inside the MySQL skill:
+The repository also includes `sample-monthly-sales-report-sqlite` for the sample SQLite database. It is intentionally a separate skill instead of a dialect branch inside the MySQL skill:
 
 ```yaml
-name: monthly-sales-report-sqlite
+name: sample-monthly-sales-report-sqlite
 type: query
 source: query.sql
 risk: low
@@ -1719,7 +1722,7 @@ params:
   month: {type: int, required: true, min: 1, max: 12, description: "Month (1-12)"}
 category: reporting
 related_skills:
-  - monthly-sales-report
+  - sample-monthly-sales-report
 ```
 
 The SQLite query uses the demo schema's `orders.total_amount` column and ISO-8601 text dates:
@@ -1737,15 +1740,15 @@ GROUP BY date(order_date)
 ORDER BY date ASC
 ```
 
-The bundled `monthly-sales-report`, `monthly-sales-report-sqlite`, `update-order-status`, and `reset-demo-order-to-pending` skills are marked with `profiles: [demo]` because they require an `orders` demo schema. With `SKILLS_CHECK_SCHEMA_ON_LIST=1`, `available_only=true` hides them when the target connection does not contain their required tables or when database metadata is unavailable and readiness cannot be verified. Dialect-specific query SQL remains in separate Skills, while portable mutations explicitly declare both supported database types; this keeps startup validation simple and makes `available_only` filtering deterministic for Agents.
+The bundled `sample-monthly-sales-report`, `sample-monthly-sales-report-sqlite`, `sample-update-order-status`, and `sample-reset-order-to-pending` skills are marked with `profiles: [demo]` because they require an `orders` demo schema. With `SKILLS_CHECK_SCHEMA_ON_LIST=1`, `available_only=true` hides them when the target connection does not contain their required tables or when database metadata is unavailable and readiness cannot be verified. Dialect-specific query SQL remains in separate Skills, while portable mutations explicitly declare both supported database types; this keeps startup validation simple and makes `available_only` filtering deterministic for Agents.
 
-#### Example 2: `update-order-status` (Mutation Skill)
+#### Example 2: `sample-update-order-status` (Mutation Skill)
 
 **Goal**: Safely update an order's status using state machine constraints to prevent illegal transitions (e.g., cannot jump from "pending" to "delivered").
 
 **Directory structure**:
 ```
-skills/update-order-status/
+skills/sample-update-order-status/
 ├── skill_def.md                  # Skill definition
 ├── mutation.py                   # Python logic (validate + preview + execute)
 └── references/
@@ -1754,7 +1757,7 @@ skills/update-order-status/
 
 **Metadata**:
 ```yaml
-name: update-order-status
+name: sample-update-order-status
 type: mutation                     # Write operation
 source: mutation.py                # Validated implementation file
 risk: medium
@@ -1780,7 +1783,7 @@ returned   → (terminal state)
 
 1. **Preview** (`confirm=false`, default) — look before you leap:
 ```json
-{"skill_name": "update-order-status", 
+{"skill_name": "sample-update-order-status",
  "params": {"order_id": 42, "new_status": "shipped"},
  "confirm": false}
 ```
@@ -1789,7 +1792,7 @@ Returns the SQL that would be executed, its expected impact, and a random
 
 2. **Execute** (`confirm=true`) — write after confirmation and token validation:
 ```json
-{"skill_name": "update-order-status",
+{"skill_name": "sample-update-order-status",
  "params": {"order_id": 42, "new_status": "shipped"},
  "confirm": true,
  "preview_token": "<token returned by preview>"}
@@ -1827,14 +1830,14 @@ nor that short identifier.
 - **Transaction outcome**: pre-COMMIT failures report `rolled_back` only when rollback is confirmed; COMMIT acknowledgement failure reports `unknown`; MySQL guarantees are limited to transactional InnoDB DML
 - **Audit logging**: Mutation preview/execute paths attempt best-effort JSONL audit logging; audit write failures do not roll back data changes
 
-#### Example 3: `reset-demo-order-to-pending` (Portable Demo Reset)
+#### Example 3: `sample-reset-order-to-pending` (Portable Demo Reset)
 
 This demo/test Skill accepts `order_id` and the exact non-pending state expected
 after a preceding live-test mutation. Its target is fixed to `pending` in
 reviewed code, and its SQL is compatible with MySQL and SQLite:
 
 ```yaml
-name: reset-demo-order-to-pending
+name: sample-reset-order-to-pending
 type: mutation
 source: mutation.py
 risk: medium
@@ -1864,6 +1867,23 @@ dedicated demo/test records, avoid overlapping previews for the same order, and
 prefer a fresh stdio server process for each live-test scenario.
 
 #### Adding Custom Skills
+
+Bundled examples use the reserved `sample-` prefix. Create your own Skill in a
+directory such as `skills/my-report/` without that prefix; non-sample Skill
+directories are ignored by Git by default. `skills/_lib/` remains tracked as
+framework code. Keep the directory name and frontmatter `name` identical.
+The prefix is a repository convention, not an execution permission or an
+exact-transaction qualification; source and class-identity checks still apply.
+
+`skills/SKILLS.md` is generated at startup and `skills/_audit.jsonl` is the
+default audit output. Both are local, ignored files; the examples below and
+their tracked `skill_def.md` files provide the shared documentation. Existing
+tracked custom files are not untracked automatically by `.gitignore`.
+Use `git rm --cached -r -- skills/my-report/` to stop tracking an existing
+custom directory while preserving its local files. Custom `SKILLS_DIR` and
+audit paths need corresponding ignore rules if stored inside your repository.
+See the [name migration table](RELEASE_NOTES/RELEASE_NOTES_v3_7.md#sample-skill-names-and-local-files)
+when upgrading an existing configuration.
 
 **Query skills** (read-only):
 1. Create a directory under `skills/`, e.g. `skills/my-report/`
@@ -1992,11 +2012,11 @@ sequenceDiagram
 - **Markdown body** (bottom section): Natural language documentation for developers (usage instructions, workflow hints, notes, etc.). **Not sent to the Agent** — this is a key difference from standard Agent Skills: the standard SKILL.md body contains instructions for the Agent to read, while this project's body is documentation for humans.
 - **Parameter constraint declarations**: `type`/`min`/`max`/`enum` declared in YAML, enforced uniformly by `validate_params()`. Skill authors don't need to duplicate validation logic in code.
 
-**Example** — using `monthly-sales-report`'s `skill_def.md`:
+**Example** — using `sample-monthly-sales-report`'s `skill_def.md`:
 
 ```yaml
 ---
-name: monthly-sales-report          # Name constraint: ^[a-z0-9][a-z0-9-]*$
+name: sample-monthly-sales-report          # Name constraint: ^[a-z0-9][a-z0-9-]*$
 type: query                         # query | mutation
 source: query.sql                   # Explicit execution file (required, suffix must match type)
 risk: low                           # low | medium | high
@@ -2013,7 +2033,7 @@ triggers:                           # Keyword hints (for Agent matching)
   - revenue report
 ---
 ## Usage                            ← Markdown body: developer-visible only
-execute_query_skill("monthly-sales-report", {"year": 2026, "month": 1})
+execute_query_skill("sample-monthly-sales-report", {"year": 2026, "month": 1})
 
 ## Notes
 - Uses MySQL YEAR()/MONTH() functions, SQLite requires replacement

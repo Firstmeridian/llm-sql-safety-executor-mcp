@@ -1,5 +1,7 @@
 # v3.6-v3.7 MySQL + SQLite MCP 协议联调记录
 
+> Historical record: Skill names below reflect that release/test run. For current `sample-` names and configuration migration, see [the v3.7.2 migration guide](../RELEASE_NOTES_v3_7.md#sample-skill-names-and-local-files).
+
 **日期：** 2026-07-31
 
 **文档边界更新：** 2026-09-03

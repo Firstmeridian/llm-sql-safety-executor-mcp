@@ -790,19 +790,19 @@ def test_skill_tool_meta_has_uniform_fields(monkeypatch, tmp_path):
 
         query_result = asyncio.run(
             module.execute_query_skill(
-                skill_name="monthly-sales-report-sqlite",
+                skill_name="sample-monthly-sales-report-sqlite",
                 params={"year": 2026, "month": 1},
                 ctx=_DummyContext(),
             )
         )
         _assert_common_meta(query_result.meta, "execute_query_skill")
         assert query_result.meta["success"] is True
-        assert query_result.meta["skill_name"] == "monthly-sales-report-sqlite"
+        assert query_result.meta["skill_name"] == "sample-monthly-sales-report-sqlite"
         assert query_result.meta["mode"] == "query"
 
         mutation_result = asyncio.run(
             module.execute_mutation_skill(
-                skill_name="update-order-status",
+                skill_name="sample-update-order-status",
                 params={"order_id": 1, "new_status": "confirmed"},
                 ctx=_DummyContext(),
                 confirm=False,
@@ -811,7 +811,7 @@ def test_skill_tool_meta_has_uniform_fields(monkeypatch, tmp_path):
         _assert_common_meta(mutation_result.meta, "execute_mutation_skill")
         assert mutation_result.structured_content["success"] is True
         assert mutation_result.meta["success"] is True
-        assert mutation_result.meta["skill_name"] == "update-order-status"
+        assert mutation_result.meta["skill_name"] == "sample-update-order-status"
         assert mutation_result.meta["mode"] == "preview"
         assert mutation_result.structured_content["execution_outcome"] == "not_executed"
         assert mutation_result.meta["execution_outcome"] == "not_executed"
@@ -822,7 +822,7 @@ def test_skill_tool_meta_has_uniform_fields(monkeypatch, tmp_path):
 
         mutation_execute_result = asyncio.run(
             module.execute_mutation_skill(
-                skill_name="update-order-status",
+                skill_name="sample-update-order-status",
                 params={"order_id": 1, "new_status": "confirmed"},
                 ctx=_DummyContext(),
                 confirm=True,
@@ -923,7 +923,7 @@ def test_skill_telemetry_end_to_end_honors_business_failure(monkeypatch, tmp_pat
                 await client.call_tool(
                     "execute_mutation_skill",
                     {
-                        "skill_name": "update-order-status",
+                        "skill_name": "sample-update-order-status",
                         "params": {"order_id": 1, "new_status": "delivered"},
                         "confirm": False,
                     },

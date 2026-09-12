@@ -1068,7 +1068,8 @@ class TestLoadMutation:
 
         assert getattr(MutationBase.run_execute, "__final__", False) is True
 
-    def test_custom_mutation_cannot_self_declare_exact_outcome(self, tmp_path):
+    @pytest.mark.parametrize("skill_name", ["custom-exact", "sample-custom-exact"])
+    def test_custom_mutation_cannot_self_declare_exact_outcome(self, tmp_path, skill_name):
         """Whole-Skill exact evidence is reserved for registered built-ins."""
         from skill_loader import _load_mutation_class
 
@@ -1090,11 +1091,11 @@ class TestLoadMutation:
                 "built-in single-statement Mutations"
             ),
         ):
-            _load_mutation_class("custom-exact", mutation_path)
+            _load_mutation_class(skill_name, mutation_path)
 
     @pytest.mark.parametrize(
         "reserved_name",
-        ["update-order-status", "reset-demo-order-to-pending"],
+        ["sample-update-order-status", "sample-reset-order-to-pending"],
     )
     def test_bundled_name_at_custom_path_cannot_claim_exact_outcome(
         self, tmp_path, reserved_name,
@@ -1135,7 +1136,7 @@ class TestLoadMutation:
 
         bundled = Path(__file__).resolve().parent.parent / "skills"
         original = discover(bundled)
-        for name in ("update-order-status", "reset-demo-order-to-pending"):
+        for name in ("sample-update-order-status", "sample-reset-order-to-pending"):
             assert _registered_exact_transaction_classes[name] is original[name]._mutation_class
 
         custom_skills = tmp_path / "skills"

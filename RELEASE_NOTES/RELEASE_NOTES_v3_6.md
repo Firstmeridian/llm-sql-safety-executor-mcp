@@ -1,5 +1,7 @@
 # Release Notes v3.6 — Mutation Preview Tokens and Named Write Policy
 
+> Historical record: Skill names below reflect that release/test run. For current `sample-` names and configuration migration, see [the v3.7.2 migration guide](RELEASE_NOTES_v3_7.md#sample-skill-names-and-local-files).
+
 - Release family: v3.6
 - Initial release: v3.6 (2026-05-30)
 - Current maintenance update: v3.6.1 (2026-08-10)

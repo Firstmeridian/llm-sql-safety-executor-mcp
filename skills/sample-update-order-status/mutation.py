@@ -1,5 +1,5 @@
 """
-Mutation skill: update-order-status
+Mutation skill: sample-update-order-status
 
 Safely updates an order's status with state machine constraints.
 Uses optimistic locking to prevent concurrent conflicting updates.

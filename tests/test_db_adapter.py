@@ -562,7 +562,7 @@ class TestGlobalAdapter:
         monkeypatch.setenv("DB_ANALYTICS_ALLOW_MUTATIONS", "1")
         monkeypatch.setenv(
             "DB_ANALYTICS_MUTATION_SKILLS",
-            "update-order-status,close-ticket",
+            "sample-update-order-status,close-ticket",
         )
 
         import db_adapter
@@ -576,7 +576,7 @@ class TestGlobalAdapter:
             assert mysql_policy.mutation_skills == frozenset()
             assert analytics_policy.allow_mutations is True
             assert analytics_policy.mutation_skills == frozenset(
-                {"update-order-status", "close-ticket"}
+                {"sample-update-order-status", "close-ticket"}
             )
         finally:
             db_adapter.reset_adapter()

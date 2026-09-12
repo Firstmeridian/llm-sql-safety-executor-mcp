@@ -101,7 +101,7 @@ def _reload_server(
     *,
     allow_analytics_mutations: bool = True,
     mutation_connections: str = "mysql,analytics",
-    analytics_mutation_skills: str = "update-order-status",
+    analytics_mutation_skills: str = "sample-update-order-status",
     preview_token_ttl_seconds: int = 300,
     preview_token_store_max_entries: int = 10000,
     check_schema_on_list: bool | None = None,
@@ -140,7 +140,7 @@ def _reload_server(
         mutation_connections,
     )
     monkeypatch.setenv("DB_MYSQL_ALLOW_MUTATIONS", "1")
-    monkeypatch.setenv("DB_MYSQL_MUTATION_SKILLS", "update-order-status")
+    monkeypatch.setenv("DB_MYSQL_MUTATION_SKILLS", "sample-update-order-status")
     monkeypatch.setenv(
         "DB_ANALYTICS_ALLOW_MUTATIONS",
         "1" if allow_analytics_mutations else "0",
@@ -203,7 +203,7 @@ def test_default_execute_requires_preview_token(tmp_path, monkeypatch):
         with pytest.raises(module.ToolError, match="preview[_ -]?token|preview token"):
             run_tool(
                 module.execute_mutation_skill(
-                    skill_name="update-order-status",
+                    skill_name="sample-update-order-status",
                     params=_params(),
                     ctx=DummyContext(),
                     confirm=True,
@@ -235,7 +235,7 @@ def test_direct_call_rejects_non_boolean_confirm_before_mutation_setup(
             with pytest.raises(module.ToolError, match="confirm must be a boolean"):
                 run_tool(
                     module.execute_mutation_skill(
-                        skill_name="update-order-status",
+                        skill_name="sample-update-order-status",
                         params=_params(),
                         ctx=DummyContext(),
                         confirm=invalid_confirm,
@@ -283,7 +283,7 @@ def test_schema_metadata_failure_blocks_query_and_mutation_before_execution(
         with pytest.raises(module.ToolError, match="could not be verified"):
             run_tool(
                 module.execute_query_skill(
-                    skill_name="monthly-sales-report-sqlite",
+                    skill_name="sample-monthly-sales-report-sqlite",
                     params={"year": 2026, "month": 1},
                     ctx=DummyContext(),
                 )
@@ -292,7 +292,7 @@ def test_schema_metadata_failure_blocks_query_and_mutation_before_execution(
         with pytest.raises(module.ToolError, match="could not be verified"):
             run_tool(
                 module.execute_mutation_skill(
-                    skill_name="update-order-status",
+                    skill_name="sample-update-order-status",
                     params=_params(),
                     ctx=DummyContext(),
                     confirm=False,
@@ -317,13 +317,13 @@ def test_reset_skill_completes_mutation_compensation_flow(tmp_path, monkeypatch)
         mysql_db,
         analytics_db,
         analytics_mutation_skills=(
-            "update-order-status,reset-demo-order-to-pending"
+            "sample-update-order-status,sample-reset-order-to-pending"
         ),
     )
     try:
         update_preview, _ = run_tool(
             module.execute_mutation_skill(
-                skill_name="update-order-status",
+                skill_name="sample-update-order-status",
                 params={"order_id": 1, "new_status": "confirmed"},
                 connection_id="analytics",
                 ctx=DummyContext(),
@@ -332,7 +332,7 @@ def test_reset_skill_completes_mutation_compensation_flow(tmp_path, monkeypatch)
         )
         update_result, _ = run_tool(
             module.execute_mutation_skill(
-                skill_name="update-order-status",
+                skill_name="sample-update-order-status",
                 params={"order_id": 1, "new_status": "confirmed"},
                 connection_id="analytics",
                 ctx=DummyContext(),
@@ -346,7 +346,7 @@ def test_reset_skill_completes_mutation_compensation_flow(tmp_path, monkeypatch)
         reset_params = {"order_id": 1, "expected_status": "confirmed"}
         preview, preview_meta = run_tool(
             module.execute_mutation_skill(
-                skill_name="reset-demo-order-to-pending",
+                skill_name="sample-reset-order-to-pending",
                 params=reset_params,
                 connection_id="analytics",
                 ctx=DummyContext(),
@@ -361,7 +361,7 @@ def test_reset_skill_completes_mutation_compensation_flow(tmp_path, monkeypatch)
 
         executed, executed_meta = run_tool(
             module.execute_mutation_skill(
-                skill_name="reset-demo-order-to-pending",
+                skill_name="sample-reset-order-to-pending",
                 params=reset_params,
                 connection_id="analytics",
                 ctx=DummyContext(),
@@ -430,7 +430,7 @@ def test_mutation_execution_detail_returns_invocation_contract(
     try:
         detail, _ = run_tool(
             module.get_skill_detail(
-                skill_name="update-order-status",
+                skill_name="sample-update-order-status",
                 connection_id="analytics",
                 detail_level="execution",
                 ctx=DummyContext(),
@@ -440,7 +440,7 @@ def test_mutation_execution_detail_returns_invocation_contract(
         assert detail["success"] is True
         assert detail["connection_id"] == "analytics"
         assert detail["current_database_type"] == "sqlite"
-        assert detail["skill"]["name"] == "update-order-status"
+        assert detail["skill"]["name"] == "sample-update-order-status"
         assert detail["skill"]["type"] == "mutation"
         assert detail["skill"]["executable"] is True
         assert detail["skill"]["requires_confirmation"] is True
@@ -580,7 +580,7 @@ def test_mutation_authorization_startup_summary_strict_mode(
         assert "candidate_targets=analytics,mysql" in message
         assert "policy_enabled_targets=mysql" in message
         assert "analytics=disabled" in message
-        assert "mysql=allowlist(update-order-status)" in message
+        assert "mysql=allowlist(sample-update-order-status)" in message
         assert str(mysql_db) not in message
         assert str(analytics_db) not in message
     finally:
@@ -632,7 +632,7 @@ def test_preview_returns_token_and_default_target_metadata(tmp_path, monkeypatch
     try:
         payload, meta = run_tool(
             module.execute_mutation_skill(
-                skill_name="update-order-status",
+                skill_name="sample-update-order-status",
                 params=_params(),
                 ctx=DummyContext(),
                 confirm=False,
@@ -667,7 +667,7 @@ def test_preview_validation_failure_reports_explicit_token_metadata(
     try:
         payload, meta = run_tool(
             module.execute_mutation_skill(
-                skill_name="update-order-status",
+                skill_name="sample-update-order-status",
                 params=_params(order_id=999),
                 ctx=DummyContext(),
                 confirm=False,
@@ -707,7 +707,7 @@ def test_preview_rejects_non_object_execution_binding(tmp_path, monkeypatch):
     module = _reload_server(monkeypatch, mysql_db, analytics_db)
     try:
         mutation_class = module.get_skills_cache()[
-            "update-order-status"
+            "sample-update-order-status"
         ]._mutation_class
         assert mutation_class is not None
         monkeypatch.setattr(
@@ -719,7 +719,7 @@ def test_preview_rejects_non_object_execution_binding(tmp_path, monkeypatch):
         with pytest.raises(module.ToolError, match="must be a JSON object"):
             run_tool(
                 module.execute_mutation_skill(
-                    skill_name="update-order-status",
+                    skill_name="sample-update-order-status",
                     params=_params(),
                     ctx=DummyContext(),
                     confirm=False,
@@ -742,7 +742,7 @@ def test_preview_rejects_execution_binding_over_utf8_byte_limit(
     module = _reload_server(monkeypatch, mysql_db, analytics_db)
     try:
         mutation_class = module.get_skills_cache()[
-            "update-order-status"
+            "sample-update-order-status"
         ]._mutation_class
         assert mutation_class is not None
         monkeypatch.setattr(
@@ -754,7 +754,7 @@ def test_preview_rejects_execution_binding_over_utf8_byte_limit(
         with pytest.raises(module.ToolError, match="4096-byte limit"):
             run_tool(
                 module.execute_mutation_skill(
-                    skill_name="update-order-status",
+                    skill_name="sample-update-order-status",
                     params=_params(),
                     ctx=DummyContext(),
                     confirm=False,
@@ -775,7 +775,7 @@ def test_execute_with_preview_token_updates_default_connection(tmp_path, monkeyp
     try:
         preview, _ = run_tool(
             module.execute_mutation_skill(
-                skill_name="update-order-status",
+                skill_name="sample-update-order-status",
                 params=_params(),
                 ctx=DummyContext(),
                 confirm=False,
@@ -783,7 +783,7 @@ def test_execute_with_preview_token_updates_default_connection(tmp_path, monkeyp
         )
         payload, meta = run_tool(
             module.execute_mutation_skill(
-                skill_name="update-order-status",
+                skill_name="sample-update-order-status",
                 params=_params(),
                 ctx=DummyContext(),
                 confirm=True,
@@ -815,7 +815,7 @@ def test_same_request_previews_receive_unique_one_time_tokens(tmp_path, monkeypa
         monkeypatch.setattr(module.time, "time", lambda: 1_000)
         first, first_meta = run_tool(
             module.execute_mutation_skill(
-                skill_name="update-order-status",
+                skill_name="sample-update-order-status",
                 params=_params(),
                 ctx=DummyContext(),
                 confirm=False,
@@ -823,7 +823,7 @@ def test_same_request_previews_receive_unique_one_time_tokens(tmp_path, monkeypa
         )
         second, second_meta = run_tool(
             module.execute_mutation_skill(
-                skill_name="update-order-status",
+                skill_name="sample-update-order-status",
                 params=_params(),
                 ctx=DummyContext(),
                 confirm=False,
@@ -847,7 +847,7 @@ def test_preview_token_can_execute_only_once(tmp_path, monkeypatch):
     try:
         preview, _ = run_tool(
             module.execute_mutation_skill(
-                skill_name="update-order-status",
+                skill_name="sample-update-order-status",
                 params=_params(),
                 ctx=DummyContext(),
                 confirm=False,
@@ -855,7 +855,7 @@ def test_preview_token_can_execute_only_once(tmp_path, monkeypatch):
         )
         first, _ = run_tool(
             module.execute_mutation_skill(
-                skill_name="update-order-status",
+                skill_name="sample-update-order-status",
                 params=_params(),
                 ctx=DummyContext(),
                 confirm=True,
@@ -867,7 +867,7 @@ def test_preview_token_can_execute_only_once(tmp_path, monkeypatch):
         with pytest.raises(module.ToolError, match="already been used"):
             run_tool(
                 module.execute_mutation_skill(
-                    skill_name="update-order-status",
+                    skill_name="sample-update-order-status",
                     params=_params(),
                     ctx=DummyContext(),
                     confirm=True,
@@ -896,7 +896,7 @@ def test_concurrent_execute_with_same_token_writes_exactly_once(
     try:
         preview, _ = run_tool(
             module.execute_mutation_skill(
-                skill_name="update-order-status",
+                skill_name="sample-update-order-status",
                 params=_params(),
                 ctx=DummyContext(),
                 confirm=False,
@@ -925,7 +925,7 @@ def test_concurrent_execute_with_same_token_writes_exactly_once(
             try:
                 payload, meta = run_tool(
                     module.execute_mutation_skill(
-                        skill_name="update-order-status",
+                        skill_name="sample-update-order-status",
                         params=_params(),
                         ctx=DummyContext(),
                         confirm=True,
@@ -971,7 +971,7 @@ def test_store_capacity_fails_closed_without_evicting_valid_token(
     try:
         first, _ = run_tool(
             module.execute_mutation_skill(
-                skill_name="update-order-status",
+                skill_name="sample-update-order-status",
                 params=_params(),
                 ctx=DummyContext(),
                 confirm=False,
@@ -980,7 +980,7 @@ def test_store_capacity_fails_closed_without_evicting_valid_token(
         with pytest.raises(module.ToolError, match="could not be registered"):
             run_tool(
                 module.execute_mutation_skill(
-                    skill_name="update-order-status",
+                    skill_name="sample-update-order-status",
                     params=_params(),
                     ctx=DummyContext(),
                     confirm=False,
@@ -989,7 +989,7 @@ def test_store_capacity_fails_closed_without_evicting_valid_token(
 
         payload, _ = run_tool(
             module.execute_mutation_skill(
-                skill_name="update-order-status",
+                skill_name="sample-update-order-status",
                 params=_params(),
                 ctx=DummyContext(),
                 confirm=True,
@@ -1018,7 +1018,7 @@ def test_expired_store_entry_releases_capacity(tmp_path, monkeypatch):
         monkeypatch.setattr(module.time, "time", lambda: 1_000)
         run_tool(
             module.execute_mutation_skill(
-                skill_name="update-order-status",
+                skill_name="sample-update-order-status",
                 params=_params(),
                 ctx=DummyContext(),
                 confirm=False,
@@ -1028,7 +1028,7 @@ def test_expired_store_entry_releases_capacity(tmp_path, monkeypatch):
         monkeypatch.setattr(module.time, "time", lambda: 1_001)
         second, _ = run_tool(
             module.execute_mutation_skill(
-                skill_name="update-order-status",
+                skill_name="sample-update-order-status",
                 params=_params(),
                 ctx=DummyContext(),
                 confirm=False,
@@ -1050,7 +1050,7 @@ def test_execute_rejects_token_for_different_connection(tmp_path, monkeypatch):
     try:
         preview, _ = run_tool(
             module.execute_mutation_skill(
-                skill_name="update-order-status",
+                skill_name="sample-update-order-status",
                 params=_params(),
                 ctx=DummyContext(),
                 confirm=False,
@@ -1061,7 +1061,7 @@ def test_execute_rejects_token_for_different_connection(tmp_path, monkeypatch):
         with pytest.raises(module.ToolError, match="connection|preview[_ -]?token"):
             run_tool(
                 module.execute_mutation_skill(
-                    skill_name="update-order-status",
+                    skill_name="sample-update-order-status",
                     params=_params(),
                     ctx=DummyContext(),
                     confirm=True,
@@ -1074,7 +1074,7 @@ def test_execute_rejects_token_for_different_connection(tmp_path, monkeypatch):
 
         payload, _ = run_tool(
             module.execute_mutation_skill(
-                skill_name="update-order-status",
+                skill_name="sample-update-order-status",
                 params=_params(),
                 ctx=DummyContext(),
                 confirm=True,
@@ -1099,7 +1099,7 @@ def test_execute_rejects_token_when_params_change(tmp_path, monkeypatch):
     try:
         preview, _ = run_tool(
             module.execute_mutation_skill(
-                skill_name="update-order-status",
+                skill_name="sample-update-order-status",
                 params=_params(order_id=1),
                 ctx=DummyContext(),
                 confirm=False,
@@ -1109,7 +1109,7 @@ def test_execute_rejects_token_when_params_change(tmp_path, monkeypatch):
         with pytest.raises(module.ToolError, match="params|preview[_ -]?token"):
             run_tool(
                 module.execute_mutation_skill(
-                    skill_name="update-order-status",
+                    skill_name="sample-update-order-status",
                     params=_params(order_id=2),
                     ctx=DummyContext(),
                     confirm=True,
@@ -1121,7 +1121,7 @@ def test_execute_rejects_token_when_params_change(tmp_path, monkeypatch):
 
         payload, _ = run_tool(
             module.execute_mutation_skill(
-                skill_name="update-order-status",
+                skill_name="sample-update-order-status",
                 params=_params(order_id=1),
                 ctx=DummyContext(),
                 confirm=True,
@@ -1145,7 +1145,7 @@ def test_execute_uses_previewed_state_for_optimistic_lock(tmp_path, monkeypatch)
     try:
         preview, _ = run_tool(
             module.execute_mutation_skill(
-                skill_name="update-order-status",
+                skill_name="sample-update-order-status",
                 params=params,
                 ctx=DummyContext(),
                 confirm=False,
@@ -1158,7 +1158,7 @@ def test_execute_uses_previewed_state_for_optimistic_lock(tmp_path, monkeypatch)
         _set_order_status(mysql_db, 1, "confirmed")
         rejected, rejected_meta = run_tool(
             module.execute_mutation_skill(
-                skill_name="update-order-status",
+                skill_name="sample-update-order-status",
                 params=params,
                 ctx=DummyContext(),
                 confirm=True,
@@ -1175,7 +1175,7 @@ def test_execute_uses_previewed_state_for_optimistic_lock(tmp_path, monkeypatch)
         with pytest.raises(module.ToolError, match="already been used"):
             run_tool(
                 module.execute_mutation_skill(
-                    skill_name="update-order-status",
+                    skill_name="sample-update-order-status",
                     params=params,
                     ctx=DummyContext(),
                     confirm=True,
@@ -1213,7 +1213,7 @@ def test_binding_uses_state_read_by_preview_not_earlier_validation(
     try:
         preview, _ = run_tool(
             module.execute_mutation_skill(
-                skill_name="update-order-status",
+                skill_name="sample-update-order-status",
                 params=params,
                 ctx=DummyContext(),
                 confirm=False,
@@ -1227,7 +1227,7 @@ def test_binding_uses_state_read_by_preview_not_earlier_validation(
 
         payload, _ = run_tool(
             module.execute_mutation_skill(
-                skill_name="update-order-status",
+                skill_name="sample-update-order-status",
                 params=params,
                 ctx=DummyContext(),
                 confirm=True,
@@ -1260,7 +1260,7 @@ def test_preview_error_does_not_issue_token(tmp_path, monkeypatch):
     try:
         payload, meta = run_tool(
             module.execute_mutation_skill(
-                skill_name="update-order-status",
+                skill_name="sample-update-order-status",
                 params=_params(),
                 ctx=DummyContext(),
                 confirm=False,
@@ -1300,7 +1300,7 @@ def test_declared_preview_failure_never_issues_token(
     module = _reload_server(monkeypatch, mysql_db, analytics_db)
     try:
         mutation_class = module.get_skills_cache()[
-            "update-order-status"
+            "sample-update-order-status"
         ]._mutation_class
         assert mutation_class is not None
         monkeypatch.setattr(
@@ -1311,7 +1311,7 @@ def test_declared_preview_failure_never_issues_token(
 
         payload, meta = run_tool(
             module.execute_mutation_skill(
-                skill_name="update-order-status",
+                skill_name="sample-update-order-status",
                 params=_params(),
                 ctx=DummyContext(),
                 confirm=False,
@@ -1340,7 +1340,7 @@ def test_update_order_status_rejects_direct_unbound_execute(
     module = _reload_server(monkeypatch, mysql_db, analytics_db)
     try:
         mutation = module.load_mutation(
-            "update-order-status",
+            "sample-update-order-status",
             module.get_adapter("mysql"),
             module._audit_logger,
         )
@@ -1361,7 +1361,7 @@ def test_dynamic_validation_failure_still_consumes_token(tmp_path, monkeypatch):
     try:
         preview, _ = run_tool(
             module.execute_mutation_skill(
-                skill_name="update-order-status",
+                skill_name="sample-update-order-status",
                 params=_params(),
                 ctx=DummyContext(),
                 confirm=False,
@@ -1371,7 +1371,7 @@ def test_dynamic_validation_failure_still_consumes_token(tmp_path, monkeypatch):
 
         rejected, rejected_meta = run_tool(
             module.execute_mutation_skill(
-                skill_name="update-order-status",
+                skill_name="sample-update-order-status",
                 params=_params(),
                 ctx=DummyContext(),
                 confirm=True,
@@ -1386,7 +1386,7 @@ def test_dynamic_validation_failure_still_consumes_token(tmp_path, monkeypatch):
         with pytest.raises(module.ToolError, match="already been used"):
             run_tool(
                 module.execute_mutation_skill(
-                    skill_name="update-order-status",
+                    skill_name="sample-update-order-status",
                     params=_params(),
                     ctx=DummyContext(),
                     confirm=True,
@@ -1423,7 +1423,7 @@ def test_dynamic_validation_audit_failure_is_reported_in_meta(
     try:
         preview, _ = run_tool(
             module.execute_mutation_skill(
-                skill_name="update-order-status",
+                skill_name="sample-update-order-status",
                 params=_params(),
                 ctx=DummyContext(),
                 confirm=False,
@@ -1434,7 +1434,7 @@ def test_dynamic_validation_audit_failure_is_reported_in_meta(
 
         rejected, rejected_meta = run_tool(
             module.execute_mutation_skill(
-                skill_name="update-order-status",
+                skill_name="sample-update-order-status",
                 params=_params(),
                 ctx=DummyContext(),
                 confirm=True,
@@ -1448,7 +1448,7 @@ def test_dynamic_validation_audit_failure_is_reported_in_meta(
         with pytest.raises(module.ToolError, match="already been used"):
             run_tool(
                 module.execute_mutation_skill(
-                    skill_name="update-order-status",
+                    skill_name="sample-update-order-status",
                     params=_params(),
                     ctx=DummyContext(),
                     confirm=True,
@@ -1472,14 +1472,14 @@ def test_dynamic_validation_toolerror_is_audited_once_after_consumption(
     try:
         preview, _ = run_tool(
             module.execute_mutation_skill(
-                skill_name="update-order-status",
+                skill_name="sample-update-order-status",
                 params=_params(),
                 ctx=DummyContext(),
                 confirm=False,
             )
         )
         mutation_class = module.get_skills_cache()[
-            "update-order-status"
+            "sample-update-order-status"
         ]._mutation_class
         assert mutation_class is not None
 
@@ -1498,7 +1498,7 @@ def test_dynamic_validation_toolerror_is_audited_once_after_consumption(
 
         rejected, rejected_meta = run_tool(
             module.execute_mutation_skill(
-                skill_name="update-order-status",
+                skill_name="sample-update-order-status",
                 params=_params(),
                 ctx=DummyContext(),
                 confirm=True,
@@ -1523,7 +1523,7 @@ def test_dynamic_validation_toolerror_is_audited_once_after_consumption(
         with pytest.raises(module.ToolError, match="already been used"):
             run_tool(
                 module.execute_mutation_skill(
-                    skill_name="update-order-status",
+                    skill_name="sample-update-order-status",
                     params=_params(),
                     ctx=DummyContext(),
                     confirm=True,
@@ -1545,7 +1545,7 @@ def test_audit_failure_does_not_restore_consumed_token(tmp_path, monkeypatch):
     try:
         preview, _ = run_tool(
             module.execute_mutation_skill(
-                skill_name="update-order-status",
+                skill_name="sample-update-order-status",
                 params=_params(),
                 ctx=DummyContext(),
                 confirm=False,
@@ -1555,7 +1555,7 @@ def test_audit_failure_does_not_restore_consumed_token(tmp_path, monkeypatch):
 
         payload, meta = run_tool(
             module.execute_mutation_skill(
-                skill_name="update-order-status",
+                skill_name="sample-update-order-status",
                 params=_params(),
                 ctx=DummyContext(),
                 confirm=True,
@@ -1568,7 +1568,7 @@ def test_audit_failure_does_not_restore_consumed_token(tmp_path, monkeypatch):
         with pytest.raises(module.ToolError, match="already been used"):
             run_tool(
                 module.execute_mutation_skill(
-                    skill_name="update-order-status",
+                    skill_name="sample-update-order-status",
                     params=_params(),
                     ctx=DummyContext(),
                     confirm=True,
@@ -1589,7 +1589,7 @@ def test_database_write_failure_still_consumes_token(tmp_path, monkeypatch):
     try:
         preview, _ = run_tool(
             module.execute_mutation_skill(
-                skill_name="update-order-status",
+                skill_name="sample-update-order-status",
                 params=_params(),
                 ctx=DummyContext(),
                 confirm=False,
@@ -1603,7 +1603,7 @@ def test_database_write_failure_still_consumes_token(tmp_path, monkeypatch):
         monkeypatch.setattr(adapter, "execute_write", fail_write)
         failed, failed_meta = run_tool(
             module.execute_mutation_skill(
-                skill_name="update-order-status",
+                skill_name="sample-update-order-status",
                 params=_params(),
                 ctx=DummyContext(),
                 confirm=True,
@@ -1618,7 +1618,7 @@ def test_database_write_failure_still_consumes_token(tmp_path, monkeypatch):
         with pytest.raises(module.ToolError, match="already been used"):
             run_tool(
                 module.execute_mutation_skill(
-                    skill_name="update-order-status",
+                    skill_name="sample-update-order-status",
                     params=_params(),
                     ctx=DummyContext(),
                     confirm=True,
@@ -1645,7 +1645,7 @@ def test_commit_ack_failure_returns_structured_unknown(tmp_path, monkeypatch):
     try:
         preview, _ = run_tool(
             module.execute_mutation_skill(
-                skill_name="update-order-status",
+                skill_name="sample-update-order-status",
                 params=_params(),
                 ctx=DummyContext(),
                 confirm=False,
@@ -1666,7 +1666,7 @@ def test_commit_ack_failure_returns_structured_unknown(tmp_path, monkeypatch):
         monkeypatch.setattr(adapter, "execute_write", fail_commit)
         failed, meta = run_tool(
             module.execute_mutation_skill(
-                skill_name="update-order-status",
+                skill_name="sample-update-order-status",
                 params=_params(),
                 ctx=DummyContext(),
                 confirm=True,
@@ -1692,7 +1692,7 @@ def test_custom_style_success_is_not_upgraded_to_committed(tmp_path, monkeypatch
     module = _reload_server(monkeypatch, mysql_db, analytics_db)
     try:
         mutation_class = module.get_skills_cache()[
-            "update-order-status"
+            "sample-update-order-status"
         ]._mutation_class
         assert mutation_class is not None
         monkeypatch.setattr(
@@ -1703,7 +1703,7 @@ def test_custom_style_success_is_not_upgraded_to_committed(tmp_path, monkeypatch
 
         preview, _ = run_tool(
             module.execute_mutation_skill(
-                skill_name="update-order-status",
+                skill_name="sample-update-order-status",
                 params=_params(),
                 ctx=DummyContext(),
                 confirm=False,
@@ -1711,7 +1711,7 @@ def test_custom_style_success_is_not_upgraded_to_committed(tmp_path, monkeypatch
         )
         completed, meta = run_tool(
             module.execute_mutation_skill(
-                skill_name="update-order-status",
+                skill_name="sample-update-order-status",
                 params=_params(),
                 ctx=DummyContext(),
                 confirm=True,
@@ -1748,7 +1748,7 @@ def test_registered_builtin_missing_commit_evidence_via_fastmcp(
     _create_orders_db(analytics_db, "analytics")
     module = _reload_server(monkeypatch, mysql_db, analytics_db)
     try:
-        mutation_class = module.get_skills_cache()["update-order-status"]._mutation_class
+        mutation_class = module.get_skills_cache()["sample-update-order-status"]._mutation_class
         assert mutation_class is not None
         monkeypatch.setattr(
             mutation_class,
@@ -1760,12 +1760,13 @@ def test_registered_builtin_missing_commit_evidence_via_fastmcp(
             async with Client(module.mcp) as client:
                 preview = await client.call_tool(
                     "execute_mutation_skill",
-                    {"skill_name": "update-order-status", "params": _params()},
+                    {"skill_name": "sample-update-order-status", "params": _params()},
                 )
+                assert isinstance(preview.structured_content, dict)
                 return await client.call_tool(
                     "execute_mutation_skill",
                     {
-                        "skill_name": "update-order-status",
+                        "skill_name": "sample-update-order-status",
                         "params": _params(),
                         "confirm": True,
                         "preview_token": preview.structured_content["preview_token"],
@@ -1773,6 +1774,7 @@ def test_registered_builtin_missing_commit_evidence_via_fastmcp(
                 )
 
         result = asyncio.run(exercise())
+        assert isinstance(result.structured_content, dict)
         assert result.structured_content["success"] is False
         assert result.structured_content["execution_outcome"] == "unknown"
         assert result.structured_content["error_code"] == "missing_commit_evidence"
@@ -1795,11 +1797,11 @@ def test_same_named_custom_two_statement_failure_via_fastmcp(
     # The server intentionally restricts SKILLS_DIR to the project tree.
     # A temporary directory there exercises the real configuration path.
     with tempfile.TemporaryDirectory(prefix=".test-exact-", dir=PROJECT_ROOT) as root:
-        skill_dir = Path(root) / "update-order-status"
+        skill_dir = Path(root) / "sample-update-order-status"
         skill_dir.mkdir()
         (skill_dir / "skill_def.md").write_text(
             "---\n"
-            "name: update-order-status\n"
+            "name: sample-update-order-status\n"
             "type: mutation\n"
             "source: mutation.py\n"
             "risk: medium\n"
@@ -1830,18 +1832,19 @@ def test_same_named_custom_two_statement_failure_via_fastmcp(
             monkeypatch, mysql_db, analytics_db, skills_dir=Path(root),
         )
         try:
-            assert "update-order-status" in module.get_skills_cache()
+            assert "sample-update-order-status" in module.get_skills_cache()
 
             async def exercise():
                 async with Client(module.mcp) as client:
                     preview = await client.call_tool(
                         "execute_mutation_skill",
-                        {"skill_name": "update-order-status", "params": {"order_id": 1}},
+                        {"skill_name": "sample-update-order-status", "params": {"order_id": 1}},
                     )
+                    assert isinstance(preview.structured_content, dict)
                     return await client.call_tool(
                         "execute_mutation_skill",
                         {
-                            "skill_name": "update-order-status",
+                            "skill_name": "sample-update-order-status",
                             "params": {"order_id": 1},
                             "confirm": True,
                             "preview_token": preview.structured_content["preview_token"],
@@ -1849,6 +1852,7 @@ def test_same_named_custom_two_statement_failure_via_fastmcp(
                     )
 
             result = asyncio.run(exercise())
+            assert isinstance(result.structured_content, dict)
             assert result.structured_content["success"] is False
             assert result.structured_content["execution_outcome"] == "unknown"
             assert result.structured_content["error_code"] == "execution_outcome_unknown"
@@ -1869,7 +1873,7 @@ def test_server_bypasses_post_load_subclass_run_execute_lookalike(
     module = _reload_server(monkeypatch, mysql_db, analytics_db)
     try:
         mutation_class = module.get_skills_cache()[
-            "update-order-status"
+            "sample-update-order-status"
         ]._mutation_class
         assert mutation_class is not None
 
@@ -1883,7 +1887,7 @@ def test_server_bypasses_post_load_subclass_run_execute_lookalike(
 
         preview, _ = run_tool(
             module.execute_mutation_skill(
-                skill_name="update-order-status",
+                skill_name="sample-update-order-status",
                 params=_params(),
                 ctx=DummyContext(),
                 confirm=False,
@@ -1891,7 +1895,7 @@ def test_server_bypasses_post_load_subclass_run_execute_lookalike(
         )
         completed, meta = run_tool(
             module.execute_mutation_skill(
-                skill_name="update-order-status",
+                skill_name="sample-update-order-status",
                 params=_params(),
                 ctx=DummyContext(),
                 confirm=True,
@@ -1927,7 +1931,7 @@ def test_server_rejects_invalid_result_from_framework_wrapper(
 
         preview, _ = run_tool(
             module.execute_mutation_skill(
-                skill_name="update-order-status",
+                skill_name="sample-update-order-status",
                 params=_params(),
                 ctx=DummyContext(),
                 confirm=False,
@@ -1935,7 +1939,7 @@ def test_server_rejects_invalid_result_from_framework_wrapper(
         )
         rejected, meta = run_tool(
             module.execute_mutation_skill(
-                skill_name="update-order-status",
+                skill_name="sample-update-order-status",
                 params=_params(),
                 ctx=DummyContext(),
                 confirm=True,
@@ -1963,7 +1967,7 @@ def test_custom_execute_failure_after_write_is_unknown(
     _create_orders_db(analytics_db, "analytics")
     module = _reload_server(monkeypatch, mysql_db, analytics_db)
     try:
-        mutation_class = module.get_skills_cache()["update-order-status"]._mutation_class
+        mutation_class = module.get_skills_cache()["sample-update-order-status"]._mutation_class
         assert mutation_class is not None
 
         def execute_with_binding(self, params, _execution_binding):
@@ -1999,10 +2003,10 @@ def test_custom_execute_failure_after_write_is_unknown(
 
         monkeypatch.setattr(module._audit_logger, "log", record_audit)
         preview, _ = run_tool(module.execute_mutation_skill(
-            skill_name="update-order-status", params=_params(), ctx=DummyContext(),
+            skill_name="sample-update-order-status", params=_params(), ctx=DummyContext(),
         ))
         failed, metadata = run_tool(module.execute_mutation_skill(
-            skill_name="update-order-status", params=_params(), ctx=DummyContext(),
+            skill_name="sample-update-order-status", params=_params(), ctx=DummyContext(),
             confirm=True, preview_token=preview["preview_token"],
         ))
         assert failed["success"] is False
@@ -2020,7 +2024,7 @@ def test_custom_execute_failure_after_write_is_unknown(
         assert execute_audits[0]["result"]["execution_outcome"] == "unknown"
         with pytest.raises(module.ToolError, match="already been used"):
             run_tool(module.execute_mutation_skill(
-                skill_name="update-order-status", params=_params(), ctx=DummyContext(),
+                skill_name="sample-update-order-status", params=_params(), ctx=DummyContext(),
                 confirm=True, preview_token=preview["preview_token"],
             ))
         assert len(execute_audits) == 1
@@ -2039,7 +2043,7 @@ def test_framework_success_cleanup_keeps_outcome_and_serializable_response(
     _create_orders_db(analytics_db, "analytics")
     module = _reload_server(monkeypatch, mysql_db, analytics_db)
     try:
-        mutation_class = module.get_skills_cache()["update-order-status"]._mutation_class
+        mutation_class = module.get_skills_cache()["sample-update-order-status"]._mutation_class
         assert mutation_class is not None
 
         def execute_with_binding(self, params, _execution_binding):
@@ -2072,10 +2076,10 @@ def test_framework_success_cleanup_keeps_outcome_and_serializable_response(
 
         monkeypatch.setattr(module._audit_logger, "log", record_audit)
         preview, _ = run_tool(module.execute_mutation_skill(
-            skill_name="update-order-status", params=_params(), ctx=DummyContext(),
+            skill_name="sample-update-order-status", params=_params(), ctx=DummyContext(),
         ))
         completed, metadata = run_tool(module.execute_mutation_skill(
-            skill_name="update-order-status", params=_params(), ctx=DummyContext(),
+            skill_name="sample-update-order-status", params=_params(), ctx=DummyContext(),
             confirm=True, preview_token=preview["preview_token"],
         ))
         assert completed["success"] is (failure_kind == "audit")
@@ -2110,7 +2114,7 @@ def test_response_failure_after_write_preserves_evidence_and_single_audit(
 
     module = _reload_server(monkeypatch, mysql_db, analytics_db)
     mutation_class = module.get_skills_cache()[
-        "update-order-status"
+        "sample-update-order-status"
     ]._mutation_class
     assert mutation_class is not None
     monkeypatch.setattr(
@@ -2131,7 +2135,7 @@ def test_response_failure_after_write_preserves_evidence_and_single_audit(
     try:
         preview, _ = run_tool(
             module.execute_mutation_skill(
-                skill_name="update-order-status",
+                skill_name="sample-update-order-status",
                 params=_params(),
                 ctx=DummyContext(),
                 confirm=False,
@@ -2140,7 +2144,7 @@ def test_response_failure_after_write_preserves_evidence_and_single_audit(
 
         failed, failed_meta = run_tool(
             module.execute_mutation_skill(
-                skill_name="update-order-status",
+                skill_name="sample-update-order-status",
                 params=_params(),
                 ctx=FailAfterWriteContext(),
                 confirm=True,
@@ -2156,7 +2160,7 @@ def test_response_failure_after_write_preserves_evidence_and_single_audit(
         with pytest.raises(module.ToolError, match="already been used"):
             run_tool(
                 module.execute_mutation_skill(
-                    skill_name="update-order-status",
+                    skill_name="sample-update-order-status",
                     params=_params(),
                     ctx=DummyContext(),
                     confirm=True,
@@ -2189,7 +2193,7 @@ def test_success_audit_exception_does_not_downgrade_commit(tmp_path, monkeypatch
     try:
         preview, _ = run_tool(
             module.execute_mutation_skill(
-                skill_name="update-order-status",
+                skill_name="sample-update-order-status",
                 params=_params(),
                 ctx=DummyContext(),
                 confirm=False,
@@ -2202,7 +2206,7 @@ def test_success_audit_exception_does_not_downgrade_commit(tmp_path, monkeypatch
         monkeypatch.setattr(module._audit_logger, "log", fail_audit)
         committed, meta = run_tool(
             module.execute_mutation_skill(
-                skill_name="update-order-status",
+                skill_name="sample-update-order-status",
                 params=_params(),
                 ctx=DummyContext(),
                 confirm=True,
@@ -2229,14 +2233,14 @@ def test_cancellation_after_token_consumption_does_not_restore_token(
     try:
         preview, _ = run_tool(
             module.execute_mutation_skill(
-                skill_name="update-order-status",
+                skill_name="sample-update-order-status",
                 params=_params(),
                 ctx=DummyContext(),
                 confirm=False,
             )
         )
         mutation_class = module.get_skills_cache()[
-            "update-order-status"
+            "sample-update-order-status"
         ]._mutation_class
         assert mutation_class is not None
 
@@ -2251,7 +2255,7 @@ def test_cancellation_after_token_consumption_does_not_restore_token(
         with pytest.raises(asyncio.CancelledError):
             run_tool(
                 module.execute_mutation_skill(
-                    skill_name="update-order-status",
+                    skill_name="sample-update-order-status",
                     params=_params(),
                     ctx=DummyContext(),
                     confirm=True,
@@ -2262,7 +2266,7 @@ def test_cancellation_after_token_consumption_does_not_restore_token(
         with pytest.raises(module.ToolError, match="already been used"):
             run_tool(
                 module.execute_mutation_skill(
-                    skill_name="update-order-status",
+                    skill_name="sample-update-order-status",
                     params=_params(),
                     ctx=DummyContext(),
                     confirm=True,
@@ -2290,7 +2294,7 @@ def test_execute_rejects_token_at_expiry_boundary(tmp_path, monkeypatch):
         monkeypatch.setattr(module.time, "time", lambda: 1_000)
         preview, _ = run_tool(
             module.execute_mutation_skill(
-                skill_name="update-order-status",
+                skill_name="sample-update-order-status",
                 params=_params(),
                 ctx=DummyContext(),
                 confirm=False,
@@ -2304,7 +2308,7 @@ def test_execute_rejects_token_at_expiry_boundary(tmp_path, monkeypatch):
         ) as exc_info:
             run_tool(
                 module.execute_mutation_skill(
-                    skill_name="update-order-status",
+                    skill_name="sample-update-order-status",
                     params=_params(),
                     ctx=DummyContext(),
                     confirm=True,
@@ -2330,7 +2334,7 @@ def test_execute_rejects_altered_or_unknown_handle_without_echoing_it(
     try:
         preview, _ = run_tool(
             module.execute_mutation_skill(
-                skill_name="update-order-status",
+                skill_name="sample-update-order-status",
                 params=_params(),
                 ctx=DummyContext(),
                 confirm=False,
@@ -2346,7 +2350,7 @@ def test_execute_rejects_altered_or_unknown_handle_without_echoing_it(
         ) as exc_info:
             run_tool(
                 module.execute_mutation_skill(
-                    skill_name="update-order-status",
+                    skill_name="sample-update-order-status",
                     params=_params(),
                     ctx=DummyContext(),
                     confirm=True,
@@ -2361,7 +2365,7 @@ def test_execute_rejects_altered_or_unknown_handle_without_echoing_it(
 
         payload, _ = run_tool(
             module.execute_mutation_skill(
-                skill_name="update-order-status",
+                skill_name="sample-update-order-status",
                 params=_params(),
                 ctx=DummyContext(),
                 confirm=True,
@@ -2383,13 +2387,13 @@ def test_execute_rejects_token_after_skill_version_changes(tmp_path, monkeypatch
     try:
         preview, _ = run_tool(
             module.execute_mutation_skill(
-                skill_name="update-order-status",
+                skill_name="sample-update-order-status",
                 params=_params(),
                 ctx=DummyContext(),
                 confirm=False,
             )
         )
-        skill_meta = module.get_skills_cache()["update-order-status"]
+        skill_meta = module.get_skills_cache()["sample-update-order-status"]
         monkeypatch.setattr(skill_meta, "version", "999.0.0")
 
         with pytest.raises(
@@ -2398,7 +2402,7 @@ def test_execute_rejects_token_after_skill_version_changes(tmp_path, monkeypatch
         ):
             run_tool(
                 module.execute_mutation_skill(
-                    skill_name="update-order-status",
+                    skill_name="sample-update-order-status",
                     params=_params(),
                     ctx=DummyContext(),
                     confirm=True,
@@ -2423,7 +2427,7 @@ def test_memory_store_restart_invalidates_token(
     try:
         preview, _ = run_tool(
             module.execute_mutation_skill(
-                skill_name="update-order-status",
+                skill_name="sample-update-order-status",
                 params=_params(),
                 ctx=DummyContext(),
                 confirm=False,
@@ -2437,7 +2441,7 @@ def test_memory_store_restart_invalidates_token(
         with pytest.raises(module.ToolError, match="not issued by this server process"):
             run_tool(
                 module.execute_mutation_skill(
-                    skill_name="update-order-status",
+                    skill_name="sample-update-order-status",
                     params=_params(),
                     ctx=DummyContext(),
                     confirm=True,
@@ -2460,7 +2464,7 @@ def test_full_token_is_excluded_from_meta_and_audit(tmp_path, monkeypatch):
     try:
         preview, preview_meta = run_tool(
             module.execute_mutation_skill(
-                skill_name="update-order-status",
+                skill_name="sample-update-order-status",
                 params=_params(),
                 ctx=DummyContext(),
                 confirm=False,
@@ -2477,7 +2481,7 @@ def test_full_token_is_excluded_from_meta_and_audit(tmp_path, monkeypatch):
 
         _, execute_meta = run_tool(
             module.execute_mutation_skill(
-                skill_name="update-order-status",
+                skill_name="sample-update-order-status",
                 params=_params(),
                 ctx=DummyContext(),
                 confirm=True,
@@ -2540,7 +2544,7 @@ def test_preview_uses_256_bit_random_handle_and_registers_only_digest(
 
         preview, _ = run_tool(
             module.execute_mutation_skill(
-                skill_name="update-order-status",
+                skill_name="sample-update-order-status",
                 params=_params(),
                 ctx=DummyContext(),
                 confirm=False,
@@ -2577,7 +2581,7 @@ def test_authorized_non_default_execute_updates_only_target_connection(
         mutation_skill = next(
             skill
             for skill in catalog["skills"]
-            if skill["name"] == "update-order-status"
+            if skill["name"] == "sample-update-order-status"
         )
         assert mutation_skill["executable"] is True
         assert mutation_skill["policy_allowed"] is True
@@ -2586,7 +2590,7 @@ def test_authorized_non_default_execute_updates_only_target_connection(
 
         preview, _ = run_tool(
             module.execute_mutation_skill(
-                skill_name="update-order-status",
+                skill_name="sample-update-order-status",
                 params=_params(),
                 ctx=DummyContext(),
                 confirm=False,
@@ -2595,7 +2599,7 @@ def test_authorized_non_default_execute_updates_only_target_connection(
         )
         payload, meta = run_tool(
             module.execute_mutation_skill(
-                skill_name="update-order-status",
+                skill_name="sample-update-order-status",
                 params=_params(),
                 ctx=DummyContext(),
                 confirm=True,
@@ -2628,7 +2632,7 @@ def test_mutation_skill_connection_scope_narrows_without_auto_routing(
 
     module = _reload_server(monkeypatch, mysql_db, analytics_db)
     try:
-        meta = module.get_skills_cache()["update-order-status"]
+        meta = module.get_skills_cache()["sample-update-order-status"]
         meta.connection_ids = ["analytics"]
 
         with pytest.raises(module.ToolError, match="allowed connection_ids"):
@@ -2680,7 +2684,7 @@ def test_mutation_scope_rejects_before_adapter_construction(
 
     module = _reload_server(monkeypatch, mysql_db, analytics_db)
     try:
-        meta = module.get_skills_cache()["update-order-status"]
+        meta = module.get_skills_cache()["sample-update-order-status"]
         meta.connection_ids = ["analytics"]
 
         def unexpected_adapter(_connection_id):
@@ -2716,7 +2720,7 @@ def test_scope_rejection_before_token_validation_does_not_consume_token(
 
     module = _reload_server(monkeypatch, mysql_db, analytics_db)
     try:
-        meta = module.get_skills_cache()["update-order-status"]
+        meta = module.get_skills_cache()["sample-update-order-status"]
         meta.connection_ids = ["analytics", "mysql"]
         preview, _ = run_tool(
             module.execute_mutation_skill(
@@ -2776,7 +2780,7 @@ def test_mutation_connection_scope_never_grants_server_policy(
         allow_analytics_mutations=False,
     )
     try:
-        meta = module.get_skills_cache()["update-order-status"]
+        meta = module.get_skills_cache()["sample-update-order-status"]
         meta.connection_ids = ["analytics"]
         with pytest.raises(
             module.ToolError,
@@ -2816,7 +2820,7 @@ def test_policy_denies_disabled_non_default_connection(tmp_path, monkeypatch):
         ):
             run_tool(
                 module.execute_mutation_skill(
-                    skill_name="update-order-status",
+                    skill_name="sample-update-order-status",
                     params=_params(),
                     ctx=DummyContext(),
                     confirm=False,
@@ -2847,7 +2851,7 @@ def test_policy_denies_connection_missing_from_global_allowlist(tmp_path, monkey
         ):
             run_tool(
                 module.execute_mutation_skill(
-                    skill_name="update-order-status",
+                    skill_name="sample-update-order-status",
                     params=_params(),
                     ctx=DummyContext(),
                     confirm=False,
@@ -2878,7 +2882,7 @@ def test_policy_denies_skill_missing_from_connection_allowlist(tmp_path, monkeyp
         ):
             run_tool(
                 module.execute_mutation_skill(
-                    skill_name="update-order-status",
+                    skill_name="sample-update-order-status",
                     params=_params(),
                     ctx=DummyContext(),
                     confirm=False,
@@ -2901,7 +2905,7 @@ def test_unknown_connection_id_fails_before_token_validation(tmp_path, monkeypat
         with pytest.raises(module.ToolError, match="Unknown connection_id"):
             run_tool(
                 module.execute_mutation_skill(
-                    skill_name="update-order-status",
+                    skill_name="sample-update-order-status",
                     params={},
                     ctx=DummyContext(),
                     confirm=True,

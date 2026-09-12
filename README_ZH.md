@@ -158,11 +158,11 @@ Skills 场景：未知 Skill → list_skills(search=..., detail_level="compact",
     ```jsonc
     // execute_query_skill 响应
     {
-      "structuredContent": { "success": true, "skill_name": "monthly-sales-report",
+      "structuredContent": { "success": true, "skill_name": "sample-monthly-sales-report",
                               "data": [/* rows */], "row_count": 2, "total_rows": 2,
                               "truncated": false, "truncation_note": null },
       "_meta": { "tool_name": "execute_query_skill", "success": true,
-          "skill_name": "monthly-sales-report", "skill_type": "query",
+          "skill_name": "sample-monthly-sales-report", "skill_type": "query",
           "mode": "query", "execution_ms": 12.3, "row_count": 2,
                   "total_rows": 2, "truncated": false, "audit_logged": false,
                   "db_type": "mysql", "connection_id": "trade_analysis_mysql", "idempotent": true, "skill_version": "1.0.0" }
@@ -811,11 +811,11 @@ HTTP 批准和合规级批准人审计不属于当前设计。自定义批准 pr
 **典型配置场景**：
 
 ```bash
-# 场景 1：仅启用只读查询技能（如 monthly-sales-report）
+# 场景 1：仅启用只读查询技能（如 sample-monthly-sales-report）
 ENABLE_SKILLS=1
 SKILLS_ALLOW_MUTATIONS=0
 
-# 场景 2：同时启用查询和写操作技能（如 update-order-status）
+# 场景 2：同时启用查询和写操作技能（如 sample-update-order-status）
 ENABLE_SKILLS=1
 SKILLS_ALLOW_MUTATIONS=1
 
@@ -826,9 +826,9 @@ DB_CONNECTIONS=trade_analysis_mysql,analytics_demo_sqlite
 DEFAULT_DB_CONNECTION=trade_analysis_mysql
 SKILLS_ALLOW_MUTATION_CONNECTIONS=trade_analysis_mysql,analytics_demo_sqlite
 DB_TRADE_ANALYSIS_MYSQL_ALLOW_MUTATIONS=1
-DB_TRADE_ANALYSIS_MYSQL_MUTATION_SKILLS=update-order-status
+DB_TRADE_ANALYSIS_MYSQL_MUTATION_SKILLS=sample-update-order-status
 DB_ANALYTICS_DEMO_SQLITE_ALLOW_MUTATIONS=1
-DB_ANALYTICS_DEMO_SQLITE_MUTATION_SKILLS=update-order-status,reset-demo-order-to-pending
+DB_ANALYTICS_DEMO_SQLITE_MUTATION_SKILLS=sample-update-order-status,sample-reset-order-to-pending
 
 # 场景 3：自定义技能目录和审计日志路径
 ENABLE_SKILLS=1
@@ -856,7 +856,7 @@ SKILLS_AUDIT_QUERIES=1
 
 **Demo Skills schema**：
 
-仓库内置的 `monthly-sales-report` 和 `update-order-status` 是 demo profile 示例，依赖 `orders` 表。MySQL 演示环境可用以下脚本创建兼容表并写入示例行：
+仓库内置的 `sample-monthly-sales-report` 和 `sample-update-order-status` 是 demo profile 示例，依赖 `orders` 表。MySQL 演示环境可用以下脚本创建兼容表并写入示例行：
 
 ```bash
 .venv/bin/python scripts/setup_demo_db.py
@@ -872,6 +872,9 @@ SKILLS_AUDIT_QUERIES=1
 有关完整的客户端配置示例，请参阅 `mcp_config.json`。
 
 ## 更新日志
+
+历史版本条目保留当时的 Skill 原名；当前名称见
+[v3.7.2 迁移表](RELEASE_NOTES/RELEASE_NOTES_v3_7.md#sample-skill-names-and-local-files)。
 
 ### v3.7.2 写事务结论与宿主不重试（2026年9月）
 
@@ -1412,7 +1415,7 @@ summary/full 输出中的 `configured_connection_ids` 只表示该 Skill 声明�
   "success": true,
   "skills": [
     {
-      "name": "monthly-sales-report-sqlite",
+      "name": "sample-monthly-sales-report-sqlite",
       "type": "query",
       "risk": "low",
       "description": "Generate a SQLite monthly sales summary report...",
@@ -1464,7 +1467,7 @@ summary/full 输出中的 `configured_connection_ids` 只表示该 Skill 声明�
 输入：
 ```json
 {
-  "skill_name": "monthly-sales-report",
+  "skill_name": "sample-monthly-sales-report",
   "connection_id": "trade_analysis_mysql",
   "detail_level": "execution"
 }
@@ -1475,7 +1478,7 @@ summary/full 输出中的 `configured_connection_ids` 只表示该 Skill 声明�
 {
   "success": true,
   "skill": {
-    "name": "monthly-sales-report",
+    "name": "sample-monthly-sales-report",
     "type": "query",
     "params": {
       "year": {"type": "int", "required": true},
@@ -1498,7 +1501,7 @@ summary/full 输出中的 `configured_connection_ids` 只表示该 Skill 声明�
 输入：
 ```json
 {
-  "skill_name": "monthly-sales-report",
+  "skill_name": "sample-monthly-sales-report",
   "params": {"year": 2026, "month": 1}
 }
 ```
@@ -1511,7 +1514,7 @@ summary/full 输出中的 `configured_connection_ids` 只表示该 Skill 声明�
 输入：
 ```json
 {
-  "skill_name": "update-order-status",
+  "skill_name": "sample-update-order-status",
   "params": {"order_id": 42, "new_status": "shipped"},
   "confirm": false
 }
@@ -1554,20 +1557,20 @@ Skills（技能）是预定义的、参数化的 SQL 操作，封装了常见的
 - **效率提升**：Agent 无需多轮探索表结构再编写 SQL，一步调用即可完成
 - **可扩展**：开发者可以根据业务需求自行添加新的 Skill
 
-#### 示例 1：`monthly-sales-report`（查询技能）
+#### 示例 1：`sample-monthly-sales-report`（查询技能）
 
 **目标**：生成指定月份的每日销售汇总报告，包含日收入、订单数量和平均订单金额。
 
 **目录结构**：
 ```
-skills/monthly-sales-report/
+skills/sample-monthly-sales-report/
 ├── skill_def.md    # 技能定义（YAML 元数据 + 使用说明）
 └── query.sql       # SQL 模板
 ```
 
 **`skill_def.md` 中的元数据**（YAML frontmatter）：
 ```yaml
-name: monthly-sales-report   # 必填；必须与 skill 目录名一致
+name: sample-monthly-sales-report   # 必填；必须与 skill 目录名一致
 type: query              # 只读查询，不修改数据
 source: query.sql        # 显式声明关联的执行文件（必填）
 risk: low                # 低风险
@@ -1598,17 +1601,17 @@ ORDER BY date ASC
 
 **调用方式**：Agent 通过 `execute_query_skill` 工具调用：
 ```json
-{"skill_name": "monthly-sales-report", "params": {"year": 2026, "month": 1}}
+{"skill_name": "sample-monthly-sales-report", "params": {"year": 2026, "month": 1}}
 ```
 
 **工作原理**：服务器启动时，`skill_loader.py` 扫描 `skills/` 目录，解析 `skill_def.md` 的 YAML frontmatter，读取 `source` 字段声明的源文件，并通过 `is_sql_safe()` 进行安全检查。运行时，Agent 传入参数 `year` 和 `month`，服务器通过 SQLAlchemy 的参数化绑定（`:year`、`:month`）安全地执行查询，防止 SQL 注入。
 
-#### SQLite 对应版本：`monthly-sales-report-sqlite`
+#### SQLite 对应版本：`sample-monthly-sales-report-sqlite`
 
-仓库同时提供 `monthly-sales-report-sqlite`，用于示例 SQLite 数据库。它刻意做成独立 Skill，而不是在 MySQL Skill 里写方言分支：
+仓库同时提供 `sample-monthly-sales-report-sqlite`，用于示例 SQLite 数据库。它刻意做成独立 Skill，而不是在 MySQL Skill 里写方言分支：
 
 ```yaml
-name: monthly-sales-report-sqlite
+name: sample-monthly-sales-report-sqlite
 type: query
 source: query.sql
 risk: low
@@ -1619,7 +1622,7 @@ params:
   month: {type: int, required: true, min: 1, max: 12, description: "Month (1-12)"}
 category: reporting
 related_skills:
-  - monthly-sales-report
+  - sample-monthly-sales-report
 ```
 
 SQLite 查询使用 demo schema 中的 `orders.total_amount` 字段和 ISO-8601 文本日期：
@@ -1637,15 +1640,15 @@ GROUP BY date(order_date)
 ORDER BY date ASC
 ```
 
-仓库内置的 `monthly-sales-report`、`monthly-sales-report-sqlite`、`update-order-status` 和 `reset-demo-order-to-pending` 都标记为 `profiles: [demo]`，因为它们依赖 demo `orders` schema。开启 `SKILLS_CHECK_SCHEMA_ON_LIST=1` 时，如果目标连接没有所需表，或数据库 metadata 不可用而无法验证 readiness，`available_only=true` 都会默认隐藏这些 Skill。方言相关 query SQL 保持为独立 Skill，跨数据库 mutation 则显式声明两种受支持类型；这能保持启动期校验简单，并让 `available_only` 对 Agent 的过滤结果更加确定。
+仓库内置的 `sample-monthly-sales-report`、`sample-monthly-sales-report-sqlite`、`sample-update-order-status` 和 `sample-reset-order-to-pending` 都标记为 `profiles: [demo]`，因为它们依赖 demo `orders` schema。开启 `SKILLS_CHECK_SCHEMA_ON_LIST=1` 时，如果目标连接没有所需表，或数据库 metadata 不可用而无法验证 readiness，`available_only=true` 都会默认隐藏这些 Skill。方言相关 query SQL 保持为独立 Skill，跨数据库 mutation 则显式声明两种受支持类型；这能保持启动期校验简单，并让 `available_only` 对 Agent 的过滤结果更加确定。
 
-#### 示例 2：`update-order-status`（写操作技能）
+#### 示例 2：`sample-update-order-status`（写操作技能）
 
 **目标**：安全地更新订单状态，使用状态机约束防止非法转换（例如不能直接从 "pending" 跳到 "delivered"）。
 
 **目录结构**：
 ```
-skills/update-order-status/
+skills/sample-update-order-status/
 ├── skill_def.md                  # 技能定义
 ├── mutation.py                   # Python 逻辑（验证 + 预览 + 执行）
 └── references/
@@ -1654,7 +1657,7 @@ skills/update-order-status/
 
 **元数据**：
 ```yaml
-name: update-order-status
+name: sample-update-order-status
 type: mutation                     # 写操作
 source: mutation.py                # 已校验的实现文件
 risk: medium                       # 中等风险
@@ -1680,7 +1683,7 @@ returned   → (终态，不可转换)
 
 1. **预览**（`confirm=false`，默认）—— 只看不做：
 ```json
-{"skill_name": "update-order-status", 
+{"skill_name": "sample-update-order-status",
  "params": {"order_id": 42, "new_status": "shipped"},
  "confirm": false}
 ```
@@ -1689,7 +1692,7 @@ bearer `preview_token` handle，不实际修改数据。
 
 2. **执行**（`confirm=true`）—— 确认并验证 token 后写入：
 ```json
-{"skill_name": "update-order-status",
+{"skill_name": "sample-update-order-status",
  "params": {"order_id": 42, "new_status": "shipped"},
  "confirm": true,
  "preview_token": "<preview 返回的 token>"}
@@ -1722,14 +1725,14 @@ Bearer confidentiality 在 token 消费或过期前仍然重要；短 TTL、精�
 - **事务结论**：只有确认 rollback 的提交前失败才报告 `rolled_back`；COMMIT 回执失败报告 `unknown`；MySQL 保证仅限事务性 InnoDB DML
 - **审计日志**：mutation preview/execute 路径尝试 best-effort 写入 JSONL 审计文件；审计写入失败不会回滚数据变更
 
-#### 示例 3：`reset-demo-order-to-pending`（跨数据库 Demo Reset）
+#### 示例 3：`sample-reset-order-to-pending`（跨数据库 Demo Reset）
 
 这个 demo/test Skill 接收 `order_id` 和前一项 live-test mutation 应产生的准确
 非 `pending` 状态。目标在已 review 的代码中固定为 `pending`，SQL 同时兼容
 MySQL 和 SQLite：
 
 ```yaml
-name: reset-demo-order-to-pending
+name: sample-reset-order-to-pending
 type: mutation
 source: mutation.py
 risk: medium
@@ -1757,6 +1760,19 @@ aliases 在部署者启用前不是 route 或权限。该 Skill 会刻意形成
 preview，并优先为每个 live-test 场景启动新的 stdio server 进程。
 
 #### 如何添加自定义 Skill
+
+仓库示例统一使用保留前缀 `sample-`。自定义 Skill 请使用不带此前缀的目录，
+例如 `skills/my-report/`；Git 默认忽略这些非示例 Skill 目录。
+`skills/_lib/` 是框架代码，继续跟踪。目录名仍须与 frontmatter 的 `name` 一致。
+此前缀仅用于仓库命名与版本管理，不授予执行权限或精确事务资格；源码路径与
+加载类身份检查仍然生效。
+
+`skills/SKILLS.md` 是启动时生成的本地清单，`skills/_audit.jsonl` 是默认审计输出，
+两者均不再纳入版本控制；共享示例说明保留在本文和各示例的 `skill_def.md` 中。
+`.gitignore` 不会自动停止跟踪已有自定义文件；可使用
+`git rm --cached -r -- skills/my-report/` 将已有目录移出索引，同时保留本地文件。
+若配置其它项目内 `SKILLS_DIR` 或审计路径，需要为这些路径补充忽略规则。
+现有配置升级请参阅[名称迁移表](RELEASE_NOTES/RELEASE_NOTES_v3_7.md#sample-skill-names-and-local-files)。
 
 **查询技能**（只读）：
 1. 在 `skills/` 下创建目录，如 `skills/my-report/`
@@ -1880,11 +1896,11 @@ sequenceDiagram
 - **Markdown body**（下半部分）：面向开发者的自然语言文档（使用说明、工作流提示、注意事项等）。**不会发送给 Agent**——这是与标准 Agent Skills 的关键差异：标准 SKILL.md 的 body 是给 Agent 读的指令，而本项目的 body 是给人读的文档。
 - **参数约束声明**：`type`/`min`/`max`/`enum` 在 YAML 中声明，由 `validate_params()` 统一执行。Skill 作者无需在代码中重复实现验证逻辑。
 
-**示例**——以 `monthly-sales-report` 的 `skill_def.md` 为例：
+**示例**——以 `sample-monthly-sales-report` 的 `skill_def.md` 为例：
 
 ```yaml
 ---
-name: monthly-sales-report          # 名称约束：^[a-z0-9][a-z0-9-]*$
+name: sample-monthly-sales-report          # 名称约束：^[a-z0-9][a-z0-9-]*$
 type: query                         # query | mutation
 source: query.sql                   # 显式声明执行文件（必填，后缀须匹配 type）
 risk: low                           # low | medium | high
@@ -1901,7 +1917,7 @@ triggers:                           # 关键词提示（Agent 匹配用）
   - revenue report
 ---
 ## Usage                            ← Markdown body：仅开发者可见
-execute_query_skill("monthly-sales-report", {"year": 2026, "month": 1})
+execute_query_skill("sample-monthly-sales-report", {"year": 2026, "month": 1})
 
 ## Notes
 - 使用 MySQL YEAR()/MONTH() 函数，SQLite 需替换
