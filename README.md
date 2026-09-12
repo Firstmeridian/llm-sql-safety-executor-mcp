@@ -1288,7 +1288,11 @@ Output:
 ```
 
 ### 2. `check_connection`
-Usage: Test database connection and configuration.
+Usage: Test one database connection and configuration. Pass `connection_id` to
+select an alias; omission checks only the default. This is the existing tool,
+using the business adapter and its timeouts, without the batch tool's disposable
+connections or independent 30-second budget. Use on request or when
+troubleshooting connection failures, not as a prerequisite to queries.
 
 Output:
 ```json
@@ -1299,6 +1303,73 @@ Output:
   "message": "Database connection successful"
 }
 ```
+
+### 2a. `check_connections`
+
+Usage: Check **all configured aliases** with one no-argument call. Unlike
+`list_connections()` (configuration only), this opens fresh diagnostic
+connections. It does not verify existing pool health, business tables, Skill
+readiness, or write privileges. Use only for requested diagnostics or connection
+troubleshooting; it is not an automatic startup check or a query prerequisite.
+
+```json
+{
+  "all_connected": false,
+  "complete": false,
+  "connection_count": 3,
+  "connected_count": 1,
+  "cleanup_failed": false,
+  "results": {
+    "trade_analysis_mysql": {"db_type": "mysql", "status": "connected", "connected": true},
+    "analytics_demo_sqlite": {"db_type": "sqlite", "status": "failed", "connected": false, "error": "Database connection check failed."},
+    "live_test_sqlite": {"db_type": "sqlite", "status": "timeout", "connected": null, "error": "The diagnostic deadline was reached."}
+  }
+}
+```
+
+Results follow configuration order. `complete` means every alias has a confirmed
+success/failure; `all_connected` means every alias succeeded. `timeout` means a
+check started without a result before the deadline; `not_checked` means it had
+not started. Both use `connected: null`, not `false`. Partial or all-failed
+diagnoses are normal MCP reports, not request errors.
+
+The first version uses up to four worker threads and a 30-second budget. With a
+positive `MCP_TOOL_TIMEOUT_SECONDS=T`, the budget is `min(30, 0.8*T)`; disabling
+that outer timeout retains the 30-second budget. This limits waiting, not the
+lifetime of underlying driver calls. A new batch receives a safe busy error
+until the previous workers finish cleanup attempts; there is no automatic retry or
+background task polling API.
+
+Disposable connections reuse adapter configuration, checks and sanitization,
+without entering the business adapter cache. SQLite files open read-only and
+missing files are not created. For `:memory:`, only a fresh in-memory connection
+is tested, not the existing application's data. Aggregate `_meta` and telemetry
+use `connection_scope: "all"` with counts, omit `connection_id`/`db_type`, and
+set `success` to `all_connected and not cleanup_failed`; `call_completed` records report completion.
+See the [design decision and resource boundaries](RELEASE_NOTES/GUIDE/BATCH_CONNECTION_CHECK_DESIGN.md).
+
+SQLite `mode=ro` prevents database writes; it does not guarantee zero filesystem
+writes. WAL mode can involve creating or updating `-wal`/`-shm` auxiliary files
+and their directory permissions. The diagnostic does not set `immutable=1`,
+because a business database may change concurrently.
+
+Cleanup exceptions are reported separately: `cleanup_failed` appears on each
+result and at report level. A confirmed connection success remains `connected=true`
+when its cleanup fails. The runner stops new submissions and disables further
+batches until the server **process** is restarted; cycling a client session or
+lifespan does not reset this state. Ordinary tools remain available. Busy,
+stopped and cleanup-disabled requests use MCP tool errors, outside the report
+schema. No automatic recovery or additional management endpoint is introduced.
+
+`cleanup_failed=false` means no cleanup exception observed at the snapshot time;
+it does not prove release of every driver resource. A failure discovered after
+a timeout/cancellation is logged and disables future batches without rewriting
+an earlier report. `status` and `connected` are required in every result branch.
+
+A driver call that never returns can keep diagnostics busy and delay process
+exit even after executor shutdown. Before unattended deployment, validate network
+faults, driver timeouts and the process supervisor's termination policy in an
+isolated environment. The diagnostic budget is not a process-exit deadline.
 
 ### 3. `list_tables`
 Usage: Visible Database Overview - List returned/allowed tables and their estimated row counts.

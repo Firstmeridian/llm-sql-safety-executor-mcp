@@ -31,6 +31,7 @@ import pytest
 # Expected annotations for every registered MCP tool.
 # Tuple format: (readOnlyHint, destructiveHint, idempotentHint, openWorldHint)
 _EXPECTED_ANNOTATIONS: dict[str, tuple[bool, bool, bool, bool]] = {
+    "check_connections":     (True,  False, True,  False),
     "list_connections":       (True,  False, True,  False),
     "query":                  (True,  False, True,  False),
     "check_connection":       (True,  False, True,  False),

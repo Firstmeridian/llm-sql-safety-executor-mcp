@@ -7,6 +7,56 @@
 
 This document records the major refactoring changes made to `mcp_sql_server.py` to follow FastMCP best practices and improve the overall design.
 
+## Follow-up: Batch connection diagnostics (September 12, 2026)
+
+Subsequent review tightened required output fields and documented the distinct
+single/batch tools. Cleanup exceptions are now observable independently of
+connectivity and latch batch diagnostics disabled until process restart; no
+automatic recovery mechanism was added. The design record includes the cost /
+benefit table, the successful three-alias black-box live check, and the limits
+of that evidence. DRR-2026-034 now names the historical v3.6 Skill and its current
+name explicitly instead of backdating the `sample-` prefix.
+
+The final boundary review clarified that SQLite `mode=ro` is not a guarantee of
+zero filesystem writes: a disposable WAL experiment observed sidecar creation
+on a table read, while the actual `SELECT 1` probe did not create sidecars in
+that case. Added a WAL transaction regression and an isolated child-process
+test for delayed exit while a probe remains blocked. Network disruption and
+supervisor termination drills remain deployment-specific follow-up work.
+Final validation after these additions: `632 passed, 4 skipped`; targeted
+diagnostics/telemetry `36 passed`; Pyright across all seven changed Python files
+reported no errors or warnings. Added local documentation links and whitespace
+checks passed.
+
+Added no-argument `check_connections()` for all configured aliases, keeping
+single-connection checking and configuration discovery unchanged. The report
+preserves per-alias failures and explicit unknown states when the waiting budget
+expires. Aggregate metadata/telemetry no longer attribute this operation to the
+default alias. Agent instructions distinguish all-alias diagnostics from normal
+read routing; the capability-aware agent advertises the tool only when exposed.
+
+Connection reuse was considered first to keep the structure simple, then rejected
+because SQLite's business `StaticPool` shares transaction state. A disposable
+in-memory experiment on SQLAlchemy 2.0.46 reproduced an unrelated uncommitted row
+being rolled back when a diagnostic checkout closed. The implementation reuses
+adapter logic with fresh, uncached diagnostic instances and read-only SQLite
+file access instead of expanding locks across all business operations.
+
+A lifespan-managed four-worker executor admits one batch at a time. The internal
+30-second waiting budget is shortened to 80% of a smaller MCP timeout. Workers
+retain batch ownership through cleanup after timeout/cancellation, preventing
+repeated requests from accumulating background database calls. Historical live
+test records remain unchanged; the planning-time three-alias MCP baseline is
+identified separately from new-tool validation in the
+[design record](RELEASE_NOTES/GUIDE/BATCH_CONNECTION_CHECK_DESIGN.md).
+
+Validation: the default suite passed (`621 passed, 4 skipped`), followed by a
+separate passing MCP protocol-cancellation regression. Pyright reported no
+errors or warnings across the seven changed Python files. A fresh stdio process
+confirmed mixed success/failure results using temporary SQLite configurations,
+without creating a missing database or disclosing its path. Details and the
+distinction from the older deployed-service baseline are in the design record.
+
 ## Follow-up: Sample Skill names and local files (September 12, 2026)
 
 Renamed all four bundled Skill directories with `git mv` to the `sample-`

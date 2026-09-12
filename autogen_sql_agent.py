@@ -208,13 +208,18 @@ Only the User can say TERMINATE or APPROVE to end the conversation.
 SQL_EXECUTOR_AGENT_PROMPT = """You are a SQL executor agent with access to database tools.
 
 Available tools:
-1. check_connection - Verify database connectivity (use only on connection errors)
+1. check_connection - Check one database connection, only on request or connection errors
 2. list_tables - Database overview with table names and row estimates
 3. describe_table - Single table columns + row estimate + is_large hint
 4. query - Execute read-only SQL queries (SELECT, SHOW, DESCRIBE, or non-ANALYZE EXPLAIN)
 5. get_full_schema - All tables with columns (use for multi-table JOINs)
 
 Note: describe_table returns row_count (estimated) and is_large flag. Use is_large hint to decide if LIMIT is needed.
+
+When the server exposes check_connections(), use it for requested diagnostics
+across all configured aliases. It checks fresh connections with a bounded
+waiting budget; incomplete results are not confirmed connection failures.
+Do not run connectivity checks as a routine prerequisite to queries.
 
 PRE-QUERY VALIDATION (Microsoft Azure Best Practices):
 Before executing any SELECT query on data tables:

@@ -66,6 +66,12 @@ from db_adapter import (
     DB_TYPE,
 )
 from preview_token_store import InMemoryPreviewTokenStore
+from connection_diagnostics import (
+    ConnectionDiagnostics,
+    ConnectionReport,
+    DiagnosticsUnavailable,
+    diagnostic_budget,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -887,6 +893,8 @@ def _validate_sql_template_startup_policy(sql: str) -> tuple[bool, str | None]:
 # Lifespan Management (Best Practice: manage resources properly)
 # =============================================================================
 
+_connection_diagnostics = ConnectionDiagnostics()
+
 @asynccontextmanager
 async def lifespan(mcp_server: FastMCP) -> AsyncIterator[dict[str, Any]]:
     """
@@ -894,10 +902,12 @@ async def lifespan(mcp_server: FastMCP) -> AsyncIterator[dict[str, Any]]:
     Initialize resources on startup, cleanup on shutdown.
     """
     logger.info("SQL Safety Checker MCP Server starting...")
-    # Future: Initialize database connection pool here
-    yield {"initialized": True}
-    logger.info("SQL Safety Checker MCP Server shutting down...")
-    # Future: Cleanup database connections here
+    _connection_diagnostics.start()
+    try:
+        yield {"initialized": True}
+    finally:
+        _connection_diagnostics.close()
+        logger.info("SQL Safety Checker MCP Server shutting down...")
 
 
 # Create MCP server with lifespan
@@ -909,7 +919,8 @@ _CONNECTION_ROUTING_GUIDANCE = """Connection routing:
 - If the user describes only a purpose or role, do not infer a connection from alias names; ask for an exact alias.
 - If the user asks which aliases are available or says they do not know the alias, call list_connections() and ask them to choose an exact alias.
 - Omitting connection_id selects only the configured default; it never means all connections.
-- For read-only requests across all connections, call list_connections() and invoke the requested tool once per connection_id. Never broadcast mutations."""
+- For connectivity diagnostics across all configured connections, call check_connections() directly, only when requested or troubleshooting connection failures.
+- For other read-only requests across all connections, call list_connections() and invoke the requested tool once per connection_id. Never broadcast mutations."""
 
 mcp = FastMCP(
     name="sql-safety-executor",
@@ -962,6 +973,9 @@ if ENABLE_TOOL_TELEMETRY:
             success: bool = True
             result_db_type = DB_TYPE
             result_connection_id = get_default_connection_id()
+            aggregate = tool_name == "check_connections"
+            aggregate_counts: dict[str, int] = {}
+            cleanup_failed = aggregate and _connection_diagnostics.cleanup_failed
             try:
                 result = await call_next(context)
                 meta = getattr(result, "meta", None) or {}
@@ -969,6 +983,12 @@ if ENABLE_TOOL_TELEMETRY:
                 if isinstance(meta_success, bool):
                     success = meta_success
                 if isinstance(meta, dict):
+                    aggregate = aggregate or meta.get("connection_scope") == "all"
+                    if aggregate:
+                        cleanup_failed = meta.get("cleanup_failed") is True
+                        for key in ("connection_count", "connected_count"):
+                            if type(meta.get(key)) is int:
+                                aggregate_counts[key] = meta[key]
                     if isinstance(meta.get("db_type"), str):
                         result_db_type = meta["db_type"]
                     if isinstance(meta.get("connection_id"), str):
@@ -993,6 +1013,12 @@ if ENABLE_TOOL_TELEMETRY:
                         "db_type": result_db_type,
                         "connection_id": result_connection_id,
                     }
+                    if aggregate:
+                        record.pop("connection_id")
+                        record.pop("db_type")
+                        record["connection_scope"] = "all"
+                        record["cleanup_failed"] = cleanup_failed
+                        record.update(aggregate_counts)
                     try:
                         with self._log_path.open("a", encoding="utf-8") as fh:
                             fh.write(json.dumps(record, ensure_ascii=False) + "\n")
@@ -1453,13 +1479,16 @@ def _tool_result(
     tool_name: str,
     start_time: float,
     connection: ConnectionContext | None = None,
+    connection_scope: Literal["single", "all"] = "single",
     **meta_extras: Any,
 ) -> ToolResult:
     """
     Wrap a dict-shaped tool response in ``ToolResult`` and attach runtime metadata.
 
-    ``_meta`` always carries ``tool_name``, ``db_type``, and ``execution_ms``;
-    callers may add tool-specific fields via ``**meta_extras`` (None values are
+    ``_meta`` carries ``tool_name`` and ``execution_ms``. Single-connection
+    results also carry ``db_type`` and ``connection_id``; aggregate results
+    carry ``connection_scope=all`` without a misleading default connection.
+    Callers may add tool-specific fields via ``**meta_extras`` (None values are
     dropped). Metadata is non-sensitive diagnostics only — never raw SQL,
     returned rows, parameter values, or credentials.
 
@@ -1477,6 +1506,10 @@ def _tool_result(
         "execution_ms": _elapsed_ms_from(start_time),
     }
     runtime_meta.update({k: v for k, v in meta_extras.items() if v is not None})
+    if connection_scope == "all":
+        runtime_meta.pop("db_type", None)
+        runtime_meta.pop("connection_id", None)
+        runtime_meta["connection_scope"] = "all"
     return ToolResult(structured_content=payload, meta=runtime_meta)
 
 
@@ -1553,6 +1586,9 @@ async def _metadata_failure_result(
 async def list_connections(ctx: Context) -> ToolResult:
     """
     List configured database connection ids and non-sensitive policy metadata.
+
+    This does not open or test database connections. For requested connectivity
+    diagnostics across all aliases, use check_connections().
 
     This tool never returns DSNs, credentials, host names, passwords, or SQLite
     file paths. A returned alias may be passed to read-only tools and Query
@@ -1735,7 +1771,10 @@ async def check_connection(
     connection_id: Annotated[str | None, _CONNECTION_ID_FIELD] = None,
 ) -> ToolResult:
     """
-    Check if the database connection is working.
+    Check one configured database connection; omission selects only the default.
+    For requested diagnostics across all aliases, use check_connections().
+    This reuses the business adapter. It does not use the batch tool's disposable
+    connections or its independent 30-second waiting budget.
 
     Use this only when the user requests a connectivity check or after a
     database operation reports a connection failure. Do not call it as a
@@ -1776,6 +1815,53 @@ async def check_connection(
     return _tool_result(
         payload, tool_name="check_connection", start_time=start_time,
         connection=connection, success=True,
+    )
+
+
+@mcp.tool(
+    timeout=_MCP_TOOL_TIMEOUT,
+    output_schema=ConnectionReport.model_json_schema(),
+    annotations=ToolAnnotations(
+        title="Check All Configured Database Connections",
+        readOnlyHint=True,
+        destructiveHint=False,
+        idempotentHint=True,
+        openWorldHint=False,
+    ),
+)
+async def check_connections(ctx: Context) -> ToolResult:
+    """Check fresh connectivity to ALL configured aliases; takes no arguments.
+
+    Use only for a requested all-connection diagnostic or troubleshooting
+    connection failures, never as a routine prerequisite to queries. For one
+    alias, use check_connection(connection_id); to list configuration without
+    connecting, use list_connections().
+
+    Disposable connections leave business connections and transactions alone.
+    SQLite files open read-only; :memory: checks only a fresh memory connection.
+    SQLite WAL auxiliary files may still involve filesystem writes.
+    This does not verify business tables, Skill readiness or write privileges.
+    Within a 30-second budget (shortened for a smaller MCP timeout), return
+    connected/failed results and timeout/not_checked entries with connected=null.
+    Incomplete checks are not proof of connection failure. Underlying checks may
+    continue cleaning up after the response; another batch then reports busy.
+    Busy, stopped, or disabled diagnostics return an MCP tool error, not a report
+    status. cleanup_failed records an observed cleanup exception separately from
+    connectivity; it disables further batches until the server process restarts.
+    A false flag means no failure observed at report time, not verified release.
+    """
+    start_time = time.perf_counter()
+    try:
+        report = await _connection_diagnostics.run(
+            list_connection_configs(), diagnostic_budget(_MCP_TOOL_TIMEOUT),
+        )
+    except DiagnosticsUnavailable as exc:
+        raise ToolError(str(exc)) from exc
+    return _tool_result(
+        report.model_dump(), tool_name="check_connections", start_time=start_time,
+        connection_scope="all", success=report.all_connected and not report.cleanup_failed,
+        cleanup_failed=report.cleanup_failed,
+        connection_count=report.connection_count, connected_count=report.connected_count,
     )
 
 
@@ -4441,7 +4527,8 @@ Tools (choose based on need):
 - list_tables(connection_id): Visible table overview with row estimates; may be truncated
 - describe_table(name, connection_id): Single-table adapter-visible column metadata + row estimate + is_large hint; not complete DDL
 - get_full_schema(connection_id, detail_level, group_identical): Compact adapter-visible column groups or full adapter-visible column metadata; grouping is not full DDL equivalence
-- check_connection(connection_id): Verify database connectivity (use only on connection errors)
+- check_connection(connection_id): Check one alias (default if omitted), only on request or connection errors
+- check_connections(): Check fresh connectivity to all configured aliases in one bounded diagnostic report; only on request or connection troubleshooting
 {skills_info}
 {_CONNECTION_ROUTING_GUIDANCE}
 

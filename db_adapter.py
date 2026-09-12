@@ -32,6 +32,7 @@ import sqlite3
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
+from pathlib import Path
 from typing import Any, cast
 from dotenv import load_dotenv
 from sqlalchemy.engine import Engine
@@ -871,7 +872,8 @@ class MySQLAdapter(DatabaseAdapter):
     - Uses same connection parameters and timeout settings
     """
     
-    def __init__(self, config: DatabaseConfig | None = None):
+    def __init__(self, config: DatabaseConfig | None = None, *, diagnostic: bool = False):
+        self._diagnostic = diagnostic
         self._config = config or _legacy_config_for_adapter("mysql")
         if self._config.db_type != "mysql":
             raise ValueError("MySQLAdapter requires a mysql DatabaseConfig")
@@ -897,6 +899,7 @@ class MySQLAdapter(DatabaseAdapter):
         try:
             from sqlalchemy import create_engine
             from sqlalchemy.engine import URL
+            from sqlalchemy.pool import NullPool
             
             # Build URL structurally so special characters in credentials are
             # escaped by SQLAlchemy instead of hand-built string interpolation.
@@ -914,9 +917,9 @@ class MySQLAdapter(DatabaseAdapter):
             self._engine = create_engine(
                 database_url,
                 pool_pre_ping=True,  # Verify connection before use
-                pool_size=5,
-                max_overflow=10,
-                pool_timeout=30,
+                **({"poolclass": NullPool} if self._diagnostic else {
+                    "pool_size": 5, "max_overflow": 10, "pool_timeout": 30,
+                }),
                 hide_parameters=True,
                 logging_name=_adapter_logging_name("mysql_adapter", self._connection_id),
                 pool_logging_name=_adapter_logging_name("mysql_adapter_pool", self._connection_id),
@@ -1277,7 +1280,8 @@ class SQLiteAdapter(DatabaseAdapter):
     - No SHOW/DESCRIBE commands - uses sqlite_master and PRAGMA instead
     """
     
-    def __init__(self, database_path: str | None = None, *, config: DatabaseConfig | None = None):
+    def __init__(self, database_path: str | None = None, *, config: DatabaseConfig | None = None, diagnostic: bool = False):
+        self._diagnostic = diagnostic
         self._config = config or _legacy_config_for_adapter("sqlite")
         if self._config.db_type != "sqlite":
             raise ValueError("SQLiteAdapter requires a sqlite DatabaseConfig")
@@ -1294,28 +1298,39 @@ class SQLiteAdapter(DatabaseAdapter):
         return "sqlite"
     
     def connect(self) -> bool:
-        """Create SQLAlchemy engine with StaticPool."""
+        """Create a business StaticPool or a disposable diagnostic NullPool."""
         if self._engine is not None:
             return True
         
         try:
             from sqlalchemy import create_engine
-            from sqlalchemy.pool import StaticPool
+            from sqlalchemy.pool import NullPool, StaticPool
+            from sqlalchemy.engine import URL
             
             # Build SQLite URL
             # Handle both file paths and :memory:
             if self._database_path == ":memory:":
                 database_url = "sqlite:///:memory:"
+            elif self._diagnostic:
+                # as_uri encodes ?, #, %, spaces and Unicode as filename data.
+                # mode=ro prevents a connectivity check from creating a database.
+                # WAL auxiliary files may still require filesystem writes.
+                database_url = URL.create(
+                    "sqlite", database=Path(self._database_path).absolute().as_uri(),
+                    query={"mode": "ro", "uri": "true"},
+                )
             else:
                 database_url = f"sqlite:///{self._database_path}"
             
-            # Create engine with StaticPool (single connection)
+            # Business checkouts share StaticPool; diagnostic checkouts use NullPool.
             # Reference: SQLAlchemy SQLite pooling docs
-            # check_same_thread=False allows cross-thread usage
+            # Only business connections enable cross-thread usage.
             self._engine = create_engine(
                 database_url,
-                poolclass=StaticPool,
-                connect_args={"check_same_thread": False},
+                poolclass=NullPool if self._diagnostic else StaticPool,
+                connect_args=({
+                    "timeout": self._config.connect_timeout_seconds,
+                } if self._diagnostic else {"check_same_thread": False}),
                 hide_parameters=True,
                 logging_name=_adapter_logging_name("sqlite_adapter", self._connection_id),
                 pool_logging_name=_adapter_logging_name("sqlite_adapter_pool", self._connection_id),
@@ -1725,6 +1740,7 @@ def create_adapter(
     *,
     config: DatabaseConfig | None = None,
     connection_id: str | None = None,
+    diagnostic: bool = False,
 ) -> DatabaseAdapter:
     """
     Create appropriate database adapter based on configuration.
@@ -1734,6 +1750,8 @@ def create_adapter(
                  If None, uses DB_TYPE environment variable.
         config: Optional explicit DatabaseConfig for a named connection.
         connection_id: Optional configured connection id to resolve.
+        diagnostic: Internal fresh-connection mode; never registered in the
+            business cache. SQLite files open read-only; pools are disposable.
     
     Returns:
         DatabaseAdapter instance (MySQLAdapter or SQLiteAdapter)
@@ -1758,14 +1776,16 @@ def create_adapter(
     
     if db_type == "mysql":
         logger.info("Creating MySQL adapter (connection_id=%s)", config.connection_id)
-        adapter = MySQLAdapter(config)
-        adapter.connect()
+        adapter = MySQLAdapter(config, diagnostic=True) if diagnostic else MySQLAdapter(config)
+        if not diagnostic:
+            adapter.connect()
         return adapter
     
     elif db_type == "sqlite":
         logger.info("Creating SQLite adapter (connection_id=%s)", config.connection_id)
-        adapter = SQLiteAdapter(config=config)
-        adapter.connect()
+        adapter = SQLiteAdapter(config=config, diagnostic=True) if diagnostic else SQLiteAdapter(config=config)
+        if not diagnostic:
+            adapter.connect()
         return adapter
     
     else:

@@ -1209,7 +1209,9 @@ SKILLS_AUDIT_QUERIES=1
 ```
 
 ### 2. `check_connection`
-用途：测试数据库连接和配置
+用途：检查单个数据库连接和配置。传入 `connection_id` 选择别名；省略时仅检查默认连接。
+它仍是原来的单连接工具，复用业务适配器及其超时配置，不使用批量工具的独立诊断
+连接或额外 30 秒预算。仅在用户要求或排查连接故障时调用，不作为查询前置步骤。
 
 输出：
 ```json
@@ -1220,6 +1222,62 @@ SKILLS_AUDIT_QUERIES=1
   "message": "Database connection successful"
 }
 ```
+
+### 2a. `check_connections`
+
+用途：无参数调用，一次检查**全部已配置别名**。与仅列配置的 `list_connections()`
+不同，本工具会新建诊断连接；它不验证现有业务连接池健康、业务表、Skill 可用性或写入权限。
+仅用于用户要求的诊断或连接故障排查，不自动在启动时执行，也不作为查询前置步骤。
+
+```json
+{
+  "all_connected": false,
+  "complete": false,
+  "connection_count": 3,
+  "connected_count": 1,
+  "cleanup_failed": false,
+  "results": {
+    "trade_analysis_mysql": {"db_type": "mysql", "status": "connected", "connected": true},
+    "analytics_demo_sqlite": {"db_type": "sqlite", "status": "failed", "connected": false, "error": "Database connection check failed."},
+    "live_test_sqlite": {"db_type": "sqlite", "status": "timeout", "connected": null, "error": "The diagnostic deadline was reached."}
+  }
+}
+```
+
+结果按配置顺序排列。`complete` 表示每个别名都有明确的成功或失败结论；
+`all_connected` 表示全部成功。`timeout` 表示已开始检查但在预算内未获得结果；
+`not_checked` 表示尚未开始。两者的 `connected` 都是 `null`，不能当作连接失败。
+部分失败或全部失败仍返回正常 MCP 诊断报告，不等于请求级错误。
+
+第一版最多使用 4 个工作线程，诊断预算为 30 秒。若
+`MCP_TOOL_TIMEOUT_SECONDS=T` 为正数，预算为 `min(30, 0.8*T)`；关闭外层超时后
+仍保留 30 秒预算。这限制的是等待时间，不能强制终止底层驱动调用。上一批工作线程
+结束清理尝试前，新批次会收到安全的繁忙错误；不提供自动重试或后台任务轮询接口。
+
+诊断连接复用适配器配置、检查和脱敏逻辑，但不进入业务适配器缓存。
+SQLite 文件只读打开，不创建不存在的数据库；`:memory:` 只验证新建内存连接的能力，
+不验证业务内存库中的数据。聚合 `_meta` 和 telemetry 使用 `connection_scope: "all"`
+及汇总计数，省略 `connection_id`、`db_type`，`success` 等于 `all_connected and not cleanup_failed`，
+`call_completed` 表示是否正常返回报告。
+独立连接的取舍与资源边界见[设计记录](RELEASE_NOTES/GUIDE/BATCH_CONNECTION_CHECK_DESIGN.md)。
+
+SQLite 的 `mode=ro` 防止数据库写入，不保证文件系统绝无写入。WAL 模式可能涉及
+创建或更新 `-wal`、`-shm` 辅助文件及其目录权限。本工具不设置 `immutable=1`，
+因为业务数据库可能被其他连接修改。
+
+每个结果项及报告顶层新增 `cleanup_failed`，将连接结果与清理状态分开。
+已确认连接成功但清理失败时，仍保留 `connected=true`。发现清理异常后停止后续诊断
+提交，并禁用新的批次，直到重启服务**进程**；仅重连客户端或重新进入 lifespan
+不会恢复。普通工具仍可使用。繁忙、服务已停止、清理异常禁用均使用 MCP 工具错误
+通道，不属于正常报告 schema；不增加自动恢复或管理接口。
+
+`cleanup_failed=false` 仅表示报告快照时尚未观察到清理异常，不证明驱动的全部资源
+已经释放。超时或取消后才发现的异常会记录日志并禁用后续批次，不回写此前报告。
+每个结果分支的 `status`、`connected` 均为必填字段。
+
+若驱动调用始终不返回，批量诊断可能持续繁忙，即使关闭线程池，进程退出也可能
+被延迟。长期无人值守部署前，应在隔离环境验证网络故障、驱动超时及进程管理器
+的终止策略；诊断预算不等于进程退出期限。
 
 ### 3. `list_tables`
 用途：可见数据库概览 - 列出返回/允许访问的表及其估计行数

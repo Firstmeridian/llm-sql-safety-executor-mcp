@@ -771,9 +771,22 @@ usage-pattern disclosure.
 
 | Configuration | Tool Count |
 |--------------|------------|
-| ENABLE_SKILLS=0 | 6-8 (adds `list_connections`) |
-| ENABLE_SKILLS=1, MUTATIONS=0 | 9-11 |
-| ENABLE_SKILLS=1, MUTATIONS=1 | 10-12 |
+| ENABLE_SKILLS=0 | 7-9 (includes `list_connections` and `check_connections`) |
+| ENABLE_SKILLS=1, MUTATIONS=0 | 10-12 |
+| ENABLE_SKILLS=1, MUTATIONS=1 | 11-13 |
+
+`check_connections()` checks all configured aliases using disposable diagnostic
+connections, while `check_connection()` targets one business adapter and
+`list_connections()` only lists configuration. Aggregate metadata and telemetry
+use `connection_scope=all` with counts and omit a single `connection_id`/`db_type`.
+An observed cleanup exception sets `cleanup_failed` without changing the confirmed
+connection result, stops new probe submissions, and disables further batches
+until process restart. Aggregate operational success requires all connections
+healthy and no observed cleanup failure; false cleanup flags are not proof of
+driver resource release. Required result status fields and error-channel details
+are documented in the batch diagnostic design.
+The [batch diagnostic design](RELEASE_NOTES/GUIDE/BATCH_CONNECTION_CHECK_DESIGN.md)
+records the SQLite transaction-isolation decision and timeout/resource contract.
 
 The full Skills profile remains within Google Gemini's recommended 10-20 tools range. The base read-only profile intentionally stays below that range to keep simple deployments compact.
 

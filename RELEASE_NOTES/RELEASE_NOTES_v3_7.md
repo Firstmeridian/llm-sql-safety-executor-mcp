@@ -6,6 +6,41 @@
 
 ## v3.7.2 — Write Transactions and Uncertain Results
 
+### Batch connection diagnostics
+
+Added `check_connections()`, a no-argument, bounded check of every configured
+alias. Single-alias `check_connection()` and metadata-only `list_connections()`
+retain their behavior. Results distinguish confirmed failures from timed-out or
+not-started checks; aggregate metadata never attributes the batch to the default
+connection. A failed database check is report data, while busy/stopped diagnostics
+are request-level tool errors.
+
+The diagnostic workers use disposable connections, up to four at a time, with
+a 30-second waiting budget (or 80% of a smaller positive MCP timeout). SQLite
+files open read-only; business connection caches and transactions are untouched.
+Cancellation does not kill a driver call, so the batch remains busy until its
+workers finish cleanup attempts. No new environment settings or old-tool API migration
+are required. Restart the server to expose the new tool.
+
+The [design record](GUIDE/BATCH_CONNECTION_CHECK_DESIGN.md) documents why shared
+business connections were rejected, including the SQLite rollback experiment,
+output states, resource ownership, and validation requirements.
+
+Review follow-up: output branches now require `status` and `connected`. Observed
+cleanup exceptions set per-result/report `cleanup_failed`, preserve connectivity
+results, stop additional submissions, and disable further batches until process
+restart. Operational telemetry success requires all connected and no observed
+cleanup failure. This is a small conservative latch, not an automatic recovery
+system; ordinary tools remain available. Tool descriptions now explicitly state
+single/batch isolation differences and the separate MCP error channel.
+
+Boundary follow-up: SQLite `mode=ro` does not guarantee zero filesystem writes;
+WAL auxiliary files can require writes. The diagnostic does not assume the
+business database is immutable. Added WAL transaction/write-rejection coverage
+and a disposable child-process regression demonstrating that a blocked worker
+can delay process exit after executor shutdown. Network fault and supervisor
+termination drills remain isolated deployment checks, not live-service tests.
+
 ### Sample Skill names and local files
 
 The pre-release examples now reserve `sample-` as their directory and public
