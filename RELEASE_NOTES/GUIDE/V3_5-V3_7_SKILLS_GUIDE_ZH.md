@@ -8,7 +8,8 @@
 > 和严格写策略，v3.6.1 的 preview/binding 修复与同进程部署契约定稿，
 > v3.7.0 的可选 Skill 连接范围、人工批准 host 和跨数据库 demo reset，以及
 > v3.7.1 的 opaque preview handle、精简响应与 Agent 渐进披露优化，
-> 以及 v3.7.2 的提交前影响行数约束、结构化事务结果和未知结果不重做。
+> 以及 v3.7.2 的提交前影响行数约束、结构化事务结果、未知结果不重做和
+> framework-owned `run_execute()` 扩展边界。
 
 > **v3.7.1 迁移说明：** 本文的 v3.6/v3.6.1 比较保留 HMAC token 历史事实。
 > v3.7.1 仍使用 `preview_token` 字段，但其值是 256-bit opaque handle；请求与
@@ -883,6 +884,23 @@ def execute_with_binding(self, params, execution_binding) -> dict:
 
 如果返回非空 binding 却没有正确实现 `execute_with_binding()`，基类会拒绝执行，而不是静默忽略 binding。
 
+`run_execute()` 不是自定义扩展点。它由框架统一负责结果校验、整个 Skill 的事务结论、
+错误脱敏和执行审计。v3.7.2 的 loader 会在 discovery 时拒绝直接覆盖，或从中间
+自定义父类继承的替代实现，并提示把业务逻辑迁移到 `execute()` 或
+`execute_with_binding()`。`@final` 只向类型检查器声明意图，loader 的静态 MRO
+身份检查才是运行时强制。这是项目正式发布前有意收紧的扩展契约；它防止意外绕过，
+MCP 还会直接调用基类 wrapper，不通过自定义实例虚分派，因此加载后替换子类同名
+方法也会被忽略。但这不是不可信 Python 插件 sandbox，可信同进程代码仍可能篡改
+框架基类或其它运行时对象。
+
+自定义 Skill 还必须保留 `exact_transaction_outcome=False`。该属性不是作者自行开启
+精确结果的开关；loader 只允许框架登记的两个内置单语句 Skill 使用 true，基类还会
+用 MCP 传入的权威 Skill 名及本次 discovery 登记的类身份复核。登记前核对源码
+解析路径必须指向仓库内置的 `mutation.py`，不能只凭名称判断。其它 `SKILLS_DIR`
+中的同名自定义类设置 true 会在 discovery 被拒绝；保留默认 false 时仍可加载，
+但即使其中某条语句回滚，整个 Skill 的结论也只能为 `unknown`。这防止把此前
+已经提交的自定义语句误报为整个 Skill 已回滚。可信同进程 Python 仍非沙箱。
+
 ### 代码边界
 
 `mutation.py` 使用服务端注入的 `self.adapter`，不应：
@@ -1038,7 +1056,14 @@ MySQL 和 SQLite 两端都使用临时订单完成 preview/execute/replay 测试
 清理临时数据。因此，“本节批次未执行远程 MySQL 写入”和“完整 fixture 批次验证了
 MySQL 写入”并不矛盾，不能把两批写入范围合并描述。
 
-真实联调不是穷尽式生产证明。尤其需要持续注意：MySQL 当前若配置 `ALLOWED_TABLES=*` 和 Mutation 写权限，会扩大真实数据库的 blast radius；v3.6.1-v3.7.2 的 mutation endpoint 只支持单个启用 mutation 的进程，不能将多个 memory worker 放在普通负载均衡器后。v3.7.0 的 in-memory FastMCP contract 和 2026-08-21 的 subprocess stdio 复验均已通过；2026-08-26 又在重启后的已配置 MCP 服务上完成 v3.7.1 opaque-handle direct live mutation 与恢复，但它本身不是 fresh-subprocess approval-host 复验。2026-08-28 又在 fresh subprocess 完成人工批准 Host 的 `APPROVE` 成功写入与 `NO` 拒绝且未调用 execute；另在临时只为 `analytics_demo_sqlite` 开启 UNION 的 subprocess 中，raw query 和 Query Skill allow 分支均返回真实两行，而默认 MySQL 仍按目标 policy 拒绝 UNION。MySQL 早先超时后，后续只读连接复验恢复成功；早先超时作为负面环境观察保留在 live 文档中。2026-08-13、2026-08-19/20 的 initialize 阻塞保留为历史环境观察，不能与最新通过结果混淆。v3.7.2 的真实 MySQL 并发测试仍须通过显式 opt-in 单独运行；默认 SQLite/mock 结果不能替代该结论。
+真实联调不是穷尽式生产证明。尤其需要持续注意：MySQL 当前若配置 `ALLOWED_TABLES=*` 和 Mutation 写权限，会扩大真实数据库的 blast radius；v3.6.1-v3.7.2 的 mutation endpoint 只支持单个启用 mutation 的进程，不能将多个 memory worker 放在普通负载均衡器后。v3.7.0 的 in-memory FastMCP contract 和 2026-08-21 的 subprocess stdio 复验均已通过；2026-08-26 又在重启后的已配置 MCP 服务上完成 v3.7.1 opaque-handle direct live mutation 与恢复，但它本身不是 fresh-subprocess approval-host 复验。2026-08-28 又在 fresh subprocess 完成人工批准 Host 的 `APPROVE` 成功写入与 `NO` 拒绝且未调用 execute；另在临时只为 `analytics_demo_sqlite` 开启 UNION 的 subprocess 中，raw query 和 Query Skill allow 分支均返回真实两行，而默认 MySQL 仍按目标 policy 拒绝 UNION。MySQL 早先超时后，后续只读连接复验恢复成功；早先超时作为负面环境观察保留在 live 文档中。2026-08-13、2026-08-19/20 的 initialize 阻塞保留为历史环境观察，不能与最新通过结果混淆。
+
+2026-09-12 的真实 MySQL 并发测试已在授权测试库上通过显式 opt-in 单独运行：
+两项连接断言、一项 adapter 数据库类型检查（均使用真实连接 fixture），以及一个
+独立连接的 InnoDB 条件更新竞态共 `4 passed`，竞态恰有
+一次提交与一次预期行数不匹配回滚；只读复核确认无残留竞态临时表。默认 SQLite
+套件仍是 `599 passed, 4 skipped`（四项 MySQL 用例仅在 opt-in 时运行）。
+真实 MySQL 竞态通过不等于已经验证网络断线或 COMMIT 结果无法确认时的恢复。
 
 ## 15. 相关文档
 

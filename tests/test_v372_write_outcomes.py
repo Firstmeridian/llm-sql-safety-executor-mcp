@@ -377,57 +377,56 @@ def test_mysql_stale_conditional_updates_allow_at_most_one_commit(mysql_adapter)
 
     engine = mysql_adapter._engine
     assert engine is not None
-    table_name = f"mcp_v372_race_{uuid.uuid4().hex[:12]}"
+    table_name = f"mcp_v372_race_{uuid.uuid4().hex}"
     start = threading.Barrier(2)
-    with engine.begin() as connection:
-        connection.execute(
-            text(
-                f"CREATE TABLE {table_name} ("
-                "id INT PRIMARY KEY, status VARCHAR(32) NOT NULL"
-                ") ENGINE=InnoDB"
-            )
-        )
-        connection.execute(
-            text(f"INSERT INTO {table_name} (id, status) VALUES (1, 'pending')")
-        )
-
-    # Keep two connections checked out while both previews observe the same old
-    # state. Their requested next states differ, matching two separately
-    # approved plans rather than replaying one plan twice.
-    with (
-        engine.connect() as preview_connection_a,
-        engine.connect() as preview_connection_b,
-    ):
-        preview_a = {
-            "expected_status": preview_connection_a.execute(
-                text(f"SELECT status FROM {table_name} WHERE id = 1")
-            ).scalar_one(),
-            "new_status": "confirmed",
-        }
-        preview_b = {
-            "expected_status": preview_connection_b.execute(
-                text(f"SELECT status FROM {table_name} WHERE id = 1")
-            ).scalar_one(),
-            "new_status": "cancelled",
-        }
-    assert preview_a != preview_b
-    assert preview_a["expected_status"] == preview_b["expected_status"] == "pending"
-
-    def update(preview: dict[str, str]) -> str:
-        start.wait(timeout=10)
-        try:
-            mysql_adapter.execute_write(
-                f"UPDATE {table_name} SET status = :new_status "
-                "WHERE id = 1 AND status = :expected_status",
-                preview,
-                expected_rowcount=1,
-            )
-            return "committed"
-        except ExpectedRowcountMismatchError as error:
-            assert error.execution_outcome is WriteExecutionOutcome.ROLLED_BACK
-            return "rolled_back"
-
     try:
+        with engine.begin() as connection:
+            connection.execute(
+                text(
+                    f"CREATE TABLE {table_name} ("
+                    "id INT PRIMARY KEY, status VARCHAR(32) NOT NULL"
+                    ") ENGINE=InnoDB"
+                )
+            )
+            connection.execute(
+                text(f"INSERT INTO {table_name} (id, status) VALUES (1, 'pending')")
+            )
+
+        # Keep two connections checked out while both previews observe the
+        # same old state. Their next states differ: two separately approved plans.
+        with (
+            engine.connect() as preview_connection_a,
+            engine.connect() as preview_connection_b,
+        ):
+            preview_a = {
+                "expected_status": preview_connection_a.execute(
+                    text(f"SELECT status FROM {table_name} WHERE id = 1")
+                ).scalar_one(),
+                "new_status": "confirmed",
+            }
+            preview_b = {
+                "expected_status": preview_connection_b.execute(
+                    text(f"SELECT status FROM {table_name} WHERE id = 1")
+                ).scalar_one(),
+                "new_status": "cancelled",
+            }
+        assert preview_a != preview_b
+        assert preview_a["expected_status"] == preview_b["expected_status"] == "pending"
+
+        def update(preview: dict[str, str]) -> str:
+            start.wait(timeout=10)
+            try:
+                mysql_adapter.execute_write(
+                    f"UPDATE {table_name} SET status = :new_status "
+                    "WHERE id = 1 AND status = :expected_status",
+                    preview,
+                    expected_rowcount=1,
+                )
+                return "committed"
+            except ExpectedRowcountMismatchError as error:
+                assert error.execution_outcome is WriteExecutionOutcome.ROLLED_BACK
+                return "rolled_back"
+
         with ThreadPoolExecutor(max_workers=2) as executor:
             results = list(executor.map(update, [preview_a, preview_b]))
         assert results.count("committed") == 1

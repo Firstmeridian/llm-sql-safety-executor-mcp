@@ -1,6 +1,6 @@
 # MCP SQL Server Refactoring Log
 
-**Date:** December 2, 2025 (Updated: September 11, 2026)
+**Date:** December 2, 2025 (Updated: September 12, 2026)
 **Author:** Code Refactoring Session
 
 ## Overview
@@ -30,18 +30,16 @@ automatic follow-up after its one execute. Custom Skills are not given a false
 whole-Skill rollback guarantee from one adapter statement, and no generic
 multi-statement framework or durable operation ledger was added. Full rationale,
 tests, public compatibility notes, sources, and remaining boundaries are in the
-v3.7 release notes and DRR-2026-058 through DRR-2026-063.
+v3.7 release notes and DRR-2026-058 through DRR-2026-064.
 
-The final evidence-hardening review removed a symmetric success-path overclaim:
+The success-evidence hardening review removed a symmetric success-path overclaim:
 MCP had still hard-coded `committed` after any custom `run_execute()` return.
 Successful adapter results now carry internal COMMIT evidence through both
 built-in Skills and `MutationBase`; MCP only forwards it. Ordinary custom success
 is `success=true, unknown`, while malformed/self-reported failure results and an
 exact Skill that drops its evidence become structured unknown failures. The host
 accepts `success=true, unknown` as a valid terminal custom-Skill outcome rather
-than as successful execution. MCP repeats the base validation for custom
-`run_execute()` overrides, downgrades non-exact lookalike evidence, and performs
-an honest fallback audit attempt when the base audit marker is absent.
+than as successful execution.
 
 Both adapters now also convert `asyncio.CancelledError` raised specifically by
 COMMIT into typed `commit_outcome_unknown` after cleanup. Pre-COMMIT cancellation
@@ -76,6 +74,46 @@ A versioned design/ADR is reserved for a concrete restart-query,
 unattended-recovery, or measured manual-reconciliation requirement with an
 owner and migration scope.
 
+The September 12 extension-contract follow-up makes
+`MutationBase.run_execute()` a framework-owned template method. Skill discovery
+rejects both direct overrides and replacements inherited from an intermediate
+custom base class, and points authors to `execute()` or
+`execute_with_binding()`. `@final` documents the contract for type checkers;
+`inspect.getattr_static()` identity comparison supplies runtime enforcement.
+With the wrapper protected, MCP no longer duplicates its business-result and
+COMMIT-evidence classification; it retains a narrow fail-closed typed-result
+guard for base-level tampering or framework regressions. MCP invokes the base
+method directly rather than dispatching through the custom instance, so a
+post-load subclass replacement is ignored. The project is pre-release, so this
+explicit migration is kept in v3.7.2 rather than preserving an unsafe, unshipped
+extension point. Trusted in-process Python remains outside an untrusted plugin
+sandbox.
+
+The same P1 follow-up found that the public-looking
+`exact_transaction_outcome=True` class flag could otherwise be copied by a
+custom Skill. Discovery now reserves the declaration for the two registered
+built-in single-statement Skills, and the base wrapper independently checks the
+authoritative MCP Skill name *and the exact source-verified class identity*
+before accepting exact evidence. The first implementation checked only the
+name: configuring a different `SKILLS_DIR` with a same-named two-write custom
+Skill could misreport a later statement rollback as a whole-Skill rollback
+after an earlier COMMIT. The loader now checks the bundled `mutation.py` path,
+rejects such a custom `exact_transaction_outcome=True` declaration, and
+registers only the real loaded built-in classes; rediscovery replaces the
+registry. Same-named custom Skills with the default flag remain `unknown`.
+This closes the ordinary configuration self-upgrade path without introducing a
+general custom transaction protocol or claiming protection from malicious
+in-process code.
+Custom row-count mismatch wording now also says that the whole Skill outcome
+cannot be confirmed, instead of implying that earlier custom writes were not
+committed when only the current statement's rollback was confirmed.
+
+The same review deliberately did not add `AGENTS.md`. Codex automatically reads
+applicable `AGENTS.md` files, so a stale preference could silently affect later
+tasks. No collaboration-guide draft is included in the tracked v3.7.2 changes;
+the Skill runtime and security contracts remain in the tracked design and
+`skills/SAFETY.md` documents.
+
 Earlier post-review validation: `583 passed, 4 skipped`; targeted Pyright reported
 `0 errors` and 35 third-party-import resolution warnings. Live MySQL tests were
 not enabled, and no live network-failure guarantee is inferred from that run.
@@ -84,6 +122,38 @@ After the September 11 follow-up, the default suite completed with
 and Python compilation plus `git diff --check` passed. Targeted Pyright for the
 two changed Python paths reported `0 errors` and 16 unresolved third-party-import
 warnings from the workspace resolver.
+After the September 12 wrapper-contract follow-up, the default suite completed
+with `592 passed, 4 skipped`; the same opt-in real-MySQL cases remained
+unexecuted, so this run adds no live MySQL claim. Python compilation and
+`git diff --check` passed; targeted Pyright reported `0 errors` and 21 existing
+third-party-import resolution warnings from the workspace resolver.
+After the September 12 source-identity follow-up for DRR-2026-065, the default
+suite completed with `596 passed, 4 skipped`; the four opt-in real-MySQL cases
+were not run. A real in-memory FastMCP Client regression used a disposable
+SQLite database and a temporary in-project SKILLS_DIR to assert that a
+same-named custom two-write Skill keeps its earlier COMMIT yet reports
+`success=false, unknown` after the second statement rolls back. Both reserved
+names fail discovery when their custom sources claim the exact flag; genuine
+built-in registration and registry clearing on rediscovery are covered. This
+does not establish any real MySQL integration or malicious-code sandbox claim.
+The missing-evidence regression was subsequently restored for both genuinely
+registered built-in classes. A plain `success=true` dict with no adapter COMMIT
+evidence now has explicit tests for `missing_commit_evidence, unknown`, separate
+from the unregistered same-name test. That default suite completed with
+`598 passed, 4 skipped`; the four real-MySQL opt-in cases were not
+executed. A further FastMCP Client regression now asserts that the registered
+`update-order-status` returns a structured `missing_commit_evidence, unknown`
+when its handler returns a plain success dict. The latest default suite is
+`599 passed, 4 skipped`; the opt-in real-MySQL cases had not yet been run at
+that point.
+After the test-database opt-in on 2026-09-12, the three MySQL read-only checks
+and one independent-connection InnoDB stale-state update race passed separately
+(`4 passed`). The two race attempts yielded one COMMIT and one rowcount rollback;
+the fixture now covers CREATE and preview failures with `try/finally` cleanup
+and uses a full UUID table suffix. A read-only `information_schema` check found
+zero remaining race-fixture tables. The default suite was rerun unchanged at
+`599 passed, 4 skipped`; its opt-in skips are intentional, not a contradiction.
+This does not test MySQL network disconnect or uncertain COMMIT acknowledgement.
 
 ---
 

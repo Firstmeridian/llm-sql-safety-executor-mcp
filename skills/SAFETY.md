@@ -99,16 +99,36 @@ Skill `success` result becomes structured `invalid_skill_result, unknown`.
 
 The two built-ins opt into the exact single-statement contract and must preserve
 the adapter's typed successful `WriteExecutionResult`; declaration without that
-evidence fails as `missing_commit_evidence, unknown`. The MCP boundary repeats
-these checks in case custom code overrides `run_execute()`, forces non-exact
-lookalike evidence back to unknown, and attempts the audit itself if the base
-audit marker is absent. A rollback reported for one adapter statement must not
+evidence fails as `missing_commit_evidence, unknown`. `MutationBase.run_execute()`
+is the framework-owned wrapper for result validation, whole-Skill outcome
+classification, sanitization, and execution audit. Discovery rejects a direct
+override or one inherited through an intermediate application base class, with
+a migration message directing business logic to `execute()` or
+`execute_with_binding()`. Python's `@final` marker helps static type checkers;
+the loader identity check is the runtime enforcement. MCP directly invokes the
+base method rather than dispatching through the custom instance, so a post-load
+subclass-method replacement is ignored. The MCP boundary retains only a
+fail-closed typed-result guard for base-level tampering or framework regressions.
+The loader also reserves `exact_transaction_outcome=True` for the two
+framework-registered built-in single-statement Skills. It checks the actual
+bundled `mutation.py` source path (not just the public name), registers the
+loaded class identity, and rejects a custom declaration even when a custom
+`SKILLS_DIR` reuses a built-in name. `run_execute()` requires that exact class
+identity and the authoritative MCP Skill name before honoring the flag. Thus
+one adapter result cannot be self-promoted to a whole-Skill claim merely by
+copying a name and class attribute. Ordinary same-named custom Skills are
+allowed with the default flag, but their whole-operation result is `unknown`.
+A rollback reported for one adapter statement must not
 be used to claim that earlier statements,
 nontransactional tables, implicit commits, files, subprocesses, network calls,
 or other external side effects were rolled back. v3.7.2 does not introduce a
 multi-statement transaction framework. Because Mutation Python is trusted
 in-process code, this evidence prevents accidental overclaim but cannot stop a
 malicious Skill from forging objects or performing hidden side effects.
+On a custom Skill's row-count mismatch, the sanitized error names the target
+conflict but does not say that the *whole Skill* was not committed: its reported
+`execution_outcome` is `unknown` even if that particular adapter statement was
+rolled back, since earlier custom writes cannot be excluded.
 
 MySQL rollback claims apply only to transactional InnoDB DML. MySQL
 nontransactional tables and implicit-commit statements are outside that claim.
@@ -294,6 +314,33 @@ platform logging, cron cleanup, or a managed log sink) in production.
 Discovery imports `mutation.py` as trusted local project code and requires it
 to export a concrete `Mutation` class that subclasses `MutationBase`. This is
 a structural loader invariant, not a sandbox for untrusted plugins.
+
+`MutationBase.run_execute()` is not an extension point. Mutation classes must
+not define it or inherit a replacement from an intermediate custom base class;
+the loader rejects either shape during discovery. Existing custom Skills that
+did so must move business behavior into `execute()` or, for preview-state-bound
+writes, `execute_with_binding()`. This intentional pre-release contract
+tightening keeps transaction evidence, sanitized errors, and execution audit in
+one framework path. Trusted in-process Python can still monkeypatch classes or
+the base after discovery, so the rule prevents accidental bypass and contract
+drift rather than providing a sandbox against malicious local code.
+
+Custom Skills must leave `exact_transaction_outcome=False`. Setting it to true
+does not create whole-operation evidence and causes discovery to reject the
+Skill. Extending exact outcomes to another Skill requires framework registry,
+transaction-boundary, failure-path, and documentation review; it is not a
+normal author extension switch.
+Changing `SKILLS_DIR` to a different directory does not make a same-named custom
+implementation bundled. The loader requires the reviewed source location and
+the execution wrapper rechecks the discovered class identity. This is not a
+sandbox against a trusted Python module that deliberately mutates the registry,
+framework methods, or the bundled source itself.
+Connection-level `MUTATION_SKILLS` remains an intentional name-based allowlist
+over the *configured* Skill catalog, not a source-identity check: replacing
+`SKILLS_DIR` with a same-named custom Skill may still authorize that Skill's
+write under existing policy. Review the Skill directory and connection policy
+together when deploying custom implementations. Exact-outcome eligibility is a
+separate, narrower source-and-class check.
 
 Concrete write implementations should perform writes only through
 `self.adapter.execute_write()`. `MutationBase.execute()` remains abstract so a

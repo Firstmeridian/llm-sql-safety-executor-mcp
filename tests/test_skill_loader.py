@@ -6,7 +6,7 @@ Covers:
 - Skill name validation (regex + path traversal)
 - Parameter validation (types, ranges, enums, required/optional)
 - Query SQL loading from cache (not disk)
-- Mutation module loading (success + malformed class + import error)
+- Mutation module loading (success + malformed/unsafe class + import error)
 - discover() behavior (disabled skills, missing dirs, unsafe SQL)
 - generate_skills_md()
 - related_skills warning
@@ -1016,6 +1016,169 @@ class TestLoadMutation:
 
         skills = discover(sd)
         assert "abstract-mutation" not in skills
+
+    @pytest.mark.parametrize(
+        "source",
+        [
+            (
+                "from mutation_base import MutationBase\n\n"
+                "class Mutation(MutationBase):\n"
+                "    def validate(self, params): return {'valid': True}\n"
+                "    def preview(self, params): return {}\n"
+                "    def execute(self, params): return {'success': True}\n"
+                "    def run_execute(self, *args, **kwargs):\n"
+                "        return self.execute(args[0])\n"
+            ),
+            (
+                "from mutation_base import MutationBase\n\n"
+                "class UnsafeMutationBase(MutationBase):\n"
+                "    def run_execute(self, *args, **kwargs):\n"
+                "        return self.execute(args[0])\n\n"
+                "class Mutation(UnsafeMutationBase):\n"
+                "    def validate(self, params): return {'valid': True}\n"
+                "    def preview(self, params): return {}\n"
+                "    def execute(self, params): return {'success': True}\n"
+            ),
+        ],
+        ids=["direct", "inherited"],
+    )
+    def test_mutation_cannot_override_framework_run_execute(
+        self,
+        tmp_path,
+        source,
+    ):
+        """Direct and intermediate-base wrapper overrides fail at load time."""
+        from skill_loader import _load_mutation_class
+
+        mutation_path = tmp_path / "mutation.py"
+        mutation_path.write_text(source, encoding="utf-8")
+
+        with pytest.raises(
+            TypeError,
+            match=(
+                r"must not override framework-owned MutationBase\.run_execute\(\); "
+                r"move business logic to execute\(\) or execute_with_binding\(\)"
+            ),
+        ):
+            _load_mutation_class("unsafe-wrapper", mutation_path)
+
+    def test_framework_run_execute_is_marked_final(self):
+        """Type checkers receive the same framework-owned contract as the loader."""
+        from mutation_base import MutationBase
+
+        assert getattr(MutationBase.run_execute, "__final__", False) is True
+
+    def test_custom_mutation_cannot_self_declare_exact_outcome(self, tmp_path):
+        """Whole-Skill exact evidence is reserved for registered built-ins."""
+        from skill_loader import _load_mutation_class
+
+        mutation_path = tmp_path / "mutation.py"
+        mutation_path.write_text(
+            "from mutation_base import MutationBase\n\n"
+            "class Mutation(MutationBase):\n"
+            "    exact_transaction_outcome = True\n"
+            "    def validate(self, params): return {'valid': True}\n"
+            "    def preview(self, params): return {}\n"
+            "    def execute(self, params): return {'success': True}\n",
+            encoding="utf-8",
+        )
+
+        with pytest.raises(
+            TypeError,
+            match=(
+                "exact_transaction_outcome is reserved for framework-registered "
+                "built-in single-statement Mutations"
+            ),
+        ):
+            _load_mutation_class("custom-exact", mutation_path)
+
+    @pytest.mark.parametrize(
+        "reserved_name",
+        ["update-order-status", "reset-demo-order-to-pending"],
+    )
+    def test_bundled_name_at_custom_path_cannot_claim_exact_outcome(
+        self, tmp_path, reserved_name,
+    ):
+        """Names alone cannot grant whole-Skill transaction evidence."""
+        from skill_loader import _load_mutation_class, discover
+
+        mutation_path = tmp_path / reserved_name / "mutation.py"
+        mutation_path.parent.mkdir()
+        mutation_path.write_text(
+            "from mutation_base import MutationBase\n"
+            "class Mutation(MutationBase):\n"
+            "    exact_transaction_outcome = True\n"
+            "    def validate(self, params): return {'valid': True}\n"
+            "    def preview(self, params): return {}\n"
+            "    def execute(self, params): return {'success': True}\n",
+            encoding="utf-8",
+        )
+
+        with pytest.raises(TypeError, match="exact_transaction_outcome is reserved"):
+            _load_mutation_class(reserved_name, mutation_path)
+
+        (mutation_path.parent / "skill_def.md").write_text(
+            "---\n"
+            f"name: {reserved_name}\n"
+            "type: mutation\n"
+            "source: mutation.py\n"
+            "risk: medium\n"
+            "---\n\nShadowed built-in name.\n",
+            encoding="utf-8",
+        )
+        assert reserved_name not in discover(tmp_path)
+
+    def test_discovery_registers_only_bundled_source_and_loaded_class(self, tmp_path):
+        """Rediscovery cannot leave an old exact class authorized by name."""
+        from skill_loader import discover
+        from mutation_base import _registered_exact_transaction_classes
+
+        bundled = Path(__file__).resolve().parent.parent / "skills"
+        original = discover(bundled)
+        for name in ("update-order-status", "reset-demo-order-to-pending"):
+            assert _registered_exact_transaction_classes[name] is original[name]._mutation_class
+
+        custom_skills = tmp_path / "skills"
+        custom_skills.mkdir()
+        discover(custom_skills)
+        assert _registered_exact_transaction_classes == {}
+
+    @pytest.mark.parametrize(
+        ("extra_source", "expected_error"),
+        [
+            (
+                "    def run_execute(self, *args, **kwargs): return {}\n",
+                "must not override framework-owned MutationBase.run_execute()",
+            ),
+            (
+                "    exact_transaction_outcome = True\n",
+                "exact_transaction_outcome is reserved",
+            ),
+        ],
+        ids=["wrapper-override", "custom-exact-claim"],
+    )
+    def test_discover_excludes_unsafe_mutation_class(
+        self,
+        skills_dir,
+        caplog,
+        extra_source,
+        expected_error,
+    ):
+        """The public discovery/cache path rejects either unsafe declaration."""
+        from skill_loader import discover, get_skills_cache
+
+        mutation_path = skills_dir / "test-mutation" / "mutation.py"
+        mutation_path.write_text(
+            mutation_path.read_text(encoding="utf-8") + extra_source,
+            encoding="utf-8",
+        )
+        with caplog.at_level(logging.ERROR):
+            discovered = discover(skills_dir)
+
+        assert "test-mutation" not in discovered
+        assert "test-mutation" not in get_skills_cache()
+        assert "test-query" in discovered
+        assert expected_error in caplog.text
 
     def test_load_mutation_type_mismatch(self, discovered_skills):
         """Calling load_mutation on a query skill raises TypeError."""

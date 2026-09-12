@@ -10,6 +10,7 @@ import json
 import logging
 import sqlite3
 import sys
+import tempfile
 import threading
 from pathlib import Path
 from typing import Any, Coroutine
@@ -104,6 +105,7 @@ def _reload_server(
     preview_token_ttl_seconds: int = 300,
     preview_token_store_max_entries: int = 10000,
     check_schema_on_list: bool | None = None,
+    skills_dir: Path | None = None,
 ):
     monkeypatch.setenv("DB_CONNECTIONS", "mysql,analytics")
     monkeypatch.setenv("DEFAULT_DB_CONNECTION", "mysql")
@@ -116,7 +118,7 @@ def _reload_server(
     monkeypatch.setenv("DB_ANALYTICS_ALLOWED_TABLES", "orders")
     monkeypatch.setenv("ENABLE_SKILLS", "1")
     monkeypatch.setenv("SKILLS_ALLOW_MUTATIONS", "1")
-    monkeypatch.setenv("SKILLS_DIR", "skills/")
+    monkeypatch.setenv("SKILLS_DIR", str(skills_dir or "skills/"))
     monkeypatch.setenv("SKILLS_EXCLUDE_PROFILES", "")
     monkeypatch.setenv("SKILLS_AUDIT_QUERIES", "0")
     monkeypatch.setenv(
@@ -1734,8 +1736,132 @@ def test_custom_style_success_is_not_upgraded_to_committed(tmp_path, monkeypatch
         _cleanup_modules()
 
 
-def test_server_downgrades_custom_lookalike_commit_evidence(tmp_path, monkeypatch):
-    """A custom run_execute override cannot self-upgrade to committed."""
+def test_registered_builtin_missing_commit_evidence_via_fastmcp(
+    tmp_path, monkeypatch,
+):
+    """The real MCP response preserves a registered built-in's evidence failure."""
+    from fastmcp import Client
+
+    mysql_db = tmp_path / "mysql.db"
+    analytics_db = tmp_path / "analytics.db"
+    _create_orders_db(mysql_db, "mysql")
+    _create_orders_db(analytics_db, "analytics")
+    module = _reload_server(monkeypatch, mysql_db, analytics_db)
+    try:
+        mutation_class = module.get_skills_cache()["update-order-status"]._mutation_class
+        assert mutation_class is not None
+        monkeypatch.setattr(
+            mutation_class,
+            "execute_with_binding",
+            lambda self, params, binding: {"success": True, "rowcount": 1},
+        )
+
+        async def exercise():
+            async with Client(module.mcp) as client:
+                preview = await client.call_tool(
+                    "execute_mutation_skill",
+                    {"skill_name": "update-order-status", "params": _params()},
+                )
+                return await client.call_tool(
+                    "execute_mutation_skill",
+                    {
+                        "skill_name": "update-order-status",
+                        "params": _params(),
+                        "confirm": True,
+                        "preview_token": preview.structured_content["preview_token"],
+                    },
+                )
+
+        result = asyncio.run(exercise())
+        assert result.structured_content["success"] is False
+        assert result.structured_content["execution_outcome"] == "unknown"
+        assert result.structured_content["error_code"] == "missing_commit_evidence"
+        assert _order_status(mysql_db, 1) == "pending"
+    finally:
+        _cleanup_modules()
+
+
+def test_same_named_custom_two_statement_failure_via_fastmcp(
+    tmp_path, monkeypatch,
+):
+    """A supported SKILLS_DIR replacement cannot misreport partial writes as rollback."""
+    from fastmcp import Client
+
+    mysql_db = tmp_path / "mysql.db"
+    analytics_db = tmp_path / "analytics.db"
+    _create_orders_db(mysql_db, "mysql")
+    _create_orders_db(analytics_db, "analytics")
+
+    # The server intentionally restricts SKILLS_DIR to the project tree.
+    # A temporary directory there exercises the real configuration path.
+    with tempfile.TemporaryDirectory(prefix=".test-exact-", dir=PROJECT_ROOT) as root:
+        skill_dir = Path(root) / "update-order-status"
+        skill_dir.mkdir()
+        (skill_dir / "skill_def.md").write_text(
+            "---\n"
+            "name: update-order-status\n"
+            "type: mutation\n"
+            "source: mutation.py\n"
+            "risk: medium\n"
+            "requires_confirmation: true\n"
+            "params:\n"
+            "  order_id: {type: int, required: true}\n"
+            "---\n\nCustom two-statement Skill.\n",
+            encoding="utf-8",
+        )
+        mutation_path = skill_dir / "mutation.py"
+        mutation_path.write_text(
+            "from mutation_base import MutationBase\n"
+            "class Mutation(MutationBase):\n"
+            "    def validate(self, params): return {'valid': True}\n"
+            "    def preview(self, params): return {'preview_sql': 'two updates'}\n"
+            "    def execute(self, params):\n"
+            "        self.adapter.execute_write(\n"
+            "            'UPDATE orders SET status = :status WHERE id = :id',\n"
+            "            {'status': 'confirmed', 'id': params['order_id']},\n"
+            "            expected_rowcount=1)\n"
+            "        return self.adapter.execute_write(\n"
+            "            'UPDATE orders SET status = :status WHERE id = 999',\n"
+            "            {'status': 'cancelled'}, expected_rowcount=1)\n",
+            encoding="utf-8",
+        )
+
+        module = _reload_server(
+            monkeypatch, mysql_db, analytics_db, skills_dir=Path(root),
+        )
+        try:
+            assert "update-order-status" in module.get_skills_cache()
+
+            async def exercise():
+                async with Client(module.mcp) as client:
+                    preview = await client.call_tool(
+                        "execute_mutation_skill",
+                        {"skill_name": "update-order-status", "params": {"order_id": 1}},
+                    )
+                    return await client.call_tool(
+                        "execute_mutation_skill",
+                        {
+                            "skill_name": "update-order-status",
+                            "params": {"order_id": 1},
+                            "confirm": True,
+                            "preview_token": preview.structured_content["preview_token"],
+                        },
+                    )
+
+            result = asyncio.run(exercise())
+            assert result.structured_content["success"] is False
+            assert result.structured_content["execution_outcome"] == "unknown"
+            assert result.structured_content["error_code"] == "execution_outcome_unknown"
+            assert _order_status(mysql_db, 1) == "confirmed"
+        finally:
+            _cleanup_modules()
+
+
+def test_server_bypasses_post_load_subclass_run_execute_lookalike(
+    tmp_path,
+    monkeypatch,
+):
+    """MCP calls the framework wrapper without virtual subclass dispatch."""
     mysql_db = tmp_path / "mysql.db"
     analytics_db = tmp_path / "analytics.db"
     _create_orders_db(mysql_db, "mysql")
@@ -1753,7 +1879,6 @@ def test_server_downgrades_custom_lookalike_commit_evidence(tmp_path, monkeypatc
         def bypass_base(_self, *_args, **_kwargs):
             return LookalikeResult(success=True, rowcount=99)
 
-        monkeypatch.setattr(mutation_class, "exact_transaction_outcome", False)
         monkeypatch.setattr(mutation_class, "run_execute", bypass_base)
 
         preview, _ = run_tool(
@@ -1775,35 +1900,30 @@ def test_server_downgrades_custom_lookalike_commit_evidence(tmp_path, monkeypatc
         )
 
         assert completed["success"] is True
-        assert completed["execution_outcome"] == "unknown"
-        assert meta["execution_outcome"] == "unknown"
+        assert completed["execution_outcome"] == "committed"
+        assert completed["result"]["rowcount"] == 1
+        assert meta["execution_outcome"] == "committed"
         assert meta["audit_logged"] is True
-        assert _order_status(mysql_db, 1) == "pending"
+        assert _order_status(mysql_db, 1) == "confirmed"
     finally:
         _cleanup_modules()
 
 
-def test_server_rejects_invalid_result_from_run_execute_override(
+def test_server_rejects_invalid_result_from_framework_wrapper(
     tmp_path,
     monkeypatch,
 ):
-    """MCP validates the result even when custom code bypasses MutationBase."""
+    """MCP fails closed if the framework itself returns an invalid result."""
     mysql_db = tmp_path / "mysql.db"
     analytics_db = tmp_path / "analytics.db"
     _create_orders_db(mysql_db, "mysql")
     _create_orders_db(analytics_db, "analytics")
     module = _reload_server(monkeypatch, mysql_db, analytics_db)
     try:
-        mutation_class = module.get_skills_cache()[
-            "update-order-status"
-        ]._mutation_class
-        assert mutation_class is not None
-
         def bypass_base(_self, *_args, **_kwargs):
             return {"success": False, "error": "caught write failure"}
 
-        monkeypatch.setattr(mutation_class, "exact_transaction_outcome", False)
-        monkeypatch.setattr(mutation_class, "run_execute", bypass_base)
+        monkeypatch.setattr(module.MutationBase, "run_execute", bypass_base)
 
         preview, _ = run_tool(
             module.execute_mutation_skill(
@@ -1825,7 +1945,7 @@ def test_server_rejects_invalid_result_from_run_execute_override(
 
         assert rejected["success"] is False
         assert rejected["execution_outcome"] == "unknown"
-        assert rejected["error_code"] == "invalid_skill_result"
+        assert rejected["error_code"] == "execution_outcome_unknown"
         assert meta["audit_logged"] is True
         assert _order_status(mysql_db, 1) == "pending"
     finally:
@@ -1834,7 +1954,7 @@ def test_server_rejects_invalid_result_from_run_execute_override(
 
 @pytest.mark.parametrize("failure_kind", ["runtime", "tool", "rowcount"])
 @pytest.mark.parametrize("audit_fails", [False, True])
-def test_custom_run_execute_failure_after_write_is_unknown(
+def test_custom_execute_failure_after_write_is_unknown(
     tmp_path, monkeypatch, failure_kind, audit_fails,
 ):
     mysql_db = tmp_path / "mysql.db"
@@ -1846,7 +1966,7 @@ def test_custom_run_execute_failure_after_write_is_unknown(
         mutation_class = module.get_skills_cache()["update-order-status"]._mutation_class
         assert mutation_class is not None
 
-        def bypass_base(self, params, **kwargs):
+        def execute_with_binding(self, params, _execution_binding):
             self.adapter.execute_write(
                 "UPDATE orders SET status = 'confirmed' WHERE id = :order_id",
                 {"order_id": params["order_id"]},
@@ -1857,11 +1977,16 @@ def test_custom_run_execute_failure_after_write_is_unknown(
                     {},
                     expected_rowcount=1,
                 )
-            error_type = module.ToolError if failure_kind == "tool" else RuntimeError
-            raise error_type("private-failure-sentinel")
+            if failure_kind == "tool":
+                raise module.ToolError("safe-business-failure")
+            raise RuntimeError("private-failure-sentinel")
 
         monkeypatch.setattr(mutation_class, "exact_transaction_outcome", False)
-        monkeypatch.setattr(mutation_class, "run_execute", bypass_base)
+        monkeypatch.setattr(
+            mutation_class,
+            "execute_with_binding",
+            execute_with_binding,
+        )
         original_log = module._audit_logger.log
         execute_audits = []
 
@@ -1883,7 +2008,12 @@ def test_custom_run_execute_failure_after_write_is_unknown(
         assert failed["success"] is False
         assert failed["execution_outcome"] == "unknown"
         assert failed["error_code"] == "execution_outcome_unknown"
-        assert "private-failure-sentinel" not in json.dumps(failed)
+        if failure_kind == "tool":
+            assert failed["error"] == "safe-business-failure"
+        elif failure_kind == "rowcount":
+            assert "the write was not committed" not in failed["error"]
+        else:
+            assert "private-failure-sentinel" not in json.dumps(failed)
         assert metadata["audit_logged"] is (not audit_fails)
         assert _order_status(mysql_db, 1) == "confirmed"
         assert len(execute_audits) == 1
@@ -1900,7 +2030,7 @@ def test_custom_run_execute_failure_after_write_is_unknown(
 
 @pytest.mark.parametrize("failure_kind", ["audit", "result", "rowcount"])
 @pytest.mark.parametrize("exact_outcome", [False, True])
-def test_custom_success_cleanup_keeps_outcome_and_serializable_response(
+def test_framework_success_cleanup_keeps_outcome_and_serializable_response(
     tmp_path, monkeypatch, failure_kind, exact_outcome,
 ):
     mysql_db = tmp_path / "mysql.db"
@@ -1912,7 +2042,7 @@ def test_custom_success_cleanup_keeps_outcome_and_serializable_response(
         mutation_class = module.get_skills_cache()["update-order-status"]._mutation_class
         assert mutation_class is not None
 
-        def bypass_base(self, params, **kwargs):
+        def execute_with_binding(self, params, _execution_binding):
             result = self.adapter.execute_write(
                 "UPDATE orders SET status = 'confirmed' WHERE id = :order_id",
                 {"order_id": params["order_id"]},
@@ -1925,7 +2055,11 @@ def test_custom_success_cleanup_keeps_outcome_and_serializable_response(
             return result
 
         monkeypatch.setattr(mutation_class, "exact_transaction_outcome", exact_outcome)
-        monkeypatch.setattr(mutation_class, "run_execute", bypass_base)
+        monkeypatch.setattr(
+            mutation_class,
+            "execute_with_binding",
+            execute_with_binding,
+        )
         original_log = module._audit_logger.log
         execute_audits = []
 
@@ -2106,10 +2240,14 @@ def test_cancellation_after_token_consumption_does_not_restore_token(
         ]._mutation_class
         assert mutation_class is not None
 
-        def cancel_run_execute(_self, *_args, **_kwargs):
+        def cancel_execute_with_binding(_self, *_args, **_kwargs):
             raise asyncio.CancelledError()
 
-        monkeypatch.setattr(mutation_class, "run_execute", cancel_run_execute)
+        monkeypatch.setattr(
+            mutation_class,
+            "execute_with_binding",
+            cancel_execute_with_binding,
+        )
         with pytest.raises(asyncio.CancelledError):
             run_tool(
                 module.execute_mutation_skill(

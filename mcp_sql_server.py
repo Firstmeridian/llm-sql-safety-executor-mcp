@@ -2669,7 +2669,11 @@ if SKILLS_ENABLED:
         SkillMetadata,
     )
     from audit import AuditLogger
-    from mutation_base import MutationExecutionError
+    from mutation_base import (
+        MutationBase,
+        MutationExecutionError,
+        MutationExecutionResult,
+    )
 
     # Discover skills at module load time (synchronous, consistent with
     # existing ENABLE_SCHEMA_TOOLS conditional registration pattern)
@@ -4212,7 +4216,10 @@ if SKILLS_ENABLED:
                     )
 
                 try:
-                    result = mutation.run_execute(
+                    # Invoke the framework method directly instead of using
+                    # virtual dispatch through the custom Skill instance.
+                    result = MutationBase.run_execute(
+                        mutation,
                         validated_params,
                         skill_name=skill_name,
                         mode="execute",
@@ -4221,80 +4228,26 @@ if SKILLS_ENABLED:
                         db_type=connection.db_type,
                         execution_binding=execution_binding,
                     )
-                    if not isinstance(result, dict) or result.get("success") is not True:
-                        contract_message = (
-                            "Mutation Skill returned an invalid success result; "
-                            "its final write outcome cannot be confirmed."
+                    # MutationBase owns result validation and whole-Skill
+                    # outcome classification. Keep only a narrow protocol-boundary
+                    # guard for base-level tampering or framework regressions.
+                    if (
+                        not isinstance(result, MutationExecutionResult)
+                        or result.get("success") is not True
+                        or result.execution_outcome not in {"committed", "unknown"}
+                    ):
+                        raise RuntimeError(
+                            "Mutation framework returned an invalid execution result."
                         )
-                        contract_audit_logged = _audit_logger.log(
-                            skill_name=skill_name,
-                            params=validated_params,
-                            mode="execute",
-                            result={
-                                "success": False,
-                                "error": contract_message,
-                                "execution_outcome": "unknown",
-                                "error_code": "invalid_skill_result",
-                            },
-                            client_id=client_id,
-                            connection_id=connection.connection_id,
-                            db_type=connection.db_type,
-                        )
-                        raise MutationExecutionError(
-                            contract_message,
-                            execution_outcome="unknown",
-                            error_code="invalid_skill_result",
-                            audit_logged=contract_audit_logged,
-                        )
-
-                    reported_outcome = getattr(
-                        result,
-                        "execution_outcome",
-                        "unknown",
-                    )
-                    reported_outcome = getattr(
-                        reported_outcome,
-                        "value",
-                        reported_outcome,
-                    )
-                    if getattr(mutation, "exact_transaction_outcome", False) is True:
-                        if reported_outcome != "committed":
-                            contract_message = (
-                                "Mutation Skill reported success without confirmed "
-                                "COMMIT evidence; its final write outcome cannot be "
-                                "confirmed."
-                            )
-                            contract_audit_logged = _audit_logger.log(
-                                skill_name=skill_name,
-                                params=validated_params,
-                                mode="execute",
-                                result={
-                                    "success": False,
-                                    "error": contract_message,
-                                    "execution_outcome": "unknown",
-                                    "error_code": "missing_commit_evidence",
-                                },
-                                client_id=client_id,
-                                connection_id=connection.connection_id,
-                                db_type=connection.db_type,
-                            )
-                            raise MutationExecutionError(
-                                contract_message,
-                                execution_outcome="unknown",
-                                error_code="missing_commit_evidence",
-                                audit_logged=contract_audit_logged,
-                            )
-                        result_outcome = "committed"
-                    else:
-                        # A custom result cannot opt itself into a whole-Skill
-                        # commit claim, even if it supplies a lookalike attribute.
-                        result_outcome = "unknown"
+                    result_outcome = result.execution_outcome
                 except Exception as execution_error:
                     if isinstance(execution_error, MutationExecutionError):
                         execution_failure = execution_error
                     else:
-                        # Overrides of run_execute() can bypass MutationBase's
-                        # exception and audit wrapper, including after a write.
+                        # The loader rejects wrapper overrides and the call above
+                        # bypasses subclass dispatch. This final guard covers a
+                        # framework fault or base-level runtime tampering; after
+                        # a write, neither can justify a rollback claim.
                         sanitized = adapter._handle_error(execution_error)
                         try:
                             failure_audit_logged = _audit_logger.log(
@@ -4347,16 +4300,14 @@ if SKILLS_ENABLED:
                         preview_token_id=token_id,
                     )
 
-                # The base returns whole-Skill COMMIT evidence only for an
-                # exact, adapter-backed built-in. An ordinary custom-Skill
-                # return proves handler completion but not database COMMIT.
+                # The framework wrapper has already validated the Skill result
+                # and classified its whole-operation evidence.
                 audit_marker = result.pop("_audit_logged", None)
                 if isinstance(audit_marker, bool):
                     audit_logged = audit_marker
                 else:
-                    # A custom override of run_execute() may bypass the base
-                    # audit wrapper. Attempt one server-side success audit and
-                    # report its real result rather than defaulting to true.
+                    # Missing framework bookkeeping is unexpected, but audit is
+                    # still best-effort and cannot change a known DB outcome.
                     try:
                         audit_logged = _audit_logger.log(
                             skill_name=skill_name,

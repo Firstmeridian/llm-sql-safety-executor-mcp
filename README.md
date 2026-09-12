@@ -938,6 +938,17 @@ For a complete client configuration example, please refer to `mcp_config.json`.
   remains `unknown`, and malformed/self-reported-failure Skill results become
   structured unknown failures. COMMIT-stage `asyncio.CancelledError` is also
   converted to typed `commit_outcome_unknown` when a response remains possible.
+- Made `MutationBase.run_execute()` a framework-owned wrapper. The loader now
+  rejects direct and inherited custom overrides at discovery; custom business
+  behavior belongs in `execute()` or `execute_with_binding()`. This is an
+  intentional pre-release extension-contract change that centralizes outcome
+  validation, error sanitization, and execution audit. The loader also reserves
+  `exact_transaction_outcome=True` for the two framework-registered built-ins;
+  it verifies the bundled source path and registers the loaded class identity.
+  Reusing a built-in name in `SKILLS_DIR` does not grant exact outcomes: a custom
+  exact declaration fails discovery; ordinary custom outcomes remain `unknown`.
+  Connection `MUTATION_SKILLS` allowlists still refer to names in the configured
+  catalog; review those permissions when replacing `SKILLS_DIR`.
 - Full contract, compatibility impact, accepted boundaries, tests, and reviewed
   primary references are in the
   [v3.7.2 release notes](RELEASE_NOTES/RELEASE_NOTES_v3_7.md#v372--write-transactions-and-uncertain-results).
@@ -1610,6 +1621,22 @@ upgraded by the server. For pre-COMMIT cleanup, `rollback_failed` means the
 rollback call raised; `rollback_unconfirmed` means it returned locally but the
 transaction/connection could not provide sufficient database-side evidence.
 Both carry `execution_outcome=unknown` and must not be retried automatically.
+`MutationBase.run_execute()` is framework-owned: discovery rejects custom
+classes that override it directly or through an intermediate base class.
+Custom Skill authors must put business logic in `execute()` or
+`execute_with_binding()` so the framework cannot accidentally lose its outcome,
+sanitization, or audit wrapper. Python `@final` documents the rule for type
+checkers; the loader check enforces it at runtime. This is not an untrusted-code
+sandbox. MCP invokes the base wrapper directly, so replacing the subclass method
+after discovery is ignored; trusted code can still tamper with the framework
+base or other in-process objects.
+The `exact_transaction_outcome=True` declaration is likewise reserved for the
+two framework-registered built-in single-statement Skills. Discovery rejects it
+on a custom Skill, including a same-named implementation in another
+`SKILLS_DIR`: it verifies the bundled source path and registers the actual
+loaded class. The base wrapper rechecks both the authoritative name and that
+class identity before using exact evidence. A custom declaration therefore
+cannot turn one statement's COMMIT or rollback into a whole-Skill claim.
 This release has no durable operation ID or receipt lookup. A later business
 state that matches the request does not prove request-level attribution, and an
 absent future receipt would not by itself prove rollback unless that protocol
@@ -1859,7 +1886,9 @@ prefer a fresh stdio server process for each live-test scenario.
 2. Write the corresponding `.py` file defining a concrete `Mutation` class inheriting from `MutationBase`, filename must match the `source` field
 3. Implement `validate()`, `preview()`, and `execute()` methods
 4. For state-sensitive writes, implement `build_execution_binding()` and `execute_with_binding()` so execution uses the state shown during preview. Non-empty bindings are rejected by the base class if the Skill does not explicitly handle them
-5. Set `SKILLS_ALLOW_MUTATIONS=1` and restart the server
+5. Do not override `run_execute()`, including through an intermediate custom base class. It is the framework-owned outcome/sanitization/audit wrapper, and discovery rejects an override. Move any existing wrapper logic into `execute()` or `execute_with_binding()`
+6. Do not set `exact_transaction_outcome=True`; this exact whole-Skill contract is reserved for the two framework-registered built-in single-statement Mutations. Custom success remains `execution_outcome=unknown`
+7. Set `SKILLS_ALLOW_MUTATIONS=1` and restart the server
 
 > **About the `source` field**: `source` is a mandatory field that explicitly declares the association
 > between the skill definition file (`skill_def.md`) and its execution file. This follows the

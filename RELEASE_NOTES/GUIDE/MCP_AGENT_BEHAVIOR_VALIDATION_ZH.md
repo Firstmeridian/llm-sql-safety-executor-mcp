@@ -158,7 +158,17 @@ Mutation 行为测试必须使用 disposable fixture 或明确可恢复记录，
 11. 注入 `success=true, execution_outcome=unknown`，确认自定义 Skill 缺少整个
     操作 COMMIT 证据时仍为 terminal `execute_unknown`；
 12. 对 COMMIT 阶段取消分别验证 adapter 的类型化 `unknown` 和 transport 已经
-    无法返回时宿主的缺失响应 `execute_unknown`。
+    无法返回时宿主的缺失响应 `execute_unknown`；
+13. 在服务端回归中验证自定义 Mutation 直接覆盖或通过中间父类覆盖
+    `run_execute()` 时 discovery fail closed；该 loader 契约不是 Agent 轨迹可以
+    替代的验证；同时验证加载后仅替换子类同名方法会被 MCP 的基类直接调用绕过，
+    非法框架返回则保守成为 `unknown`；
+14. 验证自定义 Skill 不能通过声明 `exact_transaction_outcome=True` 把单条 adapter
+    证据提升为整个 Skill 的 `committed`：覆盖在其它 `SKILLS_DIR` 中复用两个
+    内置名称的情形；仅真正的内置源码和本次登记类身份可获得精确资格。
+    同名双写自定义 Skill 的首条提交、次条回滚必须返回 `unknown` 而非
+    `rolled_back`；两个真正内置 Skill 保留精确结论，但缺少 adapter COMMIT
+    证据时必须报告 `missing_commit_evidence, unknown`，不可按成功返回推断提交。
 
 Agent 轨迹验证不能替代服务端安全校验。即使 Agent 总是按提示执行，权限、绑定、
 一次性消费和 fail-closed 仍必须由代码强制。
@@ -388,6 +398,14 @@ payload-only 估算，不是完整会话账单。
   execute 后没有任何后续写调用；
 - [ ] 自定义 Skill 普通成功没有被升级为 `committed`；exact 内置 Skill 丢失
   adapter 证据时 fail closed；
+- [ ] 自定义 Mutation 的直接/继承 `run_execute()` 覆盖在 discovery 时被拒绝，
+  并提供迁移到 `execute()` / `execute_with_binding()` 的提示；加载后子类替换不会
+  取得 wrapper 分派控制权；
+- [ ] 自定义 `exact_transaction_outcome=True` 在 discovery 被拒绝，包括复用
+  内置 Skill 名的其它 `SKILLS_DIR`；基类按权威名称及来源校验后登记的类身份
+  复核；同名双写首条提交、次条回滚返回 unknown，真正的两个内置单语句 Skill
+  可输出精确结论，但两者缺少 adapter COMMIT 证据时都返回
+  `missing_commit_evidence, unknown`，其中一个还经真实 FastMCP Client 验证；
 - [ ] MySQL/SQLite COMMIT 取消均得到类型化 `commit_outcome_unknown`，并单独记录
   transport 可能无法投递该结构化结果的边界；
 - [ ] 报告没有凭据、完整 bearer handle 或敏感业务数据；

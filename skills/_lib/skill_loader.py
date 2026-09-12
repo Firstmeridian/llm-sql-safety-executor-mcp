@@ -33,6 +33,8 @@ Security:
 - Resolved path containment: symlinks cannot escape skill directory (_is_path_within)
 - Query SQL templates pre-validated with is_sql_safe() at startup (fail-fast)
 - Mutation source modules must export a concrete MutationBase subclass
+- Mutation classes cannot replace the framework-owned run_execute() wrapper
+- Exact whole-Skill outcomes require the bundled source and registered class identity
 - SQL and mutation classes cached in memory — runtime never touches disk
 - validate_params() rejects extra parameters not defined in schema
 - validate_params() fails closed on unsupported schema types
@@ -237,14 +239,18 @@ def discover(
     Returns:
         Dict mapping skill_name -> SkillMetadata for enabled skills
     """
+    from mutation_base import _register_exact_transaction_classes
+
     global _skills_cache, _skills_dir
     _skills_dir = skills_dir
     discovered: dict[str, SkillMetadata] = {}
+    registered_exact_classes: dict[str, type] = {}
     validate_query = query_validator or _default_query_validator
 
     if not skills_dir.is_dir():
         logger.warning(f"Skills directory not found: {skills_dir}")
         _skills_cache = discovered
+        _register_exact_transaction_classes(registered_exact_classes)
         return discovered
 
     for entry in sorted(skills_dir.iterdir()):
@@ -330,6 +336,10 @@ def discover(
                     metadata.name, mutation_py_path
                 )
                 metadata._mutation_class = mutation_class
+                if inspect.getattr_static(
+                    mutation_class, "exact_transaction_outcome"
+                ) is True:
+                    registered_exact_classes[metadata.name] = mutation_class
             except Exception as e:
                 logger.error(
                     f"Skill '{metadata.name}': failed to load '{metadata.source}': {e}"
@@ -348,6 +358,7 @@ def discover(
                 )
 
     _skills_cache = discovered
+    _register_exact_transaction_classes(registered_exact_classes)
     logger.info(
         f"Discovered {len(discovered)} enabled skill(s): "
         f"{', '.join(sorted(discovered.keys()))}"
@@ -976,7 +987,9 @@ def _load_mutation_class(skill_name: str, mutation_path: Path) -> type:
     Raises:
         ImportError: If the source module cannot be imported
         AttributeError: If the source module doesn't export 'Mutation' class
-        TypeError: If Mutation is not a concrete MutationBase subclass
+        TypeError: If Mutation is not a concrete MutationBase subclass,
+            replaces the framework-owned run_execute() wrapper, or declares a
+            reserved exact whole-Skill outcome contract
     """
     spec = importlib.util.spec_from_file_location(
         f"skills.{skill_name}.mutation",
@@ -1001,11 +1014,54 @@ def _load_mutation_class(skill_name: str, mutation_path: Path) -> type:
             f"Skill '{skill_name}': source module export 'Mutation' must be a class"
         )
 
-    from mutation_base import MutationBase
+    from mutation_base import (
+        BUILTIN_EXACT_TRANSACTION_OUTCOME_SKILLS,
+        MutationBase,
+    )
 
     if not issubclass(mutation_class, MutationBase):
         raise TypeError(
             f"Skill '{skill_name}': Mutation must subclass MutationBase"
+        )
+
+    # run_execute() is the framework's transaction-outcome, sanitization, and
+    # audit wrapper. inspect.getattr_static() follows the MRO without invoking
+    # a custom descriptor, so this also rejects an override inherited from an
+    # intermediate application base class. Assigning the unchanged framework
+    # function is harmless and retains identity.
+    if inspect.getattr_static(
+        mutation_class,
+        "run_execute",
+    ) is not inspect.getattr_static(MutationBase, "run_execute"):
+        raise TypeError(
+            f"Skill '{skill_name}': Mutation must not override framework-owned "
+            "MutationBase.run_execute(); move business logic to execute() or "
+            "execute_with_binding()"
+        )
+
+    exact_outcome_declaration = inspect.getattr_static(
+        mutation_class,
+        "exact_transaction_outcome",
+    )
+    # The name is not a provenance check: SKILLS_DIR may contain an unrelated
+    # mutation.py under either built-in name. Only the reviewed bundled source
+    # itself may declare the exact single-statement contract.
+    is_bundled_exact_source = (
+        skill_name in BUILTIN_EXACT_TRANSACTION_OUTCOME_SKILLS
+        and mutation_path.resolve()
+        == (Path(__file__).resolve().parents[1] / skill_name / "mutation.py").resolve()
+    )
+    if is_bundled_exact_source:
+        if exact_outcome_declaration is not True:
+            raise TypeError(
+                f"Skill '{skill_name}': bundled exact-outcome Mutation must "
+                "declare exact_transaction_outcome = True"
+            )
+    elif exact_outcome_declaration is not False:
+        raise TypeError(
+            f"Skill '{skill_name}': exact_transaction_outcome is reserved for "
+            "framework-registered built-in single-statement Mutations; custom "
+            "Skills must use the default whole-operation outcome 'unknown'"
         )
 
     if inspect.isabstract(mutation_class):

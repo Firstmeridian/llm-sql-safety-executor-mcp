@@ -506,13 +506,13 @@ class TestRunExecuteAudit:
         assert result["_audit_logged"] is False
         assert result.execution_outcome == "unknown"
 
-    def test_exact_skill_success_requires_adapter_commit_evidence(
+    def test_same_name_unregistered_class_cannot_claim_exact_success(
         self,
         adapter_with_orders,
         mock_audit_logger,
     ):
-        """A declaration alone cannot manufacture a committed outcome."""
-        from mutation_base import MutationBase, MutationExecutionError
+        """Even a built-in name plus declaration cannot establish class identity."""
+        from mutation_base import MutationBase
 
         class MissingEvidenceMutation(MutationBase):
             exact_transaction_outcome = True
@@ -527,14 +527,131 @@ class TestRunExecuteAudit:
                 return {"success": True, "rowcount": 1}
 
         mutation = MissingEvidenceMutation(adapter_with_orders, mock_audit_logger)
+        result = mutation.run_execute(
+            {"order_id": 1},
+            skill_name="update-order-status",
+        )
+
+        assert result.execution_outcome == "unknown"
+
+    @pytest.mark.parametrize(
+        "skill_name",
+        ["update-order-status", "reset-demo-order-to-pending"],
+    )
+    def test_registered_builtin_success_requires_adapter_commit_evidence(
+        self,
+        skill_name,
+        adapter_with_orders,
+        mock_audit_logger,
+        monkeypatch,
+    ):
+        """An actual registered built-in cannot claim COMMIT from a plain dict."""
+        import json
+        from mutation_base import (
+            MutationExecutionError,
+            _registered_exact_transaction_classes,
+        )
+        from skill_loader import discover
+
+        bundled_dir = Path(__file__).resolve().parent.parent / "skills"
+        mutation_class = discover(bundled_dir)[skill_name]._mutation_class
+        assert mutation_class is _registered_exact_transaction_classes[skill_name]
+
+        monkeypatch.setattr(
+            mutation_class,
+            "execute_with_binding",
+            lambda self, params, binding: {"success": True, "rowcount": 1},
+        )
+        mutation = mutation_class(adapter_with_orders, mock_audit_logger)
+
         with pytest.raises(MutationExecutionError) as raised:
-            mutation.run_execute(
-                {"order_id": 1},
-                skill_name="test-missing-commit-evidence",
-            )
+            mutation.run_execute({"order_id": 1}, skill_name=skill_name)
+
+        assert raised.value.error_code == "missing_commit_evidence"
+        assert raised.value.execution_outcome == "unknown"
+        assert raised.value.audit_logged is True
+        entry = json.loads(mock_audit_logger.log_path.read_text(encoding="utf-8"))
+        assert entry["success"] is False
+        assert entry["execution_outcome"] == "unknown"
+        assert entry["error_code"] == "missing_commit_evidence"
+
+    def test_custom_skill_cannot_self_promote_adapter_commit_evidence(
+        self,
+        adapter_with_orders,
+        mock_audit_logger,
+    ):
+        """A custom name remains unknown even if its class opts in itself."""
+        from mutation_base import MutationBase
+
+        class SelfDeclaredExactMutation(MutationBase):
+            exact_transaction_outcome = True
+
+            def validate(self, params):
+                return {"valid": True}
+
+            def preview(self, params):
+                return {}
+
+            def execute(self, params):
+                return self.adapter.execute_write(
+                    "UPDATE orders SET status = :status WHERE id = :order_id",
+                    {"status": "confirmed", "order_id": params["order_id"]},
+                    expected_rowcount=1,
+                )
+
+        mutation = SelfDeclaredExactMutation(
+            adapter_with_orders,
+            mock_audit_logger,
+        )
+        result = mutation.run_execute(
+            {"order_id": 1},
+            skill_name="custom-exact",
+        )
+
+        assert result["success"] is True
+        assert result.execution_outcome == "unknown"
+
+    def test_custom_rowcount_mismatch_does_not_claim_whole_skill_rollback(
+        self,
+        adapter_with_orders,
+        mock_audit_logger,
+    ):
+        """One rolled-back statement cannot prove earlier custom work vanished."""
+        from db_adapter import WriteExecutionPhase
+        from mutation_base import (
+            MutationBase,
+            MutationExecutionError,
+            WriteExecutionError,
+            WriteExecutionOutcome,
+        )
+
+        class SyntheticRowcountMismatch(WriteExecutionError):
+            actual_rowcount = 0
+
+        class MultiStatementMutation(MutationBase):
+            def validate(self, params):
+                return {"valid": True}
+
+            def preview(self, params):
+                return {}
+
+            def execute(self, params):
+                error = SyntheticRowcountMismatch(
+                    "Second statement affected zero rows.",
+                    execution_outcome=WriteExecutionOutcome.ROLLED_BACK,
+                    phase=WriteExecutionPhase.ROWCOUNT_CHECK,
+                    error_code="expected_rowcount_mismatch",
+                )
+                raise error
+
+        mutation = MultiStatementMutation(adapter_with_orders, mock_audit_logger)
+        with pytest.raises(MutationExecutionError) as raised:
+            mutation.run_execute({"order_id": 1}, skill_name="custom-multi-write")
 
         assert raised.value.execution_outcome == "unknown"
-        assert raised.value.error_code == "missing_commit_evidence"
+        assert raised.value.error_code == "execution_outcome_unknown"
+        assert "whole Skill outcome cannot be confirmed" in str(raised.value)
+        assert "the write was not committed" not in str(raised.value)
 
     @pytest.mark.parametrize(
         "invalid_result",

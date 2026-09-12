@@ -46,13 +46,34 @@ cleanup, not proof that the earlier COMMIT failed.
 - Precise whole-Skill success and rollback evidence is intentionally enabled
   only for these two built-in single-statement Skills. They preserve the
   adapter's typed `WriteExecutionResult` while keeping its public dict shape;
-  `MutationBase` and the MCP boundary independently require that evidence before
-  they can emit `committed`.
+  the framework-owned `MutationBase.run_execute()` wrapper requires that
+  evidence before it can emit `committed`.
   Custom Skills keep the existing dict interface, but an ordinary successful
   return is conservatively `success=true, execution_outcome=unknown`. Neither
   success nor statement-local rollback evidence is promoted to a whole-Skill
   transaction claim, because custom code may have issued other writes or
   external side effects. No general multi-statement framework was added.
+- Custom Mutation classes can no longer override `run_execute()` directly or
+  through an intermediate application base class. Discovery rejects either
+  shape and tells authors to move business behavior to `execute()` or
+  `execute_with_binding()`. Python `@final` exposes the same rule to type
+  checkers; loader identity validation is the runtime enforcement. This is an
+  intentional pre-release extension-contract change: centralizing outcome
+  validation, sanitization, and audit is more valuable than preserving an
+  unsafe, unshipped override point. MCP calls the base wrapper directly, so a
+  post-load subclass-method replacement is ignored. The MCP boundary keeps a
+  narrow fail-closed result guard for base-level tampering or framework faults;
+  trusted Python remains outside an untrusted-plugin sandbox.
+- `exact_transaction_outcome=True` is no longer a custom opt-in flag. Discovery
+  reserves it for the two framework-registered built-in single-statement Skills
+  by verifying their bundled source paths and recording the loaded class
+  identities. The base wrapper requires the same registered class for the
+  authoritative MCP Skill name. A same-named custom Skill in another
+  `SKILLS_DIR` with the exact flag fails discovery; one using the default flag
+  reports `unknown` for the whole Skill even when one statement rolled back
+  after an earlier COMMIT. This closes the name-only spoofing gap in the first
+  v3.7.2 implementation. The registry is process-local, not an untrusted-code
+  sandbox; adding another exact Skill requires source and transaction review.
 
 ### MCP contract
 
@@ -95,7 +116,11 @@ result as unknown.
 
 This is a compatibility change: callers must inspect both `success` and
 `execution_outcome`; “the tool did not raise” no longer proves a mutation
-succeeded. The tool annotation remains `idempotentHint=false`.
+succeeded. Custom Skill authors that previously overrode `run_execute()` must
+migrate that logic to `execute()` or `execute_with_binding()` before the Skill
+will load. A custom class that declared `exact_transaction_outcome=True` must
+remove it; custom whole-Skill success remains `unknown`. The tool annotation
+remains `idempotentHint=false`.
 
 ### Approval host and retry rule
 
@@ -123,8 +148,11 @@ Upgrade the server before relying on the v3.7.2 outcome guarantee.
   connection invalidation during execution or rollback and already-closed
   connections. Both adapter control flows are exercised with isolated SQLite
   engines; these are SQLAlchemy evidence tests, not MySQL network-failure proof.
-- Custom `run_execute()` overrides that raise ordinary exceptions or ToolError
-  now return sanitized `unknown` and attempt one failure audit. A previously
+- Direct and inherited custom `run_execute()` overrides now fail Skill discovery
+  with migration guidance. MCP invokes the base wrapper directly, so replacing
+  only the loaded subclass method is ignored. If trusted code tampers with the
+  base or the framework returns an invalid typed result, the MCP boundary fails
+  closed with a sanitized `unknown` and one best-effort failure audit. A previously
   committed statement cannot be reclassified from a later statement's rollback.
   Fallback audit exceptions report `audit_logged=false`; cancellation still
   propagates. Host array/object/boolean/numeric outcomes remain terminal unknown.
@@ -146,10 +174,12 @@ Upgrade the server before relying on the v3.7.2 outcome guarantee.
   invalidation, and same-process limits.
 - Success-evidence regressions cover a custom-style handler that really writes
   but still receives `unknown`, an exact Skill missing typed COMMIT evidence,
-  malformed/explicit-failure custom returns, an overridden base wrapper with
-  lookalike evidence, response-failure preservation, truthful fallback audit
-  status, metadata/audit propagation, and the host's terminal interpretation of
-  `success=true, unknown`.
+  malformed/explicit-failure custom returns, direct and inherited wrapper
+  rejection, ignored post-load subclass lookalikes, invalid framework returns,
+  rejected custom exact-outcome declarations and base-level name rechecking,
+  custom row-count mismatch wording that never claims a whole-Skill rollback,
+  response-failure preservation, truthful fallback audit status, metadata/audit
+  propagation, and the host's terminal interpretation of `success=true, unknown`.
 - `test_mysql_stale_conditional_updates_allow_at_most_one_commit` is isolated
   behind `RUN_MYSQL_INTEGRATION_TESTS=1` and uses independent pooled
   connections. Default pytest does not contact MySQL; a skipped test is not
@@ -171,9 +201,47 @@ Upgrade the server before relying on the v3.7.2 outcome guarantee.
   run adds no live MySQL claim. Targeted Pyright for the two changed Python paths
   reported `0 errors` and 16 unresolved third-party-import warnings from the
   workspace resolver.
-- Targeted Pyright checking of the changed Python paths reported `0 errors` and
-  39 unresolved third-party-import warnings. The virtualenv executes those
-  imports in pytest, but the Pyright resolver in this workspace does not locate
+- The 2026-09-12 extension-contract follow-up makes `run_execute()`
+  framework-owned. Loader regressions cover direct and intermediate-base
+  overrides; MCP regressions prove post-load subclass replacement is bypassed
+  and keep a terminal `unknown` fallback for invalid framework results. Existing
+  pre-release custom Skills that replaced the wrapper must migrate to `execute()`
+  or `execute_with_binding()`; custom Skills must also remove any exact-outcome
+  declaration. This remains part of v3.7.2; it adds no operation table,
+  dependency, or background service.
+  The updated default suite completed with `592 passed, 4 skipped`; the skipped
+  cases remain opt-in real-MySQL tests, so this run adds no live MySQL claim.
+  Python compilation and `git diff --check` passed; targeted Pyright reported
+  `0 errors` and 21 unresolved third-party-import warnings from the workspace
+  resolver.
+- The 2026-09-12 source-identity follow-up rejects same-named custom exact
+  claims and registers only source-verified built-in classes. A real FastMCP
+  Client regression proves a same-named custom two-write Skill cannot report
+  whole-Skill rollback after its first write committed. Restored regressions
+  for *both* registered built-ins also confirm that a plain successful dict
+  without adapter COMMIT evidence yields `missing_commit_evidence, unknown`;
+  the separate unregistered same-name case remains `unknown` without exact
+  eligibility. That follow-up's default suite result: `598 passed, 4 skipped`;
+  the skipped real-MySQL opt-in tests were not run.
+- Follow-up coverage restored the distinct *registered built-in missing COMMIT
+  evidence* branch for both built-in names and checks its structured failure
+  through a real in-memory FastMCP Client for `update-order-status`. The latest
+  default suite result is `599 passed, 4 skipped`; opt-in real MySQL integration
+  had not yet been run at that point.
+- On 2026-09-12, the four real-MySQL opt-in cases passed separately on the
+  authorized test database (two connection assertions, one adapter-type check,
+  and the InnoDB conditional-update race). The three non-writing cases all use
+  a live connection fixture. The two independently previewed old-state updates
+  produced exactly one confirmed COMMIT and one confirmed rowcount rollback.
+  The race fixture now enters `try/finally` before table creation and uses a
+  full UUID in its table name; a read-only `information_schema` check found
+  zero remaining race-fixture tables after the run. This validates that
+  particular MySQL race, not network-disconnect or ambiguous-COMMIT recovery.
+  The separately rerun hermetic default suite remains `599 passed, 4 skipped`:
+  its four MySQL cases stay skipped without the explicit opt-in.
+- An earlier targeted Pyright check of the then-changed Python paths reported
+  `0 errors` and 39 unresolved third-party-import warnings. The virtualenv
+  executes those imports in pytest, but the Pyright resolver does not locate
   them; this is recorded as a tooling/configuration warning rather than claimed
   as a warning-free static-analysis result.
 - MySQL rollback guarantees are limited to DML on transactional InnoDB tables.
@@ -222,9 +290,9 @@ add the durable operation protocol explicitly excluded from v3.7.2. SQLAlchemy
 context managers remain good ordinary transaction practice; this path uses
 explicit commit because it must distinguish pre-COMMIT failure from uncertain
 COMMIT acknowledgement.
-- Last implementation review: 2026-09-11
-- Latest default regression validation: 2026-09-11 (`584 passed, 4 skipped`)
-- Latest successful MySQL read-only data-plane validation: 2026-09-03
+- Last implementation review: 2026-09-12
+- Latest default regression validation: 2026-09-12 (`599 passed, 4 skipped`)
+- Latest MySQL opt-in validation: 2026-09-12 (4 passed: 3 read-only, 1 InnoDB race)
 - Status: implemented
 
 ## v3.7.1 Maintenance Follow-up — Tool Contract Clarity

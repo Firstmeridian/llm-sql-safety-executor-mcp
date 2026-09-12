@@ -887,6 +887,15 @@ SKILLS_AUDIT_QUERIES=1
   缺少整个操作证据的自定义成功保持 `unknown`，畸形或自报失败的 Skill 结果改为
   结构化 unknown 失败；COMMIT 阶段的 `asyncio.CancelledError` 在仍可响应时也会
   转换为类型化 `commit_outcome_unknown`。
+- 将 `MutationBase.run_execute()` 固定为框架拥有的包装入口。loader 会在发现期
+  拒绝直接覆盖或通过中间父类继承的覆盖；自定义业务逻辑应放在 `execute()` 或
+  `execute_with_binding()`。这是有意的发布前扩展契约调整，用于集中保证结果校验、
+  错误脱敏和执行审计。loader 还把 `exact_transaction_outcome=True` 限定给框架登记的
+  两个内置 Skill：会核对内置源码路径并登记实际加载的类身份。仅在 `SKILLS_DIR`
+  中复用内置名称不能取得精确结论；自定义 exact 声明会在发现期被拒绝，普通
+  自定义执行结果仍为 `unknown`。
+  连接级 `MUTATION_SKILLS` 白名单仍按当前目录的 Skill 名称授权；更换
+  `SKILLS_DIR` 时须同时复核目录源码与连接权限。
 - 完整公共契约、兼容影响、接受边界、测试和经过 review 的一手资料见
   [v3.7.2 发布说明](RELEASE_NOTES/RELEASE_NOTES_v3_7.md#v372--write-transactions-and-uncertain-results)。
 
@@ -1519,6 +1528,17 @@ terminal unknown。自定义结果若缺失 `success`、类型错误或显式为
 结构化 unknown 失败，不会被服务端升级。对 COMMIT 前清理，`rollback_failed`
 表示 rollback 调用抛异常；`rollback_unconfirmed` 表示调用在本地正常返回，但事务/
 连接无法提供充分的数据库侧证据。两者均为 `execution_outcome=unknown`，不得自动重试。
+`MutationBase.run_execute()` 由框架拥有：若自定义类直接覆盖它，或从中间自定义父类
+继承了替代实现，discovery 会拒绝该 Skill。业务逻辑必须放在 `execute()` 或
+`execute_with_binding()`，避免绕开框架的事务结论、错误脱敏与审计包装。Python
+`@final` 用于提示类型检查器，loader 检查才是运行时强制；这仍不是不可信代码
+sandbox。MCP 会直接调用基类 wrapper，因此 discovery 后替换子类同名方法也会被
+忽略；可信代码仍可篡改框架基类或其它同进程对象。
+`exact_transaction_outcome=True` 同样只允许框架登记的两个内置单语句 Skill 使用。
+自定义 Skill 即便复用内置名称，声明它仍会在 discovery 时被拒绝：loader 要核对
+内置源码路径并登记实际加载的类身份。基类 wrapper 还会同时检查 MCP 提供的权威
+Skill 名和该类身份。因而自定义声明不能把某一条语句的 COMMIT 或 rollback 提升为
+整个 Skill 的精确结论。
 本版没有持久 operation ID 或回执查询。后来观察到业务状态符合请求预期，不能证明
 请求级归因；未来查询不到回执，也不能单独证明已回滚，除非该协议已明确权威一致性、
 处理中状态、保留期和 terminal-not-found 语义。暂缓设计的触发条件统一登记在
@@ -1756,7 +1776,9 @@ preview，并优先为每个 live-test 场景启动新的 stdio server 进程。
 2. 编写对应的 `.py` 文件，定义继承自 `MutationBase` 的具体 `Mutation` 类，文件名须与 `source` 字段一致
 3. 实现 `validate()`、`preview()`、`execute()` 三个方法
 4. 对状态敏感写入，实现 `build_execution_binding()` 和 `execute_with_binding()`，确保执行使用 preview 时展示的状态。若 Skill 产生非空 binding 却未显式处理，基类会拒绝执行
-5. 设置 `SKILLS_ALLOW_MUTATIONS=1` 并重启服务
+5. 不要覆盖 `run_execute()`，也不要通过中间自定义父类继承替代实现。它是框架拥有的结果/脱敏/审计包装器，discovery 会拒绝覆盖；已有包装逻辑应迁移到 `execute()` 或 `execute_with_binding()`
+6. 不要设置 `exact_transaction_outcome=True`；精确的整个 Skill 契约只保留给框架登记的两个内置单语句 Mutation，自定义成功仍为 `execution_outcome=unknown`
+7. 设置 `SKILLS_ALLOW_MUTATIONS=1` 并重启服务
 
 > **关于 `source` 字段**：`source` 是必填字段，显式声明技能定义文件（`skill_def.md`）与执行文件的关联。
 > 这遵循**显式配置原则**（Explicit Configuration），与 GitHub Actions（`action.yml` 的 `main` 字段）、

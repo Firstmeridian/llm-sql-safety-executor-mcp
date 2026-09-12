@@ -2,7 +2,7 @@
 
 > **Version**: 3.7.2
 > **Status**: Implemented
-> **Date**: 2026-09-10
+> **Date**: 2026-09-12
 > **References**: [Skills safety policy](skills/SAFETY.md), [design risk register](DESIGN_RISK_REGISTER.md), [v3.6 release-family notes](RELEASE_NOTES/RELEASE_NOTES_v3_6.md), and [v3.7 release notes](RELEASE_NOTES/RELEASE_NOTES_v3_7.md)
 
 ## 1. Overview
@@ -820,20 +820,42 @@ The successful adapter mapping is a `WriteExecutionResult` dict subtype whose
 internal `execution_outcome=committed` attribute is not serialized as business
 data. The two built-in exact, single-statement Skills update and return that same
 object instead of reconstructing a plain dict. `MutationBase.run_execute()`
-requires both the reviewed `exact_transaction_outcome=True` declaration and the
-preserved adapter evidence before producing whole-Skill `committed`.
+requires the source-verified, registered loaded class identity for the
+authoritative Skill name, its reviewed `exact_transaction_outcome=True`
+declaration, and preserved adapter evidence
+before producing whole-Skill `committed`.
 
 Custom Skills default to no whole-operation evidence. A normal custom dict
 return is therefore `success=true, execution_outcome=unknown`, even if one
 adapter statement committed, because earlier writes or external effects cannot
 be excluded. Missing/false/malformed success results are structured unknown
 failures; an exact Skill that discards adapter evidence is also a structured
-unknown failure. MCP independently repeats the result/evidence check in case a
-custom class overrides `run_execute()`, and non-exact lookalike evidence is
-forced to unknown. When that override omits the base audit marker, MCP attempts
-the success audit itself and reports the actual outcome instead of defaulting
-`audit_logged=true`. MCP never synthesizes `committed` merely because
-`run_execute()` returned.
+unknown failure. `MutationBase.run_execute()` is framework-owned; the loader
+rejects both a direct override and a replacement inherited from an intermediate
+custom base class. Business extensions use `execute()` or
+`execute_with_binding()`. `@final` informs type checkers, while a static MRO
+identity check enforces the rule at discovery. MCP therefore consumes the typed
+framework result instead of duplicating its evidence policy and invokes the base
+method directly rather than using virtual dispatch through the custom instance.
+A post-load subclass-method replacement is therefore ignored. MCP keeps a
+narrow fail-closed check for base-level tampering or framework regressions and
+never synthesizes `committed` merely because Python code returned normally.
+The loader reserves `exact_transaction_outcome=True` for the two registered
+built-in single-statement Skills only when their source resolves to the bundled
+`mutation.py` path. It registers their loaded class identities for the current
+discovery. The base wrapper checks that the MCP-supplied authoritative Skill
+name resolves to that same class; a copied name and a self-declared flag are
+insufficient. A custom class that sets the flag is rejected at discovery; a
+same-named custom class with the default flag remains conservatively `unknown`.
+The registry is process-local and replaced on rediscovery; this guards ordinary
+configuration and class-substitution mistakes, not malicious in-process Python.
+
+This v3.7.2 tightening intentionally changes the pre-release custom-Skill
+extension contract. An existing custom class that overrode `run_execute()` must
+move that behavior to the supported hooks before it can load. It prevents
+accidental bypass and policy drift; it is not a sandbox, because trusted
+in-process Python can still monkeypatch the framework base or other runtime
+objects after discovery.
 
 COMMIT handlers convert operational exceptions and `asyncio.CancelledError` to
 typed `commit_outcome_unknown` after cleanup. Other process-control exceptions,

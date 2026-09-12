@@ -16,6 +16,7 @@ Error Handling Chain:
       └─ failure → sanitized MutationExecutionError for structured MCP output
 
 Execution Constraints:
+    MutationBase.run_execute() is framework-owned and may not be overridden.
     mutation.py write paths should ONLY call self.adapter.execute_write().
     Direct file I/O, network requests, or subprocess calls are prohibited.
     Enforced by code review (not runtime sandbox).
@@ -27,8 +28,11 @@ Design References:
 - MCP Spec §7: Validate all tool inputs
 """
 
+from __future__ import annotations
+
 import logging
 from abc import ABC, abstractmethod
+from typing import final
 
 from fastmcp.exceptions import ToolError
 from db_adapter import (
@@ -37,6 +41,25 @@ from db_adapter import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+# Names are only candidates; discovery must verify the bundled source and
+# register its loaded class. A custom Skill can use the same public name.
+BUILTIN_EXACT_TRANSACTION_OUTCOME_SKILLS = frozenset(
+    {
+        "reset-demo-order-to-pending",
+        "update-order-status",
+    }
+)
+_registered_exact_transaction_classes: dict[str, type[MutationBase]] = {}
+
+
+def _register_exact_transaction_classes(
+    classes: dict[str, type[MutationBase]],
+) -> None:
+    """Replace the runtime identities with source-verified discovery results."""
+    _registered_exact_transaction_classes.clear()
+    _registered_exact_transaction_classes.update(classes)
 
 
 class MutationWriteError(ToolError):
@@ -91,9 +114,8 @@ class MutationBase(ABC):
         logger: AuditLogger instance (provides log())
     """
 
-    # Only built-ins that perform one adapter-managed statement opt in. A
-    # custom Skill may have issued other statements or external side effects,
-    # so one adapter exception cannot prove its whole operation rolled back.
+    # This declaration is necessary, never sufficient: the loader also checks
+    # the bundled source path and registers the exact loaded class identity.
     exact_transaction_outcome = False
 
     def __init__(self, adapter, audit_logger):
@@ -195,6 +217,7 @@ class MutationBase(ABC):
             )
         return self.execute(params)
 
+    @final
     def run_execute(
         self,
         params: dict,
@@ -206,11 +229,13 @@ class MutationBase(ABC):
         execution_binding: dict | None = None,
     ) -> MutationExecutionResult:
         """
-        Template method: wraps execute() with error handling and audit logging.
+        Framework-owned template method for error handling and audit logging.
 
         Called by the MCP tool layer (execute_mutation_skill). Adapter failures
         are sanitized and converted to MutationExecutionError so the server can
-        return a structured execution outcome.
+        return a structured execution outcome. Mutation Skills must customize
+        execute() or execute_with_binding(), not override this wrapper. The
+        loader enforces that rule at runtime; @final also informs type checkers.
 
         Args:
             params: Validated parameters
@@ -227,6 +252,10 @@ class MutationBase(ABC):
         Raises:
             MutationExecutionError: On a processable execution failure.
         """
+        has_exact_transaction_contract = (
+            self.exact_transaction_outcome is True
+            and self.__class__ is _registered_exact_transaction_classes.get(skill_name)
+        )
         try:
             result = self.execute_with_binding(params, execution_binding or {})
         except (WriteExecutionError, MutationWriteError) as caught_error:
@@ -235,7 +264,7 @@ class MutationBase(ABC):
                 if isinstance(caught_error, MutationWriteError)
                 else caught_error
             )
-            if self.exact_transaction_outcome:
+            if has_exact_transaction_contract:
                 execution_outcome = error.execution_outcome.value
                 error_code = error.error_code
             else:
@@ -244,14 +273,17 @@ class MutationBase(ABC):
 
             if error.error_code == "expected_rowcount_mismatch":
                 if getattr(error, "actual_rowcount", None) == 0:
-                    sanitized = (
-                        "Mutation target no longer matches the previewed state; "
-                        "the write was not committed."
-                    )
+                    reason = "Mutation target no longer matches the previewed state"
                 else:
+                    reason = "Mutation target cardinality was unsafe"
+                if has_exact_transaction_contract:
+                    sanitized = f"{reason}; the write was not committed."
+                else:
+                    # A custom Skill may have committed earlier statements.
+                    # Even confirmed rollback of this statement says nothing
+                    # about the final outcome of the entire Skill.
                     sanitized = (
-                        "Mutation target cardinality was unsafe; the write was "
-                        "not committed."
+                        f"{reason}; the whole Skill outcome cannot be confirmed."
                     )
             elif error.error_code == "commit_outcome_unknown":
                 sanitized = "Database COMMIT result could not be confirmed."
@@ -345,7 +377,7 @@ class MutationBase(ABC):
 
         adapter_outcome = getattr(result, "execution_outcome", None)
         adapter_outcome_value = getattr(adapter_outcome, "value", adapter_outcome)
-        if self.exact_transaction_outcome:
+        if has_exact_transaction_contract:
             if adapter_outcome_value != WriteExecutionOutcome.COMMITTED.value:
                 sanitized = (
                     "Mutation Skill reported success without confirmed COMMIT "
