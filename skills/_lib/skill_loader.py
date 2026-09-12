@@ -21,7 +21,7 @@ Explicit Source Declaration:
   - Safe character set (^[a-zA-Z0-9][a-zA-Z0-9._-]*$)
 
 Design References:
-- Anthropic Agent Skills spec: skill_def.md format with YAML frontmatter
+- Inspired by Anthropic Agent Skills: project-specific skill_def.md with YAML frontmatter
 - Anthropic best practices: Progressive disclosure, error accountability
 - MCP Spec §7: Validate all tool inputs, implement proper access controls
 - Google Gemini: Strong schema principle, structured parameters

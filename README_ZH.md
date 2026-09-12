@@ -1762,8 +1762,10 @@ preview，并优先为每个 live-test 场景启动新的 stdio server 进程。
 #### 如何添加自定义 Skill
 
 仓库示例统一使用保留前缀 `sample-`。自定义 Skill 请使用不带此前缀的目录，
-例如 `skills/my-report/`；Git 默认忽略这些非示例 Skill 目录。
-`skills/_lib/` 是框架代码，继续跟踪。目录名仍须与 frontmatter 的 `name` 一致。
+例如 `skills/my-report/`。Git 默认忽略 `skills/` 的直接子目录，仅放行
+`.gitignore` 中明确列出的四个内置示例目录和框架目录 `_lib/`。
+新建的 `sample-*` 目录也会被忽略；新增内置示例时需同步更新 `.gitignore`。
+目录名仍须与 frontmatter 的 `name` 一致。
 此前缀仅用于仓库命名与版本管理，不授予执行权限或精确事务资格；源码路径与
 加载类身份检查仍然生效。
 
@@ -1773,6 +1775,11 @@ preview，并优先为每个 live-test 场景启动新的 stdio server 进程。
 `git rm --cached -r -- skills/my-report/` 将已有目录移出索引，同时保留本地文件。
 若配置其它项目内 `SKILLS_DIR` 或审计路径，需要为这些路径补充忽略规则。
 现有配置升级请参阅[名称迁移表](RELEASE_NOTES/RELEASE_NOTES_v3_7.md#sample-skill-names-and-local-files)。
+
+部署或重启服务前，应审核自定义 Skill 的所有文件及其依赖。Git 忽略规则不影响
+发现流程，也不提供执行隔离：启用的 mutation 模块会在 discovery 阶段导入，
+执行模块顶层的 Python 代码。数据库账号应遵循最小权限原则，并将实际 Skill
+目录与连接策略一起审核，详见[技能安全规范](skills/SAFETY.md#11-mutationpy-execution-constraints)。
 
 **查询技能**（只读）：
 1. 在 `skills/` 下创建目录，如 `skills/my-report/`
@@ -1794,7 +1801,8 @@ preview，并优先为每个 live-test 场景启动新的 stdio server 进程。
 4. 对状态敏感写入，实现 `build_execution_binding()` 和 `execute_with_binding()`，确保执行使用 preview 时展示的状态。若 Skill 产生非空 binding 却未显式处理，基类会拒绝执行
 5. 不要覆盖 `run_execute()`，也不要通过中间自定义父类继承替代实现。它是框架拥有的结果/脱敏/审计包装器，discovery 会拒绝覆盖；已有包装逻辑应迁移到 `execute()` 或 `execute_with_binding()`
 6. 不要设置 `exact_transaction_outcome=True`；精确的整个 Skill 契约只保留给框架登记的两个内置单语句 Mutation，自定义成功仍为 `execution_outcome=unknown`
-7. 设置 `SKILLS_ALLOW_MUTATIONS=1` 并重启服务
+7. 设置 `ENABLE_SKILLS=1` 和 `SKILLS_ALLOW_MUTATIONS=1`，确保数据库账号具备所需写入权限。若配置 `SKILLS_ALLOW_MUTATION_CONNECTIONS` 启用严格模式，目标连接必须在该列表中，且设置 `DB_<ID>_ALLOW_MUTATIONS=1`，并将该 Skill 名称加入 `DB_<ID>_MUTATION_SKILLS`。未启用严格模式时，写操作仍限于默认连接
+8. 审核 Skill 代码与连接策略后，重启服务
 
 > **关于 `source` 字段**：`source` 是必填字段，显式声明技能定义文件（`skill_def.md`）与执行文件的关联。
 > 这遵循**显式配置原则**（Explicit Configuration），与 GitHub Actions（`action.yml` 的 `main` 字段）、

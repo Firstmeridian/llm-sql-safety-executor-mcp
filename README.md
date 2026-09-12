@@ -1869,9 +1869,11 @@ prefer a fresh stdio server process for each live-test scenario.
 #### Adding Custom Skills
 
 Bundled examples use the reserved `sample-` prefix. Create your own Skill in a
-directory such as `skills/my-report/` without that prefix; non-sample Skill
-directories are ignored by Git by default. `skills/_lib/` remains tracked as
-framework code. Keep the directory name and frontmatter `name` identical.
+directory such as `skills/my-report/` without that prefix. Git ignores immediate
+subdirectories of `skills/` except the four bundled examples explicitly listed
+in `.gitignore` and the framework directory `_lib/`. New `sample-*` directories
+are also ignored; adding a bundled example requires updating `.gitignore`.
+Keep the directory name and frontmatter `name` identical.
 The prefix is a repository convention, not an execution permission or an
 exact-transaction qualification; source and class-identity checks still apply.
 
@@ -1884,6 +1886,13 @@ custom directory while preserving its local files. Custom `SKILLS_DIR` and
 audit paths need corresponding ignore rules if stored inside your repository.
 See the [name migration table](RELEASE_NOTES/RELEASE_NOTES_v3_7.md#sample-skill-names-and-local-files)
 when upgrading an existing configuration.
+
+Review all custom Skill files and their dependencies before deploying or
+restarting the server. Git ignore rules do not affect discovery or provide
+execution isolation: enabled mutation modules are imported during discovery,
+which executes their module-level Python code. Use least-privilege database
+credentials and review the actual Skill directory together with connection
+policies; see [Skills security governance](skills/SAFETY.md#11-mutationpy-execution-constraints).
 
 **Query skills** (read-only):
 1. Create a directory under `skills/`, e.g. `skills/my-report/`
@@ -1908,7 +1917,8 @@ when upgrading an existing configuration.
 4. For state-sensitive writes, implement `build_execution_binding()` and `execute_with_binding()` so execution uses the state shown during preview. Non-empty bindings are rejected by the base class if the Skill does not explicitly handle them
 5. Do not override `run_execute()`, including through an intermediate custom base class. It is the framework-owned outcome/sanitization/audit wrapper, and discovery rejects an override. Move any existing wrapper logic into `execute()` or `execute_with_binding()`
 6. Do not set `exact_transaction_outcome=True`; this exact whole-Skill contract is reserved for the two framework-registered built-in single-statement Mutations. Custom success remains `execution_outcome=unknown`
-7. Set `SKILLS_ALLOW_MUTATIONS=1` and restart the server
+7. Enable `ENABLE_SKILLS=1` and `SKILLS_ALLOW_MUTATIONS=1`. Ensure the database account has the required write privileges. When `SKILLS_ALLOW_MUTATION_CONNECTIONS` enables strict mode, the target must be listed there and must set `DB_<ID>_ALLOW_MUTATIONS=1` with this Skill's name in `DB_<ID>_MUTATION_SKILLS`. Without strict mode, mutations remain limited to the default connection
+8. After reviewing the Skill code and connection policies, restart the server
 
 > **About the `source` field**: `source` is a mandatory field that explicitly declares the association
 > between the skill definition file (`skill_def.md`) and its execution file. This follows the

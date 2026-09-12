@@ -30,9 +30,11 @@ does not grant trust: exact outcomes still require the two explicitly registered
 bundled mutation sources, their loaded class identities, and adapter evidence.
 `profiles: [demo]` and the flat discovery layout remain unchanged.
 
-Git now ignores non-sample directories directly under `skills/`, except the
-tracked framework directory `_lib/`. Custom authors should use names without
-`sample-`. The generated `skills/SKILLS.md` and default `skills/_audit.jsonl`
+Git now ignores directories directly under `skills/`, except the four bundled
+examples explicitly listed in `.gitignore` and the framework directory `_lib/`.
+New `sample-*` directories are also ignored; adding a bundled example requires
+updating `.gitignore`. Custom authors should use names without `sample-`.
+The generated `skills/SKILLS.md` and default `skills/_audit.jsonl`
 have been removed from the index and ignored; their local copies are preserved.
 This does not erase prior Git history. Previously tracked custom files require
 an explicit `git rm --cached` to become untracked. Alternate Skill roots and

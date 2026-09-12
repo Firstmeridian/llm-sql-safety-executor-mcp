@@ -4,8 +4,10 @@ This document defines the security policies and constraints for the
 Skills extension layer. All skill authors and code reviewers should
 read this before creating or approving skills.
 
-Bundled examples reserve the `sample-` prefix; custom Skill directories under
-`skills/` without that prefix are ignored by Git. The prefix does not establish
+Bundled examples reserve the `sample-` prefix. Git ignores immediate directories
+under `skills/` except the four bundled examples explicitly listed in `.gitignore`
+and the framework directory `_lib/`. New `sample-*` directories are also ignored;
+adding a bundled example requires updating `.gitignore`. The prefix does not establish
 trust, grant write permission, or enable exact transaction outcomes. Only the
 explicitly registered bundled source paths and loaded classes qualify for the
 exact contract. The default generated `skills/SKILLS.md` and audit output
@@ -323,6 +325,12 @@ platform logging, cron cleanup, or a managed log sink) in production.
 Discovery imports `mutation.py` as trusted local project code and requires it
 to export a concrete `Mutation` class that subclasses `MutationBase`. This is
 a structural loader invariant, not a sandbox for untrusted plugins.
+
+Review all custom Skill files and their dependencies before deployment or server
+startup: importing a mutation module executes its module-level Python code.
+Git ignore rules do not affect discovery and are not an execution allowlist.
+Audit the actual configured Skill directory, including ignored local files, and
+use database credentials with only the privileges required by the deployment.
 
 `MutationBase.run_execute()` is not an extension point. Mutation classes must
 not define it or inherit a replacement from an intermediate custom base class;
