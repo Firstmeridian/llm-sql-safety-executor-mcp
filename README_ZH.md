@@ -1,6 +1,6 @@
 # 面向 AI Agent 的数据库安全访问入口 - MCP 服务
 
-![Version](https://img.shields.io/badge/version-3.7.2-blue)
+![Version](https://img.shields.io/badge/version-3.7.3-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Python](https://img.shields.io/badge/python-3.12+-blue?logo=python)
 ![MCP](https://img.shields.io/badge/MCP-Protocol-orange)
@@ -122,7 +122,7 @@ SQL 方言的全面语义分析。
 Skills 场景：未知 Skill → list_skills(search=..., detail_level="compact", connection_id=target)
              → 必要时 get_skill_detail(skill_name=..., connection_id=target, detail_level="execution")
              已知 Skill、未知参数 → get_skill_detail(skill_name=..., connection_id=target, detail_level="execution")
-             参数已知 → execute_query_skill(name, params, connection_id=target)
+             参数已知 → execute_query_skill(skill_name, params, connection_id=target)
              或 mutation preview → 用户批准 → 同一 params/connection_id + 返回的 preview_token
 ```
 
@@ -149,7 +149,7 @@ Skills 场景：未知 Skill → list_skills(search=..., detail_level="compact",
 - **Skills 参数强类型验证**：type/min/max/enum 约束 + 拒绝 schema 之外的参数（防 injection/hallucination）
 - **Skills 双层开关**：`ENABLE_SKILLS` + `SKILLS_ALLOW_MUTATIONS` 最小权限控制
 - **闭合世界工具提示**：MCP 工具统一设置 `openWorldHint=false`，表示工具只触达已配置的数据库连接/服务边界，不访问任意外部实体。该提示用于改善客户端展示和工具选择，不替代权限控制。**未来新增工具检查清单**：任何新工具如果会越过已配置数据库边界（外部 HTTP API、webhook、第三方服务、未配置 DB 调用等），**必须**显式设置 `openWorldHint=true` 并在 review 时核对此条；`tests/test_annotations_consistency.py` 通过显式 allowlist 提供 pytest/本地测试 guardrail。只有真正加入 CI workflow 后，才应把它描述为 CI enforcement。
-- **Skills 运行元数据**：完整 profile 下注册的所有 MCP 工具（v3.5 起最多 12 个）均使用 `ToolResult` 包装结构化 payload，并通过 `meta` 暴露 `tool_name`、`db_type`、`connection_id`、`execution_ms`、`success` 等通用字段，以及 `row_count`、`total_rows`、`truncated`、`skill_version` 等工具特定计数。Mutation 结果还会镜像 `execution_outcome` 和结构化失败的 `error_code`。元数据有意不包含原始 SQL、返回数据行、参数值、DSN、凭据、host 或 SQLite 文件路径。
+- **Skills 运行元数据**：当前完整 profile 下注册的所有 MCP 工具（最多 13 个）均使用 `ToolResult` 包装结构化 payload，并通过 `meta` 暴露 `tool_name`、`execution_ms`、`success` 及工具特定计数。单连接结果包含 `db_type` 和 `connection_id`；批量诊断使用 `connection_scope="all"` 和汇总计数，不冒用默认连接身份。Mutation 结果还会镜像 `execution_outcome` 和结构化失败的 `error_code`。元数据有意不包含原始 SQL、返回数据行、参数值、DSN、凭据、host 或 SQLite 文件路径。
   - **原始 SQL 可见性策略**：原始 `query(sql)` 工具当前会在结构化 payload 中回显提交的 SQL，并可能为了透明排障写入 MCP context。不要在 SQL literal 中放 secret、token、凭据或敏感个人数据。重复且敏感的工作流优先使用经过 review 的 Skills、低敏谓词或数据库 view。
   - **作用范围（v3.5）**：`ToolResult.meta` 在基础工具（`query`、`check_connection`、`list_connections`、`list_tables`、`describe_table`、`get_full_schema`、`get_table_summary`、`sample`、`list_skills`、`get_skill_detail`）与 Skills 工具（`execute_query_skill`、`execute_mutation_skill`）之间保持一致。基础工具走共享的 `_tool_result(...)`，Skills 工具走 `_skill_tool_result(...)`。Python 直接调用方可统一通过 `result.structured_content` 读取 payload、`result.meta` 读取元数据。
   - **客户端可见性**：依据 MCP 规范，`_meta` 字段是**可选**的，客户端 *MAY* 忽略。实测：服务器中间件、MCP Inspector、显式读取 `_meta` 的客户端可以看到；VS Code 的 MCP UI 当前不展示。请把 `ToolResult.meta` 主要视为服务端可观测钩子和"愿意读 meta 的客户端"的可选信号，而**不能**假定它一定对终端用户可见。
@@ -234,7 +234,7 @@ LLM(Agents)不能凭空生成SQL，需要有一定的上下文基础。这里的
 
 这说明在合理的情况下，一个实用的系统应该加入、并支持添加针对特定场景的额外工具。但是，过多的工具会占用更多上下文，并且会降低准确率/增加成本[1]。而Agent Skills的渐进式披露(progressive disclosure)[2]则可以避免这些问题。
 因此，我们可以设想这样一个方案：用户或开发人员可以编写大量依赖于本MCP服务之上的"插件"（代码段/工具），通过`skill_def.md`管理，可以动态的增加与配置工具。而Agent则可以加载这些"插件"，灵活扩展其能力。
-当然，与标准Agent Skills不同的是，该项目的Skills是给Agent提供预制的安全操作，位于服务端侧（Server代为执行）。这种差异是合理且有意为之的，主要是[安全考虑](#关于Skills层的设计考虑)。
+当然，与标准Agent Skills不同的是，该项目的Skills是给Agent提供预制的安全操作，位于服务端侧（Server代为执行）。这种差异是合理且有意为之的，主要是[安全考虑](#关于skills层的设计考虑)。
 
 > [1]: ["Keep the number of functions small for higher accuracy."](https://platform.openai.com/docs/guides/function-calling)  
 > [2]: ["This filesystem-based architecture enables progressive disclosure: Claude loads information in stages as needed, rather than consuming context upfront."](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview#how-skills-work)
@@ -311,8 +311,8 @@ flowchart TB
     subgraph MCP["MCP 协议边界"]
         direction TB
         T1["query(sql, connection_id?)"]
-        T2["execute_query_skill(name, params, connection_id?)"]
-        T3["execute_mutation_skill(name, params, confirm,<br/>preview_token?, connection_id?)"]
+        T2["execute_query_skill(skill_name, params, connection_id?)"]
+        T3["execute_mutation_skill(skill_name, params, confirm,<br/>preview_token?, connection_id?)"]
         T4["list_skills(connection_id?) / get_skill_detail(connection_id?) /<br/>describe_table(connection_id?) / ..."]
     end
 
@@ -645,8 +645,27 @@ SQLITE_DATABASE_PATH=./sample_data/demo.db
 `DEFAULT_DB_CONNECTION` 表示。
 连接 id 是不透明的路由 alias：不要根据 alias 名称或后缀推断 `db_type`。
 应使用配置的 `DB_<ID>_TYPE`，或 `list_connections()` 返回的结构化
-`db_type` 字段；也不要从 alias 推断业务用途或角色。用户只提供用途时，
-应要求其给出 exact alias。
+`db_type` 字段；也不要从 alias 推断业务用途或角色。已确定目标须来自用户明确
+选择、适用于本请求的可信应用绑定，或用户仅指定数据库类型时唯一的结构化
+`db_type` 匹配。模型猜测、别名名称、默认标记、一次连接成功，都不能证明用户
+选定了某个用途的目标。
+
+用途/角色尚无已确定目标、指代不明、类型无唯一匹配或范围限制无法协调时，可按需调用
+`list_connections()` 展示候选项，然后请用户选择或澄清，**等待答复**。
+在此之前，不为该未确定目标的请求查看结构、查询、发现/执行 Skill 或调用任一
+连接诊断工具。已知候选项无需重复列出。这条规则优先于“先查结构/数据”的
+工作流建议；没有目标线索的普通请求仍保留原有默认路由。
+这是 Agent 行为指引；服务器不会验证聊天上下文或强制用户选库。需要确定性的
+目标限制时，应由可信应用/Host 校验，数据库现有策略继续独立生效。
+对要求硬性限制每次请求目标的部署，该校验是上线前置条件，必须覆盖显式别名、
+省略参数时的实际默认连接及批量的全部配置目标，见[部署验收条件](RELEASE_NOTES/GUIDE/MCP_AGENT_BEHAVIOR_VALIDATION_ZH.md#18-限制优先级与配置解读的可复用验收)。
+受信任的本地使用可明确保留已知 Agent 行为限制；当前服务器不提供这套当次授权机制。
+
+明确禁止访问某个目标也包括禁止对它进行连接诊断。
+对于明确要求的连通性诊断，如果宽泛请求又明确限制为一个已确定别名或默认库，
+只检查该目标，并说明其它连接未检查。如果用户明确不接受部分检查、允许的目标
+仍未确定或限制本身仍矛盾，则澄清并等待。这不授权写操作或任意选库，也不能把
+单库结果说成整个环境都正常。
 
 ```bash
 # 两个配置化连接。id 必须匹配 ^[a-z][a-z0-9_]{0,63}$。
@@ -775,7 +794,7 @@ Skills 层允许你将常用的 SQL 查询和数据变更操作封装为可复�
 - 进程重启会使全部未消费 handle 失效。这是有意的 fail-closed 连续性边界；若
   execute 结果不确定，必须先核查当前业务状态，再决定是否重新 preview。
 - 不得把多个启用 mutation 的 worker 放在普通负载均衡器后。只读容量只能通过
-  独立的 read-only endpoint、profile 或 pool 扩展；v3.6.1-v3.7.2 不支持跨 worker 或
+  独立的 read-only endpoint、profile 或 pool 扩展；v3.6.1-v3.7.3 不支持跨 worker 或
   跨副本 mutation。
 - 不存在 stateless token fallback，也不提供 SQLite、SQL 表或其他外部共享
   token backend。
@@ -794,7 +813,7 @@ preview，workflow 会拒绝执行。只有在强制截止时间内输入精确�
 前撤销未用 token record，外部 payload/debug logging 仍可能泄露 token。多用户认证
 HTTP 批准和合规级批准人审计不属于当前设计。自定义批准 provider 必须配合 async
 取消；恶意 provider 的硬终止需要进程隔离。详见
-[v3.7/v3.7.2 发布说明](RELEASE_NOTES/RELEASE_NOTES_v3_7.md)。
+[v3.7/v3.7.3 发布说明](RELEASE_NOTES/RELEASE_NOTES_v3_7.md)。
 该可信本地示例为避免静默切换到另一套 `.env`，会转发完整进程环境；因此所有
 已导出的 secret 与 Python 控制变量也进入子进程/Skill 信任边界。产品化 host
 应维护项目专用环境 allowlist。
@@ -875,6 +894,22 @@ SKILLS_AUDIT_QUERIES=1
 
 历史版本条目保留当时的 Skill 原名；当前名称见
 [v3.7.2 迁移表](RELEASE_NOTES/RELEASE_NOTES_v3_7.md#sample-skill-names-and-local-files)。
+
+### v3.7.3 连接路由与工具契约说明修正（2026年9月）
+
+仓库版本于 9 月 15 日准备完成；创建 tag 和正式发布是后续步骤。
+
+- 明确默认、已确定目标和明确允许全部连接的诊断选择。用途未确定时先等待；
+  明确的单目标限制收窄已请求诊断的范围，不得检查被禁止的目标，限制无法协调时暂停。
+- 为 `list_connections` 增加配置性质说明：允许表不证明实际存在，也不是物理
+  全库清单；列配置仍不连接数据库。
+- 当前参数示例统一为 `table_name` / `skill_name`，同步 MCP 说明。
+  两个诊断工具保留既有 API、连接及资源机制。
+- 补充协议回归、原生及 fixture Agent 实测记录。源码验证：**640 passed、
+  4 skipped**，七个 Python 文件 Pyright 通过。明确禁止访问的 fixture 仍有失败，
+  DRR-2026-066 保持开放；最新说明仍需原生 Host 重新发现并验收。
+- 兼容性及证据边界见 [v3.7.3 发布说明](RELEASE_NOTES/RELEASE_NOTES_v3_7.md#v373--connection-routing-and-tool-contract-clarity)。
+  批量连接诊断归属此前的 v3.7.2 工作。
 
 ### v3.7.2 写事务结论与宿主不重试（2026年9月）
 
@@ -1144,10 +1179,18 @@ SKILLS_AUDIT_QUERIES=1
 
 ## 公开的 MCP 工具
 
-该服务公开 6-12 个标准化的 MCP 工具（取决于配置）：
+该服务公开 7–13 个标准化的 MCP 工具（取决于配置）：
 
 ### 0. `list_connections`
 用途：列出已配置的数据库连接 id 和非敏感 policy 元数据。
+
+列配置不连接数据库，也不代表用户已选定目标。用途不明时中立展示候选项后等待
+用户选择；不能仅凭默认标记把某个连接说成“分析库”，或顺便进行诊断、查表。
+`policy.allowed_tables` 是访问策略配置，不证明表已存在，也不是物理数据库的完整表清单。
+结果中的简短 `hint` 会再次说明这个区别，方便 Agent 读取配置后准确转述；
+列配置仍不检查数据库，原有字段含义保持不变。
+自行使用封闭响应模型的客户端需要声明或允许新增的 `hint` 字段；不能保证所有
+此类客户端都自动接受额外字段。
 
 输出：
 ```json
@@ -1155,6 +1198,7 @@ SKILLS_AUDIT_QUERIES=1
   "success": true,
   "default_connection_id": "trade_analysis_mysql",
   "connection_count": 2,
+  "hint": "Configuration only; no database was inspected. allowed_tables is an access policy, not proof of table existence or a complete table inventory. Say 'configured to allow orders', not 'the database only has orders'.",
   "connections": [
     {
       "connection_id": "trade_analysis_mysql",
@@ -1210,8 +1254,15 @@ SKILLS_AUDIT_QUERIES=1
 
 ### 2. `check_connection`
 用途：检查单个数据库连接和配置。传入 `connection_id` 选择别名；省略时仅检查默认连接。
+普通连通性请求**没有目标线索，也没有已确定的会话/应用目标**时，只检查默认连接。
+例如“看看数据库能不能连上”可检查默认库；“看看分析库能不能连上”则需要先确定
+分析库。用途尚未对应到目标、指代不明或范围限制无法协调时，可列候选项，然后澄清并等待
+答复，期间不能先诊断默认库。已有确定目标时，Agent 必须显式传入该别名，
+服务器不会推断聊天历史。
 它仍是原来的单连接工具，复用业务适配器及其超时配置，不使用批量工具的独立诊断
 连接或额外 30 秒预算。仅在用户要求或排查连接故障时调用，不作为查询前置步骤。
+宽泛诊断明确限制为一个已确定别名或默认库时，用本工具检查该目标，并说明其它
+连接未检查；若用户明确拒绝部分检查，应先澄清。
 
 输出：
 ```json
@@ -1227,7 +1278,12 @@ SKILLS_AUDIT_QUERIES=1
 
 用途：无参数调用，一次检查**全部已配置别名**。与仅列配置的 `list_connections()`
 不同，本工具会新建诊断连接；它不验证现有业务连接池健康、业务表、Skill 可用性或写入权限。
-仅用于用户要求的诊断或连接故障排查，不自动在启动时执行，也不作为查询前置步骤。
+仅在用户明确要求且允许全部连接，或无歧义地继续此前已确认的全部范围时调用。
+缺少别名或笼统的连接故障不代表要求全部检查。不自动在启动时执行，也不作为查询前置步骤。
+用途目标未确定、指代不明或范围限制无法协调时，先澄清并等待；期间仅可按需用
+`list_connections()` 提供候选项，不执行诊断。
+若明确只允许一个已确定别名或默认库，改用 `check_connection()` 检查该目标；
+若明确拒绝部分检查，则等待澄清。
 
 ```json
 {
@@ -1259,7 +1315,7 @@ SQLite 文件只读打开，不创建不存在的数据库；`:memory:` 只验�
 不验证业务内存库中的数据。聚合 `_meta` 和 telemetry 使用 `connection_scope: "all"`
 及汇总计数，省略 `connection_id`、`db_type`，`success` 等于 `all_connected and not cleanup_failed`，
 `call_completed` 表示是否正常返回报告。
-独立连接的取舍与资源边界见[设计记录](RELEASE_NOTES/GUIDE/BATCH_CONNECTION_CHECK_DESIGN.md)。
+独立连接的取舍与资源边界见[中文设计记录](RELEASE_NOTES/GUIDE/BATCH_CONNECTION_CHECK_DESIGN_ZH.md)（[English](RELEASE_NOTES/GUIDE/BATCH_CONNECTION_CHECK_DESIGN.md)）。
 
 SQLite 的 `mode=ro` 防止数据库写入，不保证文件系统绝无写入。WAL 模式可能涉及
 创建或更新 `-wal`、`-shm` 辅助文件及其目录权限。本工具不设置 `immutable=1`，
@@ -1928,7 +1984,7 @@ sequenceDiagram
     participant DB as Database
 
     Note over Agent,DB: 阶段 1: 预览 (confirm=false)
-    Agent->>MCP: execute_mutation_skill(name, params, false)
+    Agent->>MCP: execute_mutation_skill(skill_name, params, false)
     MCP->>MCP: validate_name() + validate_params()
     MCP->>Mutation: validate(params)
     Mutation->>DB: SELECT 查询当前状态
@@ -1937,7 +1993,7 @@ sequenceDiagram
     Mutation-->>Agent: 预览 + preview_token（不实际执行）
 
     Note over Agent,DB: 阶段 2: 确认执行 (confirm=true)
-    Agent->>MCP: execute_mutation_skill(name, params, true, preview_token)
+    Agent->>MCP: execute_mutation_skill(skill_name, params, true, preview_token)
     MCP->>MCP: validate_name + validate_params（重新校验）
     MCP->>MCP: 查询 handle、比较请求绑定并原子消费
     MCP->>Mutation: run_execute(params)
@@ -2065,11 +2121,11 @@ python test_mcp_client.py
 - [v3.5-v3.7 命名连接、Skills 与批准流程说明](RELEASE_NOTES/GUIDE/V3_5-V3_7_SKILLS_GUIDE_ZH.md)：解释命名连接、Mutation 写策略、preview-token、Skill 连接范围、单 mutation worker 与批准边界
 - [v3.5 发布说明](RELEASE_NOTES/RELEASE_NOTES_v3_5.md)：命名多连接版本摘要、兼容性、限制和验证证据
 - [v3.6/v3.6.1 发布说明](RELEASE_NOTES/RELEASE_NOTES_v3_6.md)：Mutation preview-token、命名写策略、execution binding 修复与同进程部署边界定稿
-- [v3.7/v3.7.2 发布说明](RELEASE_NOTES/RELEASE_NOTES_v3_7.md)：v3.7 能力、opaque preview handle、事务结论与宿主不重试行为
+- [v3.7/v3.7.3 发布说明](RELEASE_NOTES/RELEASE_NOTES_v3_7.md)：v3.7 能力、事务结论及当前连接路由/工具契约修正
 - [设计风险登记表](DESIGN_RISK_REGISTER_ZH.md)：长期维护的设计、安全与运维风险登记
 - [可行性分析](LLM_TO_MCP_FEASIBILITY_ANALYSIS.md)：LLM 到 MCP 转换的详细分析
 - [原始上下文](GEMINI.md)：项目背景和开发指南
-- [重构日志](REFACTORING_LOG.md)：重构变更文档（v2.0 — v3.7.2）
+- [重构日志](REFACTORING_LOG.md)：重构变更文档（v2.0 — v3.7.3）
 - [MCP 客户端测试指南](TEST_MCP_CLIENT_GUIDE.md)：通过客户端测试 MCP 服务器的指南
 - [MCP Agent 编排行为验证方法](RELEASE_NOTES/GUIDE/MCP_AGENT_BEHAVIOR_VALIDATION_ZH.md)：验证 Agent 自然工具选择、重复调用、连接路由和渐进披露效果
 - [MCP 工具契约与评测指南](PROMPT_ENGINEERING_BEST_PRACTICES.md)：面向本项目的工具 schema、描述、instructions、安全边界与评测指南

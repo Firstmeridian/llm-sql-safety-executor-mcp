@@ -1,9 +1,13 @@
 # MCP Agents Skills Design Document
 
-> **Version**: 3.7.2
+> **Design baseline**: 3.7.2 (unchanged by the v3.7.3 routing/tool-contract update)
 > **Status**: Implemented
 > **Date**: 2026-09-12
 > **References**: [Skills safety policy](skills/SAFETY.md), [design risk register](DESIGN_RISK_REGISTER.md), [v3.6 release-family notes](RELEASE_NOTES/RELEASE_NOTES_v3_6.md), and [v3.7 release notes](RELEASE_NOTES/RELEASE_NOTES_v3_7.md)
+
+Current routing guidance and parameter examples are maintained in the
+[v3.7.3 notes](RELEASE_NOTES/RELEASE_NOTES_v3_7.md#v373--connection-routing-and-tool-contract-clarity).
+This document retains the implementation history of the Skills design.
 
 ## 1. Overview
 

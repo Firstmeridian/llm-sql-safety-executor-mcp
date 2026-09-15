@@ -914,20 +914,24 @@ async def lifespan(mcp_server: FastMCP) -> AsyncIterator[dict[str, Any]]:
 # Server instructions carry cross-tool capabilities and safety-critical routing
 # invariants; per-tool descriptions remain local and concise.
 _CONNECTION_ROUTING_GUIDANCE = """Connection routing:
-- If the user provides an exact configured connection alias, pass it unchanged as connection_id.
+- Resolve the target before schema exploration, queries, Skills, or connectivity checks. These routing rules take precedence over instructions to explore or query first.
+- Follow the user's current explicit target or scope. Pass exact aliases unchanged as connection_id; if rejected, do not correct them or fall back to another connection without user clarification.
+- A resolved target comes from the user's explicit choice, a trusted application binding for this request, or the unique database-type match below. An agent's guess, an alias name, the default flag, or a successful connection check does not establish the user's intended target. Pass an unambiguously referenced resolved alias explicitly; do not revert to the global default.
 - If the user specifies only a database type, call list_connections(). Use the only matching connection when exactly one has that db_type; otherwise ask for an exact alias.
-- If the user describes only a purpose or role, do not infer a connection from alias names; ask for an exact alias.
-- If the user asks which aliases are available or says they do not know the alias, call list_connections() and ask them to choose an exact alias.
+- Explicit prohibitions take precedence: do not access a forbidden target, including for a connection check. For requested connectivity, a restriction permitting one resolved alias or the default limits a broader request: check only that target and state that others were not checked. If partial checks are explicitly rejected or restrictions remain inconsistent, ask and wait instead. This rule does not authorize writes.
+- STOP when a purpose/role has no resolved target, a reference is ambiguous, a type has no unique match, or scope restrictions cannot be reconciled. If candidates are needed, call only list_connections(); then ask the user to choose or clarify and wait for their answer. Until then, do not inspect schema, query, discover or execute Skills, or run either connectivity check for that unresolved request. Do not present the default as a purpose match. Already known candidates need not be listed again.
+- If the user only asks which aliases are available, list them without connecting. If they need to choose a target, ask for that choice and wait; discovery itself is not selection.
 - Omitting connection_id selects only the configured default; it never means all connections.
-- For connectivity diagnostics across all configured connections, call check_connections() directly, only when requested or troubleshooting connection failures.
+- For a generic connectivity request with NO target clues and NO resolved conversational or application target, call check_connection() for the default only and identify that scope in the reply. An unresolved purpose such as "the analytics database" is a target clue, not permission to use the default. For ordinary requests without target clues, existing default routing remains available; do not demand confirmation solely because connection_id is omitted.
+- Only when the user clearly requests and permits connectivity diagnostics across all configured connections, call check_connections() directly. An unambiguous continuation of a previously confirmed all-connection request also qualifies. Never infer this scope just from a generic connection problem.
 - For other read-only requests across all connections, call list_connections() and invoke the requested tool once per connection_id. Never broadcast mutations."""
 
 mcp = FastMCP(
     name="sql-safety-executor",
     instructions=f"""Database safety gateway with read-only core SQL tools and configured connection routing.
+{_CONNECTION_ROUTING_GUIDANCE}
 Use query() for free-form reads. If structure is unknown, use list_tables() when names/counts are enough; use get_full_schema(detail_level="compact") directly when broad columns or multi-table planning are needed.
-Optional Skills provide reviewed queries and, when enabled, controlled mutations that require preview plus a matching one-time token.
-{_CONNECTION_ROUTING_GUIDANCE}""",
+Optional Skills provide reviewed queries and, when enabled, controlled mutations that require preview plus a matching one-time token.""",
     lifespan=lifespan,
     mask_error_details=True,
     strict_input_validation=True,
@@ -1239,8 +1243,12 @@ def _elapsed_ms_from(start_time: float) -> float:
 _CONNECTION_ID_FIELD = Field(
     description=(
         "Connection alias. Pass exact aliases unchanged; omit only for default. "
-        "Omission never means all connections. Use "
-        "list_connections() to discover aliases or match a database type."
+        "Pass a resolved user/application target or unique db_type match explicitly. "
+        "Use list_connections() to discover aliases or match a database type. "
+        "For an unresolved purpose, ambiguous reference or irreconcilable scope restrictions, list "
+        "candidates if needed, then ask and wait before database work. "
+        "A default flag or successful check is not target selection. "
+        "Omission never means all connections."
     ),
     min_length=1,
     max_length=64,
@@ -1590,6 +1598,18 @@ async def list_connections(ctx: Context) -> ToolResult:
     This does not open or test database connections. For requested connectivity
     diagnostics across all aliases, use check_connections().
 
+    policy.allowed_tables describes configured access, not observed tables.
+    It does not prove that a listed table exists or that unlisted tables are
+    absent. Say "configured to allow orders", not "the database only has orders".
+    Wildcard/unrestricted access is also a policy, not a physical table inventory.
+
+    Discovery is not target selection: alias names and the default flag do not
+    establish a business purpose. When the requested purpose has no resolved
+    target, or the reference/scope is ambiguous, present candidates neutrally,
+    ask the user to choose or clarify, and wait. Do not follow discovery with
+    schema, query, Skill, or diagnostic calls for that unresolved request.
+    A unique structured db_type match may resolve a type-only request.
+
     This tool never returns DSNs, credentials, host names, passwords, or SQLite
     file paths. A returned alias may be passed to read-only tools and Query
     Skills, subject to their policies and Skill scope. Mutation Skills may use
@@ -1617,6 +1637,11 @@ async def list_connections(ctx: Context) -> ToolResult:
         "default_connection_id": default_connection_id,
         "connection_count": len(connections),
         "connections": connections,
+        "hint": (
+            "Configuration only; no database was inspected. allowed_tables is an "
+            "access policy, not proof of table existence or a complete table inventory. "
+            "Say 'configured to allow orders', not 'the database only has orders'."
+        ),
     }
     return _tool_result(
         payload,
@@ -1772,7 +1797,17 @@ async def check_connection(
 ) -> ToolResult:
     """
     Check one configured database connection; omission selects only the default.
-    For requested diagnostics across all aliases, use check_connections().
+    For a generic connectivity request with no target clues and no resolved
+    conversational/application target, check only the default. For a resolved
+    target, pass connection_id explicitly. An unresolved purpose/role, ambiguous
+    reference, or irreconcilable scope restrictions require clarification and waiting first; only
+    list_connections() may be used to offer candidates. Do not probe the default
+    while waiting. A successful check does not establish the user's intended target.
+    A prohibition on accessing a target includes this connection check.
+    If a broader connectivity request explicitly permits only one resolved alias
+    or the default, check only that target and state that others were not checked.
+    If partial checks are explicitly rejected, ask and wait instead.
+    Use check_connections() only for a clear request to check all configured aliases.
     This reuses the business adapter. It does not use the batch tool's disposable
     connections or its independent 30-second waiting budget.
 
@@ -1832,10 +1867,19 @@ async def check_connection(
 async def check_connections(ctx: Context) -> ToolResult:
     """Check fresh connectivity to ALL configured aliases; takes no arguments.
 
-    Use only for a requested all-connection diagnostic or troubleshooting
-    connection failures, never as a routine prerequisite to queries. For one
-    alias, use check_connection(connection_id); to list configuration without
-    connecting, use list_connections().
+    Use only when the user clearly requests and permits ALL configured connections, including
+    an unambiguous continuation of a previously confirmed all-connection request.
+    A generic connection problem or missing alias alone does not request this scope.
+    For generic connectivity with no target clues and no resolved conversational/
+    application target, use check_connection() for the default only. For a resolved
+    alias, pass connection_id explicitly to that tool. An unresolved purpose/role,
+    ambiguous reference, or irreconcilable scope restrictions require clarification and waiting;
+    only list_connections() may be used to offer candidates. Run neither diagnostic
+    while waiting. Never run diagnostics routinely before queries.
+    A prohibition on accessing any configured target rules out this ALL tool.
+    A broader request restricted to one resolved alias or the default uses
+    check_connection() for that target, with other connections reported unchecked;
+    if partial checks are explicitly rejected, ask and wait instead.
 
     Disposable connections leave business connections and transactions alone.
     SQLite files open read-only; :memory: checks only a fresh memory connection.
@@ -1893,7 +1937,7 @@ async def list_tables(
     An individual row_count is null when the adapter cannot safely provide an
     estimate; null does not mean that the table is empty.
     
-    Use describe_table(name) for full adapter-visible column metadata of one
+    Use describe_table(table_name=...) for full adapter-visible column metadata of one
     selected table, not complete DDL.
 
     Returns:
@@ -1968,14 +2012,14 @@ async def list_tables(
         "row_count_approximate": True,
         "truncated": truncated,
         "truncation_note": (
-            f"Showing {len(tables)}/{total_tables} tables. Use describe_table(name) for specific tables."
+            f"Showing {len(tables)}/{total_tables} tables. Use describe_table(table_name=...) for specific tables."
         ) if truncated else None,
         "hint": (
             "Row counts are estimates; null means an estimate is unavailable, "
             "not that the table is empty. For broad columns, call "
             "get_full_schema(detail_level='compact') directly; for one selected "
             "table's full adapter-visible column metadata, use "
-            "describe_table(name). This is not complete DDL. total_tables = "
+            "describe_table(table_name=...). This is not complete DDL. total_tables = "
             f"visible after allowlist. DB type: {connection.db_type}"
         )
     }
@@ -2022,6 +2066,9 @@ async def describe_table(
 
     Args:
         table_name: Name of the table to describe
+
+    Example arguments (replace the table and alias with the selected target):
+        {"table_name": "orders", "connection_id": "analytics_demo_sqlite"}
         
     Returns:
         Table structure with columns, row count, and query recommendations
@@ -2338,7 +2385,7 @@ async def get_full_schema(
             "Columns are [name, type] pairs. Tables in one group have identical "
             "current adapter-visible column metadata and order; this does not "
             "prove full DDL, index, or constraint equivalence. Use "
-            "describe_table(name) for one table's nullable, default, and "
+            "describe_table(table_name=...) for one table's nullable, default, and "
             "non-primary key details, or get_full_schema(detail_level='full') "
             "when those fields are needed across several tables."
         )
@@ -2387,7 +2434,7 @@ async def get_full_schema(
         "truncated": truncated,
         "truncation_note": (
             f"Showing {returned_table_count}/{total_tables} tables. "
-            "Use describe_table(name) for specific tables."
+            "Use describe_table(table_name=...) for specific tables."
         ) if truncated else None,
         "hint": (
             f"Row counts are estimates; null means unavailable, not empty. "
@@ -4512,10 +4559,10 @@ def sql_assistant() -> str:
         skills_info = """
 - list_skills(search, category, detail_level, available_only, connection_id): Search pre-defined skills; full includes params
 - get_skill_detail(skill_name, connection_id, detail_level): Get params/schema for one known Skill
-- execute_query_skill(name, params, connection_id): Execute a query skill with parameters
+- execute_query_skill(skill_name, params, connection_id): Execute a query skill with parameters
 """
         if SKILLS_ALLOW_MUTATIONS:
-            skills_info += "- execute_mutation_skill(name, params, confirm, preview_token, connection_id): Preview a mutation on an authorized configured connection, then execute on the same connection with confirm=true plus the returned preview_token\n"
+            skills_info += "- execute_mutation_skill(skill_name, params, confirm, preview_token, connection_id): Preview a mutation on an authorized configured connection, then execute on the same connection with confirm=true plus the returned preview_token\n"
 
     # Conditional heuristic prompt - let LLM decide based on context
     # Reference: "Model-driven tool selection" - provide rules, not fixed chains
@@ -4525,14 +4572,14 @@ Tools (choose based on need):
 - list_connections(): Show configured connection ids and their non-sensitive policies; takes no arguments
 - query(sql, connection_id): Execute conservative free-form read-only SQL; EXPLAIN ANALYZE is rejected
 - list_tables(connection_id): Visible table overview with row estimates; may be truncated
-- describe_table(name, connection_id): Single-table adapter-visible column metadata + row estimate + is_large hint; not complete DDL
+- describe_table(table_name, connection_id): Single-table adapter-visible column metadata + row estimate + is_large hint; not complete DDL
 - get_full_schema(connection_id, detail_level, group_identical): Compact adapter-visible column groups or full adapter-visible column metadata; grouping is not full DDL equivalence
 - check_connection(connection_id): Check one alias (default if omitted), only on request or connection errors
-- check_connections(): Check fresh connectivity to all configured aliases in one bounded diagnostic report; only on request or connection troubleshooting
+- check_connections(): Check fresh connectivity to all configured aliases in one bounded diagnostic report; only for a clear all-connection request
 {skills_info}
 {_CONNECTION_ROUTING_GUIDANCE}
 
-Decision rules:
+Decision rules (only after applying the connection routing rules above):
 - Unknown structure? Use list_tables() when names/counts are enough. If broad columns or multi-table planning are needed, call get_full_schema(detail_level="compact") directly; it already includes table names and row estimates.
 - Need nullable, default, or key metadata? Use describe_table() for one selected table or get_full_schema(detail_level="full") across several tables.
 - For single-table queries, if schema/columns unknown, call describe_table(table_name) before query().

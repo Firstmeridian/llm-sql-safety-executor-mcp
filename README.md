@@ -1,6 +1,6 @@
 # LLM Database Safety Gateway - MCP Service
 
-![Version](https://img.shields.io/badge/version-3.7.2-blue)
+![Version](https://img.shields.io/badge/version-3.7.3-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Python](https://img.shields.io/badge/python-3.12+-blue?logo=python)
 ![MCP](https://img.shields.io/badge/MCP-Protocol-orange)
@@ -124,7 +124,7 @@ Large Table Scenario: Observe is_large=true → Use LIMIT or Aggregation
 Skills Scenario: unknown Skill → list_skills(search=..., detail_level="compact", connection_id=target)
                  → get_skill_detail(skill_name=..., connection_id=target, detail_level="execution") when needed
                  known Skill + unknown params → get_skill_detail(skill_name=..., connection_id=target, detail_level="execution")
-                 known params → execute_query_skill(name, params, connection_id=target)
+                 known params → execute_query_skill(skill_name, params, connection_id=target)
                  or mutation preview → user approval → same params/connection_id + returned preview_token
 ```
 
@@ -155,7 +155,7 @@ Skills Scenario: unknown Skill → list_skills(search=..., detail_level="compact
 - **Skills Strong Parameter Validation**: type/min/max/enum constraints + rejection of parameters outside schema (prevents injection/hallucination)
 - **Skills Dual-Layer Switches**: `ENABLE_SKILLS` + `SKILLS_ALLOW_MUTATIONS` for least-privilege control
 - **Closed-World Tool Hints**: MCP tools set `openWorldHint=false` because they interact with the configured database/server boundary, not arbitrary external entities. These hints improve client UX but are advisory, not security controls. **Future-tool checklist**: any newly added tool that reaches outside the configured database (external HTTP APIs, webhooks, third-party services, cross-instance DB calls, etc.) MUST set `openWorldHint=true` and be reviewed against this list; `tests/test_annotations_consistency.py` provides a pytest/local-test guardrail through an explicit allowlist. Add a CI workflow before describing this as CI enforcement.
-- **Skills Runtime Metadata**: All registered MCP tools in the full profile (up to 12 as of v3.5) wrap their structured payloads in `ToolResult` and expose runtime `meta` fields (`tool_name`, `db_type`, `connection_id`, `execution_ms`, `success`, plus tool-specific counters such as `row_count`, `total_rows`, `truncated`, `skill_version`, etc.). Mutation results also mirror `execution_outcome` and structured-failure `error_code`. Metadata intentionally excludes raw SQL, returned rows, parameter values, DSNs, credentials, hosts, and SQLite file paths.
+- **Skills Runtime Metadata**: All registered MCP tools in the current full profile (up to 13) wrap their structured payloads in `ToolResult` and expose runtime `meta` fields (`tool_name`, `execution_ms`, `success`, plus tool-specific counters). Single-connection results include `db_type` and `connection_id`; batch diagnostics use `connection_scope="all"` and aggregate counts without a default-connection identity. Mutation results also mirror `execution_outcome` and structured-failure `error_code`. Metadata intentionally excludes raw SQL, returned rows, parameter values, DSNs, credentials, hosts, and SQLite file paths.
   - **Raw SQL visibility policy**: The raw `query(sql)` tool currently echoes the submitted SQL in its structured payload and may log it to the MCP context for transparency and debugging. Do not place secrets, tokens, credentials, or sensitive personal data in SQL literals. Use reviewed Skills, low-sensitivity predicates, or database views for repeatable sensitive workflows.
   - **Scope (v3.5)**: Uniform `ToolResult.meta` across base tools (`list_connections`, `query`, `check_connection`, `list_tables`, `describe_table`, `get_full_schema`, `get_table_summary`, `sample`) **and** Skills tools (`list_skills`, `get_skill_detail`, `execute_query_skill`, `execute_mutation_skill`). Base tools use the shared `_tool_result(...)` helper; Skills tools use `_skill_tool_result(...)`. Direct Python callers can read `result.structured_content` for the payload and `result.meta` for metadata uniformly.
   - **Client visibility**: Per MCP spec, the `_meta` field is OPTIONAL and clients MAY ignore it. Real-world behavior varies: server-side middleware, MCP Inspector, and clients that explicitly surface `_meta` will see runtime metadata; VS Code's MCP UI (as of testing) does not display it. Treat `ToolResult.meta` primarily as a server-side observability hook and an opt-in client signal, not as a guaranteed user-visible diagnostic.
@@ -319,8 +319,8 @@ flowchart TB
     subgraph MCP["MCP Protocol Boundary"]
         direction TB
         T1["query(sql, connection_id?)"]
-        T2["execute_query_skill(name, params, connection_id?)"]
-        T3["execute_mutation_skill(name, params, confirm,<br/>preview_token?, connection_id?)"]
+        T2["execute_query_skill(skill_name, params, connection_id?)"]
+        T3["execute_mutation_skill(skill_name, params, confirm,<br/>preview_token?, connection_id?)"]
         T4["list_skills(connection_id?) / get_skill_detail(connection_id?) /<br/>describe_table(connection_id?) / ..."]
     end
 
@@ -658,7 +658,36 @@ default is already represented by `DEFAULT_DB_CONNECTION`.
 Connection ids are opaque routing aliases: never infer `db_type` from an alias
 suffix or name. Use the configured `DB_<ID>_TYPE` value or the structured
 `db_type` returned by `list_connections()`. Do not infer a business purpose or
-role from an alias either; when only a purpose is known, ask for an exact alias.
+role from an alias either. A resolved target must come from the user's explicit
+choice, a trusted application binding for this request, or exactly one matching
+structured `db_type` when only a database type was requested. Agent guesses,
+alias names, the default flag, and successful connection checks are not evidence
+of the user's intended target.
+
+When a purpose/role has no resolved target, a reference is ambiguous, a type has
+no unique match, or scope restrictions cannot be reconciled, optionally list candidates with
+`list_connections()`, then ask the user to choose or clarify and **wait for the
+answer**. Do not inspect schema, query, discover/execute Skills, or run either
+diagnostic for that unresolved request. Already known candidates need not be
+listed again. These rules take precedence over advice to explore/query first;
+ordinary requests without target clues retain existing default routing.
+They guide Agents; the server does not validate conversation state or enforce
+user selection. Deterministic target restrictions require trusted application/
+Host validation in addition to the existing database policies.
+For deployments requiring hard per-request target restrictions, that validation
+is a prerequisite before go-live. It must cover explicit aliases, the actual
+default when omitted, and every configured target for batch checks. See the
+[deployment acceptance criteria](RELEASE_NOTES/GUIDE/MCP_AGENT_BEHAVIOR_VALIDATION_ZH.md#18-限制优先级与配置解读的可复用验收).
+Trusted local use can retain the documented Agent limitation; the current server
+does not supply this per-request authorization mechanism.
+
+An explicit prohibition on accessing a target also prohibits connection checks.
+For a requested connectivity diagnostic, an explicit restriction to one resolved
+alias or the default limits a broader request: check only that target and state
+that other connections were not checked. If the user explicitly rejects partial
+checks, the permitted target is unresolved, or the restrictions remain
+inconsistent, ask and wait. This does not authorize writes or arbitrary target
+selection and does not turn a single-connection result into an all-connection report.
 
 ```bash
 # Two configured connections. Ids must match ^[a-z][a-z0-9_]{0,63}$.
@@ -819,7 +848,7 @@ its value.
 - Do not place multiple mutation-enabled workers behind ordinary load balancing.
   Read-only capacity may scale only through a separate read-only endpoint,
   profile, or pool. Cross-worker or cross-replica mutation execution is not
-  supported in v3.6.1 through v3.7.2.
+  supported in v3.6.1 through v3.7.3.
 - There is no stateless token fallback and no SQLite, SQL-table, or external
   shared token backend.
 
@@ -841,7 +870,7 @@ and payload-level protocol/debug logging may still expose tokens. Multi-user
 authenticated HTTP approval and compliance-grade approver audit remain outside
 the current design. Custom approval providers must cooperate with async cancellation; a
 hostile provider requires process isolation for hard termination. See
-[Release Notes v3.7/v3.7.2](RELEASE_NOTES/RELEASE_NOTES_v3_7.md).
+[Release Notes v3.7/v3.7.3](RELEASE_NOTES/RELEASE_NOTES_v3_7.md).
 This trusted local example forwards the complete process environment so it does
 not silently switch to another `.env`; consequently, every exported secret and
 Python control variable enters the child/Skill trust boundary. A productized
@@ -923,6 +952,28 @@ For a complete client configuration example, please refer to `mcp_config.json`.
 
 Historical version entries retain their original Skill names. Current names
 are listed in the [v3.7.2 migration table](RELEASE_NOTES/RELEASE_NOTES_v3_7.md#sample-skill-names-and-local-files).
+
+### v3.7.3 Connection Routing and Tool Contract Clarity (September 2026)
+
+Repository version prepared on September 15; creating a release/tag is a separate step.
+
+- Clarified default, resolved-target and explicitly permitted all-connection
+  diagnostics. Unresolved purposes require waiting before database work;
+  explicit single-target restrictions narrow requested diagnostics. Prohibited
+  targets must not be checked; irreconcilable restrictions require waiting.
+- Added configuration-only guidance to `list_connections`: allowed tables do
+  not prove table existence or physical completeness. Discovery still does not
+  connect to databases.
+- Aligned current `table_name` / `skill_name` examples and MCP descriptions.
+  Both diagnostic tools retain their APIs
+  and connection/resource behavior.
+- Added protocol regressions and native/fixture Agent evaluation records.
+  Source validation: **640 passed, 4 skipped**; seven Python files pass Pyright.
+  Explicit-prohibition fixture failures keep DRR-2026-066 open; latest guidance
+  still needs native-Host discovery and acceptance.
+- See the [v3.7.3 notes](RELEASE_NOTES/RELEASE_NOTES_v3_7.md#v373--connection-routing-and-tool-contract-clarity)
+  for compatibility and evidence boundaries. Batch diagnostics were introduced
+  in the preceding v3.7.2 work.
 
 ### v3.7.2 Transaction Outcomes and No-Retry Host (September 2026)
 
@@ -1221,10 +1272,21 @@ This project has transitioned from direct function calls to a standardized MCP s
 
 ## Exposed MCP Tools
 
-The service exposes 6-12 standardized MCP tools (depending on configuration):
+The service exposes 7–13 standardized MCP tools (depending on configuration):
 
 ### 0. `list_connections`
 Usage: List configured database connection ids and non-sensitive policy metadata.
+
+Listing does not connect or select a target for the user. For an unresolved
+purpose, present candidates neutrally and wait for the user's choice; a default
+flag does not identify an analytics database or justify a diagnostic/schema call.
+`policy.allowed_tables` describes access configuration, not verified table
+existence or a complete physical table inventory.
+A short `hint` in the result repeats this distinction for Agents reading the
+returned configuration. Discovery still does not inspect databases, and the
+existing fields retain their meanings.
+Clients with a closed response model must allow or declare the additional `hint`
+field; compatibility with independently defined closed models is not guaranteed.
 
 Output:
 ```json
@@ -1232,6 +1294,7 @@ Output:
   "success": true,
   "default_connection_id": "trade_analysis_mysql",
   "connection_count": 2,
+  "hint": "Configuration only; no database was inspected. allowed_tables is an access policy, not proof of table existence or a complete table inventory. Say 'configured to allow orders', not 'the database only has orders'.",
   "connections": [
     {
       "connection_id": "trade_analysis_mysql",
@@ -1289,10 +1352,19 @@ Output:
 
 ### 2. `check_connection`
 Usage: Test one database connection and configuration. Pass `connection_id` to
-select an alias; omission checks only the default. This is the existing tool,
+select an alias; omission checks only the default. A generic connectivity request
+with **no target clues and no resolved conversational/application target** checks
+this default only. “Can the database connect?” qualifies; “Can the analytics
+database connect?” requires a resolved analytics target. For an unresolved purpose,
+ambiguous reference or irreconcilable scope restrictions, optionally list candidates, then ask
+and wait; do not probe the default meanwhile. For a resolved target, pass its
+alias explicitly; the server does not infer conversation state. This is the existing tool,
 using the business adapter and its timeouts, without the batch tool's disposable
 connections or independent 30-second budget. Use on request or when
 troubleshooting connection failures, not as a prerequisite to queries.
+An explicit restriction of a broad diagnostic request to one resolved alias or
+the default uses this tool for that target, with others reported unchecked. If
+partial checks are explicitly rejected, clarify before checking anything.
 
 Output:
 ```json
@@ -1306,11 +1378,18 @@ Output:
 
 ### 2a. `check_connections`
 
-Usage: Check **all configured aliases** with one no-argument call. Unlike
-`list_connections()` (configuration only), this opens fresh diagnostic
+Usage: Check **all configured aliases** with one no-argument call, only when the
+user clearly requests and permits all connections or unambiguously continues that confirmed
+scope. A missing alias or generic connection problem alone does not imply all.
+For an unresolved purpose, ambiguous reference or irreconcilable scope restrictions, ask and wait
+before diagnostics; only `list_connections()` may be used to offer candidates.
+If a broad request explicitly permits only one resolved alias or the default,
+use `check_connection()` for that target; if partial checks are explicitly
+rejected, ask and wait instead.
+Unlike `list_connections()` (configuration only), this opens fresh diagnostic
 connections. It does not verify existing pool health, business tables, Skill
-readiness, or write privileges. Use only for requested diagnostics or connection
-troubleshooting; it is not an automatic startup check or a query prerequisite.
+readiness, or write privileges. It is not an automatic startup check or a query
+prerequisite.
 
 ```json
 {
@@ -2059,7 +2138,7 @@ sequenceDiagram
     participant DB as Database
 
     Note over Agent,DB: Phase 1: Preview (confirm=false)
-    Agent->>MCP: execute_mutation_skill(name, params, false)
+    Agent->>MCP: execute_mutation_skill(skill_name, params, false)
     MCP->>MCP: validate_name() + validate_params()
     MCP->>Mutation: validate(params)
     Mutation->>DB: SELECT query for current state
@@ -2068,7 +2147,7 @@ sequenceDiagram
     Mutation-->>Agent: Preview + preview_token (no actual execution)
 
     Note over Agent,DB: Phase 2: Confirm Execute (confirm=true)
-    Agent->>MCP: execute_mutation_skill(name, params, true, preview_token)
+    Agent->>MCP: execute_mutation_skill(skill_name, params, true, preview_token)
     MCP->>MCP: validate_name + validate_params (re-validate)
     MCP->>MCP: look up handle; compare request binding; atomically consume
     MCP->>Mutation: run_execute(params)
@@ -2198,12 +2277,12 @@ This script:
 - [Skills Security Policy](skills/SAFETY.md): security governance for skill authors
 - [Release Notes v3.5](RELEASE_NOTES/RELEASE_NOTES_v3_5.md): named multi-connection release summary, compatibility notes, limits, and validation evidence
 - [Release Notes v3.6/v3.6.1](RELEASE_NOTES/RELEASE_NOTES_v3_6.md): mutation preview tokens, named-write policy, execution binding fixes, and the formalized same-process deployment boundary
-- [Release Notes v3.7/v3.7.2](RELEASE_NOTES/RELEASE_NOTES_v3_7.md): v3.7 capabilities plus opaque preview handles, transaction outcomes, and no-retry host behavior
+- [Release Notes v3.7/v3.7.3](RELEASE_NOTES/RELEASE_NOTES_v3_7.md): v3.7 capabilities, transaction outcomes, and current connection-routing/tool-contract corrections
 - [v3.5-v3.7 Skills Guide (Chinese)](RELEASE_NOTES/GUIDE/V3_5-V3_7_SKILLS_GUIDE_ZH.md): connection routing, write policy, preview tokens, Skill scope, and approval boundaries
 - [Design Risk Register](DESIGN_RISK_REGISTER.md): Long-term design, security, and operations risk register
 - [Feasibility Analysis](LLM_TO_MCP_FEASIBILITY_ANALYSIS.md): Detailed analysis of LLM to MCP conversion
 - [Original Context](GEMINI.md): Project background and development guide
-- [Refactoring Log](REFACTORING_LOG.md): Refactoring change documentation (v2.0 — v3.7.2)
+- [Refactoring Log](REFACTORING_LOG.md): Refactoring change documentation (v2.0 — v3.7.3)
 - [MCP Client Test Guide](TEST_MCP_CLIENT_GUIDE.md): Guide for testing MCP Server via client
 - [MCP Agent Behavior Validation Method (Chinese)](RELEASE_NOTES/GUIDE/MCP_AGENT_BEHAVIOR_VALIDATION_ZH.md): Method for validating natural tool selection, redundant calls, connection routing, and progressive disclosure
 - [MCP Tool Contract and Evaluation Guide](PROMPT_ENGINEERING_BEST_PRACTICES.md): Project guidance for tool schemas, descriptions, instructions, safety boundaries, and evaluation

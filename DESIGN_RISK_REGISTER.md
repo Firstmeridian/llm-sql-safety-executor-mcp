@@ -3,7 +3,7 @@
 English | [中文](DESIGN_RISK_REGISTER_ZH.md)
 
 Date opened: 2026-05-24
-Last reviewed: 2026-09-12
+Last reviewed: 2026-09-15
 
 Document status: Living design and operations risk register.  
 Initial review batch: v3.4.3.
@@ -27,6 +27,7 @@ in the result column.
 
 | Status | Meaning |
 |---|---|
+| Open | Observed issue with remediation or behavioral/deployment acceptance still incomplete. |
 | Implemented | Code or documentation change has been completed and recorded. |
 | Accepted | Current behavior is an intentional compromise; no immediate change planned. |
 | Policy Required | A compatibility, privacy, or audit decision is needed before changing behavior. |
@@ -346,6 +347,25 @@ validation so protocol values must match the published JSON Schema; direct
 Python calls for decision-critical booleans retain explicit handler checks.
 A server restart still cannot invalidate a Host-owned tool cache, so reconnect
 or Host reload plus a fresh `tools/list` remains an operational release gate.
+
+### Agent routing follow-up (2026-09-13)
+
+| ID | Status | Risk level | Date first registered | Area | Risk or concern | Plan? | Modification logic | Current result | Next action |
+|---|---|---|---|---|---|---|---|---|---|
+| DRR-2026-066 | Open | Medium | 2026-09-13 | Diagnostic scope selection and per-request restrictions | Initially, two of three fresh Luna contexts expanded unspecified diagnostics to all connections. Later trials found purpose guessing, unsolicited probes and conflict handling differences. The latest fixture also shows checks of an explicitly prohibited target; these are user-intent violations, not evidence of bypassing configured SQL/write policies. | Routing guidance implemented; explicit-prohibition behavior remains unresolved | Keep both tools. Generic no-target diagnostics use default; resolved targets come from explicit user choice, trusted request binding or a unique structured db_type match. Unresolved purpose/reference/type requests permit optional configuration discovery then waiting. For requested diagnostics, an explicit single-target/default restriction narrows a broad request; prohibitions include connection checks, while rejected partial checks or irreconcilable restrictions require waiting. No new server session routing or model-supplied confirmation. | The [Sep 15 native review](RELEASE_NOTES/LIVE_MCP_TSET/V3_7_3_LIVE_MCP_TEST_CONNECTION_ROUTING_2026_09_15_ZH.md) retains 12 contexts/36 calls under the old conflict contract: purpose/default/all workflows passed, three conflicts did not clarify. The subsequent [fixture review](RELEASE_NOTES/LIVE_MCP_TSET/V3_7_3_LIVE_MCP_TEST_CONNECTION_BOUNDARIES_2026_09_15_ZH.md) has 15 contexts/13 calls across two metadata phases. Final permitted-narrowing cases passed 2/2 and the rejected-partial case stopped; explicit-prohibition cases still failed in 2/3 contexts, with three prohibited-target calls. | Keep Open; do not regrade old conflict samples or merge different phases into an error rate. Latest metadata is locally verified, not native-Host accepted. Guidance cannot enforce natural-language per-request permissions. For deployments requiring hard target limits, trusted application/Host context and call validation are prerequisites before go-live, covering explicit aliases, the actual implicit default and all configured targets for batch checks; see the [strict-deployment acceptance criteria](RELEASE_NOTES/GUIDE/MCP_AGENT_BEHAVIOR_VALIDATION_ZH.md#18-限制优先级与配置解读的可复用验收). This remains a documented limitation for trusted local use, not a reason to discard the maintenance fixes. Do not dismiss prohibited probes as harmless merely because they are read-only, or keep stacking equivalent prompts. Broader binding/type/model acceptance remains pending; interpretation is separate under 068. |
+| DRR-2026-067 | Implemented | Low | 2026-09-13 | Parameter examples disagree with the tool schema | All three complete Luna trials first supplied `name` to `describe_table`; its schema requires `table_name`. Public `list_tables` descriptions and result hints contain `describe_table(name)`. Each attempt was rejected and then corrected, adding latency and a failure point. Correlation with the example is observed; causality and the exact Host/server validation component are unproven. | Example correction complete; initial native-Host acceptance passed | Keep table_name and skill_name as the sole schema parameter names. Align tool hints, retrieved sql_assistant and current README examples; preserve historical traces. Do not introduce aliases or argument rewriting. | 2026-09-15: all three native workflows again used correct first describe arguments. Final review found additional pre-existing name examples for Skill tools; corrected current examples to skill_name. New real prompts/get versus tools/list tests under mutation registration off/on failed before the fix and pass after it. No Skill or preview executed. Metadata tests: 49 passed; full suite: 637 passed, 4 skipped; six Python files pass Pyright. | Retain protocol/schema regressions. The Skill-name follow-up has local protocol evidence; native Skill behavior was not tested this round. Small samples do not guarantee zero future mistakes or close the separate routing and result-interpretation risks. |
+| DRR-2026-068 | Implemented | Low | 2026-09-15 | Configuration allowlists overstated as database facts | Two of three native Luna workflow first turns called only list_connections yet stated that SQLite databases contain only orders. allowed_tables is policy, not evidence of table existence or physical completeness. Later successful queries cannot justify the earlier claims. | Tool/result guidance and initial local acceptance implemented | Clarify configured access in the list_connections description and an additive result hint; align the bilingual README. Keep discovery free of DB access; do not auto-probe tables to make configuration claims true. | Three protocol cases verify absent/existing databases are not connected to or created/modified during discovery and distinguish configured, visible and physical tables. Full suite: 640 passed, 4 skipped; seven Python files pass Pyright. Three final fresh Luna fixture contexts correctly limited claims to configuration; see the [fixture review](RELEASE_NOTES/LIVE_MCP_TSET/V3_7_3_LIVE_MCP_TEST_CONNECTION_BOUNDARIES_2026_09_15_ZH.md). | Implemented means code/docs and initial local acceptance, not zero future errors. Native discovery/acceptance of the latest hint is pending. Preserve original unsupported claims and grade scope and interpretation separately; no runtime gate or automatic structure discovery was added. |
+
+Same-day unchanged-version retest: three new identical unspecified-scope prompts
+all selected the batch tool, and three new full conversations all first supplied
+`name` before correcting it. These are additional baseline observations, not
+post-fix validation; DRR-2026-066/067 were Open at that time. The table reflects the 2026-09-15 review status. Do not pool differently worded
+or differently constrained trials into a claimed general error probability.
+
+The reusable procedure is in the [Agent behavior validation guide](RELEASE_NOTES/GUIDE/MCP_AGENT_BEHAVIOR_VALIDATION_ZH.md).
+The initial registration changed documentation only. Prompt/example corrections are now implemented. Input contracts and validation constraints, and existing output fields, remain unchanged; list_connections adds an explanatory hint field. This is normally an additive-compatible response extension, but clients using their own closed response models may reject the extra field and need to update those models. Compatibility with every such client is not guaranteed. The rows above describe current acceptance gaps. The plan draws on
+[Anthropic's task/trace evaluation guidance](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents)
+and [Google's function/parameter description guidance](https://ai.google.dev/gemini-api/docs/function-calling).
 
 ## Initial v3.4.3 Review Batch Status
 

@@ -869,7 +869,9 @@ def test_fastmcp_tool_schema_exposes_skill_parameters(monkeypatch):
     assert "never means all connections" in connection_description
     assert "discover aliases" in connection_description
     assert "match a database type" in connection_description
-    assert "ambiguous" not in connection_description
+    # Ambiguous references now explicitly require waiting; the parameter itself
+    # remains an exact alias, not a purpose or inferred target.
+    assert "ask and wait before database work" in connection_description
     query_schema = schemas["execute_query_skill"]
     assert "params" in query_schema["properties"]
     assert "params" in query_schema["required"]

@@ -12,8 +12,10 @@
 from __future__ import annotations
 
 import asyncio
+import ast
 import importlib
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -169,6 +171,108 @@ def test_meta_list_connections(base_server):
     _assert_common_meta(result.meta, "list_connections")
     assert result.meta["success"] is True
     assert result.structured_content["default_connection_id"] == result.meta["connection_id"]
+
+
+@pytest.mark.parametrize("table_limit", [1, 100])
+def test_describe_examples_match_published_schema(base_server, monkeypatch, table_limit):
+    """Check advertised parameter names against the real schema, including result hints."""
+    from fastmcp import Client
+    from jsonschema import validate
+    from mcp.types import TextContent
+
+    _seed_orders_table(base_server)
+    monkeypatch.setattr(base_server, "MAX_OVERVIEW_TABLES", table_limit)
+    monkeypatch.setattr(base_server, "MAX_SCHEMA_TABLES", table_limit)
+
+    async def scenario():
+        async with Client(base_server.mcp) as client:
+            tools = {tool.name: tool for tool in await client.list_tools()}
+            schema = tools["describe_table"].inputSchema
+            descriptions = [tool.description or "" for tool in tools.values()]
+            initialized = await client.initialize()
+            descriptions.append(initialized.instructions or "")
+            prompt = await client.get_prompt("sql_assistant")
+            descriptions.extend(
+                message.content.text for message in prompt.messages
+                if isinstance(message.content, TextContent)
+            )
+            for name in ("list_tables", "get_full_schema"):
+                result = await client.call_tool(name, {})
+                payload = result.structured_content
+                assert isinstance(payload, dict)
+                assert payload["truncated"] is (table_limit == 1)
+                descriptions.extend([payload.get("hint") or "", payload.get("truncation_note") or ""])
+
+            examples = re.findall(r"describe_table\(([^)]*)\)", "\n".join(descriptions))
+            assert examples
+            for example in examples:
+                call = ast.parse(f"describe_table({example})", mode="eval").body
+                assert isinstance(call, ast.Call)
+                names = [arg.id for arg in call.args if isinstance(arg, ast.Name)]
+                for keyword in call.keywords:
+                    assert keyword.arg is not None
+                    names.append(keyword.arg)
+                assert all(name in schema["properties"] for name in names), example
+
+            description = tools["describe_table"].description or ""
+            example_json = re.search(r'\{"table_name"[^\n]+\}', description)
+            assert example_json is not None
+            validate(json.loads(example_json.group()), schema)
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("allow_mutations", ["0", "1"])
+def test_published_prompt_parameters_match_skill_tool_schemas(monkeypatch, allow_mutations):
+    """Discover the real prompt and tools; no Skill, preview, or write is executed."""
+    from fastmcp import Client
+    from mcp.types import TextContent
+
+    server = _reload_server(
+        monkeypatch,
+        ENABLE_SKILLS="1",
+        SKILLS_ALLOW_MUTATIONS=allow_mutations,
+        SKILLS_DIR=str(PROJECT_ROOT / "tests" / "fixtures" / "v37_scoped_skills"),
+    )
+
+    async def scenario():
+        async with Client(server.mcp) as client:
+            tools = {tool.name: tool for tool in await client.list_tools()}
+            prompt = await client.get_prompt("sql_assistant")
+            text = "\n".join(
+                message.content.text for message in prompt.messages
+                if isinstance(message.content, TextContent)
+            )
+            signatures = re.findall(r"^- (\w+)\(([^)]*)\):", text, flags=re.MULTILINE)
+            advertised = {name for name, _ in signatures}
+            assert "execute_query_skill" in advertised
+            assert ("execute_mutation_skill" in advertised) is (allow_mutations == "1")
+            for name, arguments in signatures:
+                assert name in tools, name
+                parameters = {arg.strip() for arg in arguments.split(",") if arg.strip()}
+                assert parameters <= tools[name].inputSchema["properties"].keys(), (name, parameters)
+
+    try:
+        asyncio.run(scenario())
+    finally:
+        for mod in ("mcp_sql_server", "db_adapter", "sql_safety_checker"):
+            sys.modules.pop(mod, None)
+
+
+def test_describe_table_rejects_name_without_alias_fallback(base_server):
+    """A typo remains a protocol error; the documented argument still succeeds."""
+    from fastmcp import Client
+
+    async def scenario():
+        async with Client(base_server.mcp) as client:
+            wrong = await client.call_tool("describe_table", {"name": "widgets"}, raise_on_error=False)
+            assert wrong.is_error
+            correct = await client.call_tool("describe_table", {"table_name": "widgets"})
+            assert not correct.is_error
+            assert isinstance(correct.structured_content, dict)
+            assert correct.structured_content["table_name"] == "widgets"
+
+    asyncio.run(scenario())
 
 
 def test_meta_query_rejected_unsafe(base_server):

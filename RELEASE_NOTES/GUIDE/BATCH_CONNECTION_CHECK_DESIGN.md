@@ -1,6 +1,13 @@
 # Batch connection diagnostics — design decision
 
-Date: 2026-09-12. Applies to the current v3.7.2 maintenance work.
+[简体中文](BATCH_CONNECTION_CHECK_DESIGN_ZH.md)
+
+Initial design: 2026-09-12, implemented in the v3.7.2 maintenance work.
+The later routing/tool-contract follow-ups below belong to v3.7.3; they leave
+the diagnostic implementation unchanged. See the [v3.7.3 notes](../RELEASE_NOTES_v3_7.md#v373--connection-routing-and-tool-contract-clarity).
+
+Dated follow-ups retain the rules and validation states of each stage. Current
+routing/deployment acceptance is maintained in the [Agent validation guide](MCP_AGENT_BEHAVIOR_VALIDATION_ZH.md#18-限制优先级与配置解读的可复用验收).
 
 ## Purpose and interface
 
@@ -151,6 +158,34 @@ support these boundaries; they do not imply that cancelling a tool kills a threa
 
 ## Evidence and validation
 
+On 2026-09-13, eight fresh-context `gpt-5.6-luna` live task instances checked
+tool selection. Explicit all/default/named/configuration and role-clarification
+cases behaved as intended. Two of three unspecified-scope instances instead
+selected all-connection diagnostics. All actual connection checks succeeded;
+the issue was unintended scope expansion under ambiguous wording. The
+[dated routing evaluation](../LIVE_MCP_TSET/V3_7_3_LIVE_MCP_TEST_CONNECTION_ROUTING_2026_09_13_ZH.md)
+records exact prompts, calls, timings and limitations, and recommends making
+the default-scope selection rule explicit before considering tool consolidation.
+It does not claim the selection issue is already fixed; production prompts were
+not changed in that evaluation.
+
+The same dated record now also includes three fresh-context, six-turn order
+dashboard trials. All completed the read-only aggregation, switched from all
+connections back to the selected alias, and stopped on a misspelled alias until
+the simulated user corrected it. All three initially supplied `name` instead
+of `table_name` to `describe_table`, then recovered after input rejection. This
+is a separate parameter-example consistency finding, not an error-free pass or
+proof that the earlier unspecified-scope issue is resolved. The maintained
+[Agent behavior validation method](MCP_AGENT_BEHAVIOR_VALIDATION_ZH.md) now
+separates complete-task outcomes, intermediate errors and isolated limit tests.
+
+A later same-day unchanged-version retest used three new identical generic
+connectivity prompts and three new six-turn trials. All three generic requests
+selected the batch tool; all three complete tasks again initially supplied
+`name` before correcting it to `table_name`. Contextual routing and task
+completion succeeded. This adds baseline evidence only: no production prompt
+change or post-fix A/B validation occurred, and DRR-2026-066/067 remain open.
+
 Final boundary review used SQLite 3.45.1 and a disposable, cleanly closed WAL
 database. The actual `SELECT 1` probe succeeded without creating sidecars in
 that experiment. A separate table read through the same diagnostic adapter's
@@ -233,3 +268,116 @@ supports consolidating useful workflows and evaluating real tool calls, while
 warning against overlapping tools. Here, descriptions explicitly distinguish
 single-alias checks, all-alias diagnostics and configuration discovery. These
 sources inform the design; none mandates this particular API or worker count.
+
+
+## Routing guidance follow-up (2026-09-13)
+
+Implemented the bounded [routing/example correction](V3_7_3_CONNECTION_ROUTING_REMEDIATION_ZH.md):
+no specified or established connectivity target selects the default single
+connection; a confirmed conversational alias must be passed explicitly; a clear
+all-connection request selects the batch tool. A continuation of a confirmed
+all-scope task qualifies, while missing an alias or a generic connection problem
+alone does not. Ambiguous purpose/references/conflicts require clarification.
+This is Agent guidance, not server verification of natural-language intent.
+
+The shared instructions, tool descriptions, parameter help, `sql_assistant`
+and bilingual README now agree. Six current
+`describe_table(name...)` examples use `table_name`; strict validation and
+historical error traces remain unchanged. No diagnostic resource, waiting-budget,
+connection-isolation, API or mutation-policy changes were needed.
+
+Validation: `635 passed, 4 skipped`; metadata/schema follow-up `47 passed`;
+Pyright on four changed Python files `0 errors, 0 warnings`. The
+[Agent record](../LIVE_MCP_TSET/V3_7_3_LIVE_MCP_TEST_CONNECTION_ROUTING_2026_09_13_ZH.md)
+separates fixture stdio trials from the old IDE Host and preserves observed
+purpose-to-alias guessing. Passing protocol checks does not close the Agent
+behavior risk or prove that a deployed Host has refreshed its tool metadata.
+
+
+### Native-Host review update (2026-09-14)
+
+The restarted Host now exposes the updated descriptions, and a real list_tables
+response uses table_name in its hint. The [native retest](../LIVE_MCP_TSET/V3_7_3_LIVE_MCP_TEST_CONNECTION_ROUTING_2026_09_14_ZH.md)
+records nine new Luna contexts, three full workflows and current read-only
+MySQL/SQLite calls. DRR-2026-067 is implemented; DRR-2026-066 remains open because
+purpose-only targets still triggered a guessed query or unrequested default probe.
+Conflicting-scope trials respected the narrower restriction without clarifying.
+These observations do not indicate a SQL/write-policy bypass, and no diagnostic
+implementation or production prompt changed during this review. Related tests:
+92 passed; four Python files: Pyright 0 errors, 0 warnings.
+
+### Target clarification follow-up (2026-09-14, after the native review)
+
+Implemented the [explicit waiting rule](V3_7_3_CONNECTION_ROUTING_REMEDIATION_ZH.md#8-用途目标未确定时暂停数据库操作2026-09-14):
+when a purpose has no resolved target, references are ambiguous, a type has no
+unique match, or scopes conflict, optionally list configuration, then ask and
+wait. Do not explore schema, query, use Skills or run either diagnostic for that
+request meanwhile. This takes precedence over schema-first workflow hints.
+
+Targets come from explicit user choice, a trusted application binding applicable
+to the request, or the existing unique structured db_type match rule. Agent
+guesses, names, defaults and successful probes are not proof of intended purpose.
+Only generic connectivity without target clues or a resolved conversational/
+application target falls back to a default diagnostic; ordinary no-target queries
+retain existing default routing. No diagnostic mechanism or mandatory server confirmation was
+added; deterministic target enforcement remains an application/Host concern.
+
+Default suite: 635 passed, 4 skipped; six changed Python files pass Pyright.
+Local MCP discovery confirms the new metadata; description-free input/output
+schemas and annotations match the committed version under the same isolated
+configuration. Native Host metadata still precedes this follow-up, so behavior
+acceptance remains pending rather than reusing previous trial results.
+
+### Submission review (2026-09-15)
+
+The [new native review](../LIVE_MCP_TSET/V3_7_3_LIVE_MCP_TEST_CONNECTION_ROUTING_2026_09_15_ZH.md)
+confirms the Host now exposes the waiting rule. Twelve isolated Luna contexts
+made 36 tool attempts, including three complete workflows. Purpose clarification,
+default/all selection and returning to the chosen alias passed; conflicting
+scope still triggered the narrower default check without clarification. This
+remains an interaction-policy limitation, not observed scope expansion.
+
+Review also aligned current Skill parameter examples with skill_name and added
+real prompts/get versus tools/list checks, with mutation registration on/off and
+no Skill execution. Final tests: 637 passed, 4 skipped; six Python files pass
+Pyright. Table allowlist configuration being mistaken for physical table presence
+is tracked separately under DRR-2026-068. No diagnostic mechanism changed.
+
+The architecture remains deliberately small. Shared guidance grew and this Host
+repeats instructions in tool metadata; manage that distribution cost before
+adding more rules or a new routing framework. Keeping distinct single/business
+and batch/fresh diagnostics avoids an unnecessary API migration. See the native
+review for measured character counts, interpretation limits and commit scope.
+
+### Restriction and configuration follow-up (2026-09-15)
+
+The [current routing contract](V3_7_3_CONNECTION_ROUTING_REMEDIATION_ZH.md#10-限制优先级与配置语义补充修复2026-09-15)
+permits a requested diagnostic to follow an explicit restriction to one resolved
+alias or the default, reporting other connections unchecked. Prohibitions include
+connection checks; rejected partial checks or irreconcilable restrictions require
+waiting. Previous conflict trials retain their original grades. This does not
+authorize writes or change either diagnostic implementation.
+
+list_connections now adds an explanatory hint: its allowlist is configured access,
+not evidence of table existence or a physical inventory. This additive field
+causes no database I/O. Three new protocol cases cover absent databases and
+different configured, visible and physical table sets. Full tests: 640 passed,
+4 skipped; seven changed Python files pass Pyright with zero errors/warnings.
+
+The [new fixture review](../LIVE_MCP_TSET/V3_7_3_LIVE_MCP_TEST_CONNECTION_BOUNDARIES_2026_09_15_ZH.md)
+records 15 fresh Luna contexts and 13 actual MCP calls across two metadata phases.
+Final configuration interpretation passed 3/3, but explicit-prohibition cases
+still failed in 2/3 contexts. This is not native-Host acceptance; DRR-2026-066 stays
+Open. Runtime enforcement of per-request allowed targets needs trusted context
+and call validation at the application/Host boundary, not more equivalent prompts
+or a model-supplied confirmation field. No such new authorization interface is
+part of this change.
+
+For deployments requiring hard per-request target restrictions, trusted
+application/Host validation is a prerequisite before go-live. It must cover
+explicit aliases, the actual implicit default and all configured batch targets,
+and prevent bypassing that boundary. Trusted local use retains the documented
+limitation; the server does not implement this request-specific authorization.
+The added list_connections hint also means independently defined closed client
+response models may require an update; unchanged input contracts and existing
+output fields do not imply an unchanged set of output fields.

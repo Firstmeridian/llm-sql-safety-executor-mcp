@@ -149,6 +149,77 @@ def _cleanup_modules():
         sys.modules.pop(module_name, None)
 
 
+@pytest.mark.parametrize("database_exists", [False, True])
+def test_connection_catalog_does_not_verify_configured_tables(tmp_path, monkeypatch, database_exists):
+    """Configured tables can be missing and hidden tables can exist; discovery does no I/O."""
+    from fastmcp import Client
+
+    database = tmp_path / "configured.db"
+    if database_exists:
+        _create_rows_db(database, "orders", "visible")
+        _create_rows_db(database, "hidden_internal", "hidden")
+    before = database.read_bytes() if database_exists else None
+    module = _reload_server(
+        monkeypatch, database, tmp_path / "unavailable.db",
+        default_allowed_tables="orders,future_orders",
+    )
+    attempts = []
+
+    def unexpected_connection(*args, **kwargs):
+        attempts.append((args, kwargs))
+        raise AssertionError("configuration discovery must not inspect databases")
+
+    async def scenario():
+        with monkeypatch.context() as guard:
+            guard.setattr(module, "get_adapter", unexpected_connection)
+            guard.setattr(sqlite3, "connect", unexpected_connection)
+            async with Client(module.mcp) as client:
+                result = await client.call_tool("list_connections", {})
+                assert not result.is_error
+                payload = result.structured_content
+                assert isinstance(payload, dict)
+                assert payload["connections"][0]["policy"]["allowed_tables"] == ["future_orders", "orders"]
+                assert isinstance(payload["hint"], str) and payload["hint"]
+        assert not attempts
+
+    try:
+        asyncio.run(scenario())
+        assert database.exists() is database_exists
+        if database_exists:
+            assert database.read_bytes() == before
+        assert not (tmp_path / "unavailable.db").exists()
+    finally:
+        _cleanup_modules()
+
+
+def test_configured_allowlist_is_not_visible_or_physical_inventory(tmp_path, monkeypatch):
+    from fastmcp import Client
+
+    database = tmp_path / "inventory.db"
+    _create_rows_db(database, "orders", "visible")
+    _create_rows_db(database, "hidden_internal", "hidden")
+    module = _reload_server(
+        monkeypatch, database, tmp_path / "other.db",
+        default_allowed_tables="orders,future_orders",
+    )
+
+    async def scenario():
+        async with Client(module.mcp) as client:
+            catalog = (await client.call_tool("list_connections", {})).structured_content
+            visible = (await client.call_tool("list_tables", {"connection_id": "default"})).structured_content
+            assert isinstance(catalog, dict) and isinstance(visible, dict)
+            assert catalog["connections"][0]["policy"]["allowed_tables_count"] == 2
+            assert {row["table_name"] for row in visible["tables"]} == {"orders"}
+        with sqlite3.connect(database) as conn:
+            physical = {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+        assert physical == {"orders", "hidden_internal"}
+
+    try:
+        asyncio.run(scenario())
+    finally:
+        _cleanup_modules()
+
+
 def test_core_tools_resolve_policy_and_execution_to_same_connection(tmp_path, monkeypatch):
     default_db = tmp_path / "default.db"
     analytics_db = tmp_path / "analytics.db"

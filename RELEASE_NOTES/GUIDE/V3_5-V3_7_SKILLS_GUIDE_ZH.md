@@ -9,7 +9,10 @@
 > v3.7.0 的可选 Skill 连接范围、人工批准 host 和跨数据库 demo reset，以及
 > v3.7.1 的 opaque preview handle、精简响应与 Agent 渐进披露优化，
 > 以及 v3.7.2 的提交前影响行数约束、结构化事务结果、未知结果不重做和
-> framework-owned `run_execute()` 扩展边界。
+> framework-owned `run_execute()` 扩展边界。v3.7.3 补充连接路由、配置解读及
+> 参数示例修正；现行规则和已知限制见
+> [v3.7.3 发布说明](../RELEASE_NOTES_v3_7.md#v373--connection-routing-and-tool-contract-clarity)，
+> 没有改变本文的事务、批准机制或单 mutation worker 部署边界。
 
 > **示例名称迁移：** 版本对比和历史验证记录保留当时的 Skill 原名；当前配置、
 > 字段说明和调用示例使用 v3.7.2 的 `sample-` 名称。新旧名称对应关系见

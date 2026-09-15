@@ -1,11 +1,151 @@
 # MCP SQL Server Refactoring Log
 
-**Date:** December 2, 2025 (Updated: September 12, 2026)
+**Date:** December 2, 2025 (Updated: September 15, 2026)
 **Author:** Code Refactoring Session
 
 ## Overview
 
 This document records the major refactoring changes made to `mcp_sql_server.py` to follow FastMCP best practices and improve the overall design.
+
+## Update v3.7.3 - Connection Routing and Tool Contract Clarity (September 15, 2026)
+
+Assigned the current compatible routing/example corrections to v3.7.3 and
+updated the bilingual README version badges and maintenance summaries. This is
+repository version preparation; no tag or published release is created here.
+Batch diagnostics and the earlier Skill-name migration remain part of v3.7.2.
+
+The dated subsections below preserve each implementation/review stage, including
+earlier candidate-version decisions and failed trials. Current behavior and known
+limits are summarized in the [v3.7.3 notes](RELEASE_NOTES/RELEASE_NOTES_v3_7.md#v373--connection-routing-and-tool-contract-clarity).
+The [lessons and commit proposal](RELEASE_NOTES/GUIDE/V3_7_3_CONNECTION_ROUTING_REMEDIATION_ZH.md#12-本轮工程与协作经验)
+record reusable review practices. This version-only follow-up changes no Python;
+the preceding 640 passed / 4 skipped and seven-file Pyright results still apply
+to the same source. DRR-2026-066 remains Open.
+
+### Follow-up: Versioned document names and Chinese design record (September 15, 2026)
+
+Prefixed the v3.7.3 remediation guide and four dated connection-routing/boundary
+reports with V3_7_3_, and updated repository links. The prefix identifies the
+review's version scope, not the runtime version of every historical baseline.
+All five files were still untracked, so they were renamed without staging them.
+Raw evidence filenames, content and hashes are preserved.
+
+Added a complete [Chinese batch-diagnostics design record](RELEASE_NOTES/GUIDE/BATCH_CONNECTION_CHECK_DESIGN_ZH.md),
+with reciprocal language links and Chinese README navigation. Both editions
+include the current strict-deployment and closed-client response-model boundaries;
+dated validation figures and historical grades are retained. No Python or
+diagnostic implementation changed.
+
+### Follow-up: Current evaluation rules and deployment requirements (September 15, 2026)
+
+Aligned the reusable routing matrix with the current restriction rules, retaining
+historical trial grades. Corrected both DRR summaries to the September 15 review
+state and described the added list_connections hint accurately: input contracts
+and existing output fields remain unchanged, while independent closed client
+response models may need adaptation for the extra field.
+
+Documented trusted per-action scope enforcement as a prerequisite for deployments
+requiring hard restrictions. It must cover explicit aliases, implicit default
+resolution and all batch targets, without a model-supplied confirmation shortcut.
+No runtime authorization mechanism was added; trusted local use retains the
+known limitation. See the [review follow-up](RELEASE_NOTES/GUIDE/V3_7_3_CONNECTION_ROUTING_REMEDIATION_ZH.md#14-当前验收入口与部署边界复核2026-09-15).
+
+### Follow-up: Restricted diagnostics and configuration interpretation (September 15, 2026)
+
+Clarified the current diagnostic contract before new trials: an explicit
+restriction to one resolved alias/default narrows a broad request; prohibitions
+include connection checks, and rejected partial checks or irreconcilable
+restrictions require waiting. Keep earlier conflict grades unchanged.
+
+Added configuration-only guidance to list_connections and an additive result hint
+distinguishing policy from table existence/completeness. Three new protocol cases verify discovery does not
+connect/create files and that configured, visible and physical tables differ.
+Final suite: 640 passed, 4 skipped; seven Python files: Pyright 0 errors/warnings.
+
+Two phases of temporary SQLite / in-memory FastMCP Agent trials used 15 fresh Luna
+contexts and 13 actual calls. Final interpretation cases passed 3/3; forbidden
+target cases still failed in 2/3 contexts. DRR-2026-068 is implemented with local
+acceptance, while 066 remains Open; native acceptance of the latest descriptions
+is pending. This is guidance, not runtime per-request authorization. See the
+[fixture evidence](RELEASE_NOTES/LIVE_MCP_TSET/V3_7_3_LIVE_MCP_TEST_CONNECTION_BOUNDARIES_2026_09_15_ZH.md)
+and [complete pending-change table](RELEASE_NOTES/GUIDE/V3_7_3_CONNECTION_ROUTING_REMEDIATION_ZH.md#11-本次待提交修改的完整范围).
+
+### Submission review: Routing and public parameter contracts (September 15, 2026)
+
+Native Host discovery now includes the waiting rule. Twelve isolated Luna contexts
+made 36 MCP attempts, including three six-turn workflows. Purpose/default/all
+routing and correct first describe arguments passed; conflict clarification
+remains open, and configuration being overstated as table existence is recorded
+as DRR-2026-068. These are distinct from SQL authorization or write execution.
+
+Aligned remaining current Skill examples with skill_name in sql_assistant and
+bilingual README. Added two protocol cases comparing the
+retrieved prompt with actual tool schemas under conditional mutation registration;
+the describe example test now also reads prompt/initialize through MCP. No Skill
+or preview runs in the new test. Final suite: 637 passed, 4 skipped; metadata file:
+49 passed; six changed Python files: Pyright 0 errors, 0 warnings.
+
+The [complete review](RELEASE_NOTES/LIVE_MCP_TSET/V3_7_3_LIVE_MCP_TEST_CONNECTION_ROUTING_2026_09_15_ZH.md)
+records behavior limits, timing corrections, prompt distribution cost and why
+this is a compatible fix, not a new batch-diagnostics feature or API migration.
+
+### Follow-up: Wait for unresolved target selection (September 14, 2026)
+
+After the native review below, clarified target selection before database work.
+Purpose-only unresolved targets, ambiguous references, non-unique type matches
+and conflicting scopes allow optional configuration discovery, then require
+asking and waiting. Generic connectivity defaults apply only without target clues
+or a resolved conversational/application target. A default flag, alias name,
+agent guess or successful probe is not user selection.
+
+Updated shared routing, discovery/diagnostic descriptions, parameter help,
+sql_assistant and bilingual documentation.
+No tool signatures, diagnostic behavior, connection policies or version changed.
+Adjusted two existing assertions that depended on old wording; default tests:
+635 passed, 4 skipped. Six changed Python files: Pyright 0 errors, 0 warnings.
+Fresh local MCP metadata and schema compatibility were verified. Native Host
+metadata still precedes this follow-up; DRR-2026-066 remains open pending new
+behavior trials. See the [implementation record](RELEASE_NOTES/GUIDE/V3_7_3_CONNECTION_ROUTING_REMEDIATION_ZH.md#8-用途目标未确定时暂停数据库操作2026-09-14).
+
+### Review follow-up: Native Host validation (September 14, 2026)
+
+The restarted Host exposes the new routing and parameter descriptions; a live
+list_tables result confirms table_name in the runtime hint. Nine isolated Luna
+contexts made 36 tool attempts, including three full six-turn workflows. First
+describe arguments were correct in all three workflows; purpose-based target
+selection still caused one guessed query and one unsolicited default probe.
+Conflicting-scope trials respected the narrower restriction without clarifying.
+DRR-2026-067 is implemented; DRR-2026-066 remains open.
+
+Corrected current bilingual README tool counts and aggregate metadata guidance;
+historical entries retain their earlier counts. Moved only the uncommitted routing
+release note to Unreleased, with v3.7.3 proposed as a patch candidate. No production
+Python, version badge or tag changed during this review. Related tests: 92 passed;
+four Python files: Pyright 0 errors, 0 warnings. The
+[native review record](RELEASE_NOTES/LIVE_MCP_TSET/V3_7_3_LIVE_MCP_TEST_CONNECTION_ROUTING_2026_09_14_ZH.md)
+contains methods, remaining risks and release-scope qualifications.
+
+### Follow-up: Connection routing guidance and argument examples (September 13, 2026)
+
+Aligned shared routing, diagnostic tool/parameter help, `sql_assistant` and
+bilingual README sections. Unspecified
+connectivity defaults to one connection; remembered aliases are explicit;
+all-scope diagnostics require clear intent. Replaced six misleading
+`describe_table(name...)` hints with `table_name` and added a JSON example.
+Historical traces retain their original arguments and outcomes.
+
+No connection implementation, API signature, schema validation policy or write
+policy changed. Three new regressions cover advertised examples against the
+actual schema, normal/truncated hints and accepted/rejected MCP arguments.
+Validation: default suite `635 passed, 4 skipped`; affected metadata/contract
+suite `47 passed`; four changed Python files passed Pyright with the project
+virtualenv (`0 errors, 0 warnings`).
+
+Fresh stdio clients loaded separate A/B source snapshots for isolated Luna
+trials. This fixture Host is distinct from the IDE's previously connected
+service. Observed behavior limitations remain in DRR-2026-066/067; test details
+and pending native-Host acceptance are in the
+[remediation record](RELEASE_NOTES/GUIDE/V3_7_3_CONNECTION_ROUTING_REMEDIATION_ZH.md).
 
 ## Follow-up: Batch connection diagnostics (September 12, 2026)
 

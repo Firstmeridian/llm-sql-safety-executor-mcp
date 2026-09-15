@@ -1,0 +1,434 @@
+{
+  "source_sha256": "faa80dd1a321563b210f69a198452a5e8c648961c66a74a77d988c508d4cc8a4",
+  "environment": "Disposable in-memory FastMCP client; persistent SQLite fixtures; process per call; not native IDE MCP",
+  "instructions": "Database safety gateway with read-only core SQL tools and configured connection routing.\nConnection routing:\n- Resolve the target before schema exploration, queries, Skills, or connectivity checks. These routing rules take precedence over instructions to explore or query first.\n- Follow the user's current explicit target or scope. Pass exact aliases unchanged as connection_id; if rejected, do not correct them or fall back to another connection without user clarification.\n- A resolved target comes from the user's explicit choice, a trusted application binding for this request, or the unique database-type match below. An agent's guess, an alias name, the default flag, or a successful connection check does not establish the user's intended target. Pass an unambiguously referenced resolved alias explicitly; do not revert to the global default.\n- If the user specifies only a database type, call list_connections(). Use the only matching connection when exactly one has that db_type; otherwise ask for an exact alias.\n- Explicit prohibitions take precedence: do not access a forbidden target, including for a connection check. For requested connectivity, a restriction permitting one resolved alias or the default limits a broader request: check only that target and state that others were not checked. If partial checks are explicitly rejected or restrictions remain inconsistent, ask and wait instead. This rule does not authorize writes.\n- STOP when a purpose/role has no resolved target, a reference is ambiguous, a type has no unique match, or scope restrictions cannot be reconciled. If candidates are needed, call only list_connections(); then ask the user to choose or clarify and wait for their answer. Until then, do not inspect schema, query, discover or execute Skills, or run either connectivity check for that unresolved request. Do not present the default as a purpose match. Already known candidates need not be listed again.\n- If the user only asks which aliases are available, list them without connecting. If they need to choose a target, ask for that choice and wait; discovery itself is not selection.\n- Omitting connection_id selects only the configured default; it never means all connections.\n- For a generic connectivity request with NO target clues and NO resolved conversational or application target, call check_connection() for the default only and identify that scope in the reply. An unresolved purpose such as \"the analytics database\" is a target clue, not permission to use the default. For ordinary requests without target clues, existing default routing remains available; do not demand confirmation solely because connection_id is omitted.\n- Only when the user clearly requests and permits connectivity diagnostics across all configured connections, call check_connections() directly. An unambiguous continuation of a previously confirmed all-connection request also qualifies. Never infer this scope just from a generic connection problem.\n- For other read-only requests across all connections, call list_connections() and invoke the requested tool once per connection_id. Never broadcast mutations.\nUse query() for free-form reads. If structure is unknown, use list_tables() when names/counts are enough; use get_full_schema(detail_level=\"compact\") directly when broad columns or multi-table planning are needed.\nOptional Skills provide reviewed queries and, when enabled, controlled mutations that require preview plus a matching one-time token.",
+  "tools": [
+    {
+      "name": "list_connections",
+      "title": "List Configured Database Connections",
+      "description": "List configured database connection ids and non-sensitive policy metadata.\n\nThis does not open or test database connections. For requested connectivity\ndiagnostics across all aliases, use check_connections().\n\npolicy.allowed_tables describes configured access, not observed tables.\nIt does not prove that a listed table exists or that unlisted tables are\nabsent. Say \"configured to allow orders\", not \"the database only has orders\".\nWildcard/unrestricted access is also a policy, not a physical table inventory.\n\nDiscovery is not target selection: alias names and the default flag do not\nestablish a business purpose. When the requested purpose has no resolved\ntarget, or the reference/scope is ambiguous, present candidates neutrally,\nask the user to choose or clarify, and wait. Do not follow discovery with\nschema, query, Skill, or diagnostic calls for that unresolved request.\nA unique structured db_type match may resolve a type-only request.\n\nThis tool never returns DSNs, credentials, host names, passwords, or SQLite\nfile paths. A returned alias may be passed to read-only tools and Query\nSkills, subject to their policies and Skill scope. Mutation Skills may use\nthe default alias in compatibility mode; non-default aliases require the\nstrict named-write policy to authorize that connection and Skill. Discovery\nitself never authorizes writes. This tool takes no arguments.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "annotations": {
+        "title": "List Configured Database Connections",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "meta": {
+        "fastmcp": {
+          "tags": []
+        }
+      }
+    },
+    {
+      "name": "query",
+      "title": "Execute SQL Query",
+      "description": "Execute one policy-approved read-only SQL statement on the database.\n\nThis is the primary tool for free-form read-only SQL. Use metadata tools\nfor schema discovery and reviewed Query Skills for defined workflows.\nSafety validation is automatic - only read-only statements are allowed.\nSupported: SELECT, DESCRIBE, and non-ANALYZE EXPLAIN. Use list_tables()\nand describe_table() instead of raw SHOW statements.\nReturned payloads may be truncated for context safety; truncation does not\nlimit database work. Add WHERE/LIMIT/ORDER BY in SQL when needed.\n\nArgs:\n    sql: One SELECT, DESCRIBE, or non-ANALYZE EXPLAIN statement\n    \nReturns:\n    Query results with data rows, or error message if query fails\n    \nExamples:\n    query(\"SELECT * FROM users LIMIT 10\")\n    query(\"SELECT name, email FROM users WHERE active = 1\")\n    query(\"SELECT COUNT(*) as total FROM orders\")\n    query(\"DESCRIBE users\")\n    query(\"EXPLAIN SELECT * FROM products WHERE id = 1\")",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "sql": {
+            "description": "Read-only SQL query to execute (SELECT, DESCRIBE, or non-ANALYZE EXPLAIN).",
+            "maxLength": 20000,
+            "minLength": 1,
+            "type": "string"
+          },
+          "connection_id": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Connection alias. Pass exact aliases unchanged; omit only for default. Pass a resolved user/application target or unique db_type match explicitly. Use list_connections() to discover aliases or match a database type. For an unresolved purpose, ambiguous reference or irreconcilable scope restrictions, list candidates if needed, then ask and wait before database work. A default flag or successful check is not target selection. Omission never means all connections."
+          }
+        },
+        "required": [
+          "sql"
+        ],
+        "type": "object"
+      },
+      "annotations": {
+        "title": "Execute SQL Query",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "meta": {
+        "fastmcp": {
+          "tags": []
+        }
+      }
+    },
+    {
+      "name": "check_connection",
+      "title": "Check Database Connection",
+      "description": "Check one configured database connection; omission selects only the default.\nFor a generic connectivity request with no target clues and no resolved\nconversational/application target, check only the default. For a resolved\ntarget, pass connection_id explicitly. An unresolved purpose/role, ambiguous\nreference, or irreconcilable scope restrictions require clarification and waiting first; only\nlist_connections() may be used to offer candidates. Do not probe the default\nwhile waiting. A successful check does not establish the user's intended target.\nA prohibition on accessing a target includes this connection check.\nIf a broader connectivity request explicitly permits only one resolved alias\nor the default, check only that target and state that others were not checked.\nIf partial checks are explicitly rejected, ask and wait instead.\nUse check_connections() only for a clear request to check all configured aliases.\nThis reuses the business adapter. It does not use the batch tool's disposable\nconnections or its independent 30-second waiting budget.\n\nUse this only when the user requests a connectivity check or after a\ndatabase operation reports a connection failure. Do not call it as a\nroutine prerequisite before queries.\n\nReturns:\n    Connection status, database type, and configuration check",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "connection_id": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Connection alias. Pass exact aliases unchanged; omit only for default. Pass a resolved user/application target or unique db_type match explicitly. Use list_connections() to discover aliases or match a database type. For an unresolved purpose, ambiguous reference or irreconcilable scope restrictions, list candidates if needed, then ask and wait before database work. A default flag or successful check is not target selection. Omission never means all connections."
+          }
+        },
+        "type": "object"
+      },
+      "annotations": {
+        "title": "Check Database Connection",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "meta": {
+        "fastmcp": {
+          "tags": []
+        }
+      }
+    },
+    {
+      "name": "check_connections",
+      "title": "Check All Configured Database Connections",
+      "description": "Check fresh connectivity to ALL configured aliases; takes no arguments.\n\nUse only when the user clearly requests and permits ALL configured connections, including\nan unambiguous continuation of a previously confirmed all-connection request.\nA generic connection problem or missing alias alone does not request this scope.\nFor generic connectivity with no target clues and no resolved conversational/\napplication target, use check_connection() for the default only. For a resolved\nalias, pass connection_id explicitly to that tool. An unresolved purpose/role,\nambiguous reference, or irreconcilable scope restrictions require clarification and waiting;\nonly list_connections() may be used to offer candidates. Run neither diagnostic\nwhile waiting. Never run diagnostics routinely before queries.\nA prohibition on accessing any configured target rules out this ALL tool.\nA broader request restricted to one resolved alias or the default uses\ncheck_connection() for that target, with other connections reported unchecked;\nif partial checks are explicitly rejected, ask and wait instead.\n\nDisposable connections leave business connections and transactions alone.\nSQLite files open read-only; :memory: checks only a fresh memory connection.\nSQLite WAL auxiliary files may still involve filesystem writes.\nThis does not verify business tables, Skill readiness or write privileges.\nWithin a 30-second budget (shortened for a smaller MCP timeout), return\nconnected/failed results and timeout/not_checked entries with connected=null.\nIncomplete checks are not proof of connection failure. Underlying checks may\ncontinue cleaning up after the response; another batch then reports busy.\nBusy, stopped, or disabled diagnostics return an MCP tool error, not a report\nstatus. cleanup_failed records an observed cleanup exception separately from\nconnectivity; it disables further batches until the server process restarts.\nA false flag means no failure observed at report time, not verified release.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "all_connected": {
+            "title": "All Connected",
+            "type": "boolean"
+          },
+          "complete": {
+            "title": "Complete",
+            "type": "boolean"
+          },
+          "connection_count": {
+            "title": "Connection Count",
+            "type": "integer"
+          },
+          "connected_count": {
+            "title": "Connected Count",
+            "type": "integer"
+          },
+          "cleanup_failed": {
+            "title": "Cleanup Failed",
+            "type": "boolean"
+          },
+          "results": {
+            "additionalProperties": {
+              "discriminator": {
+                "mapping": {
+                  "connected": "#/$defs/ConnectedCheck",
+                  "failed": "#/$defs/FailedCheck",
+                  "not_checked": "#/$defs/IncompleteCheck",
+                  "timeout": "#/$defs/IncompleteCheck"
+                },
+                "propertyName": "status"
+              },
+              "oneOf": [
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "db_type": {
+                      "title": "Db Type",
+                      "type": "string"
+                    },
+                    "cleanup_failed": {
+                      "default": false,
+                      "title": "Cleanup Failed",
+                      "type": "boolean"
+                    },
+                    "status": {
+                      "const": "connected",
+                      "title": "Status",
+                      "type": "string"
+                    },
+                    "connected": {
+                      "const": true,
+                      "title": "Connected",
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "db_type",
+                    "status",
+                    "connected"
+                  ],
+                  "title": "ConnectedCheck",
+                  "type": "object"
+                },
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "db_type": {
+                      "title": "Db Type",
+                      "type": "string"
+                    },
+                    "cleanup_failed": {
+                      "default": false,
+                      "title": "Cleanup Failed",
+                      "type": "boolean"
+                    },
+                    "status": {
+                      "const": "failed",
+                      "title": "Status",
+                      "type": "string"
+                    },
+                    "connected": {
+                      "const": false,
+                      "title": "Connected",
+                      "type": "boolean"
+                    },
+                    "error": {
+                      "title": "Error",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "db_type",
+                    "status",
+                    "connected",
+                    "error"
+                  ],
+                  "title": "FailedCheck",
+                  "type": "object"
+                },
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "db_type": {
+                      "title": "Db Type",
+                      "type": "string"
+                    },
+                    "cleanup_failed": {
+                      "default": false,
+                      "title": "Cleanup Failed",
+                      "type": "boolean"
+                    },
+                    "status": {
+                      "enum": [
+                        "timeout",
+                        "not_checked"
+                      ],
+                      "title": "Status",
+                      "type": "string"
+                    },
+                    "connected": {
+                      "title": "Connected",
+                      "type": "null"
+                    },
+                    "error": {
+                      "default": "The diagnostic deadline was reached.",
+                      "title": "Error",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "db_type",
+                    "status",
+                    "connected"
+                  ],
+                  "title": "IncompleteCheck",
+                  "type": "object"
+                }
+              ]
+            },
+            "title": "Results",
+            "type": "object"
+          }
+        },
+        "required": [
+          "all_connected",
+          "complete",
+          "connection_count",
+          "connected_count",
+          "cleanup_failed",
+          "results"
+        ],
+        "title": "ConnectionReport",
+        "type": "object"
+      },
+      "annotations": {
+        "title": "Check All Configured Database Connections",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "meta": {
+        "fastmcp": {
+          "tags": []
+        }
+      }
+    },
+    {
+      "name": "list_tables",
+      "title": "List Visible Database Tables",
+      "description": "Visible database overview: list allowed tables with approximate row counts.\n\nUse this lightweight tool when table names, counts, and approximate row\ncounts are enough. If broad columns or multi-table planning are needed,\ncall get_full_schema(detail_level=\"compact\") directly; it already includes\nreturned table names and row estimates. Results may be truncated by\nMAX_OVERVIEW_TABLES. Row counts are estimates:\n- MySQL: from INFORMATION_SCHEMA (InnoDB is a rough estimate)\n- SQLite: from sqlite_stat1 or bounded sampling\n\nAn individual row_count is null when the adapter cannot safely provide an\nestimate; null does not mean that the table is empty.\n\nUse describe_table(table_name=...) for full adapter-visible column metadata of one\nselected table, not complete DDL.\n\nReturns:\n    Database name, visible table counts, and returned table rows",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "connection_id": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Connection alias. Pass exact aliases unchanged; omit only for default. Pass a resolved user/application target or unique db_type match explicitly. Use list_connections() to discover aliases or match a database type. For an unresolved purpose, ambiguous reference or irreconcilable scope restrictions, list candidates if needed, then ask and wait before database work. A default flag or successful check is not target selection. Omission never means all connections."
+          }
+        },
+        "type": "object"
+      },
+      "annotations": {
+        "title": "List Visible Database Tables",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "meta": {
+        "fastmcp": {
+          "tags": []
+        }
+      }
+    },
+    {
+      "name": "describe_table",
+      "title": "Describe Table Structure",
+      "description": "Get one selected table's full adapter-visible column metadata and row count\nestimate. This is not complete DDL: indexes, foreign keys, checks, and other\nbackend-specific properties may be absent.\n\nDo not call repeatedly to survey many tables. Use get_full_schema with\ndetail_level=\"compact\" for broad columns, or detail_level=\"full\" when full\nadapter-visible column metadata is needed across several tables.\n\nReturns column details plus approximate row count:\n- MySQL: from INFORMATION_SCHEMA (InnoDB is a rough estimate)\n- SQLite: from sqlite_stat1 or bounded sampling\n\nIf the backend cannot provide an estimate, row_count,\nrow_count_approximate, and is_large are null. Null means unknown, not an\nempty or small table.\n\nIncludes is_large flag and recommendations for large tables.\n\nArgs:\n    table_name: Name of the table to describe\n\nExample arguments (replace the table and alias with the selected target):\n    {\"table_name\": \"orders\", \"connection_id\": \"analytics_demo_sqlite\"}\n    \nReturns:\n    Table structure with columns, row count, and query recommendations",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "table_name": {
+            "type": "string"
+          },
+          "connection_id": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Connection alias. Pass exact aliases unchanged; omit only for default. Pass a resolved user/application target or unique db_type match explicitly. Use list_connections() to discover aliases or match a database type. For an unresolved purpose, ambiguous reference or irreconcilable scope restrictions, list candidates if needed, then ask and wait before database work. A default flag or successful check is not target selection. Omission never means all connections."
+          }
+        },
+        "required": [
+          "table_name"
+        ],
+        "type": "object"
+      },
+      "annotations": {
+        "title": "Describe Table Structure",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "meta": {
+        "fastmcp": {
+          "tags": []
+        }
+      }
+    },
+    {
+      "name": "get_full_schema",
+      "title": "Get Visible Database Schema",
+      "description": "Get a compact or full visible database schema overview in one call.\n\nUse compact for exploring unknown databases, explaining table purposes, or\nplanning across tables. Compact columns are returned as [name, type] pairs;\ntables with equal adapter-visible column metadata can share one group while\nretaining every table and row estimate. This grouping does not establish\ncomplete DDL, index, or constraint equivalence. Call compact directly instead\nof list_tables when the task already needs broad columns. Use full only when\nnullable, default, or key metadata is needed across several tables. The\nparameter defaults to compact; request full explicitly when its additional\nmetadata is needed.\n\nResults may be filtered by allowlist and truncated by MAX_SCHEMA_TABLES.\n\nWorks with both MySQL and SQLite databases.\n\nReturns:\n    Compact schema groups or full table schemas plus visible table counts",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "connection_id": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Connection alias. Pass exact aliases unchanged; omit only for default. Pass a resolved user/application target or unique db_type match explicitly. Use list_connections() to discover aliases or match a database type. For an unresolved purpose, ambiguous reference or irreconcilable scope restrictions, list candidates if needed, then ask and wait before database work. A default flag or successful check is not target selection. Omission never means all connections."
+          },
+          "detail_level": {
+            "default": "compact",
+            "description": "Use compact for table discovery, broad schema explanation, or multi-table planning. Use full for nullable, default, and key metadata. Defaults to compact.",
+            "enum": [
+              "compact",
+              "full"
+            ],
+            "type": "string"
+          },
+          "group_identical": {
+            "default": true,
+            "description": "Compact mode only; defaults to true. Group tables when their complete current adapter-visible column metadata and column order are equal. This is not proof of full DDL, index, or constraint equivalence. Ignored in full mode.",
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "annotations": {
+        "title": "Get Visible Database Schema",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "meta": {
+        "fastmcp": {
+          "tags": []
+        }
+      }
+    }
+  ],
+  "prompt": {
+    "description": "System prompt for SQL query assistance.",
+    "messages": [
+      {
+        "role": "user",
+        "content": {
+          "type": "text",
+          "text": "Database query assistant.\n\nTools (choose based on need):\n- list_connections(): Show configured connection ids and their non-sensitive policies; takes no arguments\n- query(sql, connection_id): Execute conservative free-form read-only SQL; EXPLAIN ANALYZE is rejected\n- list_tables(connection_id): Visible table overview with row estimates; may be truncated\n- describe_table(table_name, connection_id): Single-table adapter-visible column metadata + row estimate + is_large hint; not complete DDL\n- get_full_schema(connection_id, detail_level, group_identical): Compact adapter-visible column groups or full adapter-visible column metadata; grouping is not full DDL equivalence\n- check_connection(connection_id): Check one alias (default if omitted), only on request or connection errors\n- check_connections(): Check fresh connectivity to all configured aliases in one bounded diagnostic report; only for a clear all-connection request\n\nConnection routing:\n- Resolve the target before schema exploration, queries, Skills, or connectivity checks. These routing rules take precedence over instructions to explore or query first.\n- Follow the user's current explicit target or scope. Pass exact aliases unchanged as connection_id; if rejected, do not correct them or fall back to another connection without user clarification.\n- A resolved target comes from the user's explicit choice, a trusted application binding for this request, or the unique database-type match below. An agent's guess, an alias name, the default flag, or a successful connection check does not establish the user's intended target. Pass an unambiguously referenced resolved alias explicitly; do not revert to the global default.\n- If the user specifies only a database type, call list_connections(). Use the only matching connection when exactly one has that db_type; otherwise ask for an exact alias.\n- Explicit prohibitions take precedence: do not access a forbidden target, including for a connection check. For requested connectivity, a restriction permitting one resolved alias or the default limits a broader request: check only that target and state that others were not checked. If partial checks are explicitly rejected or restrictions remain inconsistent, ask and wait instead. This rule does not authorize writes.\n- STOP when a purpose/role has no resolved target, a reference is ambiguous, a type has no unique match, or scope restrictions cannot be reconciled. If candidates are needed, call only list_connections(); then ask the user to choose or clarify and wait for their answer. Until then, do not inspect schema, query, discover or execute Skills, or run either connectivity check for that unresolved request. Do not present the default as a purpose match. Already known candidates need not be listed again.\n- If the user only asks which aliases are available, list them without connecting. If they need to choose a target, ask for that choice and wait; discovery itself is not selection.\n- Omitting connection_id selects only the configured default; it never means all connections.\n- For a generic connectivity request with NO target clues and NO resolved conversational or application target, call check_connection() for the default only and identify that scope in the reply. An unresolved purpose such as \"the analytics database\" is a target clue, not permission to use the default. For ordinary requests without target clues, existing default routing remains available; do not demand confirmation solely because connection_id is omitted.\n- Only when the user clearly requests and permits connectivity diagnostics across all configured connections, call check_connections() directly. An unambiguous continuation of a previously confirmed all-connection request also qualifies. Never infer this scope just from a generic connection problem.\n- For other read-only requests across all connections, call list_connections() and invoke the requested tool once per connection_id. Never broadcast mutations.\n\nDecision rules (only after applying the connection routing rules above):\n- Unknown structure? Use list_tables() when names/counts are enough. If broad columns or multi-table planning are needed, call get_full_schema(detail_level=\"compact\") directly; it already includes table names and row estimates.\n- Need nullable, default, or key metadata? Use describe_table() for one selected table or get_full_schema(detail_level=\"full\") across several tables.\n- For single-table queries, if schema/columns unknown, call describe_table(table_name) before query().\n- Know the table? Query directly with appropriate LIMIT\n- is_large=true in response? Use LIMIT or aggregation\n- Unknown Skill? Use targeted list_skills(..., detail_level=\"compact\"), then get_skill_detail(..., detail_level=\"execution\") only if params are unknown.\n- Known Skill but unknown params? Call get_skill_detail(..., detail_level=\"execution\") directly.\n- Params already known, including from list_skills(detail_level=\"full\")? Execute directly; for mutations, preview first with confirm=false.\n- UNION policy is connection-specific. Inspect the selected alias in list_connections(); query() and Query Skills enforce that target's policy.\n\nFor raw query() calls, include the executed SQL in the response. For Skills,\nreport the Skill name, params, and connection_id; do not invent SQL that was\nnot disclosed."
+        }
+      }
+    ]
+  }
+}

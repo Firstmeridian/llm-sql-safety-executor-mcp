@@ -1,8 +1,115 @@
-# Release Notes v3.7 — Scoped Skills and v3.7.2 Maintenance
+# Release Notes v3.7 — Scoped Skills and v3.7.3 Maintenance
 
 - Release family: v3.7
 - Initial release: v3.7.0 (2026-08-22)
-- Current maintenance update: v3.7.2 (2026-09-10)
+- Current repository version: v3.7.3 (prepared 2026-09-15)
+- Publication status: version preparation; no v3.7.3 tag or published release is created by this update
+
+## v3.7.3 — Connection Routing and Tool Contract Clarity
+
+This maintenance update is assigned v3.7.3. It corrects Agent routing guidance,
+public parameter examples and configuration interpretation while preserving tool
+signatures and database execution policies. The explanatory list_connections
+hint is additive metadata; it does not add a database operation. Batch diagnostics
+were already committed under v3.7.2 and are not a new feature of this update.
+Input contracts and existing output fields remain unchanged; the response gains
+an explanatory field. Independently defined closed client response models may
+reject that field and require an update, so compatibility with every such model
+is not guaranteed.
+
+The patch classification follows the compatibility impact of these corrections,
+not their line count. See the [version decision and commit message](GUIDE/V3_7_3_CONNECTION_ROUTING_REMEDIATION_ZH.md#13-v373-版本归属与提交说明).
+Known Agent behavior limits remain recorded below; assigning a version does not
+close DRR-2026-066 or establish native-Host acceptance of the latest guidance.
+Deployments requiring hard per-request target restrictions must implement and
+validate trusted call authorization before go-live, covering explicit aliases,
+the actual implicit default and all targets of a batch check. The current local
+server does not provide that mechanism; see the [deployment acceptance criteria](GUIDE/MCP_AGENT_BEHAVIOR_VALIDATION_ZH.md#18-限制优先级与配置解读的可复用验收).
+
+### Fixed: connection routing and parameter examples
+
+Clarified shared routing, both diagnostic tool descriptions and connection
+parameter help: a generic connectivity request with no
+target clues and no resolved conversational/application target checks only the
+default; a resolved alias is passed explicitly; all-connection diagnostics require
+clear all-scope intent and permission. A purpose without a resolved target, ambiguous reference,
+non-unique type match or irreconcilable scope restrictions permit only optional configuration
+discovery, followed by clarification and waiting before database work.
+
+For requested diagnostics, an explicit restriction permitting one resolved alias
+or the default narrows a broader request; check only that target and identify the
+unchecked scope. Prohibitions include connection checks. If partial checks are
+explicitly rejected or the restrictions cannot be reconciled, ask and wait.
+This rule does not authorize writes. list_connections adds a short configuration
+hint: allowed_tables does not prove existence or physical completeness; listing
+still performs no database I/O.
+
+The waiting rule takes precedence over schema/query/Skill workflows for Agents.
+A resolved target comes from explicit user choice, a trusted application binding
+for this request, or a unique structured
+db_type match for a type-only request. Agent guesses, alias names, default flags
+and successful probes do not establish business intent. Ordinary requests without
+target clues retain existing default routing. This is Agent guidance, not a new
+server-enforced confirmation mechanism.
+
+Updated six current `describe_table` examples/hints to use `table_name`, and
+added a JSON argument example. No input alias, tool merge, automatic argument
+repair or runtime connection-policy change was introduced. Tests compare public
+examples and normal/truncated response hints with the published input schema,
+and exercise correct arguments and rejection of `name` through FastMCP.
+The final review also aligned current Skill examples with `skill_name` in
+sql_assistant and README workflows. Protocol tests
+compare the retrieved prompt with tool schemas with mutation registration both
+enabled and disabled; they do not execute a Skill or preview.
+
+Restart/reconnect and fresh Host tool discovery are required for updated guidance
+to reach an Agent. Temporary SQLite stdio evaluations are recorded separately
+from the existing IDE service; they are not evidence that its cached descriptions
+have refreshed. See the [implementation and validation record](GUIDE/V3_7_3_CONNECTION_ROUTING_REMEDIATION_ZH.md)
+and [Agent trials](LIVE_MCP_TSET/V3_7_3_LIVE_MCP_TEST_CONNECTION_ROUTING_2026_09_13_ZH.md)
+for remaining behavior risks and the distinction between first-call correctness
+and eventual task completion.
+
+Native-Host review before the waiting-rule follow-up (2026-09-14): the restarted
+service exposed stage A/B instructions and table-name hints. Three fresh Luna
+workflows used the documented
+`table_name` on their first describe call. Purpose-based alias guessing and
+unrequested diagnostic preflights still occurred; conflicting-scope responses
+respected the narrower restriction but did not ask for clarification. These are
+remaining Agent-routing issues, not a new SQL authorization bypass. See the
+[native-Host review](LIVE_MCP_TSET/V3_7_3_LIVE_MCP_TEST_CONNECTION_ROUTING_2026_09_14_ZH.md).
+After that review, the explicit waiting rule was implemented. Local validation:
+`635 passed, 4 skipped`; six changed Python files passed Pyright with zero errors
+and warnings. Fresh in-memory MCP discovery confirmed updated metadata and
+unchanged schemas/annotations against HEAD after excluding description text.
+At that point native Host discovery still exposed the previous rule, so new
+Agent acceptance was pending. See the
+[follow-up record](GUIDE/V3_7_3_CONNECTION_ROUTING_REMEDIATION_ZH.md#8-用途目标未确定时暂停数据库操作2026-09-14).
+
+Current README counts and metadata summaries now account for 7–13 tools and
+aggregate diagnostics; historical version entries remain unchanged.
+
+Native review before the restriction/configuration follow-up (2026-09-15): the Host exposes the waiting rule. Twelve
+isolated Luna contexts made 36 MCP attempts, including three complete workflows.
+Purpose clarification and default/all/context routing passed; conflicting scopes
+still led to a narrower default check without clarification. DRR-2026-066 remains
+open. Two first-turn replies overstated table allowlists as physical table facts;
+that separate interpretation risk is DRR-2026-068. The later Skill-name example
+fix was verified locally, not through native Skill execution. Final validation:
+637 passed, 4 skipped; six Python files pass Pyright with zero errors/warnings.
+See the [complete review and evidence](LIVE_MCP_TSET/V3_7_3_LIVE_MCP_TEST_CONNECTION_ROUTING_2026_09_15_ZH.md).
+
+The subsequent [fixture boundary review](LIVE_MCP_TSET/V3_7_3_LIVE_MCP_TEST_CONNECTION_BOUNDARIES_2026_09_15_ZH.md)
+records 15 isolated Luna contexts and 13 actual MCP calls over two metadata
+phases. Final configuration interpretation passed 3/3; explicit prohibition
+cases still failed in 2/3 contexts. DRR-2026-068 is implemented with initial local
+acceptance; DRR-2026-066 stays open. Native discovery and acceptance of this latest
+guidance remain pending; old native grades are not changed. Three new protocol
+cases verify no connection/file creation during discovery and distinguish policy,
+visible schema and physical tables. Final tests: 640 passed, 4 skipped; seven
+Python files pass Pyright with zero errors/warnings. The
+[complete pending-change table](GUIDE/V3_7_3_CONNECTION_ROUTING_REMEDIATION_ZH.md#11-本次待提交修改的完整范围)
+separates these fixes from batch diagnostics already committed earlier.
 
 ## v3.7.2 — Write Transactions and Uncertain Results
 
@@ -25,6 +132,7 @@ are required. Restart the server to expose the new tool.
 The [design record](GUIDE/BATCH_CONNECTION_CHECK_DESIGN.md) documents why shared
 business connections were rejected, including the SQLite rollback experiment,
 output states, resource ownership, and validation requirements.
+A [Chinese edition](GUIDE/BATCH_CONNECTION_CHECK_DESIGN_ZH.md) is also available.
 
 Review follow-up: output branches now require `status` and `connected`. Observed
 cleanup exceptions set per-result/report `cleanup_failed`, preserve connectivity

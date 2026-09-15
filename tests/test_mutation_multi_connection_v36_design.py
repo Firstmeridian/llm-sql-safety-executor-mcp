@@ -390,13 +390,13 @@ def test_server_instructions_describe_optional_mutations(tmp_path, monkeypatch):
         assert "read-only core SQL tools" in module.mcp.instructions
         assert "controlled mutations" in module.mcp.instructions
         assert "one-time token" in module.mcp.instructions
-        assert "pass it unchanged" in module.mcp.instructions
+        assert "Pass exact aliases unchanged" in module.mcp.instructions
         assert "only a database type" in module.mcp.instructions
         assert "exactly one has that db_type" in module.mcp.instructions
-        assert "only a purpose or role" in module.mcp.instructions
-        assert "do not infer a connection from alias names" in module.mcp.instructions
+        assert "purpose/role has no resolved target" in module.mcp.instructions
+        assert "An agent's guess, an alias name, the default flag" in module.mcp.instructions
         assert "asks which aliases are available" in module.mcp.instructions
-        assert "ask them to choose an exact alias" in module.mcp.instructions
+        assert "ask for that choice and wait" in module.mcp.instructions
         assert "it never means all connections" in module.mcp.instructions
         assert "Never broadcast mutations" in module.mcp.instructions
         prompt = module.sql_assistant()

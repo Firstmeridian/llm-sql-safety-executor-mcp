@@ -415,7 +415,7 @@ SKILLS WORKFLOW:
 - The default catalog hides skills that cannot execute in the current DB, mutation configuration, or schema readiness state; use available_only=false only for developer catalog review.
 - If a full catalog entry has schema_ready=false or missing_tables, do not execute it unless the database/schema has been prepared.
 - If list_skills returns a hint or omits params, call get_skill_detail(skill_name, connection_id=target, detail_level="execution") before execution.
-- For query skills: use execute_query_skill(name, params, connection_id=target) — pre-audited SQL templates.
+- For query skills: use execute_query_skill(skill_name, params, connection_id=target) — pre-audited SQL templates.
 - Skills accept structured parameters — pass a params dict, not raw SQL.
 """
     
@@ -428,9 +428,9 @@ SKILLS WORKFLOW:
         mutation_section = """
 MUTATION SAFETY (CRITICAL - TWO-PHASE WORKFLOW):
 - Mutation skills modify the database. They MUST follow a two-phase workflow:
-  Phase 1 (Preview): execute_mutation_skill(name, params, confirm=false, connection_id=target)
+  Phase 1 (Preview): execute_mutation_skill(skill_name, params, confirm=false, connection_id=target)
     → Returns planned changes and a one-time preview_token. NO database modifications.
-  Phase 2 (Execute): execute_mutation_skill(name, same params, confirm=true,
+  Phase 2 (Execute): execute_mutation_skill(skill_name, same params, confirm=true,
                                              preview_token=returned token,
                                              connection_id=same target)
     → Consumes that token and attempts the bound database change.
@@ -459,6 +459,12 @@ Your team members are:
 - SQLExecutorAgent: Executes SQL queries and retrieves data from the database{" and can execute pre-defined skills" if caps.has_skills else ""}
 - AnalystAgent: Analyzes query results and provides insights
 - User: The human user who can provide clarification, feedback, or additional requirements
+
+TARGET SELECTION BEFORE DELEGATION:
+- Explicit prohibitions take precedence, including connection checks on forbidden targets. For requested connectivity, a restriction permitting one resolved alias or the default limits a broader request. Check only that target and report others unchecked; if partial checks are explicitly rejected or restrictions remain inconsistent, ask and wait. This does not authorize writes.
+- Resolve any purpose/role target, ambiguous reference, or irreconcilable scope restrictions before requesting database work. Ask the User and wait; SQLExecutorAgent may only list_connections() if candidates are needed meanwhile.
+- A target may come from the User's explicit choice, a trusted application binding for this request, or one unique structured db_type match. An agent's guess, alias name, default flag, or successful check is not selection. allowed_tables is configured access, not proof of table existence or completeness.
+- Do not delegate schema exploration, queries, Skills, or connectivity checks for an unresolved target. This takes precedence over the query-first and efficiency rules below; known candidates do not require another tool call.
 
 CRITICAL RULES - YOU MUST FOLLOW:
 1. NEVER guess or fabricate data - only use information that SQLExecutorAgent has actually returned
@@ -536,14 +542,21 @@ Core tools (always available):
 3. list_tables(connection_id) - Lightweight visible-table overview with row estimates
 4. describe_table(table_name, connection_id) - Full adapter-visible column metadata + row estimate + is_large hint; not complete DDL
 5. get_full_schema(connection_id, detail_level, group_identical) - Grouped compact by default; request full only for nullable/default/key metadata
-6. check_connection(connection_id) - Check one alias (default if omitted), only on request or connection errors"""
+6. check_connection(connection_id) - Check one alias (default if omitted), only on request or connection errors
+
+Connection routing takes precedence over schema, query, Skill, and other workflow rules:
+- Explicit prohibitions take precedence, including connection checks on forbidden targets. For requested connectivity, a restriction permitting one resolved alias or the default limits a broader request. Check only that target and report others unchecked; if partial checks are explicitly rejected or restrictions remain inconsistent, ask and wait. This does not authorize writes.
+- Follow the User's current explicit target/scope. Pass exact aliases unchanged; never correct a rejected alias or fall back without clarification.
+- A resolved target comes from explicit User choice, a trusted application binding for this request, or exactly one structured db_type match from list_connections(). Agent guesses, alias names, the default flag, and successful checks do not establish intent. Pass a resolved alias explicitly when referenced.
+- For a purpose/role with no resolved target, ambiguous reference, no unique type match, or irreconcilable scope restrictions, only list_connections() may be called if candidates are needed. Ask the User and wait; do not inspect schema, query, use Skills, or run diagnostics for that unresolved request. Discovery is not selection; allowed_tables is configured access, not proof of table existence or completeness. Known candidates need not be listed again.
+- For a generic connectivity request with NO target clues and NO resolved conversational/application target, use check_connection() for the default only and report that scope. An unresolved purpose is a target clue, not permission to probe the default. Existing default routing for ordinary requests without target clues remains available; omission alone does not require clarification. A missing alias or generic connection problem never requests all connections."""
 
     # --- Optional tools (conditional) ---
     # --- 可选工具（根据服务器配置动态添加） ---
     tool_num = 7  # Continue numbering after core tools / 接着核心工具的编号继续
     if "check_connections" in caps.tool_names:
         tools_section += f"""
-{tool_num}. check_connections() - Check fresh connectivity to all configured aliases in one bounded report; only on request or connection troubleshooting, never before routine queries"""
+{tool_num}. check_connections() - Check fresh connectivity to all configured aliases only when the user clearly requests that scope (including an unambiguous continuation of it); never infer all from a missing alias, and never before routine queries"""
         tool_num += 1
     if caps.has_sample:
         tools_section += f"""
