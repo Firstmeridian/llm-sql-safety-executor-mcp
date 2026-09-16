@@ -261,7 +261,9 @@ LLM(Agents)不能凭空生成SQL，需要有一定的上下文基础。这里的
 
 - SQL 必须经过 `is_sql_safe()` 校验
 - 参数必须强类型验证（type/min/max/enum），而非自然语言理解
-- Mutation（变更数据操作，INSERT/UPDATE/DELETE）必须走预制的 `MutationBase` 子类（事务、乐观锁、回滚）
+- Mutation（INSERT/UPDATE/DELETE）必须走已审查的 Skill 类：单条语句优先使用
+  `ManagedMutationBase` 由框架执行；命令式 `MutationBase` 仅作为可信扩展，整个
+  操作的事务结论保守为 `unknown`
 - mutation preview/execute 路径由服务端尝试 best-effort 审计记录
 
 标准 Agent Skills 没有这些机制，因为其设计假设是"Agent 在受控 VM 里自由操作"，而本项目的假设是"**Agent 不受信任，Server 强制执行所有安全约束**"。
@@ -822,7 +824,7 @@ HTTP 批准和合规级批准人审计不属于当前设计。自定义批准 pr
 
 - Skill audit params 只做长度截断，不按 key/value 脱敏。请把 Skill 参数视为业务审计数据，不要把 secret、token、凭据或敏感个人数据作为 Skill 参数传入。
 - 开启 mutation skills 后，mutation audit 会自动尝试记录，但审计写入失败不会阻断操作；query skill audit 仍保持 opt-in（`SKILLS_AUDIT_QUERIES=0` 默认关闭），避免意外记录读查询参数。v3.5 审计条目可包含安全别名 `connection_id` 和实际 `db_type`，仍不包含 DSN、host、密码、SQLite 文件路径、SQL 文本或返回行。
-- Token 前的参数/validation 拒绝和审计写入失败可能返回 `audit_logged=false` 的正常工具结果。有效 token 一旦被 execute 消费，后续动态 validation 拒绝会尝试 best-effort execute audit。JSONL audit 仍是可见性辅助，不是 fail-closed 事务控制。
+- Token 前的参数/validation 拒绝和审计写入失败可能返回 `audit_logged=false` 的正常工具结果。命令式 execute 消费有效 token 后，后续动态 validation 拒绝会尝试 best-effort execute audit；受管确认不执行动态 Skill validation。JSONL audit 仍是可见性辅助，不是 fail-closed 事务控制。
 - 如果数据库写入已经提交，但随后 context 通知或响应构造失败，系统会保留已有 success audit，不再追加矛盾的 failure。能返回 fallback 时结果为 `success=false, execution_outcome=committed`；响应完全丢失时客户端仍只能判为未知。两者都必须终止当前流程，token 仍保持已消费。
 - 进程本地 preview-token store 支持推荐的 stdio 路径，以及有条件的单个受信任私有 HTTP mutation 进程；多用户认证 HTTP、跨 worker/跨副本 mutation 不属于当前设计，且绝不回退到 stateless token acceptance。
 - `SKILLS_AUDIT_LOG`、`TOOL_TELEMETRY_LOG_PATH` 和 `logs/sql_safety_checker_*.log` 都是本地文件。生产环境应放在可信存储上，限制文件权限，并使用外部轮转/保留机制，例如 `logrotate`、平台日志、cron cleanup 或托管日志 sink。常见起点是按天或按大小轮转、压缩，并根据合规需求保留 14-90 天。
@@ -894,6 +896,29 @@ SKILLS_AUDIT_QUERIES=1
 
 历史版本条目保留当时的 Skill 原名；当前名称见
 [v3.7.2 迁移表](RELEASE_NOTES/RELEASE_NOTES_v3_7.md#sample-skill-names-and-local-files)。
+
+### 受管单语句 Mutation（2026年9月16日）
+
+本轮补充纳入首次正式发布前的同一 v3.7.3。以下 Skill 作者接口调整仍需迁移，
+版本号不变不表示扩展契约完全兼容；详见
+[版本范围与兼容性说明](RELEASE_NOTES/RELEASE_NOTES_v3_7.md#v373--managed-single-statement-mutation-contract)。
+
+- 新增不可变的 `ManagedMutationPlan`，只允许一条参数化 INSERT、UPDATE 或 DELETE。
+  discovery 会校验语句、命名绑定、frontmatter 参数引用、精确行数约束和结果字段。
+- 受管 preview 的 `preview_sql`、`bound_params` 由框架从缓存计划和最终 binding
+  生成，拒绝 Skill 自行提供；SQL 值和结果映射必须在签发 token 前解析成功。
+  结果映射同时保留 `error`、`error_code`，避免成功审计夹带错误字段。
+- 确认阶段消费 preview handle 后，由框架解析缓存计划并直接调用 adapter；该路径不
+  实例化 Skill，也不调用其 `validate()`、`execute()` 或 `execute_with_binding()`。所有可变业务条件
+  必须进入 SQL 谓词，并由 `expected_rowcount` 在 COMMIT 前验证。
+- 两个内置 mutation 示例已迁移。精确结论只描述框架唯一执行的受管数据库语句，
+  不证明模块导入或 preview 阶段的 Python 没有其它副作用。
+- 命令式 `MutationBase` 保留为可信、实验性逃生口；回调可能多次写入或产生框架
+  无法观察的副作用，所以整个 Skill 的成功和失败仍为 `unknown`。
+- `SKILLS_ALLOW_MUTATIONS=0` 时只解析 mutation 元数据并校验 source 路径，不导入
+  自定义 `mutation.py`。启用写入并重启后才会导入模块。
+- 删除 `exact_transaction_outcome` 扩展标志及内置名称/路径/类注册机制。发布前的
+  自定义 Skill 应迁移到 `ManagedMutationBase`，或明确保留命令式语义。
 
 ### v3.7.3 连接路由与工具契约说明修正（2026年9月）
 
@@ -1639,23 +1664,31 @@ summary/full 输出中的 `configured_connection_ids` 只表示该 Skill 声明�
 权限、Skill 或 token 拒绝仍抛 `ToolError`。客户端必须同时检查 `success` 和
 `execution_outcome`：提交后响应阶段失败可能是
 `success=false, execution_outcome=committed`，而异常或响应缺失对客户端仍是未知。
-`committed` 只来自两个 exact 内置 Skill 保留下来的成功 adapter COMMIT 证据；
-普通自定义 Skill 成功为 `success=true, execution_outcome=unknown`，参考宿主将其作为
+`committed` 只来自已校验受管计划保留下来的成功 adapter COMMIT 证据；
+命令式自定义 Skill 成功为 `success=true, execution_outcome=unknown`，参考宿主将其作为
 terminal unknown。自定义结果若缺失 `success`、类型错误或显式为 false，会成为
 结构化 unknown 失败，不会被服务端升级。对 COMMIT 前清理，`rollback_failed`
 表示 rollback 调用抛异常；`rollback_unconfirmed` 表示调用在本地正常返回，但事务/
 连接无法提供充分的数据库侧证据。两者均为 `execution_outcome=unknown`，不得自动重试。
-`MutationBase.run_execute()` 由框架拥有：若自定义类直接覆盖它，或从中间自定义父类
+`MutationBase.run_execute()` 在命令式路径中由框架拥有：若自定义类直接覆盖它，或从中间自定义父类
 继承了替代实现，discovery 会拒绝该 Skill。业务逻辑必须放在 `execute()` 或
 `execute_with_binding()`，避免绕开框架的事务结论、错误脱敏与审计包装。Python
 `@final` 用于提示类型检查器，loader 检查才是运行时强制；这仍不是不可信代码
 sandbox。MCP 会直接调用基类 wrapper，因此 discovery 后替换子类同名方法也会被
 忽略；可信代码仍可篡改框架基类或其它同进程对象。
-`exact_transaction_outcome=True` 同样只允许框架登记的两个内置单语句 Skill 使用。
-自定义 Skill 即便复用内置名称，声明它仍会在 discovery 时被拒绝：loader 要核对
-内置源码路径并登记实际加载的类身份。基类 wrapper 还会同时检查 MCP 提供的权威
-Skill 名和该类身份。因而自定义声明不能把某一条语句的 COMMIT 或 rollback 提升为
-整个 Skill 的精确结论。
+`exact_transaction_outcome` 已不再支持。自定义 Skill 若需要单条语句的精确数据库
+证据，必须继承 `ManagedMutationBase` 并声明有效的不可变 `ManagedMutationPlan`。
+确认阶段使用 discovery 时缓存的计划，不调用 Skill 执行回调。该结论只覆盖这条
+受管数据库语句，不证明模块导入、preview 回调、恶意同进程 monkeypatch 或其它
+同一信任边界代码没有副作用。
+受管 Skill 的 `preview_sql`、`bound_params` 在 token 签发前由框架从同一缓存计划
+和最终 binding 生成。Skill 回调只提供业务说明、warnings 和 binding 所需状态；
+自行提供这两个保留字段或解析失败都会返回工具错误，不签发 token。业务文字与估计值
+仍是 Skill 提供的内容，需要审核。
+`error_code` 是可扩展字符串集合：已公布含义保持稳定，但客户端不能假设不再增加，
+应以身份校验、`success` 和 `execution_outcome` 为主；未知码绝不构成自动重试许可。
+`managed_plan_resolution_failed` 表示确认期值解析在 adapter 写调用之前失败，
+对应 `execution_outcome=not_executed`。
 本版没有持久 operation ID 或回执查询。后来观察到业务状态符合请求预期，不能证明
 请求级归因；未来查询不到回执，也不能单独证明已回滚，除非该协议已明确权威一致性、
 处理中状态、保留期和 terminal-not-found 语义。暂缓设计的触发条件统一登记在
@@ -1764,7 +1797,7 @@ ORDER BY date ASC
 ```
 skills/sample-update-order-status/
 ├── skill_def.md                  # 技能定义
-├── mutation.py                   # Python 逻辑（验证 + 预览 + 执行）
+├── mutation.py                   # preview 逻辑 + 不可变受管写计划
 └── references/
     └── status-transitions.md     # 状态转换规则文档
 ```
@@ -1814,8 +1847,8 @@ bearer `preview_token` handle，不实际修改数据。
 
 服务端 Store record 会绑定 skill name、skill version、规范化后的 params、解析后的
 `connection_id`、DB 类型、过期时间，以及最小 preview-time execution state。
-Handle 只能使用一次：execute 会在动态 validation 和数据库写入前原子匹配并消费
-record；若此后 validation、数据库、timeout、audit 或响应失败使结果不确定，调用方
+Handle 只能使用一次：execute 会在命令式动态 validation 或受管/命令式数据库写入前
+原子匹配并消费 record；若此后 validation、数据库、timeout、audit 或响应失败使结果不确定，调用方
 必须先核查当前业务状态，再决定是否进行新的 preview/mutation，不能盲目重试。
 静态 request/policy 拒绝或 request-binding 不匹配不会消耗有效 record。默认有效期
 为 `MUTATION_PREVIEW_TOKEN_TTL_SECONDS=300`，有效范围是 `1-86400` 秒。进程内
@@ -1833,7 +1866,8 @@ Bearer confidentiality 在 token 消费或过期前仍然重要；短 TTL、精�
 - **状态机验证**：`validate()` 检查当前状态是否允许转换到目标状态
 - **Preview token 绑定**：`confirm=true` 必须携带匹配预览调用返回的 token
 - **一次性消费**：一个 token 最多授权一次 execute 尝试；结果不确定时不自动重试
-- **Preview 状态绑定**：状态敏感 Skill 可实现 `build_execution_binding()` / `execute_with_binding()`，确保执行遵守服务端展示的状态；只有客户端实际展示时才存在人类审阅
+- **Preview 状态绑定**：受管 Skill 通过 `build_execution_binding()` 捕获展示状态；
+  确认阶段把 binding 解析进缓存 SQL 谓词，不再调用 Skill Python
 - **失败 preview 处理**：preview 结果含 `error` 或报告 `success=false` 时不签发 token
 - **乐观锁**：执行时使用 `WHERE status = :expected_status`，并在 COMMIT 前强制 `expected_rowcount=1`；零行或多行都会回滚
 - **事务结论**：只有确认 rollback 的提交前失败才报告 `rolled_back`；COMMIT 回执失败报告 `unknown`；MySQL 保证仅限事务性 InnoDB DML
@@ -1880,8 +1914,8 @@ preview，并优先为每个 live-test 场景启动新的 stdio server 进程。
 `.gitignore` 中明确列出的四个内置示例目录和框架目录 `_lib/`。
 新建的 `sample-*` 目录也会被忽略；新增内置示例时需同步更新 `.gitignore`。
 目录名仍须与 frontmatter 的 `name` 一致。
-此前缀仅用于仓库命名与版本管理，不授予执行权限或精确事务资格；源码路径与
-加载类身份检查仍然生效。
+此前缀仅用于仓库命名与版本管理，不授予执行权限或受管计划资格；元数据/路径校验、
+Mutation 开关、连接白名单和受管计划校验仍然生效。
 
 `skills/SKILLS.md` 是启动时生成的本地清单，`skills/_audit.jsonl` 是默认审计输出，
 两者均不再纳入版本控制；共享示例说明保留在本文和各示例的 `skill_def.md` 中。
@@ -1891,7 +1925,7 @@ preview，并优先为每个 live-test 场景启动新的 stdio server 进程。
 现有配置升级请参阅[名称迁移表](RELEASE_NOTES/RELEASE_NOTES_v3_7.md#sample-skill-names-and-local-files)。
 
 部署或重启服务前，应审核自定义 Skill 的所有文件及其依赖。Git 忽略规则不影响
-发现流程，也不提供执行隔离：启用的 mutation 模块会在 discovery 阶段导入，
+发现流程，也不提供执行隔离：`SKILLS_ALLOW_MUTATIONS=1` 时 mutation 模块会在 discovery 阶段导入，
 执行模块顶层的 Python 代码。数据库账号应遵循最小权限原则，并将实际 Skill
 目录与连接策略一起审核，详见[技能安全规范](skills/SAFETY.md#11-mutationpy-execution-constraints)。
 
@@ -1910,13 +1944,21 @@ preview，并优先为每个 live-test 场景启动新的 stdio server 进程。
 
 **写操作技能**（mutation）：
 1. 同上创建目录和 `skill_def.md`（`type: mutation`），须包含 `source` 字段指向 Python 文件（如 `source: mutation.py`）
-2. 编写对应的 `.py` 文件，定义继承自 `MutationBase` 的具体 `Mutation` 类，文件名须与 `source` 字段一致
-3. 实现 `validate()`、`preview()`、`execute()` 三个方法
-4. 对状态敏感写入，实现 `build_execution_binding()` 和 `execute_with_binding()`，确保执行使用 preview 时展示的状态。若 Skill 产生非空 binding 却未显式处理，基类会拒绝执行
-5. 不要覆盖 `run_execute()`，也不要通过中间自定义父类继承替代实现。它是框架拥有的结果/脱敏/审计包装器，discovery 会拒绝覆盖；已有包装逻辑应迁移到 `execute()` 或 `execute_with_binding()`
-6. 不要设置 `exact_transaction_outcome=True`；精确的整个 Skill 契约只保留给框架登记的两个内置单语句 Mutation，自定义成功仍为 `execution_outcome=unknown`
-7. 设置 `ENABLE_SKILLS=1` 和 `SKILLS_ALLOW_MUTATIONS=1`，确保数据库账号具备所需写入权限。若配置 `SKILLS_ALLOW_MUTATION_CONNECTIONS` 启用严格模式，目标连接必须在该列表中，且设置 `DB_<ID>_ALLOW_MUTATIONS=1`，并将该 Skill 名称加入 `DB_<ID>_MUTATION_SKILLS`。未启用严格模式时，写操作仍限于默认连接
-8. 审核 Skill 代码与连接策略后，重启服务
+2. 优先编写继承 `ManagedMutationBase` 的具体 `Mutation` 类，声明不可变
+   `ManagedMutationPlan`：一条直接参数化 INSERT/UPDATE/DELETE、命名值来源、
+   `expected_rowcount` 和可选结果字段。`validate()`、`preview()` 与可选的
+   `build_execution_binding()` 仅服务 preview；所有可变条件都必须进入 SQL 谓词。
+   受管 `preview()` 只返回业务说明、warnings 和状态，删除自行生成的
+   `preview_sql`、`bound_params`；框架负责生成，并在 token 签发前拒绝未解析的 SQL/
+   结果值。[结果保留字段清单](skills/SAFETY.md#11-mutationpy-execution-constraints)
+3. 只有无法用一条语句表达、且经过信任审查的工作流才使用 `MutationBase`。实现
+   `validate()`、`preview()`、`execute()`，需要时再实现 binding 方法；整个操作始终
+   返回 `execution_outcome=unknown`
+4. 不要覆盖 `run_execute()`，也不要通过中间自定义父类替换；它是命令式路径的框架包装器
+5. 删除 `exact_transaction_outcome`；discovery 会拒绝这个旧标志。受管资格来自已
+   校验的 plan 类型，不来自 Skill 名称、文件路径、布尔声明或 Python 返回对象
+6. 设置 `ENABLE_SKILLS=1` 和 `SKILLS_ALLOW_MUTATIONS=1`，确保数据库账号具备所需写入权限。若配置 `SKILLS_ALLOW_MUTATION_CONNECTIONS` 启用严格模式，目标连接必须在该列表中，且设置 `DB_<ID>_ALLOW_MUTATIONS=1`，并将该 Skill 名称加入 `DB_<ID>_MUTATION_SKILLS`。未启用严格模式时，写操作仍限于默认连接
+7. 审核 Skill 代码与连接策略后，重启服务
 
 > **关于 `source` 字段**：`source` 是必填字段，显式声明技能定义文件（`skill_def.md`）与执行文件的关联。
 > 这遵循**显式配置原则**（Explicit Configuration），与 GitHub Actions（`action.yml` 的 `main` 字段）、
@@ -1972,7 +2014,7 @@ flowchart LR
 
 **Mutation 两阶段执行流程**
 
-写操作 Skill 提供了符合 Anthropic ["可验证的中间输出"](https://docs.anthropic.com/en/docs/build-with-claude/agentic-systems#practices-for-effective-agentic-systems) 思路的 preview。Agent 可以检查它；只有客户端/host 实际展示并收集决定时，用户才会参与审阅。
+写操作 Skill 提供供审核的中间 preview，借鉴 [Anthropic Building Effective Agents](https://www.anthropic.com/engineering/building-effective-agents) 中在工作流步骤间加入程序检查的思路；这是本项目的设计，并非 Anthropic 规定的协议。Agent 可以检查它；只有客户端/host 实际展示并收集决定时，用户才会参与审阅。
 
 ```mermaid
 sequenceDiagram
@@ -1990,24 +2032,28 @@ sequenceDiagram
     Mutation->>DB: SELECT 查询当前状态
     DB-->>Mutation: 当前记录
     MCP->>Mutation: preview(params)
-    Mutation-->>Agent: 预览 + preview_token（不实际执行）
+    Mutation-->>MCP: 业务说明 + binding 状态
+    MCP->>Mutation: build_execution_binding(params, validation, preview)
+    Mutation-->>MCP: 最终 binding
+    MCP->>MCP: 解析计划值、生成 SQL/bound_params、签发 token
+    MCP-->>Agent: 预览 + preview_token（无框架写入）
 
     Note over Agent,DB: 阶段 2: 确认执行 (confirm=true)
     Agent->>MCP: execute_mutation_skill(skill_name, params, true, preview_token)
     MCP->>MCP: validate_name + validate_params（重新校验）
     MCP->>MCP: 查询 handle、比较请求绑定并原子消费
-    MCP->>Mutation: run_execute(params)
-    Mutation->>Mutation: validate(params) — 重新验证（TOCTOU 防护）
-    Mutation->>Adapter: execute_write(UPDATE ... WHERE status=:expected)
+    MCP->>MCP: 解析缓存 ManagedMutationPlan + preview binding
+    MCP->>Adapter: execute_write(UPDATE ... WHERE status=:expected, expected_rowcount=1)
     Adapter->>DB: BEGIN → UPDATE → COMMIT
     DB-->>Adapter: rowcount
-    Mutation->>Audit: log(操作详情)
-    Mutation-->>Agent: 执行结果
+    MCP->>Audit: log(操作详情)
+    MCP-->>Agent: 执行结果
 ```
 
 > **设计参考**：
-> - *"Give models less freedom for higher-stakes operations."* — [Anthropic, "Building effective agents" (2024)](https://docs.anthropic.com/en/docs/build-with-claude/agentic-systems)
-> - Phase 2 中 `validate()` 的重复调用是**有意为之**的 TOCTOU 防护：预览和确认之间数据状态可能已改变
+> - 优先简单、可组合的工作流，收益明确时才增加复杂度（概括）。— [Anthropic, Building Effective Agents](https://www.anthropic.com/engineering/building-effective-agents)。受管单语句路径是本项目对该建议的应用。
+> - 受管确认不会重复 Python `validate()`。它通过 preview-bound SQL 谓词和 COMMIT
+>   前行数约束防止 TOCTOU；命令式 Skill 仍会再次校验，但整个操作只能报告 `unknown`
 > - 参数绑定使用 SQLAlchemy `text()` + 参数字典，遵循 [OWASP SQL 注入防护](https://cheatsheetseries.owasp.org/cheatsheets/SQL_Injection_Prevention_Cheat_Sheet.html) 规范
 
 **skill_def.md 格式设计**
@@ -2057,7 +2103,7 @@ execute_query_skill("sample-monthly-sales-report", {"year": 2026, "month": 1})
 |----------|------|-------------|
 | *"Offload the burden from the model and use code where possible."* | [OpenAI — Function Calling (2025)](https://platform.openai.com/docs/guides/function-calling#best-practices-for-defining-functions) | Skills 预制 SQL/Python 逻辑，Agent 只传参数 |
 | *"Use clear and descriptive function/parameter names and descriptions."* | [Google Gemini — Function Calling](https://ai.google.dev/gemini-api/docs/function-calling#best_practices) | YAML frontmatter 提供结构化的名称、描述和参数约束 |
-| *"Give models less freedom for higher-stakes operations."* | [Anthropic — Building Effective Agents](https://docs.anthropic.com/en/docs/build-with-claude/agentic-systems) | Mutation 操作走受约束的 `MutationBase`，非自由代码 |
+| 优先简单、可组合的工作流（概括） | [Anthropic — Building Effective Agents](https://www.anthropic.com/engineering/building-effective-agents) | 本项目设计：受管 plan 指定一条框架执行的语句 |
 | *"Validate all inputs"* | [MCP 规范 §7 — 安全](https://modelcontextprotocol.io/specification/2025-03-26/basic/security) | Skills 执行调用校验 skill 名称和参数；基础工具使用 SQL/table 专用校验 |
 | 参数化查询 | [OWASP — SQL 注入防护](https://cheatsheetseries.owasp.org/cheatsheets/SQL_Injection_Prevention_Cheat_Sheet.html) | SQLAlchemy `text()` + 参数绑定，零字符串拼接 |
 

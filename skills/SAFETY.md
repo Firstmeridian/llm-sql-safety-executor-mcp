@@ -8,9 +8,9 @@ Bundled examples reserve the `sample-` prefix. Git ignores immediate directories
 under `skills/` except the four bundled examples explicitly listed in `.gitignore`
 and the framework directory `_lib/`. New `sample-*` directories are also ignored;
 adding a bundled example requires updating `.gitignore`. The prefix does not establish
-trust, grant write permission, or enable exact transaction outcomes. Only the
-explicitly registered bundled source paths and loaded classes qualify for the
-exact contract. The default generated `skills/SKILLS.md` and audit output
+trust, grant write permission, or enable exact transaction outcomes. Only a
+validated `ManagedMutationPlan` execution path qualifies for exact single-
+statement database evidence. The default generated `skills/SKILLS.md` and audit output
 `skills/_audit.jsonl` are local ignored files. Git ignore rules do not remove
 already tracked data, erase Git history, or protect secrets; configure ignore
 rules separately for alternate local Skill roots and audit paths.
@@ -59,9 +59,11 @@ workers behind a normal load balancer. Requests that reach another process fail
 closed, and the server never falls back to stateless token acceptance. Read-only
 capacity may scale only through a separate read-only endpoint, profile, or pool.
 
-State-sensitive mutation Skills should override `build_execution_binding()` and
-`execute_with_binding()` so execution uses the state shown during preview. A
-non-empty binding is rejected by default rather than silently ignored.
+State-sensitive managed Skills should override `build_execution_binding()` so
+execution uses the state shown during preview. The framework resolves that
+binding into the cached statement after consuming the token; it does not
+instantiate or invoke Skill Python during confirmation. Imperative Skills may also implement
+`execute_with_binding()` but retain conservative whole-operation semantics.
 
 ## 4. Dual-Layer Switches
 
@@ -69,7 +71,8 @@ non-empty binding is rejected by default rather than silently ignored.
   are registered and the entire extension is invisible.
 - `SKILLS_ALLOW_MUTATIONS` — Second switch. When `0` (default), only
   read-only query skills are available; `execute_mutation_skill` is not
-  registered as an MCP tool.
+  registered as an MCP tool. Discovery still parses mutation metadata and
+  validates source containment, but does not import custom mutation modules.
 
 ## 5. Timeout Protection
 
@@ -94,25 +97,52 @@ authorizes automatic retry in the reference host: `committed` must not repeat,
 and every other execute result terminates the current flow for operator/business
 state review.
 
-The two built-in single-statement mutations call
+The two built-in single-statement mutations declare immutable managed plans that call
 `execute_write(..., expected_rowcount=1)`. The adapter executes the statement,
 checks its exact row count, and only then commits. Zero rows means preview-state
 conflict; multiple rows mean unsafe target cardinality; both are rolled back
 when rollback succeeds. Omitting `expected_rowcount` deliberately preserves the
 old legal batch-write behavior for custom Skills.
 
-Custom Skills retain the existing dict result/call interface, but both their
-success and failure are `unknown` unless there is complete whole-Skill evidence.
+Imperative Skills retain the existing dict result/call interface, but once their
+callback runs, both success and failure are always whole-operation `unknown`.
 An ordinary custom return therefore becomes `success=true,
 execution_outcome=unknown`; it is not upgraded merely because Python returned
 normally or one `execute_write()` call committed. A false, missing, or malformed
 Skill `success` result becomes structured `invalid_skill_result, unknown`.
 
-The two built-ins opt into the exact single-statement contract and must preserve
-the adapter's typed successful `WriteExecutionResult`; declaration without that
-evidence fails as `missing_commit_evidence, unknown`. `MutationBase.run_execute()`
-is the framework-owned wrapper for result validation, whole-Skill outcome
-classification, sanitization, and execution audit. Discovery rejects a direct
+`ManagedMutationBase` provides the exact single-statement contract. Discovery
+validates and caches its `ManagedMutationPlan`; confirmation resolves all
+parameter/result values before the write and calls the adapter exactly once.
+Only preserved adapter COMMIT evidence yields `committed`; missing evidence is
+`missing_commit_evidence, unknown`. The path does not instantiate the Skill or
+call `validate()`, `execute()`, or `execute_with_binding()`.
+
+Managed previews have one authoritative SQL source: after the Skill supplies
+business context and the final execution binding, the framework generates
+`preview_sql` from the cached plan and `bound_params` with the same resolver used
+at confirmation. Both SQL values and result mappings must resolve before token
+issuance. A managed Skill supplying either reserved preview field is rejected,
+even if the value happens to match. Missing or invalid values are safe tool
+errors with no token and no framework write. Bindings are resolved from the
+serialized state stored with the token, preventing a separate display binding.
+Business descriptions, warnings and estimates remain reviewed Skill content;
+this does not make arbitrary Python or its prose trustworthy. The existing
+process-local immutable plan and one-time store suffice; no plan hash or durable
+receipt is added. Restarting loses the token store and requires a new preview.
+
+`error_code` is an extensible string set, not a closed enum. Published meanings
+remain stable. For an unrecognized code, clients must still validate response
+identity, `success` and `execution_outcome`; missing or contradictory evidence
+remains unknown. An unknown code never permits automatic retry.
+`managed_plan_resolution_failed` is the confirmation-path fallback for value
+resolution failure before any adapter write call, with `not_executed`. Normal
+preview validation prevents such an incomplete binding from receiving a token.
+This outcome is scoped to the managed statement, not prior trusted Python effects.
+
+`MutationBase.run_execute()` remains the framework-owned wrapper for imperative
+result validation, whole-Skill outcome classification, sanitization, and
+execution audit. Discovery rejects a direct
 override or one inherited through an intermediate application base class, with
 a migration message directing business logic to `execute()` or
 `execute_with_binding()`. Python's `@final` marker helps static type checkers;
@@ -120,20 +150,16 @@ the loader identity check is the runtime enforcement. MCP directly invokes the
 base method rather than dispatching through the custom instance, so a post-load
 subclass-method replacement is ignored. The MCP boundary retains only a
 fail-closed typed-result guard for base-level tampering or framework regressions.
-The loader also reserves `exact_transaction_outcome=True` for the two
-framework-registered built-in single-statement Skills. It checks the actual
-bundled `mutation.py` source path (not just the public name), registers the
-loaded class identity, and rejects a custom declaration even when a custom
-`SKILLS_DIR` reuses a built-in name. `run_execute()` requires that exact class
-identity and the authoritative MCP Skill name before honoring the flag. Thus
-one adapter result cannot be self-promoted to a whole-Skill claim merely by
-copying a name and class attribute. Ordinary same-named custom Skills are
-allowed with the default flag, but their whole-operation result is `unknown`.
+`exact_transaction_outcome` is obsolete and rejected. Managed eligibility comes
+from the validated plan type, not a public name, path, class registry, boolean
+flag, or Skill-produced result object. This removes the prior built-in-only
+extension bottleneck while preventing an imperative callback from promoting one
+adapter result to a whole-Skill claim.
 A rollback reported for one adapter statement must not
 be used to claim that earlier statements,
 nontransactional tables, implicit commits, files, subprocesses, network calls,
-or other external side effects were rolled back. v3.7.2 does not introduce a
-multi-statement transaction framework. Because Mutation Python is trusted
+or other external side effects were rolled back. The current contract does not
+introduce a multi-statement transaction framework. Because Mutation Python is trusted
 in-process code, this evidence prevents accidental overclaim but cannot stop a
 malicious Skill from forging objects or performing hidden side effects.
 On a custom Skill's row-count mismatch, the sanitized error names the target
@@ -287,12 +313,14 @@ Log path: `SKILLS_AUDIT_LOG` env var (default: `skills/_audit.jsonl`).
 Audit write failures are logged by the server but do not block the mutation
 operation or roll back already completed data changes. Pre-token
 parameter/validation rejection and audit write failures can return normal tool
-metadata with `audit_logged=false`. Once execute atomically consumes a valid
-token, a later dynamic validation rejection attempts a best-effort execute
-audit. Treat the audit file as a visibility aid, not as a fail-closed
+metadata with `audit_logged=false`. Once imperative execute atomically consumes
+a valid token, a later dynamic validation rejection attempts a best-effort
+execute audit. Managed confirmation performs no dynamic Skill validation after
+consumption. Treat the audit file as a visibility aid, not as a fail-closed
 transaction control.
 
-`MutationBase.run_execute()` owns the audit outcome for the database execution.
+`MutationBase.run_execute()` and `run_managed_mutation()` own the corresponding
+audit outcome for database execution.
 If the write commits and later context notification or response construction
 fails, the server preserves the success audit rather than appending a
 contradictory execute failure. If a fallback result can be delivered it says
@@ -322,9 +350,11 @@ platform logging, cron cleanup, or a managed log sink) in production.
 
 ## 11. mutation.py Execution Constraints
 
-Discovery imports `mutation.py` as trusted local project code and requires it
-to export a concrete `Mutation` class that subclasses `MutationBase`. This is
-a structural loader invariant, not a sandbox for untrusted plugins.
+When `SKILLS_ALLOW_MUTATIONS=1`, discovery imports `mutation.py` as trusted
+local project code and requires it to export a concrete `Mutation` class that
+subclasses `MutationBase`. With the switch off, discovery parses metadata and
+checks source containment without importing mutation application code. Neither
+mode is a sandbox for untrusted plugins.
 
 Review all custom Skill files and their dependencies before deployment or server
 startup: importing a mutation module executes its module-level Python code.
@@ -332,7 +362,7 @@ Git ignore rules do not affect discovery and are not an execution allowlist.
 Audit the actual configured Skill directory, including ignored local files, and
 use database credentials with only the privileges required by the deployment.
 
-`MutationBase.run_execute()` is not an extension point. Mutation classes must
+`MutationBase.run_execute()` is not an extension point for imperative Skills. Mutation classes must
 not define it or inherit a replacement from an intermediate custom base class;
 the loader rejects either shape during discovery. Existing custom Skills that
 did so must move business behavior into `execute()` or, for preview-state-bound
@@ -342,38 +372,50 @@ one framework path. Trusted in-process Python can still monkeypatch classes or
 the base after discovery, so the rule prevents accidental bypass and contract
 drift rather than providing a sandbox against malicious local code.
 
-Custom Skills must leave `exact_transaction_outcome=False`. Setting it to true
-does not create whole-operation evidence and causes discovery to reject the
-Skill. Extending exact outcomes to another Skill requires framework registry,
-transaction-boundary, failure-path, and documentation review; it is not a
-normal author extension switch.
-Changing `SKILLS_DIR` to a different directory does not make a same-named custom
-implementation bundled. The loader requires the reviewed source location and
-the execution wrapper rechecks the discovered class identity. This is not a
-sandbox against a trusted Python module that deliberately mutates the registry,
-framework methods, or the bundled source itself.
+Custom Skills must not declare `exact_transaction_outcome`; it is a removed
+pre-release contract. For one statement, inherit `ManagedMutationBase` and
+declare a frozen `ManagedMutationPlan`. The plan must contain one direct
+INSERT/UPDATE/DELETE, exact named value sources, a non-negative integer
+`expected_rowcount`, and optional non-reserved result fields. Discovery rejects
+multiple statements, reads, missing/extra binds, unknown frontmatter params,
+mutable shapes, and overrides of managed execution methods.
+Result mappings cannot use `success`, `rowcount`, `execution_outcome`,
+`_audit_logged`, `error`, or `error_code`; these belong to the framework and audit
+contract. Managed `preview()` returns business context, warnings and state for
+`build_execution_binding()`, without `preview_sql` or `bound_params`. Existing
+pre-release implementations must remove those two fields, including from error
+previews; clients continue to receive framework-generated fields on success.
+
+Managed Skill Python still runs at module import and during preview. Exact
+evidence therefore means only that confirmation's framework-owned database path
+executed that one statement; it does not prove the Skill lifecycle had no file,
+network, process, import-time, preview-time, or malicious monkeypatch effects.
+Every mutable business invariant needed at confirmation must be represented in
+the SQL predicate using params/constants/preview binding and protected by the
+pre-COMMIT row-count invariant.
 Connection-level `MUTATION_SKILLS` remains an intentional name-based allowlist
 over the *configured* Skill catalog, not a source-identity check: replacing
 `SKILLS_DIR` with a same-named custom Skill may still authorize that Skill's
 write under existing policy. Review the Skill directory and connection policy
-together when deploying custom implementations. Exact-outcome eligibility is a
-separate, narrower source-and-class check.
+together when deploying custom implementations. Managed-plan eligibility is a
+separate execution contract.
 
-Concrete write implementations should perform writes only through
+Imperative write implementations should perform writes only through
 `self.adapter.execute_write()`. `MutationBase.execute()` remains abstract so a
 Skill that implements neither execution contract fails during discovery. A
-state-sensitive Skill may satisfy that interface with an `execute()` method
+state-sensitive imperative Skill may satisfy that interface with an `execute()` method
 that fails closed and place its only write path in `execute_with_binding()`.
-Revisit the base-class shape only when multiple binding-only Skills justify a
-loader invariant requiring an override of at least one execution method.
+Managed Skills instead inherit final execution methods that reject direct calls;
+the MCP framework is their only confirmation path.
 Direct file I/O, network requests, or subprocess calls are prohibited. Code
 reviewers must verify that `mutation.py` uses only the base class API
 (`self.adapter.execute()`, `self.adapter.execute_write()`).
 
 ## 12. Error Sanitization
 
-`MutationBase.run_execute()` catches exceptions and sanitizes them via
-`adapter._handle_error()` before raising `ToolError`. This prevents
+`MutationBase.run_execute()` and `run_managed_mutation()` catch processable
+exceptions and sanitize them via `adapter._handle_error()` before returning a
+structured failure. This prevents
 leaking connection strings, table schemas, or internal details to the
 LLM agent.
 

@@ -1,13 +1,17 @@
 # MCP Agents Skills Design Document
 
-> **Design baseline**: 3.7.2 (unchanged by the v3.7.3 routing/tool-contract update)
+> **Design baseline**: v3.7.3, including the 2026-09-16 managed-mutation contract corrections
 > **Status**: Implemented
-> **Date**: 2026-09-12
+> **Date**: 2026-09-16
 > **References**: [Skills safety policy](skills/SAFETY.md), [design risk register](DESIGN_RISK_REGISTER.md), [v3.6 release-family notes](RELEASE_NOTES/RELEASE_NOTES_v3_6.md), and [v3.7 release notes](RELEASE_NOTES/RELEASE_NOTES_v3_7.md)
 
 Current routing guidance and parameter examples are maintained in the
 [v3.7.3 notes](RELEASE_NOTES/RELEASE_NOTES_v3_7.md#v373--connection-routing-and-tool-contract-clarity).
-This document retains the implementation history of the Skills design.
+The [v3.7.3 managed-mutation follow-up](RELEASE_NOTES/RELEASE_NOTES_v3_7.md#managed-single-statement-mutation-contract--september-16-2026)
+removes the former exact-outcome flag/registry:
+single-statement writes use a cached `ManagedMutationPlan` and confirmation
+does not call Skill Python. Imperative callbacks remain trusted extensions with
+whole-operation outcome `unknown`.
 
 ## 1. Overview
 
@@ -51,10 +55,10 @@ Skills are discoverable, auditable, and controlled by environment variables.
 │  │                   skills/_lib/                          │  │
 │  │  ┌──────────────┐ ┌──────────────┐ ┌────────────────┐  │  │
 │  │  │ skill_loader  │ │mutation_base │ │    audit       │  │  │
-│  │  │  discover()   │ │ MutationBase │ │ AuditLogger    │  │  │
-│  │  │  load_query() │ │ validate()   │ │ log()          │  │  │
-│  │  │  load_mutation│ │ preview()    │ │ JSONL output   │  │  │
-│  │  │  validate_*() │ │ execute()    │ │                │  │  │
+│  │  │  discover()   │ │ ManagedPlan  │ │ AuditLogger    │  │  │
+│  │  │  load_query() │ │ managed run  │ │ log()          │  │  │
+│  │  │  load_mutation│ │ imperative   │ │ JSONL output   │  │  │
+│  │  │  validate_*() │ │ base/run     │ │                │  │  │
 │  │  └──────┬────────┘ └──────┬───────┘ └───────┬────────┘  │  │
 │  └─────────┼─────────────────┼─────────────────┼───────────┘  │
 │            │                 │                 │              │
@@ -78,9 +82,16 @@ Agent → execute_query_skill(connection_id?)
 Agent → execute_mutation_skill(confirm=false, connection_id?)
                                → resolve authorized target → mutation.validate() + preview() + preview_token
 Agent → execute_mutation_skill(confirm=true, preview_token, connection_id?)
-                               → same authorized target → match and consume Store record → mutation.validate() + run_execute() → adapter.execute_write()
-                                                                     → audit.log()
+                               → same authorized target → match and consume Store record
+                                 → managed: resolve cached plan/binding → adapter.execute_write() once → statement outcome → audit.log()
+                                 → imperative: re-validate → MutationBase.run_execute() → callback → whole-operation unknown → audit.log()
 ```
+
+These confirmation branches show execution after the relevant checks succeed.
+Managed confirmation does not instantiate or call Skill Python. Imperative
+confirmation uses a Skill instance; rejection before its execution callback
+can still return `not_executed`, while an invoked callback has whole-operation
+outcome `unknown`.
 
 v3.5 adds a strict connection invariant: the server resolves `ConnectionContext`
 from the optional `connection_id` before running SQL policy, schema-readiness
@@ -126,13 +137,21 @@ flowchart TD
     I --> J[Cached SQL template]
     J --> K[Read-only execution]
 
-    H --> L[load_mutation]
+    H -->|preview| L[load_mutation]
     L --> M[Instantiate Mutation class]
     M --> N1[validate]
-    N1 --> N2[preview]
-    N2 --> O[execute]
-    O --> P[run_execute wrapper]
+    N1 --> N2[preview + binding]
+    N2 --> R["Issue preview handle<br/>Managed: resolve plan values and generate SQL/bound_params first"]
+
+    H -->|confirm| S[Check target and consume bound handle]
+    S -->|managed| O["Resolve cached ManagedMutationPlan + binding<br/>No Skill instantiation or callback"]
+    O --> P[Framework execute_write once]
     P --> Q[audit log write]
+    S -->|imperative| U[Re-validate using Skill instance]
+    U --> V["MutationBase.run_execute()"]
+    V --> W["execute_with_binding() / execute() callback"]
+    W --> X[Whole-operation outcome unknown]
+    X --> Q
 ```
 
 This diagram emphasizes two architectural boundaries:
@@ -164,10 +183,11 @@ sequenceDiagram
         Loader->>Skill: Read query.sql
         Loader->>Loader: is_sql_safe check
         Loader->>Cache: Cache SQL template and metadata
-    else Mutation skill
+    else Mutation skill, only when writes enabled
         Loader->>Skill: Import Mutation class from mutation.py
         Loader->>Loader: Verify concrete MutationBase subclass
-        Loader->>Cache: Cache Mutation class and metadata
+        Loader->>Loader: Validate ManagedMutationPlan when declared
+        Loader->>Cache: Cache class, plan, and metadata
     end
 
     Note over Server,DB: Query skill execution
@@ -188,20 +208,20 @@ sequenceDiagram
     Server->>Base: mutation.preview(params)
     Base->>DB: execute(read-only preview query)
     DB-->>Base: Preview context
+    Server->>Base: mutation.build_execution_binding(params, validation, preview)
+    Base-->>Server: Final binding
+    Server->>Server: resolve managed plan values; generate SQL/bound_params; issue token
     Server->>Audit: log(mode=preview)
 
-    Note over Server,DB: Mutation execute flow
-    Server->>Base: mutation.run_execute(params, skill_name)
-    Base->>Base: Call execute(params)
-    Base->>DB: execute_write(sql, params)
-    DB-->>Base: rowcount or exception
+    Note over Server,DB: Managed mutation execute flow
+    Server->>Server: consume token; resolve cached plan + binding
+    Server->>DB: execute_write(sql, params, expected_rowcount)
+    DB-->>Server: commit evidence or typed exception
     alt Success
-        Base->>Audit: log(mode=execute, success)
-        Base-->>Server: Result dict
+        Server->>Audit: log(mode=execute, success)
     else Failure
-        Base->>DB: _handle_error(e)
-        Base->>Audit: log(mode=execute, error)
-        Base-->>Server: ToolError(sanitized)
+        Server->>DB: _handle_error(e)
+        Server->>Audit: log(mode=execute, error)
     end
 ```
 
@@ -306,10 +326,10 @@ sequenceDiagram
 
 ### Mutation Skill Two-Phase Execution Flow
 
-The two-phase execution pattern provides a verifiable intermediate result, in
-the spirit of Anthropic's
-["verifiable intermediate outputs"](https://docs.anthropic.com/en/docs/build-with-claude/agentic-systems#practices-for-effective-agentic-systems)
-principle. The Agent can inspect the preview; a user reviews it only when a
+The two-phase execution pattern provides an intermediate result for review.
+This is a project-specific application of workflow checks discussed in
+[Anthropic's Building Effective Agents](https://www.anthropic.com/engineering/building-effective-agents).
+The Agent can inspect the preview; a user reviews it only when a
 client/host actually renders it and collects a decision, as in the v3.7 example.
 
 ```mermaid
@@ -338,30 +358,29 @@ sequenceDiagram
     Adapter-->>Mutation: current data
     Mutation-->>MCP: validation result (state check passed)
     MCP->>Mutation: preview(params)
-    Mutation-->>MCP: {preview_sql, current_status, new_status}
+    Mutation-->>MCP: business context + state + warnings
+    MCP->>Mutation: build_execution_binding(params, validation, preview)
+    Mutation-->>MCP: execution binding
+    MCP->>MCP: resolve cached plan values; generate preview_sql + bound_params; issue token
     MCP-->>Agent: {preview, preview_token, preview_token_expires_at}
 
     Note over Agent,DB: Phase 2: Execute (confirm=true)
     Agent->>MCP: execute_mutation_skill(name, params, confirm=true, preview_token)
     MCP->>Loader: validate_name + cached metadata + validate_params
     MCP->>MCP: resolve target; re-enforce scope/schema/mutation policy
-    MCP->>Loader: load_mutation(name, adapter, audit_logger)
     MCP->>MCP: lookup digest; compare request binding; atomically consume handle
-    MCP->>Mutation: run_execute(params)
-    Mutation->>Mutation: validate(params) — re-verify (TOCTOU defense)
-    Mutation->>Adapter: execute_write(UPDATE ... WHERE status=:expected)
+    MCP->>MCP: resolve cached ManagedMutationPlan + execution binding
+    MCP->>Adapter: execute_write(UPDATE ... WHERE status=:expected, expected_rowcount=1)
     Adapter->>DB: BEGIN → UPDATE → COMMIT
     DB-->>Adapter: rowcount
-    Adapter-->>Mutation: {success: true, rowcount: N}
-    Mutation->>Audit: log(skill, params, result, agent_id)
-    Mutation-->>MCP: {success, rowcount, message}
+    Adapter-->>MCP: typed COMMIT evidence or failure
+    MCP->>Audit: log(skill, params, result, client_id)
     MCP-->>Agent: execution result
 
     Note over Agent,DB: Error path
-    Adapter--xMutation: SQLAlchemyError
-    Mutation->>Adapter: _handle_error(e) → sanitized message
-    Mutation--xMCP: raise ToolError(sanitized)
-    MCP--xAgent: error (no sensitive details leaked)
+    Adapter--xMCP: typed write failure
+    MCP->>MCP: sanitize error; preserve transaction evidence
+    MCP-->>Agent: success=false + execution_outcome + error_code
 ```
 
 The base protocol flow above does not prove a human approved it: an Agent can
@@ -405,14 +424,14 @@ ambiguous. Product deployments needing approver identity, separation of duties,
 or durable approval/denial audit need a separate approval service.
 
 > **Design references**:
-> - *"Give models less freedom for higher-stakes operations."* — Anthropic,
->   ["Building effective agents" (2024)](https://docs.anthropic.com/en/docs/build-with-claude/agentic-systems#practices-for-effective-agentic-systems).
->   Mutation operations use constrained code paths, not free-form agent code.
-> - *"Verifiable intermediate outputs"* — ibid.
->   The preview phase lets the Agent verify planned changes and lets a client
->   present them to a user; the server alone cannot prove that this happened.
-> - The `validate()` call in Phase 2 is **intentionally duplicated** to defend
->   against TOCTOU: the data state may have changed between preview and confirm.
+> - Prefer simple workflows and add complexity when justified (paraphrase). —
+>   [Anthropic, Building Effective Agents](https://www.anthropic.com/engineering/building-effective-agents).
+>   This project applies that advice with one cached managed statement and a
+>   framework-generated preview. The client must still present it and collect
+>   the user's decision; the server alone cannot prove that this happened.
+> - Managed confirmation does not repeat Python `validate()`. Preview-bound SQL
+>   predicates and the pre-COMMIT row-count check enforce mutable invariants.
+>   Imperative Skills retain re-validation with whole-operation `unknown`.
 
 ## 3. Directory Structure
 
@@ -433,7 +452,7 @@ skills/
 │   └── query.sql                      # Parameterized SQL template
 ├── sample-update-order-status/               # General example mutation skill
     ├── skill_def.md                   # YAML frontmatter + documentation
-    ├── mutation.py                    # validate/preview/execute logic
+    ├── mutation.py                    # Managed plan + preview/binding logic
     └── references/
         └── status-transitions.md      # State machine documentation
 └── sample-reset-order-to-pending/       # Portable demo/test reset mutation
@@ -835,19 +854,39 @@ def execute_write(self, sql, params, timeout=None, *, expected_rowcount=None) ->
 
 The successful adapter mapping is a `WriteExecutionResult` dict subtype whose
 internal `execution_outcome=committed` attribute is not serialized as business
-data. The two built-in exact, single-statement Skills update and return that same
-object instead of reconstructing a plain dict. `MutationBase.run_execute()`
-requires the source-verified, registered loaded class identity for the
-authoritative Skill name, its reviewed `exact_transaction_outcome=True`
-declaration, and preserved adapter evidence
-before producing whole-Skill `committed`.
+data. A `ManagedMutationBase` subclass declares one frozen
+`ManagedMutationPlan`. Discovery validates one direct DML statement, exact
+named binds, frontmatter parameter references, expected row count and result
+fields, then stores the plan in `SkillMetadata`. Confirmation resolves all
+values before calling the adapter exactly once; preserved adapter evidence is
+required before producing `committed`.
 
-Custom Skills default to no whole-operation evidence. A normal custom dict
+Before issuing a preview handle, the framework resolves both SQL parameters and
+result mappings against validated params and the final serialized binding.
+It generates `preview_sql` and `bound_params` from that cached plan; managed
+Skill callbacks may supply business context/warnings/state but must not supply
+either reserved field. This removes duplicate SQL/value definitions that could
+drift from execution. Missing/invalid bindings produce a tool error without a
+handle. Confirmation uses the same resolver and cached plan without Skill Python.
+The process-local immutable plan and one-time store already bind the lifecycle;
+no new plan hash or persistence is necessary. Descriptions and estimates still
+require review, and this does not sandbox preview-time code.
+Result mappings reserve `error` and `error_code` alongside framework success,
+row-count, outcome and audit fields to prevent contradictory success audits.
+
+Failure codes are extensible strings with stable published meanings. Clients
+must use identity, `success` and `execution_outcome`, not a closed error enum;
+unknown codes never authorize retry. `managed_plan_resolution_failed` means
+confirmation value resolution failed before the adapter write, so the managed
+statement is `not_executed`.
+
+Imperative Skills default to no whole-operation evidence. A normal custom dict
 return is therefore `success=true, execution_outcome=unknown`, even if one
 adapter statement committed, because earlier writes or external effects cannot
 be excluded. Missing/false/malformed success results are structured unknown
-failures; an exact Skill that discards adapter evidence is also a structured
-unknown failure. `MutationBase.run_execute()` is framework-owned; the loader
+failures. A managed adapter that discards commit evidence is also a structured
+unknown failure. `MutationBase.run_execute()` is framework-owned for the
+imperative path; the loader
 rejects both a direct override and a replacement inherited from an intermediate
 custom base class. Business extensions use `execute()` or
 `execute_with_binding()`. `@final` informs type checkers, while a static MRO
@@ -857,15 +896,17 @@ method directly rather than using virtual dispatch through the custom instance.
 A post-load subclass-method replacement is therefore ignored. MCP keeps a
 narrow fail-closed check for base-level tampering or framework regressions and
 never synthesizes `committed` merely because Python code returned normally.
-The loader reserves `exact_transaction_outcome=True` for the two registered
-built-in single-statement Skills only when their source resolves to the bundled
-`mutation.py` path. It registers their loaded class identities for the current
-discovery. The base wrapper checks that the MCP-supplied authoritative Skill
-name resolves to that same class; a copied name and a self-declared flag are
-insufficient. A custom class that sets the flag is rejected at discovery; a
-same-named custom class with the default flag remains conservatively `unknown`.
-The registry is process-local and replaced on rediscovery; this guards ordinary
-configuration and class-substitution mistakes, not malicious in-process Python.
+`exact_transaction_outcome` and the name/path/class registry are removed.
+Managed eligibility comes from the validated plan type rather than an identity
+allowlist or a Skill-produced result. Managed confirmation does not instantiate
+the Skill or call `validate()`, `execute()`, or `execute_with_binding()`.
+Mutable invariants must be encoded in the SQL predicate and checked through
+`expected_rowcount` before COMMIT.
+
+This exact evidence is deliberately narrow: it describes the framework's only
+managed database statement. Mutation module import and preview callbacks still
+run trusted Python and may have effects the framework cannot observe. This is
+not a sandbox against malicious in-process code or monkeypatching.
 
 This v3.7.2 tightening intentionally changes the pre-release custom-Skill
 extension contract. An existing custom class that overrode `run_execute()` must
@@ -1021,8 +1062,8 @@ returned by preview, including the default connection. The value is a random
 record containing expiry, canonical request binding (skill, version, params,
 `connection_id`, and `db_type`), and the preview-time execution binding.
 Execute atomically consumes the record only when the request binding matches,
-before dynamic validation and database writes. A mismatch preserves the valid
-record. Consumption remains final after validation, database, audit, timeout,
+before managed plan resolution and database writes. A mismatch preserves the valid
+record. Consumption remains final after plan resolution, database, audit, timeout,
 or process failure. If the write outcome is uncertain, inspect current business
 state before deciding whether another preview or mutation is appropriate; do
 not blindly retry.
@@ -1030,10 +1071,10 @@ not blindly retry.
 Multi-connection mutation routing additionally enforces the global target
 allowlist, per-connection write switch, and per-connection skill allowlist.
 
-**v3.6.1 hardening and deployment boundary:** state-sensitive Skills explicitly
-implement `build_execution_binding()` and `execute_with_binding()`; the bundled
-order mutation binds the state read and displayed by preview, and its unbound
-`execute()` rejects direct calls. A preview containing `error` or reporting
+**v3.6.1 hardening and current deployment boundary:** state-sensitive managed
+Skills implement `build_execution_binding()`; the bundled order mutation binds
+the state read and displayed by preview, while final base execution methods
+reject direct calls. A preview containing `error` or reporting
 `success=false` receives no token. The recommended deployment is client-owned
 stdio. Conditional HTTP mutation is limited to a trusted private boundary and
 one mutation-enabled process; multi-user authenticated HTTP mutation is outside
@@ -1050,9 +1091,14 @@ persist neither the full token nor that short identifier in the current design.
 
 ## 10. Design Decisions
 
+Rows naming a released version record that version's decision; later rows may
+supersede it (for example, uniform ToolResult supersedes v3.4.1's mixed returns).
+Unversioned rows describe the current v3.7.3 baseline, including the managed
+mutation contract corrections.
+
 | Decision | Choice | Alternative | Rationale |
 |----------|--------|-------------|-----------|
-| Architecture | Unified registration (2-3 tools) | Per-skill tools / FastMCP mount() | Prevents tool explosion; Google Gemini 10-20 rule |
+| Architecture | Three shared Skill tools, plus the mutation tool when writes are enabled | Per-skill tools / FastMCP mount() | Keeps tool count independent of the number of installed Skills |
 | On-demand metadata disclosure | `list_skills()` projections + `get_skill_detail()` | Runtime source-file lazy loading | Reduces Agent-facing metadata while preserving startup validation and TOCTOU protection |
 | Skill search | Case-insensitive substring + exact category filter | Regex/BM25 search | Deterministic, dependency-free, and avoids ReDoS from model-generated regex |
 | v3.5 Named connections | Resolve `ConnectionContext` before policy, readiness, execution, metadata, audit, and telemetry | Let each tool independently read global adapter/config state | Prevents cross-connection mismatches and keeps tool display/execution bound to the same target connection |
@@ -1088,23 +1134,23 @@ persist neither the full token nor that short identifier in the current design.
 | v3.4.2.A4 Annotation drift lint | `tests/test_annotations_consistency.py` | Fail-fast at server startup | Pytest captures drift during local/default test runs without making the server brittle to in-progress local edits; add a repository CI workflow before describing this as CI enforcement |
 | v3.4.B4 Schema state cache | Deferred decision | Cache schema table names in FastMCP session state | Reduces repeated metadata calls but risks stale readiness after DDL; current table checks are simple and execution guards remain authoritative |
 | v3.4.C1 Schema resource | Deferred decision | Add `db://schema` MCP resource now | Existing `get_full_schema` tool is explicit and already supported by clients; resource support varies and would add a second schema access path |
-| Metadata | skill_def.md YAML frontmatter | JSON manifest | Anthropic Agent Skills spec alignment |
+| Metadata | Project-specific `skill_def.md` YAML frontmatter | JSON manifest | Borrows metadata conventions from Agent Skills; does not claim `SKILL.md` format interoperability |
 | Params validation | Inline in frontmatter | JSON Schema file | Single-file self-description |
-| Write safety | 3-stage (validate/preview/execute) | Simple confirm flag | Anthropic "verifiable intermediate outputs" |
+| Write safety | Preview followed by confirmation with a one-time bound handle; managed SQL/values come from the cached plan | Simple confirm flag or Skill-authored SQL separate from the plan | Makes the displayed managed operation match execution; programmatic workflow checks are a project application of [Anthropic's workflow guidance](https://www.anthropic.com/engineering/building-effective-agents), not an attributed quotation |
 | Audit storage | JSONL file | Database table | Minimal dependency for MVP |
 | Source declaration | Mandatory `source` field | Convention-based (hardcoded filenames) | Explicit Configuration principle: GitHub Actions, npm, Python all use explicit entry points; enables custom filenames while `_validate_source_filename()` enforces path safety and suffix matching |
 | Write interface | Separate `execute_write()` | Reuse `execute()` | Read/write separation, clear responsibilities |
-| SQL caching | discover() caches at startup | Runtime disk reads | Eliminates TOCTOU risk |
-| Mutation caching | discover() pre-loads mutation classes | Per-call `exec_module()` | Eliminates runtime disk I/O + module compilation |
-| Error handling | Exceptions propagate + ToolError | Error dict returns | FastMCP ToolError bypasses mask_error_details |
-| ALLOWED_TABLES | Skills bypass at runtime | Runtime table check | Template = whitelist (code review trust) |
-| SQLAlchemy version | `>=2.0` explicit | No constraint | 2.0 implicit transactions prevent accidental writes |
+| SQL caching | `discover()` validates and caches query templates at startup | Per-call source-file reads | Avoids post-discovery template replacement; database-state races still need execution-time guards |
+| Mutation caching | With writes enabled, discovery imports classes and validates/caches managed plans; with writes disabled, it checks metadata/source containment without importing mutation Python | Always import modules, or per-call `exec_module()` | Avoids disabled-mode import side effects and per-call source reloads; enabled modules remain trusted Python |
+| Error handling | Safe invocation rejections use `ToolError`; processable mutation execution failures use structured outcome/code results | Treat every failure as an exception, or infer success from a normal return | Preserves machine-readable transaction evidence; explicit `ToolError` messages must be safe because they bypass error masking |
+| ALLOWED_TABLES | Query Skills enforce the resolved connection's table/SQL policy at runtime; Mutation uses separate connection and Skill write policy | Treat reviewed templates as a blanket policy bypass, or mistake the read allowlist for write authorization | Connection-scoped query policy remains authoritative; mutation plan validation is not a write-table allowlist. Reviewed mutation code/plans and database grants remain required (see [SAFETY §14](skills/SAFETY.md#14-allowed_tables-interaction)) |
+| SQLAlchemy version | `>=2.0`; adapter write paths explicitly track `begin()` / `commit()` / `rollback()` | Rely on legacy implicit autocommit | SQLAlchemy 2.0 removed library-level implicit autocommit ([migration guide](https://docs.sqlalchemy.org/en/20/changelog/migration_20.html#library-level-but-not-driver-level-autocommit-removed-from-both-core-and-orm)). Explicit transaction phases reduce accidental commits and support outcome classification; they do not prevent SQL writes themselves. Driver-level autocommit and database implicit-commit behavior are separate boundaries |
 | Example skill SQL | Separate MySQL and SQLite examples | One cross-DB SQL template with runtime branching | Keeps templates clear, keeps startup validation deterministic, and lets availability filtering hide incompatible dialects before execution planning |
 | Table name extraction | `_extract_table_names()` ignores `schema.table` | Full `schema.table` regex | Function only used for `SKILLS.md` generation (non-security); core path `_extract_tables_from_sql()` handles `schema.table` correctly |
-| Mutation duplicate SELECT | `execute()` re-runs `validate()` SELECT | Single SELECT in `validate()` only | Intentional TOCTOU prevention — user review gap between preview and confirm requires re-verification of data state |
+| Confirmation-time validation | Managed confirmation neither instantiates the Skill nor calls Python `validate()`; imperative confirmation re-validates before its callback | Require a second SELECT for every mutation | A separate SELECT cannot make a later write atomic; managed mutable invariants must be in the SQL predicate and protected by `expected_rowcount` |
 | Mutation error contract | Setup/token rejection uses `ToolError`; processable execute failures return structured `success=false` plus outcome/code | All text exceptions or all result dicts | MCP callers need machine-readable DB state, while invalid invocation/authorization remains an exceptional tool rejection |
-| Mutation read-write gap | Separate `execute()` + `execute_write(..., expected_rowcount=1)` calls | Single SQL merging SELECT+UPDATE | Optimistic locking plus the pre-COMMIT exact-row invariant rejects stale or unsafe targets without committing |
-| `_coerce_type()` bool | `bool(value)` (Python built-in) | Explicit `"true"/"false"` mapping | No bool params in current skills; acceptable for MVP, should be revisited when bool params are added |
+| Managed write execution | Framework resolves the cached plan/binding and calls `adapter.execute_write()` once; no Skill execution callback | Let arbitrary imperative callbacks claim exact whole-operation results | Statement predicates plus the pre-COMMIT row-count check reject stale/unsafe targets; exact evidence covers this managed statement only. Imperative callbacks remain whole-operation `unknown` |
+| `_coerce_type()` bool | Accept booleans and exact lowercase `"true"`/`"false"` strings; reject other inputs | Python truthiness via `bool(value)` | Avoids interpreting a non-empty `"false"` string as true |
 | Annotation evaluation | `from __future__ import annotations` (PEP 563) in `skill_loader.py` | Runtime annotation evaluation (default) | Python 3.12 `type` soft keyword conflicts with `SkillMetadata.type` field annotation; PEP 563 deferred evaluation resolves Pylance parsing ambiguity |
 | Database compatibility | Optional `databases` field | No DB type declaration | Follows npm `engines`, Python `requires-python`, Terraform `required_providers` pattern; runtime target connection `db_type` check prevents incompatible skill execution; `None` = all databases (zero overhead for cross-DB skills) |
 
@@ -1125,7 +1171,7 @@ three-level progressive disclosure model:
 |-------|----------------------|--------------|
 | **L1: Metadata** | YAML frontmatter loaded into system prompt at startup (~100 tokens/skill) | `list_skills()` returns projected metadata from in-memory cache |
 | **L2: Instructions** | Agent reads SKILL.md body via `bash: cat SKILL.md` when triggered | N/A — skill_def.md body is for human developers, not consumed by agent at runtime |
-| **L3: Resources** | Agent reads bundled files (scripts, references) on demand via bash | `get_skill_detail(execution|full)` returns cached metadata; SQL templates and mutation classes are **pre-loaded at startup** into `_skills_cache`, never read from disk at runtime |
+| **L3: Resources** | Agent reads bundled files (scripts, references) on demand via bash | `get_skill_detail(execution|full)` returns cached metadata; discovery caches query templates and, only when writes are enabled, mutation classes/plans. Execution does not reread those source files |
 
 In MCP architecture, the agent communicates with the server via JSON-RPC
 over stdio/SSE ([MCP Spec — Transports](https://modelcontextprotocol.io/specification/2025-03-26/basic/transports)).
@@ -1203,7 +1249,7 @@ Attack surfaces specific to this architecture:
 |--------|-------------|------------|
 | **Prompt injection** | Malicious user input induces agent to pass dangerous parameters | `validate_params()` enforces type/min/max/enum constraints at server side |
 | **Agent hallucination** | Agent invents non-existent skills or passes out-of-range parameters | `validate_name()` + cache lookup + schema-level rejection of unexpected params |
-| **TOCTOU** | If SQL were read from disk at runtime, file tampering = arbitrary SQL injection | `discover()` pre-loads and caches at startup; zero disk I/O at runtime (see [CWE-367](https://cwe.mitre.org/data/definitions/367.html)) |
+| **TOCTOU** | Rereading executable source after validation could load different code | Startup caching avoids per-call executable source rereads; mutation Python is imported only with writes enabled. This is not a guarantee of zero database/audit I/O or immutable database state (see [CWE-367](https://cwe.mitre.org/data/definitions/367.html)) |
 | **SQL injection via params** | Agent-supplied parameters could be concatenated unsafely | SQLAlchemy `text()` + parameterized binding; no string concatenation |
 
 Adopting the standard Agent Skills model would mean letting the agent read SQL
@@ -1327,8 +1373,8 @@ flowchart TB
 | **SQL whitelist** | `is_sql_safe()` validates at startup; unsafe skills rejected before registration | Agent reads SQL file at runtime and executes — bypasses validation |
 | **Parameter validation** | `validate_params()` enforces type/min/max/enum constraints at server side; rejects parameters not defined in schema | Agent interprets parameters from natural language — no hard constraints; agent decides what values to pass |
 | **Skill identity validation** | `skill_def.md` `name` must match the directory and naming regex before discovery caches the skill | Agent discovers files dynamically; manifest identity does not create an execution boundary by itself |
-| **TOCTOU prevention** | `discover()` reads all files into memory at startup; runtime = zero disk I/O | Agent reads files via bash on every invocation; files may have been tampered with between reads |
-| **Mutation type/transaction safety** | Loader accepts only concrete `MutationBase` subclasses; `MutationBase` enforces BEGIN → UPDATE → verify rowcount → COMMIT/ROLLBACK | Agent writes its own transaction code; may omit rollback or error handling |
+| **Source caching** | Discovery caches query SQL and enabled mutation classes/plans; execution does not reread executable source. Database and audit I/O still occur | Runtime resource loading requires its own integrity controls |
+| **Mutation type/transaction safety** | Loader validates managed single-statement plans; the adapter enforces BEGIN → DML → verify rowcount → COMMIT/ROLLBACK. Trusted imperative callbacks remain `unknown` | Agent writes its own transaction code; may omit rollback or error handling |
 | **Audit logging** | Mutation preview/execute paths attempt best-effort writes to `_audit.jsonl`; normal tool results report `audit_logged` | Depends on agent voluntarily calling logging — unreliable |
 | **Confirmation mechanism** | Server enforces preview → one-time bound token → execute; optional v3.7 host displays the preview and collects exact `APPROVE`. The server still cannot prove human identity | Agent decides whether to confirm, with no hard server-side preview/replay boundary |
 
@@ -1340,7 +1386,7 @@ flowchart TB
 | **Skill content** | Instructions + scripts + references (knowledge) | SQL templates + Python mutation classes (executable artifacts) |
 | **Executor** | Agent itself (in VM/sandbox) | MCP Server (on behalf of agent) |
 | **Trust model** | Sandbox isolation + trust the agent | Do not trust the agent; server enforces all constraints |
-| **Loading** | Lazy, on-demand via bash | Eager, all-at-startup via `discover()` |
+| **Loading** | Lazy, on-demand via bash | Startup metadata/query caching; mutation classes/plans loaded only when writes are enabled |
 | **Security responsibility** | Agent + sandbox | Server infrastructure |
 
 The standard Agent Skills format solves: *"How to give a general-purpose agent
@@ -1353,26 +1399,41 @@ access the server filesystem through MCP anyway.
 
 ## 12. Testing
 
-64 new tests across 4 files:
+The latest executed default-suite baseline for the managed-preview correction
+on September 16, 2026 is **657 passed, 4 skipped** (661 collected cases). The
+targeted loader/mutation/MCP suites passed 244 cases. These are dated results,
+not fixed suite sizes or a fresh test run for this documentation-only cleanup.
+See the [v3.7.3 managed-mutation verification record](RELEASE_NOTES/RELEASE_NOTES_v3_7.md#verification--september-16-2026)
+for the exact scope, Pyright warnings and live-test limitations.
 
-| File | Tests | Coverage |
-|------|-------|---------|
-| `test_skill_loader.py` | 35 | Discovery, parsing, validation, name checks, mutation class caching, extra params rejection |
-| `test_query_skills.py` | 8 | Parameterized read, write, injection safety |
-| `test_mutation_skills.py` | 9 | Dry-run, confirm, idempotent, error sanitization, ToolError audit logging |
-| `test_audit.py` | 8 | JSONL logging, sanitization, directory creation, mkdir error handling |
+| Test area | Current coverage |
+|-----------|------------------|
+| `tests/test_skill_loader.py` | Metadata/source validation, disabled-mode non-import, managed plan validation/caching, rejected legacy declarations and execution overrides |
+| `tests/test_query_skills.py`, `tests/test_multi_connection_v35.py`, `tests/test_skills_disclosure.py` | Parameterized queries, connection selection, runtime query allowlists, discovery/readiness and schema contracts |
+| `tests/test_mutation_skills.py` | Preview behavior, managed value/result restrictions, transaction evidence, sanitization and imperative `unknown` |
+| `tests/test_mutation_multi_connection_v36_design.py` | Target write policy, preview binding, single-use handles, and FastMCP Client coverage of non-bundled managed Skills: matching displayed/executed SQL, commit/rollback, rejection without tokens and no confirmation-time Skill callbacks |
+| `tests/test_preview_token_store.py`, `tests/test_manual_mutation_approval.py` | Handle consumption/expiry/binding and host approval/terminal-outcome handling |
+| `tests/test_audit.py`, `tests/test_v372_write_outcomes.py` | Audit behavior and adapter transaction-outcome fault injection |
 
-All tests use SQLite in-memory databases for speed and isolation.
+Isolation uses SQLite in-memory databases **and temporary SQLite files**, plus
+controlled driver/adapter substitutes. FastMCP in-memory clients exercise the
+protocol against freshly loaded source. Optional MySQL integration tests require
+explicit opt-in and a suitable test database; the recorded default run did not
+add live MySQL write verification. The full suite also covers core SQL policy,
+adapters, diagnostics and other server behavior beyond the Skill-focused table.
 
 ## 13. Future Extensions
 
+These are deferred candidates, not implemented guarantees or release commitments.
+Single-use preview tokens and tool-level output schemas are already implemented.
+
 - **Per-operation independent tools**: High-frequency skills as dedicated MCP tools
-- **Confirmation tokens**: Server-side anti-replay for untrusted callers
+- **Durable operation receipts**: Deferred under DRR-2026-061 in the [risk register](DESIGN_RISK_REGISTER.md); reconsider when restart/disconnect recovery needs justify a persistent operation identity and authoritative result-lookup protocol. Existing preview handles provide anti-replay, not durable COMMIT lookup; unknown outcomes do not authorize retry
 - **Write connection isolation**: `DB_WRITE_*` env vars for separate write accounts
 - **Audit to database**: Optional `_audit_log` table for structured querying
-- **mutation.sql**: SQL-only mutations for simple INSERT/UPDATE operations
+- **File-only mutation authoring**: A possible `mutation.sql`/metadata format if needed; current `ManagedMutationPlan` already supports framework-owned single-statement INSERT/UPDATE/DELETE, so this would be an authoring-format extension
 - **`adapter.transaction()`**: Multi-statement atomic transactions
-- **Output schemas**: Optional explicit `output_schema` declarations for selected stable tool responses
+- **Skill-specific result schemas**: Optional author-declared schemas for individual Skill business payloads, beyond the already published MCP tool-level output schemas
 
 ## 14. Industry Best Practices Alignment
 
@@ -1394,9 +1455,9 @@ practices from major AI platform providers and security standards.
 
 | Principle | Source | How Applied |
 |-----------|--------|-------------|
-| *"Give models less freedom for higher-stakes operations."* | [Anthropic — Building Effective Agents (2024)](https://docs.anthropic.com/en/docs/build-with-claude/agentic-systems) | Mutation skills use constrained `MutationBase` ABC; no free-form code execution |
-| *"Verifiable intermediate outputs"* | Anthropic, ibid. | Two-phase execution: `confirm=false` returns preview for verification |
-| *"Plan-validate-execute"* pattern | Anthropic, ibid. | `MutationBase` enforces `validate()` → `preview()` → `execute()` stages |
+| Prefer simple, composable patterns; increase complexity when justified (paraphrase) | [Anthropic — Building Effective Agents](https://www.anthropic.com/engineering/building-effective-agents) | Project design choice: managed confirmation executes one cached statement, avoiding a general callback transaction framework |
+| Programmatic checks between workflow steps (paraphrase) | Anthropic, ibid. | Project design choice: resolve the plan before issuing a preview handle, then enforce the state predicate and row count at confirmation |
+| Confirmation and result validation for sensitive operations (paraphrase) | [MCP — Tools security considerations](https://modelcontextprotocol.io/specification/2025-11-25/server/tools#security-considerations) | Project design choice: framework-generated SQL and binding make approval correspond to the managed statement; the specification does not mandate this exact implementation |
 | Progressive disclosure | [Anthropic — Agent Skills Overview](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview) | `list_skills()` returns compact/summary/full projected metadata; `get_skill_detail()` retrieves one cached params schema on demand |
 | Conditional tool discovery | [OpenAI — Tool Search](https://developers.openai.com/api/docs/guides/tools-tool-search) | `available_only` filters skills according to current project/server state, including DB type, mutation switch, and schema readiness, before the Agent plans execution |
 | Dynamic relevant tool set | [Google Gemini — Function Calling Best Practices](https://ai.google.dev/gemini-api/docs/function-calling) | Default Agent-facing skill discovery hides incompatible skills to reduce tool-selection errors |

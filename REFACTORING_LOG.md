@@ -1,11 +1,56 @@
 # MCP SQL Server Refactoring Log
 
-**Date:** December 2, 2025 (Updated: September 15, 2026)
+**Date:** December 2, 2025 (Updated: September 16, 2026)
 **Author:** Code Refactoring Session
 
 ## Overview
 
 This document records the major refactoring changes made to `mcp_sql_server.py` to follow FastMCP best practices and improve the overall design.
+
+## Managed Single-Statement Mutation Contract (September 16, 2026)
+
+Assigned this safety-contract follow-up to the same v3.7.3 before its first
+formal publication. It retains deliberate Skill-author compatibility changes;
+the version assignment does not remove the migration requirements below.
+
+Replaced the transitional built-in name/source/class exact-outcome registry with
+an authorable `ManagedMutationPlan`. A managed Skill declares one immutable DML
+statement, explicit params/binding/constants, an exact expected row count and
+optional result fields. Discovery validates and caches the plan; confirmation
+resolves it and performs one adapter call without instantiating or invoking
+Skill Python.
+
+This narrows the exact claim to the framework-owned database statement. Module
+imports and preview callbacks remain trusted in-process Python and are not
+covered by that evidence. Imperative `MutationBase` remains an experimental
+escape hatch with whole-operation outcome `unknown`. The old
+`exact_transaction_outcome` flag is rejected with migration guidance.
+
+Also corrected a boundary that dates to the original v3.0 Skills commit
+`04603e4`: with `SKILLS_ALLOW_MUTATIONS=0`, discovery no longer imports custom
+mutation modules. The later sample-name/Git-ignore commits only made that old
+behavior easier to notice; they did not introduce it. Metadata and source-path
+validation remain available for listing while the mutation tool stays absent.
+
+The two bundled mutation examples now declare managed plans. Targeted tests
+cover disabled imports, invalid/multi-statement plans, final execution methods,
+binding resolution before writes, confirmation without Skill callbacks,
+transaction evidence, cancellation and imperative fallback. Current docs state
+the compatibility cost and the limit of the exact claim; no durable receipt,
+new MCP tool, background worker or API field was added.
+
+Pre-commit review found that a Skill-authored preview could drift from the cached
+plan. Managed SQL and bound values now come exclusively from that plan and the
+final serialized binding, using the same resolver before token issuance and
+confirmation. Missing SQL or result bindings never receive a token; declaring
+reserved preview fields is rejected. Reserved result fields now include `error`
+and `error_code` to prevent contradictory success audits. A non-bundled custom
+Skill is tested through the real FastMCP Client with temporary SQLite databases,
+including commit, rollback and no confirmation-time callbacks. Current guides,
+diagrams and checklists now describe this contract; historical registry entries
+remain historical. Error codes are explicitly extensible and the unsupported
+Anthropic quotation is replaced with a sourced paraphrase. Verification counts
+and scope are recorded in the [v3.7.3 managed-mutation verification record](RELEASE_NOTES/RELEASE_NOTES_v3_7.md#verification--september-16-2026).
 
 ## Update v3.7.3 - Connection Routing and Tool Contract Clarity (September 15, 2026)
 
@@ -119,7 +164,7 @@ DRR-2026-067 is implemented; DRR-2026-066 remains open.
 
 Corrected current bilingual README tool counts and aggregate metadata guidance;
 historical entries retain their earlier counts. Moved only the uncommitted routing
-release note to Unreleased, with v3.7.3 proposed as a patch candidate. No production
+release note to a provisional release section, with v3.7.3 proposed as a patch candidate. No production
 Python, version badge or tag changed during this review. Related tests: 92 passed;
 four Python files: Pyright 0 errors, 0 warnings. The
 [native review record](RELEASE_NOTES/LIVE_MCP_TSET/V3_7_3_LIVE_MCP_TEST_CONNECTION_ROUTING_2026_09_14_ZH.md)

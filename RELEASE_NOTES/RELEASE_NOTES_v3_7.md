@@ -2,12 +2,114 @@
 
 - Release family: v3.7
 - Initial release: v3.7.0 (2026-08-22)
-- Current repository version: v3.7.3 (prepared 2026-09-15)
-- Publication status: version preparation; no v3.7.3 tag or published release is created by this update
+- Current repository version: v3.7.3 (routing update 2026-09-15; managed-mutation follow-up 2026-09-16)
+- Version assignment: both updates belong to v3.7.3; creating a tag or publishing a release is a separate step
+
+## Managed Single-Statement Mutation Contract — September 16, 2026
+
+The September 16 safety-contract corrections are included in the same v3.7.3
+as the September 15 routing changes because the project has not yet had its
+first formal publication. The work repairs outcome/preview/import boundaries
+and introduces a replacement Skill-author contract with migration requirements.
+Keeping the version number does not make those author-interface changes backward
+compatible. This is a version-scope decision during development, not permission
+to replace an already published release; [SemVer](https://semver.org/) requires
+published version contents to remain unchanged and incompatible public API
+changes to receive an appropriate new version.
+
+The current follow-up replaces the built-in-only exact-outcome registry with a
+general declarative contract. `ManagedMutationBase` subclasses declare one
+frozen `ManagedMutationPlan`; discovery accepts only one direct parameterized
+INSERT, UPDATE, or DELETE, requires its named binds to match declared value
+sources, checks frontmatter parameter references and a non-negative exact row
+count, and caches the plan with Skill metadata.
+
+Before issuing a preview handle, the framework resolves SQL parameters and
+result mappings from validated params and the final serialized binding. It
+generates `preview_sql` and `bound_params` from the cached plan, using the same
+resolver as confirmation. Managed Skill callbacks must remove these fields,
+including placeholder SQL in failure previews; returning either is rejected.
+Missing or non-scalar values are tool errors without a token or framework write.
+This corrects a pre-commit review finding: previously the displayed preview
+could drift from the executed plan. Result mappings also reserve `error` and
+`error_code`, preventing success audits with Skill-injected failure fields.
+
+After confirmation consumes the preview handle, the framework resolves params,
+constants and preview binding before opening the write path, then calls
+`adapter.execute_write()` exactly once. It does not instantiate the Skill or
+invoke its `validate()`, `execute()`, or `execute_with_binding()`. Mutable
+business conditions must therefore be encoded in the statement predicate and
+guarded by `expected_rowcount` before COMMIT. Both bundled mutations now use
+this path.
+
+The resulting `committed`/`rolled_back` evidence describes the framework's only
+managed database statement. It does not prove that trusted Python executed at
+module import or preview had no file, network, process, or other side effects,
+and it is not an in-process sandbox. Imperative `MutationBase` remains available
+for reviewed workflows that cannot fit one statement, but its whole-operation
+outcome is always `unknown`.
+
+`exact_transaction_outcome` and the source/name/class registry introduced in
+v3.7.2 are removed from the current extension contract. Existing pre-release
+custom Skills using that flag must migrate to a managed plan or the imperative
+contract. Existing `run_execute()` override rejection remains for imperative
+Skills. When `SKILLS_ALLOW_MUTATIONS=0`, discovery now parses mutation metadata
+and verifies source containment without importing custom mutation modules; the
+module is imported only after writes are enabled and the service is restarted.
+
+This is a pre-release breaking author contract with no MCP tool signature or
+output-schema change. New loader, unit, and in-memory MCP regressions cover the
+disabled-import boundary, plan validation, final execution methods, missing and
+non-scalar bindings, absence of confirmation-time Skill callbacks, exact
+row-count rollback, commit evidence, cancellation, and imperative fallback.
+
+`error_code` is an extensible string set. Published meanings remain stable;
+unknown codes require clients to use identity validation, `success` and
+`execution_outcome`, and never authorize automatic retry.
+`managed_plan_resolution_failed` is a confirmation-path value-resolution failure
+before the adapter write call, reported as `not_executed`. Preview checks prevent
+normal callers from receiving a handle for incomplete bindings.
+
+The authoritative preview is a small consistency fix, not a new approval or
+receipt platform: the cached immutable plan and existing process-local token
+store suffice. Skill prose, estimates and preview-time Python still require
+review. [MCP's tool security guidance](https://modelcontextprotocol.io/specification/2025-11-25/server/tools#security-considerations)
+supports confirmation and result validation, but does not prescribe this exact
+implementation. The unsupported Anthropic quotation in current design/README
+guidance is replaced with a paraphrase of the recommendation to prefer simple,
+composable patterns and add complexity only when justified, as discussed in
+[Building Effective Agents](https://www.anthropic.com/engineering/building-effective-agents).
+
+### Verification — September 16, 2026
+
+| Scope | Result | Evidence boundary |
+|---|---|---|
+| Previous managed-contract iteration | 647 passed, 4 skipped; eight changed Python files: Pyright 0 errors, 26 warnings | Baseline before the authoritative-preview corrections below |
+| Final targeted loader/mutation/MCP tests | 244 passed | Includes a non-bundled custom managed Skill discovered from a temporary project-local `SKILLS_DIR` |
+| Final default suite | 657 passed, 4 skipped | Ten additional regressions; the four skips remain opt-in tests |
+| Final Pyright on eight changed Python files | 0 errors, 28 warnings | Dependency import-resolution warnings, including two new FastMCP Client imports; not a repository-wide clean bill |
+| `compileall` on those eight files; `git diff --check` | Passed | Syntax and whitespace checks |
+| Local Markdown file-link check | 168 links passed across 10 changed documents | Checks target files, not external availability or all heading anchors |
+
+The eight Python files are `mcp_sql_server.py`, `skills/_lib/mutation_base.py`,
+`skills/_lib/skill_loader.py`, the two sample mutation modules, and
+`tests/test_mutation_skills.py`, `tests/test_mutation_multi_connection_v36_design.py`,
+`tests/test_skill_loader.py`.
+
+The custom Skill regressions use a real FastMCP in-memory Client and temporary
+SQLite files: commit, stale-state rollback, displayed/executed SQL and values,
+no confirmation-time instantiation/callbacks, reserved-field rejection, missing
+SQL/result binding and non-scalar binding rejection before token creation.
+These are protocol integration tests against fresh source, not a live MySQL
+write test or evidence that an already running MCP service was restarted.
+No new live MySQL writes were performed. A reviewer previously reported
+repository-wide Pyright at 8 errors and 135 warnings in unchanged tests and
+dependency resolution; that broader check was not rerun for this correction.
+The scoped result above must not be described as repository-wide zero errors.
 
 ## v3.7.3 — Connection Routing and Tool Contract Clarity
 
-This maintenance update is assigned v3.7.3. It corrects Agent routing guidance,
+The September 15 routing update is assigned v3.7.3. It corrects Agent routing guidance,
 public parameter examples and configuration interpretation while preserving tool
 signatures and database execution policies. The explanatory list_connections
 hint is additive metadata; it does not add a database operation. Batch diagnostics
@@ -17,8 +119,10 @@ an explanatory field. Independently defined closed client response models may
 reject that field and require an update, so compatibility with every such model
 is not guaranteed.
 
-The patch classification follows the compatibility impact of these corrections,
-not their line count. See the [version decision and commit message](GUIDE/V3_7_3_CONNECTION_ROUTING_REMEDIATION_ZH.md#13-v373-版本归属与提交说明).
+The patch classification of those routing corrections follows their
+compatibility impact, not their line count. The September 16 managed-contract
+follow-up has additional author-interface migration requirements described
+above. See the [September 15 version decision and commit message](GUIDE/V3_7_3_CONNECTION_ROUTING_REMEDIATION_ZH.md#13-v373-版本归属与提交说明).
 Known Agent behavior limits remain recorded below; assigning a version does not
 close DRR-2026-066 or establish native-Host acceptance of the latest guidance.
 Deployments requiring hard per-request target restrictions must implement and

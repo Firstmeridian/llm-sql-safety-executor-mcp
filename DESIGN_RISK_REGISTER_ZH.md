@@ -3,7 +3,7 @@
 [English](DESIGN_RISK_REGISTER.md) | 中文
 
 创建日期：2026-05-24
-最近评审：2026-09-15
+最近评审：2026-09-16
 
 文档状态：长期维护的设计与运维风险登记表。  
 初始评审批次：v3.4.3。
@@ -200,6 +200,8 @@ locking function 可能产生 outer-statement checker 无法证明不存在的�
 | DRR-2026-064 | 已实现的兼容变化 | 高 | 2026-09-12 | 框架执行包装器可被覆盖 | 自定义 Mutation 可以直接覆盖 `MutationBase.run_execute()`，或通过中间父类继承替代实现，从而绕过集中式结果校验、整个 Skill 结论、错误脱敏和执行审计。MCP 为此重复了大量基类策略，形成两个可能漂移的实现。 | 是，在正式发布前修正 | 用 `@final` 标记 `run_execute()`，并在 discovery 时把静态解析到的方法与框架方法做身份比较；直接和继承覆盖均拒绝，并给出迁移提示。MCP 直接调用基类 wrapper，不通过自定义实例虚分派。业务扩展继续使用 `execute()` 与 `execute_with_binding()`。删除 MCP 重复的业务分类，只保留面向基类篡改或框架故障的窄型 fail-closed 类型结果检查。 | Loader 回归覆盖直接覆盖、继承覆盖和 `@final` 标记；MCP 回归证明加载后子类 lookalike 会被忽略、非法框架返回会 fail closed，普通自定义和 exact 内置路径继续经过基类包装器。此前覆盖 wrapper 的发布前自定义 Skill 必须迁移后才能加载；版本仍为 v3.7.2。 | 这是可强制的扩展契约，不是不可信代码 sandbox。可信代码仍能 monkeypatch 基类或其它运行时对象，也能执行隐藏副作用。MCP guard 对检测到的非法框架结果报告 `unknown`，但无法观察所有同进程恶意行为。正式发布或出现已知第三方采用后，应重新评估兼容与废弃策略。 |
 
 | DRR-2026-065 | 已实现 | 严重 | 2026-09-12 | 仅用内置 Skill 名称判断精确结论资格 | DRR-2026-062 首次修复仅按公开名称允许 `exact_transaction_outcome=True`。另一个 `SKILLS_DIR` 可加载同名双语句自定义 Mutation：第一条已提交、第二条回滚，却对整个 Skill 返回 `rolled_back`。这属于正常配置路径，不只是恶意 monkeypatch。 | 是，纳入 v3.7.2 | 核对 mutation 源码解析后的路径是否为对应的仓库内置文件，只有此前提成立才允许 exact 声明并为本次 discovery 登记实际加载的类身份。执行期同时校验身份、权威名称、声明及 adapter 证据。同名自定义 exact 声明拒绝加载；默认 flag 的同名自定义 Skill 可加载，但整个操作结论保持 `unknown`。每次 discovery 替换进程内登记。 | 单元回归覆盖两个保留名称、真正内置类登记及重新发现后清空登记；真实 FastMCP Client 使用项目内临时 `SKILLS_DIR` 证明同名双写自定义 Skill 第一条 COMMIT 后第二条行数不匹配回滚，返回 `success=false, unknown` 且数据库中第一条变更仍存在。没有新增 schema、公共字段或依赖。 | 可信 Python Skill 仍能故意修改框架/登记或内置源码，不是不可信插件沙箱。精确结论仅覆盖经过源码评审的两个内置单语句 Skill；解析至同一内置文件的符号链接使用同一已评审源码，同时受既有路径包含检查约束。全局重新 discovery 可能保守撤销旧类身份，但不得把自定义类升级为精确资格。连接级 `MUTATION_SKILLS` 仍有意按当前 catalog 名称授权，不校验源码身份；更换 `SKILLS_DIR` 必须同时复核源码和写入授权策略。 |
+| DRR-2026-069 | 已实现的兼容强化 | 高 | 2026-09-16 | 关闭 Mutation 后仍会导入自定义 mutation 模块 | 自最初的 v3.0 Skills 提交 `04603e4` 起，只要启用 Skills，discovery 即使在 `SKILLS_ALLOW_MUTATIONS=0` 时也会执行各 `mutation.py`。后来的示例目录与忽略规则提交 `8753f30`/`dba3a29` 只是让这个既有边界更显眼，并非问题来源。因此，禁写部署启动时仍会运行可信扩展代码。 | 是，在正式发布前修正 | 增加由 `SKILLS_ALLOW_MUTATIONS` 控制的显式 discovery 模式。禁写时只校验元数据、声明文件和路径包含关系，不导入 mutation 模块，也不构造 mutation 类；Query Skill 加载不变。 | Loader 与 FastMCP 集成哨兵使用“导入即产生可观察状态”的 mutation 模块：禁写时状态不存在、mutation 工具不注册，同时元数据仍可发现；启用路径的既有测试继续覆盖类和 plan 校验。 | 这会减少无必要的启动期代码执行，但不会把已启用的 Python Skill 变成不可信或沙箱代码。启用 Mutation 后仍必须审核模块。Git 忽略规则既不是执行授权，也不是安全边界。 |
+| DRR-2026-070 | 已实现的发布前契约调整 | 高 | 2026-09-16 | Python 回调可能过度声明整个 Skill 的精确结论 | v3.7.2 的源码/类登记能阻止普通自定义代码自行升级，但 Python Skill 返回 adapter 证据仍不能证明它此前没有执行数据库写、文件/网络操作或隐藏回调副作用；同时，精确结论被限制在两个内置实现，缺少安全的自定义扩展契约。 | 是，在正式发布前修正 | 用冻结的 `ManagedMutationPlan` 取代 exact flag 与源码/类登记。Discovery 校验一条直接 `INSERT`、`UPDATE` 或 `DELETE`、完整绑定、显式参数/preview binding/常量来源、预期行数和结果映射，并缓存不可变 plan。消费 token 后由框架解析值并仅直接调用 adapter 一次，确认阶段不执行 Skill 回调。命令式 `MutationBase` 仍可扩展，但整个操作始终报告 `unknown`。 | 两个内置 Mutation 已迁移为受管 plan。测试覆盖 plan 校验、缺失/非标量值在访问 adapter 前失败、精确成功/失败证据、缺少 COMMIT 证据、取消和确认期无回调；旧 `exact_transaction_outcome` 声明在 discovery 时给出迁移提示并拒绝。 | “精确”刻意只描述框架管理的那一条数据库语句的事务结论，不证明导入期或 preview 期 Python 副作用，也不覆盖数据库 trigger/UDF 的外部副作用、MySQL 非事务表、隐式提交或 COMMIT 回执丢失。可变业务约束必须保留在语句谓词中；启用的 Skill 模块仍是可信应用代码。 |
 
 **v3.7.2 复查补充（2026-09-10），DRR-2026-059/060/062：** 回滚确认新增
 事务活跃状态、回滚前后连接有效性检查；SQLAlchemy 在连接失效或关闭后仅完成本地
@@ -227,6 +229,20 @@ locking function 可能产生 outer-statement checker 无法证明不存在的�
 复核，才关闭普通配置路径下的 self-upgrade 漏洞。
 自定义 Skill 的行数不匹配说明也不再宣称整个 Skill 未提交：即使本条语句已回滚，
 此前的自定义语句仍可能已提交。
+
+**v3.7.3 受管契约补充（2026-09-16），DRR-2026-069/070：** 上述 v3.7.2 文字作为
+历史记录保留。现行契约已删除 exact flag 与源码/类登记：受管确认不实例化或调用
+Skill Python，只执行缓存的单条语句；命令式回调保持 `unknown`。关闭 Mutation 后
+也不再导入自定义 mutation 模块。精确证据只覆盖该框架受管语句，不证明 import、
+preview 或数据库之外的副作用。
+
+**同轮补充：preview 权威来源与审计一致性。** 初版受管实现仍接受 Skill 自行展示
+SQL/绑定值，确认时却执行独立的缓存计划。现改由框架从计划与最终序列化 binding
+生成预览字段，并在 token 签发前解析 SQL 值及结果映射；Skill 提供保留字段会被
+拒绝。结果映射同时保留 `error`/`error_code`。临时 `SKILLS_DIR` 下的非内置 Skill
+经 FastMCP Client 验证精确提交、状态变化回滚、展示/执行 SQL 与值一致、拒绝时
+不签 token，以及确认阶段无 Skill 回调。业务文字及预览期 Python 仍属可信内容/
+代码，不在该保证之内。
 
 **DRR-2026-057 补充（2026-09-03）：** SQLite 表若在 discovery 与有界采样之间
 消失，现在会得到不可用估计（`row_count=null`），不再误报为零行；MySQL 单表

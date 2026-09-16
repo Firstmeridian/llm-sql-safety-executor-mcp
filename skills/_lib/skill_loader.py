@@ -34,7 +34,8 @@ Security:
 - Query SQL templates pre-validated with is_sql_safe() at startup (fail-fast)
 - Mutation source modules must export a concrete MutationBase subclass
 - Mutation classes cannot replace the framework-owned run_execute() wrapper
-- Exact whole-Skill outcomes require the bundled source and registered class identity
+- Managed mutation plans are validated and cached before execution is enabled
+- Mutation source modules are not imported when mutation execution is disabled
 - SQL and mutation classes cached in memory — runtime never touches disk
 - validate_params() rejects extra parameters not defined in schema
 - validate_params() fails closed on unsupported schema types
@@ -56,7 +57,7 @@ from typing import Any, Callable, Literal, TYPE_CHECKING
 import yaml
 
 if TYPE_CHECKING:
-    from mutation_base import MutationBase
+    from mutation_base import ManagedMutationPlan, MutationBase
 
 from sql_safety_checker import is_sql_safe
 
@@ -189,6 +190,10 @@ class SkillMetadata:
     # -- Internal fields (populated by discover(), not from YAML) --
     _sql_template: str | None = field(default=None, repr=False)
     _mutation_class: type | None = field(default=None, repr=False)
+    _managed_mutation_plan: "ManagedMutationPlan | None" = field(
+        default=None,
+        repr=False,
+    )
 
 
 # =============================================================================
@@ -215,6 +220,8 @@ def _default_query_validator(sql: str) -> tuple[bool, str | None]:
 def discover(
     skills_dir: Path,
     query_validator: QueryValidator | None = None,
+    *,
+    load_mutations: bool = True,
 ) -> dict[str, SkillMetadata]:
     """
     Scan skills/ directory, parse all skill_def.md frontmatter, and return
@@ -235,22 +242,21 @@ def discover(
     Args:
         skills_dir: Path to the skills/ directory
         query_validator: Optional SQL safety policy callback.
+        load_mutations: Import and validate mutation Python modules. Set false
+            when mutation execution is disabled so application mutation code is
+            not imported merely to list its metadata.
 
     Returns:
         Dict mapping skill_name -> SkillMetadata for enabled skills
     """
-    from mutation_base import _register_exact_transaction_classes
-
     global _skills_cache, _skills_dir
     _skills_dir = skills_dir
     discovered: dict[str, SkillMetadata] = {}
-    registered_exact_classes: dict[str, type] = {}
     validate_query = query_validator or _default_query_validator
 
     if not skills_dir.is_dir():
         logger.warning(f"Skills directory not found: {skills_dir}")
         _skills_cache = discovered
-        _register_exact_transaction_classes(registered_exact_classes)
         return discovered
 
     for entry in sorted(skills_dir.iterdir()):
@@ -330,21 +336,24 @@ def discover(
                 )
                 continue
 
-            # Pre-load mutation module class at startup (TOCTOU + performance)
-            try:
-                mutation_class = _load_mutation_class(
-                    metadata.name, mutation_py_path
-                )
-                metadata._mutation_class = mutation_class
-                if inspect.getattr_static(
-                    mutation_class, "exact_transaction_outcome"
-                ) is True:
-                    registered_exact_classes[metadata.name] = mutation_class
-            except Exception as e:
-                logger.error(
-                    f"Skill '{metadata.name}': failed to load '{metadata.source}': {e}"
-                )
-                continue
+            if load_mutations:
+                # Pre-load mutation module class at startup (TOCTOU + performance).
+                # When writes are disabled, deliberately stop before importing
+                # application Python from mutation.py.
+                try:
+                    mutation_class = _load_mutation_class(
+                        metadata.name, mutation_py_path
+                    )
+                    metadata._mutation_class = mutation_class
+                    metadata._managed_mutation_plan = _managed_plan_for_class(
+                        metadata,
+                        mutation_class,
+                    )
+                except Exception as e:
+                    logger.error(
+                        f"Skill '{metadata.name}': failed to load '{metadata.source}': {e}"
+                    )
+                    continue
 
         discovered[metadata.name] = metadata
 
@@ -358,7 +367,6 @@ def discover(
                 )
 
     _skills_cache = discovered
-    _register_exact_transaction_classes(registered_exact_classes)
     logger.info(
         f"Discovered {len(discovered)} enabled skill(s): "
         f"{', '.join(sorted(discovered.keys()))}"
@@ -988,8 +996,8 @@ def _load_mutation_class(skill_name: str, mutation_path: Path) -> type:
         ImportError: If the source module cannot be imported
         AttributeError: If the source module doesn't export 'Mutation' class
         TypeError: If Mutation is not a concrete MutationBase subclass,
-            replaces the framework-owned run_execute() wrapper, or declares a
-            reserved exact whole-Skill outcome contract
+            replaces a framework-owned execution method, or uses the removed
+            exact_transaction_outcome declaration
     """
     spec = importlib.util.spec_from_file_location(
         f"skills.{skill_name}.mutation",
@@ -1014,10 +1022,7 @@ def _load_mutation_class(skill_name: str, mutation_path: Path) -> type:
             f"Skill '{skill_name}': source module export 'Mutation' must be a class"
         )
 
-    from mutation_base import (
-        BUILTIN_EXACT_TRANSACTION_OUTCOME_SKILLS,
-        MutationBase,
-    )
+    from mutation_base import ManagedMutationBase, MutationBase
 
     if not issubclass(mutation_class, MutationBase):
         raise TypeError(
@@ -1039,29 +1044,35 @@ def _load_mutation_class(skill_name: str, mutation_path: Path) -> type:
             "execute_with_binding()"
         )
 
-    exact_outcome_declaration = inspect.getattr_static(
-        mutation_class,
-        "exact_transaction_outcome",
-    )
-    # The name is not a provenance check: SKILLS_DIR may contain an unrelated
-    # mutation.py under either built-in name. Only the reviewed bundled source
-    # itself may declare the exact single-statement contract.
-    is_bundled_exact_source = (
-        skill_name in BUILTIN_EXACT_TRANSACTION_OUTCOME_SKILLS
-        and mutation_path.resolve()
-        == (Path(__file__).resolve().parents[1] / skill_name / "mutation.py").resolve()
-    )
-    if is_bundled_exact_source:
-        if exact_outcome_declaration is not True:
-            raise TypeError(
-                f"Skill '{skill_name}': bundled exact-outcome Mutation must "
-                "declare exact_transaction_outcome = True"
-            )
-    elif exact_outcome_declaration is not False:
+    if any(
+        "exact_transaction_outcome" in base.__dict__
+        for base in mutation_class.__mro__
+        if base not in {MutationBase, object}
+    ):
         raise TypeError(
-            f"Skill '{skill_name}': exact_transaction_outcome is reserved for "
-            "framework-registered built-in single-statement Mutations; custom "
-            "Skills must use the default whole-operation outcome 'unknown'"
+            f"Skill '{skill_name}': exact_transaction_outcome is no longer a "
+            "supported declaration; use ManagedMutationBase for one "
+            "framework-executed statement or MutationBase for an imperative "
+            "Skill with outcome 'unknown'"
+        )
+
+    if issubclass(mutation_class, ManagedMutationBase):
+        for method_name in ("execute", "execute_with_binding"):
+            if inspect.getattr_static(
+                mutation_class,
+                method_name,
+            ) is not inspect.getattr_static(ManagedMutationBase, method_name):
+                raise TypeError(
+                    f"Skill '{skill_name}': ManagedMutationBase.{method_name}() "
+                    "is framework-owned and must not be overridden"
+                )
+    elif any(
+        "managed_plan" in base.__dict__
+        for base in mutation_class.__mro__
+        if base not in {MutationBase, object}
+    ):
+        raise TypeError(
+            f"Skill '{skill_name}': managed_plan requires ManagedMutationBase"
         )
 
     if inspect.isabstract(mutation_class):
@@ -1071,6 +1082,48 @@ def _load_mutation_class(skill_name: str, mutation_path: Path) -> type:
         )
 
     return mutation_class
+
+
+def _managed_plan_for_class(
+    metadata: SkillMetadata,
+    mutation_class: type,
+) -> "ManagedMutationPlan | None":
+    """Validate and return a managed plan, including frontmatter references."""
+    from mutation_base import (
+        ManagedMutationBase,
+        ManagedMutationPlan,
+        validate_managed_mutation_plan,
+    )
+
+    if not issubclass(mutation_class, ManagedMutationBase):
+        return None
+    try:
+        plan = inspect.getattr_static(mutation_class, "managed_plan")
+    except AttributeError as exc:
+        raise TypeError(
+            f"Skill '{metadata.name}': ManagedMutationBase subclass must declare "
+            "managed_plan"
+        ) from exc
+    if not isinstance(plan, ManagedMutationPlan):
+        raise TypeError(
+            f"Skill '{metadata.name}': managed_plan must be a ManagedMutationPlan"
+        )
+    validated_plan = validate_managed_mutation_plan(plan)
+    missing_param_keys = sorted(
+        {
+            item.key
+            for item in (*validated_plan.parameters, *validated_plan.result_fields)
+            if item.source == "params"
+            and item.key is not None
+            and item.key not in metadata.params
+        }
+    )
+    if missing_param_keys:
+        raise TypeError(
+            f"Skill '{metadata.name}': managed_plan references parameters not "
+            f"declared in skill_def.md: {missing_param_keys}"
+        )
+    return validated_plan
 
 
 def _validate_param_schema(raw_params: Any, path: Path) -> dict[str, dict]:

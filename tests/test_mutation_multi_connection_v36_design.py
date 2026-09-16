@@ -106,6 +106,7 @@ def _reload_server(
     preview_token_store_max_entries: int = 10000,
     check_schema_on_list: bool | None = None,
     skills_dir: Path | None = None,
+    skills_allow_mutations: bool = True,
 ):
     monkeypatch.setenv("DB_CONNECTIONS", "mysql,analytics")
     monkeypatch.setenv("DEFAULT_DB_CONNECTION", "mysql")
@@ -117,7 +118,10 @@ def _reload_server(
     monkeypatch.setenv("DB_ANALYTICS_SQLITE_DATABASE_PATH", str(analytics_db))
     monkeypatch.setenv("DB_ANALYTICS_ALLOWED_TABLES", "orders")
     monkeypatch.setenv("ENABLE_SKILLS", "1")
-    monkeypatch.setenv("SKILLS_ALLOW_MUTATIONS", "1")
+    monkeypatch.setenv(
+        "SKILLS_ALLOW_MUTATIONS",
+        "1" if skills_allow_mutations else "0",
+    )
     monkeypatch.setenv("SKILLS_DIR", str(skills_dir or "skills/"))
     monkeypatch.setenv("SKILLS_EXCLUDE_PROFILES", "")
     monkeypatch.setenv("SKILLS_AUDIT_QUERIES", "0")
@@ -190,6 +194,52 @@ def _set_order_status(path: Path, order_id: int, status: str) -> None:
         conn.commit()
     finally:
         conn.close()
+
+
+def test_server_does_not_import_skill_mutation_module_when_writes_disabled(
+    tmp_path,
+    monkeypatch,
+):
+    mysql_db = tmp_path / "mysql.db"
+    analytics_db = tmp_path / "analytics.db"
+    _create_orders_db(mysql_db, "mysql")
+    _create_orders_db(analytics_db, "analytics")
+
+    with tempfile.TemporaryDirectory(prefix=".test-disabled-import-", dir=PROJECT_ROOT) as root:
+        skills_dir = Path(root)
+        skill_dir = skills_dir / "local-write"
+        skill_dir.mkdir()
+        marker = skills_dir / "imported.txt"
+        (skill_dir / "skill_def.md").write_text(
+            "---\n"
+            "name: local-write\n"
+            "type: mutation\n"
+            "source: mutation.py\n"
+            "risk: high\n"
+            "---\n\nImport boundary sentinel.\n",
+            encoding="utf-8",
+        )
+        (skill_dir / "mutation.py").write_text(
+            "from pathlib import Path\n"
+            f"Path({str(marker)!r}).write_text('imported', encoding='utf-8')\n"
+            "raise RuntimeError('mutation module was imported')\n",
+            encoding="utf-8",
+        )
+
+        module = _reload_server(
+            monkeypatch,
+            mysql_db,
+            analytics_db,
+            skills_dir=skills_dir,
+            skills_allow_mutations=False,
+        )
+        try:
+            assert "local-write" in module.get_skills_cache()
+            assert module.get_skills_cache()["local-write"]._mutation_class is None
+            assert not marker.exists()
+            assert not hasattr(module, "execute_mutation_skill")
+        finally:
+            _cleanup_modules()
 
 
 def test_default_execute_requires_preview_token(tmp_path, monkeypatch):
@@ -1153,8 +1203,8 @@ def test_execute_uses_previewed_state_for_optimistic_lock(tmp_path, monkeypatch)
         )
         assert preview["preview"]["bound_params"]["expected_status"] == "pending"
 
-        # confirmed -> cancelled is valid, so dynamic validation passes. The
-        # write must still use the previewed pending status and fail its lock.
+        # No Skill callback runs after confirmation. The cached statement must
+        # still use the previewed pending status and fail its atomic lock.
         _set_order_status(mysql_db, 1, "confirmed")
         rejected, rejected_meta = run_tool(
             module.execute_mutation_skill(
@@ -1344,14 +1394,14 @@ def test_update_order_status_rejects_direct_unbound_execute(
             module.get_adapter("mysql"),
             module._audit_logger,
         )
-        with pytest.raises(module.ToolError, match="unbound execution is disabled"):
+        with pytest.raises(module.ToolError, match="framework confirmation path"):
             mutation.execute(_params())
         assert _order_status(mysql_db, 1) == "pending"
     finally:
         _cleanup_modules()
 
 
-def test_dynamic_validation_failure_still_consumes_token(tmp_path, monkeypatch):
+def test_managed_stale_state_failure_still_consumes_token(tmp_path, monkeypatch):
     mysql_db = tmp_path / "mysql.db"
     analytics_db = tmp_path / "analytics.db"
     _create_orders_db(mysql_db, "mysql")
@@ -1379,7 +1429,8 @@ def test_dynamic_validation_failure_still_consumes_token(tmp_path, monkeypatch):
             )
         )
         assert rejected["success"] is False
-        assert rejected["validation"]["valid"] is False
+        assert rejected["execution_outcome"] == "rolled_back"
+        assert rejected["error_code"] == "expected_rowcount_mismatch"
         assert rejected_meta["audit_logged"] is True
         assert rejected_meta["preview_token_consumed"] is True
 
@@ -1403,7 +1454,7 @@ def test_dynamic_validation_failure_still_consumes_token(tmp_path, monkeypatch):
         assert audit_entries[0]["success"] is True
         assert audit_entries[1]["mode"] == "execute"
         assert audit_entries[1]["success"] is False
-        assert "Validation failed" in audit_entries[1]["error"]
+        assert "no longer matches the previewed state" in audit_entries[1]["error"]
         assert "preview_token_id" not in audit_entries[0]
         assert "preview_token_id" not in audit_entries[1]
     finally:
@@ -1459,7 +1510,7 @@ def test_dynamic_validation_audit_failure_is_reported_in_meta(
         _cleanup_modules()
 
 
-def test_dynamic_validation_toolerror_is_audited_once_after_consumption(
+def test_managed_confirmation_does_not_instantiate_or_call_skill(
     tmp_path,
     monkeypatch,
 ):
@@ -1483,10 +1534,17 @@ def test_dynamic_validation_toolerror_is_audited_once_after_consumption(
         ]._mutation_class
         assert mutation_class is not None
 
-        def fail_dynamic_validation(_self, _params):
-            raise module.ToolError("simulated dynamic validation failure")
+        def fail_skill_callback(*_args, **_kwargs):
+            raise module.ToolError("managed confirmation called Skill Python")
 
-        monkeypatch.setattr(mutation_class, "validate", fail_dynamic_validation)
+        monkeypatch.setattr(mutation_class, "__init__", fail_skill_callback)
+        monkeypatch.setattr(mutation_class, "validate", fail_skill_callback)
+        monkeypatch.setattr(mutation_class, "execute", fail_skill_callback)
+        monkeypatch.setattr(
+            mutation_class,
+            "execute_with_binding",
+            fail_skill_callback,
+        )
         audit_calls: list[dict[str, Any]] = []
         original_audit_log = module._audit_logger.log
 
@@ -1496,7 +1554,7 @@ def test_dynamic_validation_toolerror_is_audited_once_after_consumption(
 
         monkeypatch.setattr(module._audit_logger, "log", recording_audit_log)
 
-        rejected, rejected_meta = run_tool(
+        completed, completed_meta = run_tool(
             module.execute_mutation_skill(
                 skill_name="sample-update-order-status",
                 params=_params(),
@@ -1505,20 +1563,15 @@ def test_dynamic_validation_toolerror_is_audited_once_after_consumption(
                 preview_token=preview["preview_token"],
             )
         )
-        assert rejected["success"] is False
-        assert rejected["execution_outcome"] == "not_executed"
-        assert rejected["error_code"] == "validation_failed"
-        assert rejected_meta["preview_token_consumed"] is True
+        assert completed["success"] is True
+        assert completed["execution_outcome"] == "committed"
+        assert completed_meta["preview_token_consumed"] is True
 
         assert len(audit_calls) == 1
         assert audit_calls[0]["mode"] == "execute"
-        assert audit_calls[0]["result"] == {
-            "success": False,
-            "error": "Validation failed for mutation.",
-            "execution_outcome": "not_executed",
-            "error_code": "validation_failed",
-        }
-        assert _order_status(mysql_db, 1) == "pending"
+        assert audit_calls[0]["result"]["success"] is True
+        assert audit_calls[0]["result"]["execution_outcome"] == "committed"
+        assert _order_status(mysql_db, 1) == "confirmed"
 
         with pytest.raises(module.ToolError, match="already been used"):
             run_tool(
@@ -1683,8 +1736,8 @@ def test_commit_ack_failure_returns_structured_unknown(tmp_path, monkeypatch):
         _cleanup_modules()
 
 
-def test_custom_style_success_is_not_upgraded_to_committed(tmp_path, monkeypatch):
-    """A custom Skill success remains unknown without whole-Skill evidence."""
+def test_legacy_runtime_flag_cannot_downgrade_cached_managed_plan(tmp_path, monkeypatch):
+    """Managed eligibility comes from the validated cached plan, not a flag."""
     mysql_db = tmp_path / "mysql.db"
     analytics_db = tmp_path / "analytics.db"
     _create_orders_db(mysql_db, "mysql")
@@ -1699,6 +1752,7 @@ def test_custom_style_success_is_not_upgraded_to_committed(tmp_path, monkeypatch
             mutation_class,
             "exact_transaction_outcome",
             False,
+            raising=False,
         )
 
         preview, _ = run_tool(
@@ -1720,8 +1774,8 @@ def test_custom_style_success_is_not_upgraded_to_committed(tmp_path, monkeypatch
         )
 
         assert completed["success"] is True
-        assert completed["execution_outcome"] == "unknown"
-        assert meta["execution_outcome"] == "unknown"
+        assert completed["execution_outcome"] == "committed"
+        assert meta["execution_outcome"] == "committed"
         assert _order_status(mysql_db, 1) == "confirmed"
 
         audit_entries = [
@@ -1731,15 +1785,15 @@ def test_custom_style_success_is_not_upgraded_to_committed(tmp_path, monkeypatch
             .splitlines()
         ]
         assert audit_entries[-1]["success"] is True
-        assert audit_entries[-1]["execution_outcome"] == "unknown"
+        assert audit_entries[-1]["execution_outcome"] == "committed"
     finally:
         _cleanup_modules()
 
 
-def test_registered_builtin_missing_commit_evidence_via_fastmcp(
+def test_managed_adapter_missing_commit_evidence_via_fastmcp(
     tmp_path, monkeypatch,
 ):
-    """The real MCP response preserves a registered built-in's evidence failure."""
+    """The real MCP response rejects a plain dict without COMMIT evidence."""
     from fastmcp import Client
 
     mysql_db = tmp_path / "mysql.db"
@@ -1748,12 +1802,11 @@ def test_registered_builtin_missing_commit_evidence_via_fastmcp(
     _create_orders_db(analytics_db, "analytics")
     module = _reload_server(monkeypatch, mysql_db, analytics_db)
     try:
-        mutation_class = module.get_skills_cache()["sample-update-order-status"]._mutation_class
-        assert mutation_class is not None
+        adapter = module.get_adapter("mysql")
         monkeypatch.setattr(
-            mutation_class,
-            "execute_with_binding",
-            lambda self, params, binding: {"success": True, "rowcount": 1},
+            adapter,
+            "execute_write",
+            lambda *_args, **_kwargs: {"success": True, "rowcount": 1},
         )
 
         async def exercise():
@@ -1781,6 +1834,179 @@ def test_registered_builtin_missing_commit_evidence_via_fastmcp(
         assert _order_status(mysql_db, 1) == "pending"
     finally:
         _cleanup_modules()
+
+
+@pytest.fixture
+def custom_managed_server(tmp_path, monkeypatch):
+    """Discover a non-bundled managed Skill through the real SKILLS_DIR path."""
+    mysql_db = tmp_path / "mysql.db"
+    analytics_db = tmp_path / "analytics.db"
+    _create_orders_db(mysql_db, "mysql")
+    _create_orders_db(analytics_db, "analytics")
+    name = "custom-order-transition"
+    with tempfile.TemporaryDirectory(prefix=".test-managed-", dir=PROJECT_ROOT) as root:
+        skill_dir = Path(root) / name
+        skill_dir.mkdir()
+        (skill_dir / "skill_def.md").write_text(
+            f"---\nname: {name}\n"
+            "type: mutation\nsource: mutation.py\nrisk: medium\n"
+            "requires_confirmation: true\n"
+            "params:\n"
+            "  order_id: {type: int, required: true}\n"
+            "  new_status: {type: str, required: true}\n"
+            "---\n\nCustom managed order transition.\n",
+            encoding="utf-8",
+        )
+        (skill_dir / "mutation.py").write_text(
+            "from mutation_base import ManagedMutationBase, ManagedMutationPlan, ManagedMutationValue as V\n"
+            "class Mutation(ManagedMutationBase):\n"
+            "    managed_plan = ManagedMutationPlan(\n"
+            "        sql='UPDATE orders SET status = :new_status WHERE id = :order_id AND status = :expected_status',\n"
+            "        parameters=(V.from_params('new_status'), V.from_params('order_id'), V.from_binding('expected_status')),\n"
+            "        expected_rowcount=1,\n"
+            "        result_fields=(V.from_binding('previous_status', 'expected_status'), V.from_binding('receipt')))\n"
+            "    def validate(self, params): return {'valid': True}\n"
+            "    def preview(self, params):\n"
+            "        rows = self.adapter.execute('SELECT status FROM orders WHERE id = :id', params={'id': params['order_id']})\n"
+            "        return {'current_status': rows[0].status, 'warnings': ['Custom transition']}\n"
+            "    def build_execution_binding(self, params, validation, preview):\n"
+            "        return {'expected_status': preview['current_status'], 'receipt': 'bound before approval'}\n",
+            encoding="utf-8",
+        )
+        module = _reload_server(
+            monkeypatch, mysql_db, analytics_db,
+            skills_dir=Path(root), analytics_mutation_skills=name,
+        )
+        try:
+            yield module, analytics_db, name
+        finally:
+            _cleanup_modules()
+
+
+@pytest.mark.parametrize("stale", [False, True], ids=["committed", "rolled_back"])
+def test_custom_managed_authoritative_preview_and_confirmation_via_fastmcp(
+    custom_managed_server, monkeypatch, stale,
+):
+    from fastmcp import Client
+
+    module, database, name = custom_managed_server
+    meta = module.get_skills_cache()[name]
+    adapter = module.get_adapter("analytics")
+    writes = []
+    execute_write = adapter.execute_write
+
+    def recording_write(sql, params, **kwargs):
+        writes.append((sql, params.copy(), kwargs))
+        return execute_write(sql, params, **kwargs)
+
+    monkeypatch.setattr(adapter, "execute_write", recording_write)
+
+    def forbidden_callback(*_args, **_kwargs):
+        pytest.fail("Managed confirmation must not instantiate or call Skill Python")
+
+    async def exercise():
+        async with Client(module.mcp) as client:
+            arguments = {"skill_name": name, "params": _params(), "connection_id": "analytics"}
+            response = await client.call_tool("execute_mutation_skill", arguments)
+            preview = response.structured_content
+            assert isinstance(preview, dict)
+            assert preview["success"] is True
+            assert writes == []
+            assert _order_status(database, 1) == "pending"
+            assert preview["preview"]["preview_sql"] == meta._managed_mutation_plan.sql
+            assert preview["preview"]["bound_params"] == {
+                "order_id": 1, "new_status": "confirmed", "expected_status": "pending",
+            }
+            assert preview["preview"]["warnings"] == ["Custom transition"]
+            for method in (
+                "__init__", "validate", "preview", "build_execution_binding",
+                "execute", "execute_with_binding", "run_execute",
+            ):
+                monkeypatch.setattr(meta._mutation_class, method, forbidden_callback)
+            if stale:
+                _set_order_status(database, 1, "shipped")
+            completed = await client.call_tool(
+                "execute_mutation_skill",
+                {**arguments, "confirm": True, "preview_token": preview["preview_token"]},
+            )
+            return preview, completed.structured_content
+
+    preview, result = asyncio.run(exercise())
+    assert isinstance(result, dict)
+    assert result["success"] is (not stale)
+    assert result["execution_outcome"] == ("rolled_back" if stale else "committed")
+    assert writes == [(
+        preview["preview"]["preview_sql"], preview["preview"]["bound_params"],
+        {"expected_rowcount": 1},
+    )]
+    assert _order_status(database, 1) == ("shipped" if stale else "confirmed")
+    if stale:
+        assert result["error_code"] == "expected_rowcount_mismatch"
+    else:
+        assert result["result"]["previous_status"] == "pending"
+        assert result["result"]["receipt"] == "bound before approval"
+    entries = [json.loads(line) for line in (database.parent / "mutation-audit.jsonl").read_text().splitlines()]
+    executed = [entry for entry in entries if entry["mode"] == "execute"]
+    assert len(executed) == 1
+    assert executed[0]["execution_outcome"] == result["execution_outcome"]
+    if not stale:
+        assert not executed[0].get("error")
+        assert not executed[0].get("error_code")
+
+
+@pytest.mark.parametrize(
+    "invalid_case",
+    ["preview_sql", "bound_params", "binding_injects_sql", "missing_sql_value", "missing_result_value", "non_scalar_value"],
+)
+def test_custom_managed_invalid_preview_never_issues_token_via_fastmcp(
+    custom_managed_server, monkeypatch, invalid_case,
+):
+    from fastmcp import Client
+
+    module, database, name = custom_managed_server
+    mutation_class = module.get_skills_cache()[name]._mutation_class
+    original_preview = mutation_class.preview
+    original_binding = mutation_class.build_execution_binding
+    token_calls = []
+    write_calls = []
+    monkeypatch.setattr(module, "_create_mutation_preview_token", lambda **kwargs: token_calls.append(kwargs))
+    monkeypatch.setattr(module.get_adapter("analytics"), "execute_write", lambda *a, **k: write_calls.append((a, k)))
+
+    def invalid_preview(self, params):
+        preview = original_preview(self, params)
+        if invalid_case in {"preview_sql", "bound_params"}:
+            preview[invalid_case] = "misleading SQL or values"
+        return preview
+
+    def invalid_binding(self, params, validation, preview):
+        binding = original_binding(self, params, validation, preview)
+        if invalid_case == "binding_injects_sql":
+            preview["preview_sql"] = "DELETE FROM other_table"
+        elif invalid_case == "missing_sql_value":
+            del binding["expected_status"]
+        elif invalid_case == "missing_result_value":
+            del binding["receipt"]
+        elif invalid_case == "non_scalar_value":
+            binding["expected_status"] = ["pending"]
+        return binding
+
+    monkeypatch.setattr(mutation_class, "preview", invalid_preview)
+    monkeypatch.setattr(mutation_class, "build_execution_binding", invalid_binding)
+
+    async def exercise():
+        async with Client(module.mcp) as client:
+            return await client.call_tool(
+                "execute_mutation_skill",
+                {"skill_name": name, "params": _params(), "connection_id": "analytics"},
+                raise_on_error=False,
+            )
+
+    response = asyncio.run(exercise())
+    assert response.is_error is True
+    assert "no preview token was issued" in str(response.content).lower()
+    assert token_calls == []
+    assert write_calls == []
+    assert _order_status(database, 1) == "pending"
 
 
 def test_same_named_custom_two_statement_failure_via_fastmcp(
@@ -1924,10 +2150,10 @@ def test_server_rejects_invalid_result_from_framework_wrapper(
     _create_orders_db(analytics_db, "analytics")
     module = _reload_server(monkeypatch, mysql_db, analytics_db)
     try:
-        def bypass_base(_self, *_args, **_kwargs):
+        def bypass_base(**_kwargs):
             return {"success": False, "error": "caught write failure"}
 
-        monkeypatch.setattr(module.MutationBase, "run_execute", bypass_base)
+        monkeypatch.setattr(module, "run_managed_mutation", bypass_base)
 
         preview, _ = run_tool(
             module.execute_mutation_skill(
@@ -1956,6 +2182,58 @@ def test_server_rejects_invalid_result_from_framework_wrapper(
         _cleanup_modules()
 
 
+def test_server_rejects_imperative_committed_self_promotion(
+    tmp_path,
+    monkeypatch,
+):
+    """The protocol guard does not accept committed from an imperative runner."""
+    mysql_db = tmp_path / "mysql.db"
+    analytics_db = tmp_path / "analytics.db"
+    _create_orders_db(mysql_db, "mysql")
+    _create_orders_db(analytics_db, "analytics")
+    module = _reload_server(monkeypatch, mysql_db, analytics_db)
+    try:
+        preview, _ = run_tool(
+            module.execute_mutation_skill(
+                skill_name="sample-update-order-status",
+                params=_params(),
+                ctx=DummyContext(),
+                confirm=False,
+            )
+        )
+        metadata = module.get_skills_cache()["sample-update-order-status"]
+        monkeypatch.setattr(metadata, "_managed_mutation_plan", None)
+
+        def forged_imperative_result(*_args, **_kwargs):
+            return module.MutationExecutionResult(
+                {"success": True, "rowcount": 1, "_audit_logged": True},
+                execution_outcome="committed",
+            )
+
+        monkeypatch.setattr(
+            module.MutationBase,
+            "run_execute",
+            forged_imperative_result,
+        )
+        rejected, meta = run_tool(
+            module.execute_mutation_skill(
+                skill_name="sample-update-order-status",
+                params=_params(),
+                ctx=DummyContext(),
+                confirm=True,
+                preview_token=preview["preview_token"],
+            )
+        )
+
+        assert rejected["success"] is False
+        assert rejected["execution_outcome"] == "unknown"
+        assert rejected["error_code"] == "execution_outcome_unknown"
+        assert meta["preview_token_consumed"] is True
+        assert _order_status(mysql_db, 1) == "pending"
+    finally:
+        _cleanup_modules()
+
+
 @pytest.mark.parametrize("failure_kind", ["runtime", "tool", "rowcount"])
 @pytest.mark.parametrize("audit_fails", [False, True])
 def test_custom_execute_failure_after_write_is_unknown(
@@ -1967,7 +2245,8 @@ def test_custom_execute_failure_after_write_is_unknown(
     _create_orders_db(analytics_db, "analytics")
     module = _reload_server(monkeypatch, mysql_db, analytics_db)
     try:
-        mutation_class = module.get_skills_cache()["sample-update-order-status"]._mutation_class
+        metadata = module.get_skills_cache()["sample-update-order-status"]
+        mutation_class = metadata._mutation_class
         assert mutation_class is not None
 
         def execute_with_binding(self, params, _execution_binding):
@@ -1985,7 +2264,7 @@ def test_custom_execute_failure_after_write_is_unknown(
                 raise module.ToolError("safe-business-failure")
             raise RuntimeError("private-failure-sentinel")
 
-        monkeypatch.setattr(mutation_class, "exact_transaction_outcome", False)
+        monkeypatch.setattr(metadata, "_managed_mutation_plan", None)
         monkeypatch.setattr(
             mutation_class,
             "execute_with_binding",
@@ -2033,9 +2312,8 @@ def test_custom_execute_failure_after_write_is_unknown(
 
 
 @pytest.mark.parametrize("failure_kind", ["audit", "result", "rowcount"])
-@pytest.mark.parametrize("exact_outcome", [False, True])
 def test_framework_success_cleanup_keeps_outcome_and_serializable_response(
-    tmp_path, monkeypatch, failure_kind, exact_outcome,
+    tmp_path, monkeypatch, failure_kind,
 ):
     mysql_db = tmp_path / "mysql.db"
     analytics_db = tmp_path / "analytics.db"
@@ -2043,7 +2321,8 @@ def test_framework_success_cleanup_keeps_outcome_and_serializable_response(
     _create_orders_db(analytics_db, "analytics")
     module = _reload_server(monkeypatch, mysql_db, analytics_db)
     try:
-        mutation_class = module.get_skills_cache()["sample-update-order-status"]._mutation_class
+        skill_metadata = module.get_skills_cache()["sample-update-order-status"]
+        mutation_class = skill_metadata._mutation_class
         assert mutation_class is not None
 
         def execute_with_binding(self, params, _execution_binding):
@@ -2058,7 +2337,7 @@ def test_framework_success_cleanup_keeps_outcome_and_serializable_response(
                 result["rowcount"] = object()
             return result
 
-        monkeypatch.setattr(mutation_class, "exact_transaction_outcome", exact_outcome)
+        monkeypatch.setattr(skill_metadata, "_managed_mutation_plan", None)
         monkeypatch.setattr(
             mutation_class,
             "execute_with_binding",
@@ -2083,7 +2362,7 @@ def test_framework_success_cleanup_keeps_outcome_and_serializable_response(
             confirm=True, preview_token=preview["preview_token"],
         ))
         assert completed["success"] is (failure_kind == "audit")
-        assert completed["execution_outcome"] == ("committed" if exact_outcome else "unknown")
+        assert completed["execution_outcome"] == "unknown"
         assert metadata["audit_logged"] is (failure_kind != "audit")
         if failure_kind != "audit":
             assert completed["error_code"] == "response_preparation_failed"
@@ -2097,15 +2376,9 @@ def test_framework_success_cleanup_keeps_outcome_and_serializable_response(
         _cleanup_modules()
 
 
-@pytest.mark.parametrize(
-    ("exact_transaction_outcome", "expected_outcome"),
-    [(True, "committed"), (False, "unknown")],
-)
 def test_response_failure_after_write_preserves_evidence_and_single_audit(
     tmp_path,
     monkeypatch,
-    exact_transaction_outcome,
-    expected_outcome,
 ):
     mysql_db = tmp_path / "mysql.db"
     analytics_db = tmp_path / "analytics.db"
@@ -2113,16 +2386,6 @@ def test_response_failure_after_write_preserves_evidence_and_single_audit(
     _create_orders_db(analytics_db, "analytics")
 
     module = _reload_server(monkeypatch, mysql_db, analytics_db)
-    mutation_class = module.get_skills_cache()[
-        "sample-update-order-status"
-    ]._mutation_class
-    assert mutation_class is not None
-    monkeypatch.setattr(
-        mutation_class,
-        "exact_transaction_outcome",
-        exact_transaction_outcome,
-    )
-
     class FailAfterWriteContext(DummyContext):
         def __init__(self) -> None:
             self.info_calls = 0
@@ -2152,9 +2415,9 @@ def test_response_failure_after_write_preserves_evidence_and_single_audit(
             )
         )
         assert failed["success"] is False
-        assert failed["execution_outcome"] == expected_outcome
+        assert failed["execution_outcome"] == "committed"
         assert failed["error_code"] == "response_preparation_failed"
-        assert failed_meta["execution_outcome"] == expected_outcome
+        assert failed_meta["execution_outcome"] == "committed"
 
         assert _order_status(mysql_db, 1) == "confirmed"
         with pytest.raises(module.ToolError, match="already been used"):
@@ -2179,7 +2442,7 @@ def test_response_failure_after_write_preserves_evidence_and_single_audit(
         ]
         assert len(execute_entries) == 1
         assert execute_entries[0]["success"] is True
-        assert execute_entries[0]["execution_outcome"] == expected_outcome
+        assert execute_entries[0]["execution_outcome"] == "committed"
     finally:
         _cleanup_modules()
 
@@ -2239,18 +2502,15 @@ def test_cancellation_after_token_consumption_does_not_restore_token(
                 confirm=False,
             )
         )
-        mutation_class = module.get_skills_cache()[
-            "sample-update-order-status"
-        ]._mutation_class
-        assert mutation_class is not None
+        adapter = module.get_adapter("mysql")
 
-        def cancel_execute_with_binding(_self, *_args, **_kwargs):
+        def cancel_execute_write(*_args, **_kwargs):
             raise asyncio.CancelledError()
 
         monkeypatch.setattr(
-            mutation_class,
-            "execute_with_binding",
-            cancel_execute_with_binding,
+            adapter,
+            "execute_write",
+            cancel_execute_write,
         )
         with pytest.raises(asyncio.CancelledError):
             run_tool(

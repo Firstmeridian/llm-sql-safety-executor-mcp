@@ -6,8 +6,11 @@ Uses optimistic locking to prevent concurrent conflicting updates.
 """
 
 from fastmcp.exceptions import ToolError
-from mutation_base import MutationBase, MutationWriteError  # type: ignore[import-not-found]
-from db_adapter import WriteExecutionError
+from mutation_base import (  # type: ignore[import-not-found]
+    ManagedMutationBase,
+    ManagedMutationPlan,
+    ManagedMutationValue,
+)
 
 
 # Valid state transitions (from -> allowed to states)
@@ -22,12 +25,25 @@ VALID_TRANSITIONS: dict[str, list[str]] = {
 }
 
 
-class Mutation(MutationBase):
+class Mutation(ManagedMutationBase):
     """Update order status with state machine validation."""
 
-    # v3.7.2: this built-in performs exactly one adapter-managed write, so the
-    # adapter's transaction evidence describes the whole Skill write phase.
-    exact_transaction_outcome = True
+    managed_plan = ManagedMutationPlan(
+        sql=(
+            "UPDATE orders SET status = :new_status "
+            "WHERE id = :order_id AND status = :expected_status"
+        ),
+        parameters=(
+            ManagedMutationValue.from_params("new_status"),
+            ManagedMutationValue.from_params("order_id"),
+            ManagedMutationValue.from_binding("expected_status"),
+        ),
+        expected_rowcount=1,
+        result_fields=(
+            ManagedMutationValue.from_binding("previous_status", "expected_status"),
+            ManagedMutationValue.from_params("new_status"),
+        ),
+    )
 
     def validate(self, params: dict) -> dict:
         """
@@ -92,7 +108,7 @@ class Mutation(MutationBase):
         """
         Preview the mutation without making changes.
 
-        Returns the SQL that would be executed and the expected effect.
+        Returns business context; the framework adds SQL and bound parameters.
         """
         order_id = params["order_id"]
         new_status = params["new_status"]
@@ -105,7 +121,6 @@ class Mutation(MutationBase):
 
         if not result or (isinstance(result, str) and result.startswith("Error:")):
             return {
-                "preview_sql": "N/A",
                 "error": f"Order {order_id} not found or query failed",
             }
 
@@ -113,7 +128,6 @@ class Mutation(MutationBase):
         allowed = VALID_TRANSITIONS.get(current_status, [])
         if new_status not in allowed:
             return {
-                "preview_sql": "N/A",
                 "current_status": current_status,
                 "error": (
                     f"Order {order_id} changed to status '{current_status}'; "
@@ -122,16 +136,7 @@ class Mutation(MutationBase):
             }
 
         return {
-            "preview_sql": (
-                "UPDATE orders SET status = :new_status "
-                "WHERE id = :order_id AND status = :expected_status"
-            ),
             "current_status": current_status,
-            "bound_params": {
-                "new_status": new_status,
-                "order_id": order_id,
-                "expected_status": current_status,
-            },
             "affected_rows_estimate": 1,
             "warnings": [
                 f"Status will change from '{current_status}' to '{new_status}'"
@@ -150,53 +155,3 @@ class Mutation(MutationBase):
         if not isinstance(expected_status, str) or not expected_status:
             raise ToolError("Preview did not produce a valid expected order status")
         return {"expected_status": expected_status}
-
-    def execute_with_binding(
-        self,
-        params: dict,
-        execution_binding: dict,
-    ) -> dict:
-        """Execute only if the status still matches the previewed state."""
-        expected_status = execution_binding.get("expected_status")
-        if not isinstance(expected_status, str) or not expected_status:
-            raise ToolError("Missing expected order status from mutation preview")
-        return self._execute_with_expected_status(params, expected_status)
-
-    def execute(self, params: dict) -> dict:
-        """Reject direct execution that lacks a preview-derived binding."""
-        raise ToolError(
-            "Direct unbound execution is disabled; use the preview-token "
-            "execution path."
-        )
-
-    def _execute_with_expected_status(
-        self,
-        params: dict,
-        expected_status: str,
-    ) -> dict:
-        """Apply the update using the previewed status as the lock value."""
-        order_id = params["order_id"]
-        new_status = params["new_status"]
-
-        # Execute the update with optimistic locking
-        try:
-            write_result = self.adapter.execute_write(
-                "UPDATE orders SET status = :new_status "
-                "WHERE id = :order_id AND status = :expected_status",
-                params={
-                    "new_status": new_status,
-                    "order_id": order_id,
-                    "expected_status": expected_status,
-                },
-                expected_rowcount=1,
-            )
-        except WriteExecutionError as error:
-            raise MutationWriteError(error) from error
-
-        # Preserve WriteExecutionResult's internal COMMIT evidence while
-        # keeping the public mapping shape unchanged.
-        write_result.update(
-            previous_status=expected_status,
-            new_status=new_status,
-        )
-        return write_result

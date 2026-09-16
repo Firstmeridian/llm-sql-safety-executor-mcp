@@ -174,7 +174,8 @@ class TestResetDemoOrderToPending:
         assert validation["valid"] is True
         assert preview["current_status"] == "confirmed"
         assert preview["new_status"] == "pending"
-        assert "SELECT COUNT(*)" not in preview["preview_sql"]
+        assert "preview_sql" not in preview
+        assert "bound_params" not in preview
         assert binding == {"expected_status": "confirmed"}
         current = adapter_with_orders.execute(
             "SELECT status FROM orders WHERE id = :order_id",
@@ -182,16 +183,23 @@ class TestResetDemoOrderToPending:
         )
         assert current[0].status == "confirmed"
 
-    def test_bound_execute_resets_expected_order_to_pending(
+    def test_managed_execute_resets_expected_order_to_pending(
         self, adapter_with_orders, mock_audit_logger
     ):
+        from mutation_base import run_managed_mutation
+
         mutation = _load_demo_reset_mutation(
             adapter_with_orders, mock_audit_logger
         )
         params = {"order_id": 2, "expected_status": "confirmed"}
 
-        result = mutation.execute_with_binding(
-            params, {"expected_status": "confirmed"}
+        result = run_managed_mutation(
+            plan=mutation.managed_plan,
+            adapter=adapter_with_orders,
+            audit_logger=mock_audit_logger,
+            params=params,
+            execution_binding={"expected_status": "confirmed"},
+            skill_name="sample-reset-order-to-pending",
         )
 
         assert result["success"] is True
@@ -207,7 +215,7 @@ class TestResetDemoOrderToPending:
     def test_expected_status_mismatch_and_stale_binding_fail_closed(
         self, adapter_with_orders, mock_audit_logger
     ):
-        from fastmcp.exceptions import ToolError
+        from mutation_base import MutationExecutionError, run_managed_mutation
 
         mutation = _load_demo_reset_mutation(
             adapter_with_orders, mock_audit_logger
@@ -220,11 +228,19 @@ class TestResetDemoOrderToPending:
             "UPDATE orders SET status = 'shipped' WHERE id = :order_id",
             {"order_id": 2},
         )
-        with pytest.raises(ToolError, match="no longer.*confirmed"):
-            mutation.execute_with_binding(
-                {"order_id": 2, "expected_status": "confirmed"},
-                {"expected_status": "confirmed"},
+        with pytest.raises(
+            MutationExecutionError,
+            match="no longer matches the previewed state",
+        ) as raised:
+            run_managed_mutation(
+                plan=mutation.managed_plan,
+                adapter=adapter_with_orders,
+                audit_logger=mock_audit_logger,
+                params={"order_id": 2, "expected_status": "confirmed"},
+                execution_binding={"expected_status": "confirmed"},
+                skill_name="sample-reset-order-to-pending",
             )
+        assert raised.value.execution_outcome == "rolled_back"
 
     def test_direct_unbound_execute_is_rejected(
         self, adapter_with_orders, mock_audit_logger
@@ -234,7 +250,7 @@ class TestResetDemoOrderToPending:
         mutation = _load_demo_reset_mutation(
             adapter_with_orders, mock_audit_logger
         )
-        with pytest.raises(ToolError, match="Direct unbound execution"):
+        with pytest.raises(ToolError, match="framework confirmation path"):
             mutation.execute(
                 {"order_id": 2, "expected_status": "confirmed"}
             )
@@ -506,15 +522,15 @@ class TestRunExecuteAudit:
         assert result["_audit_logged"] is False
         assert result.execution_outcome == "unknown"
 
-    def test_same_name_unregistered_class_cannot_claim_exact_success(
+    def test_obsolete_exact_attribute_cannot_promote_plain_imperative_success(
         self,
         adapter_with_orders,
         mock_audit_logger,
     ):
-        """Even a built-in name plus declaration cannot establish class identity."""
+        """A direct base caller cannot revive the removed exact flag."""
         from mutation_base import MutationBase
 
-        class MissingEvidenceMutation(MutationBase):
+        class ObsoleteFlagMutation(MutationBase):
             exact_transaction_outcome = True
 
             def validate(self, params):
@@ -526,7 +542,7 @@ class TestRunExecuteAudit:
             def execute(self, params):
                 return {"success": True, "rowcount": 1}
 
-        mutation = MissingEvidenceMutation(adapter_with_orders, mock_audit_logger)
+        mutation = ObsoleteFlagMutation(adapter_with_orders, mock_audit_logger)
         result = mutation.run_execute(
             {"order_id": 1},
             skill_name="sample-update-order-status",
@@ -538,34 +554,46 @@ class TestRunExecuteAudit:
         "skill_name",
         ["sample-update-order-status", "sample-reset-order-to-pending"],
     )
-    def test_registered_builtin_success_requires_adapter_commit_evidence(
+    def test_managed_success_requires_adapter_commit_evidence(
         self,
         skill_name,
         adapter_with_orders,
         mock_audit_logger,
-        monkeypatch,
     ):
-        """An actual registered built-in cannot claim COMMIT from a plain dict."""
+        """A managed plan cannot claim COMMIT from a plain adapter dict."""
         import json
         from mutation_base import (
             MutationExecutionError,
-            _registered_exact_transaction_classes,
+            run_managed_mutation,
         )
         from skill_loader import discover
 
         bundled_dir = Path(__file__).resolve().parent.parent / "skills"
-        mutation_class = discover(bundled_dir)[skill_name]._mutation_class
-        assert mutation_class is _registered_exact_transaction_classes[skill_name]
+        meta = discover(bundled_dir)[skill_name]
+        plan = meta._managed_mutation_plan
+        assert plan is not None
 
-        monkeypatch.setattr(
-            mutation_class,
-            "execute_with_binding",
-            lambda self, params, binding: {"success": True, "rowcount": 1},
-        )
-        mutation = mutation_class(adapter_with_orders, mock_audit_logger)
+        class PlainResultAdapter:
+            def execute_write(self, sql, params, *, expected_rowcount):
+                return {"success": True, "rowcount": expected_rowcount}
+
+            def _handle_error(self, error):
+                return "Database operation failed."
+
+        if skill_name == "sample-update-order-status":
+            params = {"order_id": 1, "new_status": "confirmed"}
+        else:
+            params = {"order_id": 2, "expected_status": "confirmed"}
 
         with pytest.raises(MutationExecutionError) as raised:
-            mutation.run_execute({"order_id": 1}, skill_name=skill_name)
+            run_managed_mutation(
+                plan=plan,
+                adapter=PlainResultAdapter(),
+                audit_logger=mock_audit_logger,
+                params=params,
+                execution_binding={"expected_status": "pending"},
+                skill_name=skill_name,
+            )
 
         assert raised.value.error_code == "missing_commit_evidence"
         assert raised.value.execution_outcome == "unknown"
@@ -580,7 +608,7 @@ class TestRunExecuteAudit:
         adapter_with_orders,
         mock_audit_logger,
     ):
-        """A custom name remains unknown even if its class opts in itself."""
+        """The removed flag cannot promote an imperative adapter result."""
         from mutation_base import MutationBase
 
         class SelfDeclaredExactMutation(MutationBase):
@@ -753,3 +781,149 @@ class TestRunExecuteAudit:
         assert entry["mode"] == "execute"
         assert entry["success"] is False
         assert "not found" in entry["error"]
+
+
+class TestManagedMutationExecution:
+    """Framework-only execution guarantees for declarative mutations."""
+
+    @pytest.mark.parametrize("field", ["error", "error_code"])
+    def test_plan_cannot_inject_audit_error_fields(self, field):
+        from mutation_base import (
+            ManagedMutationPlan,
+            ManagedMutationValue,
+            validate_managed_mutation_plan,
+        )
+
+        with pytest.raises(TypeError, match="reserved"):
+            validate_managed_mutation_plan(
+                ManagedMutationPlan(
+                    "DELETE FROM orders WHERE id = :order_id",
+                    (ManagedMutationValue.from_params("order_id"),),
+                    1,
+                    (ManagedMutationValue.constant(field, "fake error"),),
+                )
+            )
+
+    def test_plan_validation_rejects_ambiguous_or_mutable_contracts(self):
+        from mutation_base import (
+            ManagedMutationPlan,
+            ManagedMutationValue,
+            validate_managed_mutation_plan,
+        )
+
+        sql = "DELETE FROM orders WHERE id = :order_id"
+        parameter = ManagedMutationValue.from_params("order_id")
+
+        with pytest.raises(TypeError, match="non-negative integer"):
+            validate_managed_mutation_plan(
+                ManagedMutationPlan(sql, (parameter,), True)
+            )
+        with pytest.raises(TypeError, match="must be tuples"):
+            validate_managed_mutation_plan(
+                ManagedMutationPlan(sql, [parameter], 1)  # type: ignore[arg-type]
+            )
+        with pytest.raises(TypeError, match="finite"):
+            validate_managed_mutation_plan(
+                ManagedMutationPlan(
+                    sql,
+                    (ManagedMutationValue.constant("order_id", float("inf")),),
+                    1,
+                )
+            )
+        with pytest.raises(TypeError, match="safe identifiers"):
+            validate_managed_mutation_plan(
+                ManagedMutationPlan(
+                    sql,
+                    (ManagedMutationValue.from_params("order_id", ""),),
+                    1,
+                )
+            )
+        with pytest.raises(TypeError, match="reserved"):
+            validate_managed_mutation_plan(
+                ManagedMutationPlan(
+                    sql,
+                    (parameter,),
+                    1,
+                    (ManagedMutationValue.from_params("success", "order_id"),),
+                )
+            )
+
+    def test_missing_binding_fails_before_adapter_write(self, mock_audit_logger):
+        from mutation_base import (
+            ManagedMutationPlan,
+            ManagedMutationValue,
+            MutationExecutionError,
+            run_managed_mutation,
+        )
+
+        class RecordingAdapter:
+            calls = 0
+
+            def execute_write(self, *_args, **_kwargs):
+                self.calls += 1
+                raise AssertionError("write must not be called")
+
+            def _handle_error(self, _error):
+                return "Database operation failed."
+
+        adapter = RecordingAdapter()
+        plan = ManagedMutationPlan(
+            sql="UPDATE orders SET status = :status WHERE id = :order_id",
+            parameters=(
+                ManagedMutationValue.from_params("order_id"),
+                ManagedMutationValue.from_binding("status", "preview_status"),
+            ),
+            expected_rowcount=1,
+        )
+
+        with pytest.raises(MutationExecutionError) as raised:
+            run_managed_mutation(
+                plan=plan,
+                adapter=adapter,
+                audit_logger=mock_audit_logger,
+                params={"order_id": 1},
+                execution_binding={},
+                skill_name="managed-write",
+            )
+
+        assert adapter.calls == 0
+        assert raised.value.execution_outcome == "not_executed"
+        assert raised.value.error_code == "managed_plan_resolution_failed"
+
+    def test_non_scalar_binding_fails_before_adapter_write(self, mock_audit_logger):
+        from mutation_base import (
+            ManagedMutationPlan,
+            ManagedMutationValue,
+            MutationExecutionError,
+            run_managed_mutation,
+        )
+
+        class RecordingAdapter:
+            calls = 0
+
+            def execute_write(self, *_args, **_kwargs):
+                self.calls += 1
+                raise AssertionError("write must not be called")
+
+            def _handle_error(self, _error):
+                return "Database operation failed."
+
+        adapter = RecordingAdapter()
+        plan = ManagedMutationPlan(
+            sql="DELETE FROM orders WHERE id = :order_id",
+            parameters=(ManagedMutationValue.from_binding("order_id"),),
+            expected_rowcount=1,
+        )
+
+        with pytest.raises(MutationExecutionError) as raised:
+            run_managed_mutation(
+                plan=plan,
+                adapter=adapter,
+                audit_logger=mock_audit_logger,
+                params={},
+                execution_binding={"order_id": [1]},
+                skill_name="managed-write",
+            )
+
+        assert adapter.calls == 0
+        assert raised.value.execution_outcome == "not_executed"

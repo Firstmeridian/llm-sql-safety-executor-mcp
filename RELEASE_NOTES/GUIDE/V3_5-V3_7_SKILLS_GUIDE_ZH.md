@@ -12,7 +12,10 @@
 > framework-owned `run_execute()` 扩展边界。v3.7.3 补充连接路由、配置解读及
 > 参数示例修正；现行规则和已知限制见
 > [v3.7.3 发布说明](../RELEASE_NOTES_v3_7.md#v373--connection-routing-and-tool-contract-clarity)，
-> 没有改变本文的事务、批准机制或单 mutation worker 部署边界。
+> 没有改变本文的批准机制或单 mutation worker 部署边界。同一 v3.7.3 的
+> [2026-09-16 受管契约补充](../RELEASE_NOTES_v3_7.md#managed-single-statement-mutation-contract--september-16-2026)
+> 把单语句写入迁移到 `ManagedMutationPlan`；本文相应更新现行 mutation
+> 扩展契约，历史版本事实仍按原记录解释。
 
 > **示例名称迁移：** 版本对比和历史验证记录保留当时的 Skill 原名；当前配置、
 > 字段说明和调用示例使用 v3.7.2 的 `sample-` 名称。新旧名称对应关系见
@@ -516,8 +519,10 @@ Skill 不是让 Agent 自己读取源码并自由写 SQL。服务端启动时会
 1. 解析 `skill_def.md` 的 YAML frontmatter；
 2. 校验 Skill 名称、参数 schema、`source` 文件名；
 3. Query Skill 在启动期校验 SQL 并缓存模板；
-4. Mutation Skill 导入并缓存 `MutationBase` 的具体子类；
-5. 运行时使用缓存，不从磁盘临时读取执行文件。
+4. 只有 `SKILLS_ALLOW_MUTATIONS=1` 时才导入 mutation 模块；关闭时仍解析元数据
+   和校验 source containment，但不执行自定义模块顶层代码；
+5. 启用写入时缓存具体类，并在 `ManagedMutationBase` 路径校验不可变的单语句计划；
+6. 运行时使用缓存，不从磁盘临时读取执行文件。
 
 ```mermaid
 flowchart LR
@@ -556,18 +561,24 @@ validate()
 preview()
     展示如果执行准备做什么，不执行写入
 
+ManagedMutationPlan
+    框架在确认阶段执行一条缓存语句
+
 execute() / execute_with_binding()
-    通过 execute_write() 在事务中真正修改数据库
+    仅用于可信的命令式扩展，整个操作结论为 unknown
 ```
 
 完整排列是：
 
 ```text
-第一次调用：validate() -> preview() -> 生成 token
-第二次调用：验证并消费 token -> validate() -> execute()
+第一次调用：validate() -> preview() -> build_execution_binding() -> 生成 token
+受管第二次调用：验证并消费 token -> 解析缓存 plan/binding -> execute_write()
+命令式第二次调用：验证并消费 token -> validate() -> execute callback
 ```
 
-`validate()` 在两个调用中都会出现，是因为 preview 和 execute 之间数据库状态可能变化。
+受管路径确认时不运行 Skill Python。preview 与确认之间可能变化的状态必须写入
+SQL 谓词，并由 `expected_rowcount` 在 COMMIT 前验证。命令式路径保留第二次
+`validate()`，但框架无法证明回调没有其它副作用，因此整个操作只能为 `unknown`。
 
 ### 7.1 `validate()` 和 `preview()` 的区别
 
@@ -723,12 +734,11 @@ DRR-2026-061 启动独立版本设计。
 `execute_unknown`。参考 host 每个流程最多调用一次 execute；结果出来后不会自动
 重新 preview、重新提交、切换 connection 或切换 server instance。
 
-`committed` 不是 MCP 成功分支自行生成的默认值。两个内置单语句 Skill 必须保留
-adapter 的类型化成功结果，`MutationBase` 同时验证 exact 声明和 COMMIT 证据后才会
-返回该值。普通自定义 Skill 的 dict 成功只能证明 Python handler 正常返回，因此是
+`committed` 不是 MCP 成功分支自行生成的默认值。受管单语句路径必须保留 adapter
+的类型化 COMMIT 证据后才会返回该值。命令式自定义 Skill 的 dict 成功只能证明 Python handler 正常返回，因此是
 `success=true, execution_outcome=unknown`。缺失/非布尔/false 的 Skill `success`
-结果会变成 `success=false, invalid_skill_result, unknown`；声明 exact 但丢失 adapter
-证据会变成 `missing_commit_evidence, unknown`。
+结果会变成 `success=false, invalid_skill_result, unknown`；受管 adapter 丢失证据
+会变成 `missing_commit_evidence, unknown`。
 
 COMMIT 阶段的 `asyncio.CancelledError` 与连接异常具有相同确认歧义；MySQL/SQLite
 adapter 在清理后将其转换成 `commit_outcome_unknown`，只要 MCP 调用仍有机会返回
@@ -814,7 +824,7 @@ COMMIT 阶段，则无论后续 rollback cleanup 是否报错，都只能返回 
 ```
 
 当前 execute 在静态 request/policy 检查后，对 Store record 原子执行“匹配并消费”，
-随后才进入动态 validation 和数据库写入。消费后即使发生 validation、数据库、超时、
+随后进入命令式动态 validation 或受管/命令式数据库写入。消费后即使发生 validation、数据库、超时、
 audit 或响应失败，也不会恢复。若结果不确定，必须先查询当前业务状态，再决定是否
 进行新的 preview/mutation，不能盲目重试。
 
@@ -850,7 +860,64 @@ preview；v3.7.1 已不使用签名 secret，任何进程外配置都不能恢�
 
 ## 11. `mutation.py` 固定接口契约
 
-`mutation.py` 应遵守固定的结构契约，但业务规则可以各不相同：
+单条语句优先使用受管契约：
+
+```python
+from mutation_base import (
+    ManagedMutationBase,
+    ManagedMutationPlan,
+    ManagedMutationValue,
+)
+
+
+class Mutation(ManagedMutationBase):
+    managed_plan = ManagedMutationPlan(
+        sql=(
+            "UPDATE orders SET status = :new_status "
+            "WHERE id = :order_id AND status = :expected_status"
+        ),
+        parameters=(
+            ManagedMutationValue.from_params("new_status"),
+            ManagedMutationValue.from_params("order_id"),
+            ManagedMutationValue.from_binding("expected_status"),
+        ),
+        expected_rowcount=1,
+    )
+
+    def validate(self, params: dict) -> dict:
+        ...
+
+    def preview(self, params: dict) -> dict:
+        ...
+
+    def build_execution_binding(self, params, validation, preview) -> dict:
+        ...
+```
+
+`ManagedMutationPlan` 必须是一条直接 INSERT/UPDATE/DELETE。计划的命名绑定与 SQL
+占位符必须完全一致，来自已校验 params、preview binding 或标量常量；
+`expected_rowcount` 是 COMMIT 前强制的不变量。loader 在 discovery 时缓存并校验
+计划。确认阶段先解析全部值，再由框架调用一次 adapter；不会实例化 Skill，也不会
+调用其 `validate()`、`execute()` 或 `execute_with_binding()`。
+
+受管 `preview()` 只提供业务说明、warnings 和供 binding 使用的状态；必须删除
+自行返回的 `preview_sql`、`bound_params`，包括失败 preview 中的占位值。
+框架在签发 token 前，从缓存 plan、已校验 params 和最终序列化 binding 生成这两个
+字段，并用与确认阶段相同的解析器验证 SQL 参数及结果映射。保留字段冲突、缺失值或
+非标量值均返回工具错误，不签发 token。确认期的兜底错误
+`managed_plan_resolution_failed` 则表示在 adapter 写调用前失败，对应 `not_executed`。
+`result_fields` 不得使用 `success`、`rowcount`、`execution_outcome`、`_audit_logged`、
+`error`、`error_code`。错误码是可扩展字符串集合，既有含义稳定；客户端仍以身份、
+`success` 和 `execution_outcome` 判断，未知码不能授权自动重试。
+
+因此，preview 后仍可能变化的业务条件必须进入 `WHERE` 谓词。只在 preview 中检查、
+但没有进入计划的条件，不能被描述为确认期保证。受管精确结论只覆盖这条框架执行的
+数据库语句；模块导入及 preview Python 仍属于可信同进程代码，可能有框架观察不到的
+副作用。
+
+### 命令式兼容路径
+
+无法用一条语句表达的可信工作流可以继续继承 `MutationBase`：
 
 ```python
 from mutation_base import MutationBase
@@ -867,18 +934,7 @@ class Mutation(MutationBase):
         ...
 ```
 
-### 必须实现的方法
-
-```text
-validate(params) -> {"valid": True}
-                       或 {"valid": False, "errors": [...]}
-
-preview(params) -> 可 JSON 序列化的预览字典
-
-execute(params) -> 实际执行结果字典，或抛出 ToolError
-```
-
-### 状态敏感 Skill 的可选扩展
+状态敏感的命令式 Skill 可额外实现：
 
 ```python
 def build_execution_binding(self, params, validation, preview) -> dict:
@@ -889,7 +945,9 @@ def execute_with_binding(self, params, execution_binding) -> dict:
     ...
 ```
 
-如果返回非空 binding 却没有正确实现 `execute_with_binding()`，基类会拒绝执行，而不是静默忽略 binding。
+如果返回非空 binding 却没有正确实现 `execute_with_binding()`，基类会拒绝执行。
+无论回调调用了一次还是多次 adapter、是否正常返回，整个命令式 Skill 的事务结论都
+只能是 `unknown`；它是可信、实验性扩展，不是取得精确结果的途径。
 
 `run_execute()` 不是自定义扩展点。它由框架统一负责结果校验、整个 Skill 的事务结论、
 错误脱敏和执行审计。v3.7.2 的 loader 会在 discovery 时拒绝直接覆盖，或从中间
@@ -900,13 +958,9 @@ MCP 还会直接调用基类 wrapper，不通过自定义实例虚分派，因�
 方法也会被忽略。但这不是不可信 Python 插件 sandbox，可信同进程代码仍可能篡改
 框架基类或其它运行时对象。
 
-自定义 Skill 还必须保留 `exact_transaction_outcome=False`。该属性不是作者自行开启
-精确结果的开关；loader 只允许框架登记的两个内置单语句 Skill 使用 true，基类还会
-用 MCP 传入的权威 Skill 名及本次 discovery 登记的类身份复核。登记前核对源码
-解析路径必须指向仓库内置的 `mutation.py`，不能只凭名称判断。其它 `SKILLS_DIR`
-中的同名自定义类设置 true 会在 discovery 被拒绝；保留默认 false 时仍可加载，
-但即使其中某条语句回滚，整个 Skill 的结论也只能为 `unknown`。这防止把此前
-已经提交的自定义语句误报为整个 Skill 已回滚。可信同进程 Python 仍非沙箱。
+`exact_transaction_outcome` 已删除；自定义类声明它会在 discovery 被拒绝并收到迁移
+提示。受管资格来自已校验 plan，不来自名称、路径、类注册表、布尔属性或 Skill 返回
+对象。此前 v3.7.2 的内置名称/源码/类身份登记是历史过渡机制，现行实现不再依赖它。
 
 ### 代码边界
 
@@ -956,6 +1010,8 @@ sequenceDiagram
         else preview 成功
             Server->>Skill: build_execution_binding()
             Skill-->>Server: 与展示内容同源的最小 preview 状态
+            Server->>Server: 拒绝保留字段、解析所有计划值、生成 SQL/bound_params
+            Note over Server,Store: 任一步失败均不签发 token
             Server->>Store: 登记 handle digest + request/execution binding + expiry
             Server-->>Agent: preview result + preview_token
         end
@@ -977,24 +1033,16 @@ sequenceDiagram
             Server-->>Agent: 请求不匹配
         else 匹配并消费成功
             Store-->>Server: execution binding
-            Server->>Skill: validate(params)
-            alt 当前状态不再允许
-                Skill-->>Server: validation 失败
-                Server-->>Agent: 失败，token 已消费
-            else 当前状态允许
-                alt 有 execution binding
-                    Server->>Skill: execute_with_binding(params, binding)
-                else 无 binding
-                    Server->>Skill: execute(params)
-                end
-                Skill->>DB: execute_write()\n事务内真实写入
-                DB-->>Skill: rowcount / result
-                Skill-->>Server: execute result
-                Server-->>Agent: 成功结果
-            end
+            Server->>Server: 解析缓存 ManagedMutationPlan + binding
+            Server->>DB: execute_write()\n单语句 + expected_rowcount
+            DB-->>Server: COMMIT 证据或类型化失败
+            Server-->>Agent: 结构化结果
         end
     end
 ```
+
+上图表示受管路径。命令式兼容路径在消费后仍会调用 Skill `validate()` 和执行回调，
+但其整个操作结论固定为 `unknown`。
 
 ## 13. 当前配置示例（不含真实凭据）
 

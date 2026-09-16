@@ -1,8 +1,11 @@
 """Portable demo mutation that resets an expected order state to pending."""
 
 from fastmcp.exceptions import ToolError
-from mutation_base import MutationBase, MutationWriteError  # type: ignore[import-not-found]
-from db_adapter import ExpectedRowcountMismatchError, WriteExecutionError
+from mutation_base import (  # type: ignore[import-not-found]
+    ManagedMutationBase,
+    ManagedMutationPlan,
+    ManagedMutationValue,
+)
 
 
 RESETTABLE_STATUSES = frozenset(
@@ -10,10 +13,25 @@ RESETTABLE_STATUSES = frozenset(
 )
 
 
-class Mutation(MutationBase):
+class Mutation(ManagedMutationBase):
     """Reset a demo order to pending with preview-state optimistic locking."""
 
-    exact_transaction_outcome = True
+    managed_plan = ManagedMutationPlan(
+        sql=(
+            "UPDATE orders SET status = :new_status "
+            "WHERE id = :order_id AND status = :expected_status"
+        ),
+        parameters=(
+            ManagedMutationValue.constant("new_status", "pending"),
+            ManagedMutationValue.from_params("order_id"),
+            ManagedMutationValue.from_binding("expected_status"),
+        ),
+        expected_rowcount=1,
+        result_fields=(
+            ManagedMutationValue.from_binding("previous_status", "expected_status"),
+            ManagedMutationValue.constant("new_status", "pending"),
+        ),
+    )
 
     def _read_status(self, order_id: int) -> tuple[str | None, str | None]:
         result = self.adapter.execute(
@@ -72,14 +90,13 @@ class Mutation(MutationBase):
         expected_status = params["expected_status"]
         expected_error = self._validate_expected_status(expected_status)
         if expected_error:
-            return {"preview_sql": "N/A", "error": expected_error}
+            return {"error": expected_error}
 
         current_status, error = self._read_status(order_id)
         if error:
-            return {"preview_sql": "N/A", "error": error}
+            return {"error": error}
         if current_status != expected_status:
             return {
-                "preview_sql": "N/A",
                 "current_status": current_status,
                 "error": (
                     f"Order {order_id} changed to status '{current_status}'; "
@@ -87,16 +104,8 @@ class Mutation(MutationBase):
                 ),
             }
         return {
-            "preview_sql": (
-                "UPDATE orders SET status = 'pending' "
-                "WHERE id = :order_id AND status = :expected_status"
-            ),
             "current_status": current_status,
             "new_status": "pending",
-            "bound_params": {
-                "order_id": order_id,
-                "expected_status": current_status,
-            },
             "affected_rows_estimate": 1,
             "warnings": [
                 f"Demo status will be reset from '{current_status}' to 'pending'"
@@ -120,50 +129,3 @@ class Mutation(MutationBase):
                 "Preview did not bind the explicitly expected reset source state"
             )
         return {"expected_status": preview_status}
-
-    def execute_with_binding(
-        self,
-        params: dict,
-        execution_binding: dict,
-    ) -> dict:
-        expected_status = execution_binding.get("expected_status")
-        if (
-            self._validate_expected_status(expected_status) is not None
-            or params.get("expected_status") != expected_status
-        ):
-            raise ToolError(
-                "Missing or mismatched expected reset state from mutation preview"
-            )
-
-        order_id = params["order_id"]
-        try:
-            write_result = self.adapter.execute_write(
-                "UPDATE orders SET status = 'pending' "
-                "WHERE id = :order_id AND status = :expected_status",
-                params={
-                    "order_id": order_id,
-                    "expected_status": expected_status,
-                },
-                expected_rowcount=1,
-            )
-        except ExpectedRowcountMismatchError as error:
-            raise MutationWriteError(
-                error,
-                f"Optimistic lock failed: order {order_id} is no longer "
-                f"in expected status '{expected_status}'",
-            ) from error
-        except WriteExecutionError as error:
-            raise MutationWriteError(error) from error
-        # Preserve WriteExecutionResult's internal COMMIT evidence while
-        # keeping the public mapping shape unchanged.
-        write_result.update(
-            previous_status=expected_status,
-            new_status="pending",
-        )
-        return write_result
-
-    def execute(self, params: dict) -> dict:
-        raise ToolError(
-            "Direct unbound execution is disabled; use the preview-token "
-            "execution path."
-        )

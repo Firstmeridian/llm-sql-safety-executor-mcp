@@ -269,12 +269,22 @@ Mutation 行为测试必须使用 disposable fixture 或明确可恢复记录，
     `run_execute()` 时 discovery fail closed；该 loader 契约不是 Agent 轨迹可以
     替代的验证；同时验证加载后仅替换子类同名方法会被 MCP 的基类直接调用绕过，
     非法框架返回则保守成为 `unknown`；
-14. 验证自定义 Skill 不能通过声明 `exact_transaction_outcome=True` 把单条 adapter
-    证据提升为整个 Skill 的 `committed`：覆盖在其它 `SKILLS_DIR` 中复用两个
-    内置名称的情形；仅真正的内置源码和本次登记类身份可获得精确资格。
-    同名双写自定义 Skill 的首条提交、次条回滚必须返回 `unknown` 而非
-    `rolled_back`；两个真正内置 Skill 保留精确结论，但缺少 adapter COMMIT
-    证据时必须报告 `missing_commit_evidence, unknown`，不可按成功返回推断提交。
+14. 当前受管资格来自 discovery 校验并缓存的 `ManagedMutationPlan`，不来自
+    内置名称、源码路径或类身份登记。使用临时项目内 `SKILLS_DIR` 和非内置名称的
+    `ManagedMutationBase`，经真实 FastMCP 内存客户端验证单语句 `committed`、
+    状态变化导致的 `rolled_back`，以及确认阶段不实例化或调用 Skill Python。
+    旧 `exact_transaction_outcome` 声明必须在 discovery 被拒绝。命令式 Skill
+    一旦执行回调，整个操作始终为 `unknown`；首条提交、次条回滚不能描述为整个
+    Skill 的 `rolled_back`。受管 adapter 缺少 COMMIT 证据时仍须报告
+    `missing_commit_evidence, unknown`。
+15. 验证受管 `preview_sql`、`bound_params` 由框架从缓存 plan 和最终 binding
+    生成，并与 adapter 实际接收的 SQL/值一致；Skill 自行返回保留字段应被拒绝。
+    SQL 参数或结果映射缺少 binding、值不是标量时，不得签发 token 或调用写接口；
+    `result_fields` 也不得覆盖 `error`、`error_code` 等框架结果/审计字段。
+16. `error_code` 是可扩展字符串集合；既有含义稳定，但未知码不构成自动重试许可。
+    客户端仍以身份校验、`success` 和 `execution_outcome` 判断结果；缺失或矛盾
+    证据保守为 unknown。确认期 `managed_plan_resolution_failed` 表示在 adapter
+    写调用前解析失败，对应 `not_executed`；preview 期解析失败是无 token 的工具错误。
 
 Agent 轨迹验证不能替代服务端安全校验。即使 Agent 总是按提示执行，权限、绑定、
 一次性消费和 fail-closed 仍必须由代码强制。
@@ -545,16 +555,16 @@ payload-only 估算，不是完整会话账单。
   `success` 与 `execution_outcome`；
 - [ ] 注入四类结果、旧成功/失败响应、畸形响应、身份不匹配和 timeout，并断言
   execute 后没有任何后续写调用；
-- [ ] 自定义 Skill 普通成功没有被升级为 `committed`；exact 内置 Skill 丢失
-  adapter 证据时 fail closed；
+- [ ] 命令式 Skill 普通成功没有被升级为 `committed`；内置或自定义受管 Skill
+  丢失 adapter 证据时 fail closed；
 - [ ] 自定义 Mutation 的直接/继承 `run_execute()` 覆盖在 discovery 时被拒绝，
   并提供迁移到 `execute()` / `execute_with_binding()` 的提示；加载后子类替换不会
   取得 wrapper 分派控制权；
-- [ ] 自定义 `exact_transaction_outcome=True` 在 discovery 被拒绝，包括复用
-  内置 Skill 名的其它 `SKILLS_DIR`；基类按权威名称及来源校验后登记的类身份
-  复核；同名双写首条提交、次条回滚返回 unknown，真正的两个内置单语句 Skill
-  可输出精确结论，但两者缺少 adapter COMMIT 证据时都返回
-  `missing_commit_evidence, unknown`，其中一个还经真实 FastMCP Client 验证；
+- [ ] 旧 `exact_transaction_outcome` 声明在 discovery 被拒绝；受管资格来自
+  校验后的 plan；非内置名称及临时 `SKILLS_DIR` 经 FastMCP Client 证明精确提交/
+  回滚、框架生成的预览与执行一致、无效值不签 token、确认期无 Skill Python；
+- [ ] 命令式双写首条提交、次条回滚仍返回 unknown；受管路径缺少 adapter
+  COMMIT 证据返回 `missing_commit_evidence, unknown`；结果不能伪造审计错误字段；
 - [ ] MySQL/SQLite COMMIT 取消均得到类型化 `commit_outcome_unknown`，并单独记录
   transport 可能无法投递该结构化结果的边界；
 - [ ] 报告没有凭据、完整 bearer handle 或敏感业务数据；

@@ -1069,8 +1069,8 @@ class TestLoadMutation:
         assert getattr(MutationBase.run_execute, "__final__", False) is True
 
     @pytest.mark.parametrize("skill_name", ["custom-exact", "sample-custom-exact"])
-    def test_custom_mutation_cannot_self_declare_exact_outcome(self, tmp_path, skill_name):
-        """Whole-Skill exact evidence is reserved for registered built-ins."""
+    def test_removed_exact_declaration_has_managed_migration_error(self, tmp_path, skill_name):
+        """The old opt-in flag cannot manufacture a transaction contract."""
         from skill_loader import _load_mutation_class
 
         mutation_path = tmp_path / "mutation.py"
@@ -1086,10 +1086,7 @@ class TestLoadMutation:
 
         with pytest.raises(
             TypeError,
-            match=(
-                "exact_transaction_outcome is reserved for framework-registered "
-                "built-in single-statement Mutations"
-            ),
+            match="exact_transaction_outcome is no longer a supported declaration",
         ):
             _load_mutation_class(skill_name, mutation_path)
 
@@ -1097,7 +1094,7 @@ class TestLoadMutation:
         "reserved_name",
         ["sample-update-order-status", "sample-reset-order-to-pending"],
     )
-    def test_bundled_name_at_custom_path_cannot_claim_exact_outcome(
+    def test_bundled_name_at_custom_path_cannot_use_removed_exact_declaration(
         self, tmp_path, reserved_name,
     ):
         """Names alone cannot grant whole-Skill transaction evidence."""
@@ -1115,7 +1112,7 @@ class TestLoadMutation:
             encoding="utf-8",
         )
 
-        with pytest.raises(TypeError, match="exact_transaction_outcome is reserved"):
+        with pytest.raises(TypeError, match="exact_transaction_outcome is no longer"):
             _load_mutation_class(reserved_name, mutation_path)
 
         (mutation_path.parent / "skill_def.md").write_text(
@@ -1129,20 +1126,22 @@ class TestLoadMutation:
         )
         assert reserved_name not in discover(tmp_path)
 
-    def test_discovery_registers_only_bundled_source_and_loaded_class(self, tmp_path):
-        """Rediscovery cannot leave an old exact class authorized by name."""
+    def test_discovery_caches_managed_plans_without_name_registry(self, tmp_path):
+        """Managed eligibility is structural and stored with discovered metadata."""
         from skill_loader import discover
-        from mutation_base import _registered_exact_transaction_classes
+        from mutation_base import ManagedMutationBase, ManagedMutationPlan
 
         bundled = Path(__file__).resolve().parent.parent / "skills"
         original = discover(bundled)
         for name in ("sample-update-order-status", "sample-reset-order-to-pending"):
-            assert _registered_exact_transaction_classes[name] is original[name]._mutation_class
+            mutation_class = original[name]._mutation_class
+            assert mutation_class is not None
+            assert issubclass(mutation_class, ManagedMutationBase)
+            assert isinstance(original[name]._managed_mutation_plan, ManagedMutationPlan)
 
         custom_skills = tmp_path / "skills"
         custom_skills.mkdir()
-        discover(custom_skills)
-        assert _registered_exact_transaction_classes == {}
+        assert discover(custom_skills) == {}
 
     @pytest.mark.parametrize(
         ("extra_source", "expected_error"),
@@ -1153,7 +1152,7 @@ class TestLoadMutation:
             ),
             (
                 "    exact_transaction_outcome = True\n",
-                "exact_transaction_outcome is reserved",
+                "exact_transaction_outcome is no longer a supported declaration",
             ),
         ],
         ids=["wrapper-override", "custom-exact-claim"],
@@ -1197,6 +1196,121 @@ class TestLoadMutation:
         meta = cache["test-mutation"]
         assert meta._mutation_class is not None
         assert meta._mutation_class.__name__ == "Mutation"
+
+    def test_mutation_module_is_not_imported_when_loading_is_disabled(
+        self,
+        tmp_path,
+    ):
+        """Disabled writes do not execute top-level code from mutation.py."""
+        from skill_loader import discover
+
+        skills_dir = tmp_path / "skills"
+        skill_dir = skills_dir / "disabled-write"
+        skill_dir.mkdir(parents=True)
+        marker = tmp_path / "imported.txt"
+        (skill_dir / "skill_def.md").write_text(
+            "---\n"
+            "name: disabled-write\n"
+            "type: mutation\n"
+            "source: mutation.py\n"
+            "risk: high\n"
+            "---\n\nDisabled mutation import sentinel.\n",
+            encoding="utf-8",
+        )
+        (skill_dir / "mutation.py").write_text(
+            "from pathlib import Path\n"
+            f"Path({str(marker)!r}).write_text('imported', encoding='utf-8')\n"
+            "raise RuntimeError('must not be imported')\n",
+            encoding="utf-8",
+        )
+
+        discovered = discover(skills_dir, load_mutations=False)
+
+        assert "disabled-write" in discovered
+        assert discovered["disabled-write"]._mutation_class is None
+        assert not marker.exists()
+
+    @pytest.mark.parametrize(
+        ("sql", "parameters", "error"),
+        [
+            (
+                "SELECT * FROM orders WHERE id = :order_id",
+                "(ManagedMutationValue.from_params('order_id'),)",
+                "one direct INSERT, UPDATE, or DELETE",
+            ),
+            (
+                "UPDATE orders SET status = 'x'; DELETE FROM orders",
+                "()",
+                "one direct INSERT, UPDATE, or DELETE",
+            ),
+            (
+                "UPDATE orders SET status = :status WHERE id = :order_id",
+                "(ManagedMutationValue.from_params('order_id'),)",
+                "exactly match SQL named binds",
+            ),
+            (
+                "DELETE FROM orders WHERE id = :undeclared_id",
+                "(ManagedMutationValue.from_params('undeclared_id'),)",
+                "references parameters not declared in skill_def.md",
+            ),
+        ],
+    )
+    def test_invalid_managed_plan_is_rejected_during_discovery(
+        self,
+        tmp_path,
+        caplog,
+        sql,
+        parameters,
+        error,
+    ):
+        from skill_loader import discover
+
+        skills_dir = tmp_path / "skills"
+        skill_dir = skills_dir / "managed-write"
+        skill_dir.mkdir(parents=True)
+        (skill_dir / "skill_def.md").write_text(
+            "---\n"
+            "name: managed-write\n"
+            "type: mutation\n"
+            "source: mutation.py\n"
+            "risk: high\n"
+            "params:\n"
+            "  order_id: {type: int, required: true}\n"
+            "---\n\nManaged plan validation test.\n",
+            encoding="utf-8",
+        )
+        (skill_dir / "mutation.py").write_text(
+            "from mutation_base import (ManagedMutationBase, ManagedMutationPlan, "
+            "ManagedMutationValue)\n"
+            "class Mutation(ManagedMutationBase):\n"
+            f"    managed_plan = ManagedMutationPlan({sql!r}, {parameters}, 1)\n"
+            "    def validate(self, params): return {'valid': True}\n"
+            "    def preview(self, params): return {}\n",
+            encoding="utf-8",
+        )
+
+        with caplog.at_level(logging.ERROR):
+            discovered = discover(skills_dir)
+
+        assert "managed-write" not in discovered
+        assert error in caplog.text
+
+    def test_managed_mutation_cannot_override_execution_callback(self, tmp_path):
+        from skill_loader import _load_mutation_class
+
+        mutation_path = tmp_path / "mutation.py"
+        mutation_path.write_text(
+            "from mutation_base import (ManagedMutationBase, ManagedMutationPlan)\n"
+            "class Mutation(ManagedMutationBase):\n"
+            "    managed_plan = ManagedMutationPlan('DELETE FROM orders', (), 1)\n"
+            "    def validate(self, params): return {'valid': True}\n"
+            "    def preview(self, params): return {}\n"
+            "    def execute(self, params): return {'success': True}\n",
+            encoding="utf-8",
+        )
+
+        with pytest.raises(TypeError, match=r"execute\(\).*framework-owned"):
+            _load_mutation_class("managed-write", mutation_path)
 
     def test_load_mutation_uses_cached_class(self, discovered_skills):
         """P2#1: load_mutation() instantiates from cache, no disk I/O."""
