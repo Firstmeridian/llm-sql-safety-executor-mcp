@@ -69,6 +69,7 @@ from preview_token_store import InMemoryPreviewTokenStore
 from connection_diagnostics import (
     ConnectionDiagnostics,
     ConnectionReport,
+    ConnectionScope,
     DiagnosticsUnavailable,
     diagnostic_budget,
 )
@@ -919,11 +920,11 @@ _CONNECTION_ROUTING_GUIDANCE = """Connection routing:
 - A resolved target comes from the user's explicit choice, a trusted application binding for this request, or the unique database-type match below. An agent's guess, an alias name, the default flag, or a successful connection check does not establish the user's intended target. Pass an unambiguously referenced resolved alias explicitly; do not revert to the global default.
 - If the user specifies only a database type, call list_connections(). Use the only matching connection when exactly one has that db_type; otherwise ask for an exact alias.
 - Explicit prohibitions take precedence: do not access a forbidden target, including for a connection check. For requested connectivity, a restriction permitting one resolved alias or the default limits a broader request: check only that target and state that others were not checked. If partial checks are explicitly rejected or restrictions remain inconsistent, ask and wait instead. This rule does not authorize writes.
-- STOP when a purpose/role has no resolved target, a reference is ambiguous, a type has no unique match, or scope restrictions cannot be reconciled. If candidates are needed, call only list_connections(); then ask the user to choose or clarify and wait for their answer. Until then, do not inspect schema, query, discover or execute Skills, or run either connectivity check for that unresolved request. Do not present the default as a purpose match. Already known candidates need not be listed again.
+- STOP when a purpose/role has no resolved target, a reference is ambiguous, a type has no unique match, or scope restrictions cannot be reconciled. If candidates are needed, call only list_connections(); then ask the user to choose or clarify and wait for their answer. Until then, do not inspect schema, query, discover or execute Skills, or run connectivity diagnostics for that unresolved request. Do not present the default as a purpose match. Already known candidates need not be listed again.
 - If the user only asks which aliases are available, list them without connecting. If they need to choose a target, ask for that choice and wait; discovery itself is not selection.
-- Omitting connection_id selects only the configured default; it never means all connections.
+- For single-target tools and diagnostics with scope="single", omitting connection_id selects only the configured default. Only diagnostic scope="all" selects all connections.
 - For a generic connectivity request with NO target clues and NO resolved conversational or application target, call check_connection() for the default only and identify that scope in the reply. An unresolved purpose such as "the analytics database" is a target clue, not permission to use the default. For ordinary requests without target clues, existing default routing remains available; do not demand confirmation solely because connection_id is omitted.
-- Only when the user clearly requests and permits connectivity diagnostics across all configured connections, call check_connections() directly. An unambiguous continuation of a previously confirmed all-connection request also qualifies. Never infer this scope just from a generic connection problem.
+- Only when the user clearly requests and permits connectivity diagnostics across all configured connections, call check_connection(scope="all") directly. An unambiguous continuation of a previously confirmed all-connection request also qualifies. Never infer this scope just from a generic connection problem.
 - For other read-only requests across all connections, call list_connections() and invoke the requested tool once per connection_id. Never broadcast mutations."""
 
 mcp = FastMCP(
@@ -975,11 +976,26 @@ if ENABLE_TOOL_TELEMETRY:
             call_completed = True
             error_class: str | None = None
             success: bool = True
-            result_db_type = DB_TYPE
-            result_connection_id = get_default_connection_id()
-            aggregate = tool_name == "check_connections"
+            diagnostic = tool_name == "check_connection"
+            result_db_type = None if diagnostic else DB_TYPE
+            result_connection_id = None if diagnostic else get_default_connection_id()
+            diagnostic_scope: ConnectionScope | None = None
+            if diagnostic:
+                arguments = getattr(context.message, "arguments", None) or {}
+                if isinstance(arguments, dict):
+                    try:
+                        configs = _select_diagnostic_configs(**arguments)
+                        diagnostic_scope = arguments.get("scope", "single")
+                        if diagnostic_scope == "single":
+                            result_db_type = configs[0].db_type
+                            result_connection_id = configs[0].connection_id
+                    except (ToolError, TypeError, ValueError):
+                        # Observability must not change validation or fabricate
+                        # a default identity for an invalid request.
+                        pass
+            aggregate = diagnostic_scope == "all"
             aggregate_counts: dict[str, int] = {}
-            cleanup_failed = aggregate and _connection_diagnostics.cleanup_failed
+            cleanup_failed = diagnostic and _connection_diagnostics.cleanup_failed
             try:
                 result = await call_next(context)
                 meta = getattr(result, "meta", None) or {}
@@ -988,7 +1004,7 @@ if ENABLE_TOOL_TELEMETRY:
                     success = meta_success
                 if isinstance(meta, dict):
                     aggregate = aggregate or meta.get("connection_scope") == "all"
-                    if aggregate:
+                    if diagnostic or aggregate:
                         cleanup_failed = meta.get("cleanup_failed") is True
                         for key in ("connection_count", "connected_count"):
                             if type(meta.get(key)) is int:
@@ -1017,10 +1033,14 @@ if ENABLE_TOOL_TELEMETRY:
                         "db_type": result_db_type,
                         "connection_id": result_connection_id,
                     }
-                    if aggregate:
-                        record.pop("connection_id")
-                        record.pop("db_type")
-                        record["connection_scope"] = "all"
+                    if diagnostic or aggregate:
+                        if aggregate or result_connection_id is None:
+                            record.pop("connection_id")
+                            record.pop("db_type")
+                        if diagnostic_scope is not None:
+                            record["connection_scope"] = diagnostic_scope
+                        elif aggregate:
+                            record["connection_scope"] = "all"
                         record["cleanup_failed"] = cleanup_failed
                         record.update(aggregate_counts)
                     try:
@@ -1280,6 +1300,30 @@ def _resolve_connection_context(connection_id: str | None = None) -> ConnectionC
     )
 
 
+def _select_diagnostic_configs(
+    connection_id: str | None = None, scope: ConnectionScope = "single",
+) -> list[DatabaseConfig]:
+    """Validate and resolve diagnostics without obtaining a business adapter.
+
+    Also used by telemetry before execution so busy/disabled errors retain the
+    actual request scope. Invalid requests do not acquire a connection identity.
+    """
+    if not isinstance(scope, str) or scope not in ("single", "all"):
+        raise ToolError("scope must be 'single' or 'all'.")
+    if scope == "all":
+        if connection_id is not None:
+            raise ToolError("connection_id must be omitted or null when scope='all'.")
+        return list_connection_configs()
+    if connection_id is not None and (
+        not isinstance(connection_id, str) or not connection_id.strip() or len(connection_id) > 64
+    ):
+        raise ToolError("connection_id must be a non-empty configured alias or null.")
+    try:
+        return [get_connection_config(connection_id)]
+    except ValueError as exc:
+        raise ToolError(str(exc)) from exc
+
+
 def _policy_summary(policy: ConnectionPolicy) -> dict[str, Any]:
     """Return a non-sensitive summary of connection policy."""
     allowed_tables = policy.allowed_tables
@@ -1312,20 +1356,6 @@ def _policy_summary(policy: ConnectionPolicy) -> dict[str, Any]:
         "mutation_skills_mode": mutation_skills_mode,
         "mutation_skills": mutation_skill_values,
         "mutation_skills_count": len(mutation_skills),
-    }
-
-
-def _config_status(config: DatabaseConfig) -> dict[str, str]:
-    """Return set/missing status for required connection fields without values."""
-    if config.db_type == "sqlite":
-        return {
-            "SQLITE_DATABASE_PATH": "set" if config.sqlite_database_path else "missing (using :memory:)",
-        }
-    return {
-        "DB_USER": "set" if config.mysql_user else "missing",
-        "DB_PASSWORD": "set" if config.mysql_password else "missing",
-        "DB_HOST": "set" if config.mysql_host else "missing",
-        "DB_NAME": "set" if config.mysql_database else "missing",
     }
 
 
@@ -1487,6 +1517,7 @@ def _tool_result(
     tool_name: str,
     start_time: float,
     connection: ConnectionContext | None = None,
+    connection_config: DatabaseConfig | None = None,
     connection_scope: Literal["single", "all"] = "single",
     **meta_extras: Any,
 ) -> ToolResult:
@@ -1503,10 +1534,9 @@ def _tool_result(
     Per MCP spec the ``_meta`` field is OPTIONAL: clients MAY ignore it. This
     helper is primarily a server-side observability hook.
     """
-    db_type = connection.db_type if connection is not None else DB_TYPE
-    connection_id = (
-        connection.connection_id if connection is not None else get_default_connection_id()
-    )
+    config = connection.config if connection is not None else connection_config
+    db_type = config.db_type if config is not None else DB_TYPE
+    connection_id = config.connection_id if config is not None else get_default_connection_id()
     runtime_meta: dict[str, Any] = {
         "tool_name": tool_name,
         "db_type": db_type,
@@ -1514,6 +1544,8 @@ def _tool_result(
         "execution_ms": _elapsed_ms_from(start_time),
     }
     runtime_meta.update({k: v for k, v in meta_extras.items() if v is not None})
+    if connection_config is not None:
+        runtime_meta["connection_scope"] = connection_scope
     if connection_scope == "all":
         runtime_meta.pop("db_type", None)
         runtime_meta.pop("connection_id", None)
@@ -1596,7 +1628,7 @@ async def list_connections(ctx: Context) -> ToolResult:
     List configured database connection ids and non-sensitive policy metadata.
 
     This does not open or test database connections. For requested connectivity
-    diagnostics across all aliases, use check_connections().
+    diagnostics across all aliases, use check_connection(scope="all").
 
     policy.allowed_tables describes configured access, not observed tables.
     It does not prove that a listed table exists or that unlisted tables are
@@ -1783,127 +1815,73 @@ async def query(
 
 @mcp.tool(
     timeout=_MCP_TOOL_TIMEOUT,
-    annotations=ToolAnnotations(
-        title="Check Database Connection",
-        readOnlyHint=True,
-        destructiveHint=False,
-        idempotentHint=True,
-        openWorldHint=False,
-    )
-)
-async def check_connection(
-    ctx: Context,
-    connection_id: Annotated[str | None, _CONNECTION_ID_FIELD] = None,
-) -> ToolResult:
-    """
-    Check one configured database connection; omission selects only the default.
-    For a generic connectivity request with no target clues and no resolved
-    conversational/application target, check only the default. For a resolved
-    target, pass connection_id explicitly. An unresolved purpose/role, ambiguous
-    reference, or irreconcilable scope restrictions require clarification and waiting first; only
-    list_connections() may be used to offer candidates. Do not probe the default
-    while waiting. A successful check does not establish the user's intended target.
-    A prohibition on accessing a target includes this connection check.
-    If a broader connectivity request explicitly permits only one resolved alias
-    or the default, check only that target and state that others were not checked.
-    If partial checks are explicitly rejected, ask and wait instead.
-    Use check_connections() only for a clear request to check all configured aliases.
-    This reuses the business adapter. It does not use the batch tool's disposable
-    connections or its independent 30-second waiting budget.
-
-    Use this only when the user requests a connectivity check or after a
-    database operation reports a connection failure. Do not call it as a
-    routine prerequisite before queries.
-
-    Returns:
-        Connection status, database type, and configuration check
-    """
-    start_time = time.perf_counter()
-    connection = _resolve_connection_context(connection_id)
-    await ctx.info(f"Checking database connection '{connection.connection_id}'...")
-    
-    adapter = connection.adapter
-    success, message = adapter.check_connection()
-    
-    if not success:
-        await ctx.error(f"Connection failed: {message}")
-        payload = {
-            "connected": False,
-            "error": message,
-            "db_type": connection.db_type,
-            "connection_id": connection.connection_id,
-            "config": _config_status(connection.config),
-        }
-        return _tool_result(
-            payload, tool_name="check_connection", start_time=start_time,
-            connection=connection, success=False,
-        )
-    
-    await ctx.info(f"Database connection successful ({connection.db_type})")
-    payload = {
-        "connected": True,
-        "message": message,
-        "db_type": connection.db_type,
-        "connection_id": connection.connection_id,
-        "database_name": _public_database_name(connection),
-    }
-    return _tool_result(
-        payload, tool_name="check_connection", start_time=start_time,
-        connection=connection, success=True,
-    )
-
-
-@mcp.tool(
-    timeout=_MCP_TOOL_TIMEOUT,
     output_schema=ConnectionReport.model_json_schema(),
     annotations=ToolAnnotations(
-        title="Check All Configured Database Connections",
+        title="Check Database Connectivity",
         readOnlyHint=True,
         destructiveHint=False,
         idempotentHint=True,
         openWorldHint=False,
     ),
 )
-async def check_connections(ctx: Context) -> ToolResult:
-    """Check fresh connectivity to ALL configured aliases; takes no arguments.
+async def check_connection(
+    ctx: Context,
+    connection_id: Annotated[str | None, Field(
+        description=(
+            "Configured alias for scope='single'; omit or use null for the default. "
+            "Pass an already resolved target explicitly. Must be omitted or null for scope='all'."
+        ), min_length=1, max_length=64,
+    )] = None,
+    scope: Annotated[ConnectionScope, Field(
+        description="single checks one alias or the default; all explicitly checks every configured alias.",
+    )] = "single",
+) -> ToolResult:
+    """Check fresh connectivity to one or all configured database connections.
 
-    Use only when the user clearly requests and permits ALL configured connections, including
-    an unambiguous continuation of a previously confirmed all-connection request.
-    A generic connection problem or missing alias alone does not request this scope.
-    For generic connectivity with no target clues and no resolved conversational/
-    application target, use check_connection() for the default only. For a resolved
-    alias, pass connection_id explicitly to that tool. An unresolved purpose/role,
-    ambiguous reference, or irreconcilable scope restrictions require clarification and waiting;
-    only list_connections() may be used to offer candidates. Run neither diagnostic
-    while waiting. Never run diagnostics routinely before queries.
-    A prohibition on accessing any configured target rules out this ALL tool.
-    A broader request restricted to one resolved alias or the default uses
-    check_connection() for that target, with other connections reported unchecked;
-    if partial checks are explicitly rejected, ask and wait instead.
+    With scope='single' (default), omission of connection_id selects only the default.
+    For a generic connectivity request with no target clues and no resolved
+    conversational/application target, check only the default. For a resolved
+    target, pass connection_id explicitly. An unresolved purpose/role, ambiguous
+    reference, or irreconcilable scope restrictions require clarification and waiting first;
+    only list_connections() may be used to offer candidates. Do not probe the default
+    while waiting. A successful check does not establish the user's intended target.
+    A prohibition on accessing a target includes this connection check.
+    If a broader connectivity request explicitly permits only one resolved alias
+    or the default, check only that target and state that others were not checked.
+    If partial checks are explicitly rejected, ask and wait instead.
+    Use scope='all' only when the user clearly requests and permits ALL configured
+    connections, including an unambiguous continuation of a confirmed all-connection
+    request. A generic connection problem or missing alias alone does not request all.
+    scope='all' forbids a non-null connection_id. A prohibition on any configured
+    target rules out scope='all'. Do not call it as a routine prerequisite before queries;
+    use it when requested or after an operation reports a connection failure.
 
-    Disposable connections leave business connections and transactions alone.
-    SQLite files open read-only; :memory: checks only a fresh memory connection.
+    Both scopes use disposable connections, leaving business connections and transactions
+    alone. SQLite files open read-only; :memory: checks only a fresh memory connection.
     SQLite WAL auxiliary files may still involve filesystem writes.
-    This does not verify business tables, Skill readiness or write privileges.
+    This does not verify business pool health, tables, Skill readiness or write privileges.
     Within a 30-second budget (shortened for a smaller MCP timeout), return
     connected/failed results and timeout/not_checked entries with connected=null.
-    Incomplete checks are not proof of connection failure. Underlying checks may
-    continue cleaning up after the response; another batch then reports busy.
-    Busy, stopped, or disabled diagnostics return an MCP tool error, not a report
-    status. cleanup_failed records an observed cleanup exception separately from
-    connectivity; it disables further batches until the server process restarts.
+    Incomplete checks are not proof of connection failure. Report counts and
+    all_connected cover only the selected scope; single returns one results entry.
+    Underlying checks may continue cleaning up after the response; any new diagnostic
+    then reports busy. Busy, stopped, or disabled diagnostics return an MCP tool error,
+    not a report status. cleanup_failed records an observed cleanup exception separately
+    from connectivity; it disables all diagnostics until the server process restarts.
     A false flag means no failure observed at report time, not verified release.
     """
     start_time = time.perf_counter()
+    configs = _select_diagnostic_configs(connection_id, scope)
     try:
         report = await _connection_diagnostics.run(
-            list_connection_configs(), diagnostic_budget(_MCP_TOOL_TIMEOUT),
+            configs, diagnostic_budget(_MCP_TOOL_TIMEOUT), scope=scope,
         )
     except DiagnosticsUnavailable as exc:
         raise ToolError(str(exc)) from exc
     return _tool_result(
-        report.model_dump(), tool_name="check_connections", start_time=start_time,
-        connection_scope="all", success=report.all_connected and not report.cleanup_failed,
+        report.model_dump(), tool_name="check_connection", start_time=start_time,
+        connection_config=configs[0] if scope == "single" else None,
+        connection_scope=scope, success=report.all_connected and not report.cleanup_failed,
         cleanup_failed=report.cleanup_failed,
         connection_count=report.connection_count, connected_count=report.connected_count,
     )
@@ -4663,8 +4641,7 @@ Tools (choose based on need):
 - list_tables(connection_id): Visible table overview with row estimates; may be truncated
 - describe_table(table_name, connection_id): Single-table adapter-visible column metadata + row estimate + is_large hint; not complete DDL
 - get_full_schema(connection_id, detail_level, group_identical): Compact adapter-visible column groups or full adapter-visible column metadata; grouping is not full DDL equivalence
-- check_connection(connection_id): Check one alias (default if omitted), only on request or connection errors
-- check_connections(): Check fresh connectivity to all configured aliases in one bounded diagnostic report; only for a clear all-connection request
+- check_connection(connection_id, scope): Check fresh connectivity with one bounded report; default single scope checks one alias (default if omitted); use scope="all" only for a clear permitted all-connection request
 {skills_info}
 {_CONNECTION_ROUTING_GUIDANCE}
 

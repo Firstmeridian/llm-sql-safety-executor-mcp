@@ -99,7 +99,7 @@ MCP 工具错误或重复数据库调用。
 检查原始调用，而不只依赖 Agent 自述。本次默认范围偏差正是保留原始任务与
 调用序列后得到的发现。该建议不要求相关工具必须合并。
 
-连接、资源与返回契约详见[批量诊断设计记录](../GUIDE/BATCH_CONNECTION_CHECK_DESIGN.md)。
+连接、资源与返回契约详见[批量诊断设计记录](../GUIDE/V3_7_CONNECTION_DIAGNOSTICS_DESIGN.md)。
 
 ## 第二阶段：三个独立完整多轮任务
 

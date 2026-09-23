@@ -1,12 +1,12 @@
 # MCP Agents Skills Design Document
 
-> **Design baseline**: v3.7.3, including the 2026-09-16 managed-mutation contract corrections
+> **Design baseline**: v3.7.3, including the September 16 managed-mutation and September 22 unified-diagnostic contracts
 > **Status**: Implemented
-> **Date**: 2026-09-16
+> **Date**: 2026-09-22
 > **References**: [Skills safety policy](skills/SAFETY.md), [design risk register](DESIGN_RISK_REGISTER.md), [v3.6 release-family notes](RELEASE_NOTES/RELEASE_NOTES_v3_6.md), and [v3.7 release notes](RELEASE_NOTES/RELEASE_NOTES_v3_7.md)
 
 Current routing guidance and parameter examples are maintained in the
-[v3.7.3 notes](RELEASE_NOTES/RELEASE_NOTES_v3_7.md#v373--connection-routing-and-tool-contract-clarity).
+[current v3.7.3 notes](RELEASE_NOTES/RELEASE_NOTES_v3_7.md#unified-connection-diagnostics--september-22-2026).
 The [v3.7.3 managed-mutation follow-up](RELEASE_NOTES/RELEASE_NOTES_v3_7.md#managed-single-statement-mutation-contract--september-16-2026)
 removes the former exact-outcome flag/registry:
 single-statement writes use a cached `ManagedMutationPlan` and confirmation
@@ -751,15 +751,17 @@ table allowlists, schema readiness checks, and execution-time validation.
 
 ### Runtime Tool Metadata
 
-All registered MCP tools return `ToolResult` (uniform since v3.4.2; up to 12 in
-the v3.5 full profile) so FastMCP clients
+All registered MCP tools return `ToolResult` (uniform since v3.4.2; currently up
+to 12 in the full profile) so FastMCP clients
 receive per-invocation `meta` alongside the existing structured payload. The
 payload remains the same JSON object that clients read from
 `structuredContent` / `.data`; metadata is reserved for diagnostics and
 observability.
 
-Runtime metadata always includes `tool_name`, `db_type`, `connection_id`,
-`execution_ms`, and `success` once a database target is involved. For base tools,
+Runtime result metadata includes `tool_name`, `execution_ms`, and `success`.
+Single-target results include the resolved `db_type` and `connection_id`;
+all-connection diagnostics use `connection_scope="all"` and summary counts
+without attributing the report to the default connection. For base tools,
 `success` is passed directly by each tool's result wrapper. For Skills execution
 tools, `success` is derived from the stable
 `structuredContent["success"]` payload so business-level validation failures
@@ -778,9 +780,13 @@ For SQLite targets, public tool payloads that need a database display name use
 `sqlite:<connection_id>` rather than the configured file path.
 
 Operational telemetry (`ENABLE_TOOL_TELEMETRY=1`) writes a separate JSONL record
-per `tools/call` with sanitized fields only: `timestamp`, `tool_name`,
+for calls that reach the project middleware, with sanitized fields only: `timestamp`, `tool_name`,
 `execution_ms`, `call_completed`, `success`, `error_class`, `db_type`, and
-`connection_id` when the tool result carries one.
+`connection_id` when the tool result carries one. Diagnostic records include
+the valid request scope, and all-scope records omit single-connection identity.
+The installed SDK rejects schema-invalid wire calls before this middleware;
+those attempts have no project telemetry record. Cross-field and unknown-alias
+rejections that reach the middleware are recorded without invented identities.
 `call_completed` records transport/control-flow completion, while `success`
 records the tool's own business outcome. This split avoids the common ambiguity
 where a safety or validation rejection returns a normal MCP response but should
@@ -794,24 +800,47 @@ usage-pattern disclosure.
 
 | Configuration | Tool Count |
 |--------------|------------|
-| ENABLE_SKILLS=0 | 7-9 (includes `list_connections` and `check_connections`) |
-| ENABLE_SKILLS=1, MUTATIONS=0 | 10-12 |
-| ENABLE_SKILLS=1, MUTATIONS=1 | 11-13 |
+| ENABLE_SKILLS=0 | 6-8 (includes `list_connections` and unified `check_connection`) |
+| ENABLE_SKILLS=1, MUTATIONS=0 | 9-11 |
+| ENABLE_SKILLS=1, MUTATIONS=1 | 10-12 |
 
-`check_connections()` checks all configured aliases using disposable diagnostic
-connections, while `check_connection()` targets one business adapter and
-`list_connections()` only lists configuration. Aggregate metadata and telemetry
-use `connection_scope=all` with counts and omit a single `connection_id`/`db_type`.
-An observed cleanup exception sets `cleanup_failed` without changing the confirmed
-connection result, stops new probe submissions, and disables further batches
-until process restart. Aggregate operational success requires all connections
-healthy and no observed cleanup failure; false cleanup flags are not proof of
-driver resource release. Required result status fields and error-channel details
-are documented in the batch diagnostic design.
-The [batch diagnostic design](RELEASE_NOTES/GUIDE/BATCH_CONNECTION_CHECK_DESIGN.md)
-records the SQLite transaction-isolation decision and timeout/resource contract.
+`check_connection(connection_id=None, scope="single")` checks the default or a
+named alias; `scope="all"` checks all configured aliases and rejects a non-null
+connection_id before database access. The old `check_connections` tool is removed.
+Both scopes use disposable connections on the existing diagnostic worker pool;
+`list_connections()` only lists configuration. Selecting targets and packaging
+metadata read configuration only, without acquiring business adapters.
 
-The full Skills profile remains within Google Gemini's recommended 10-20 tools range. The base read-only profile intentionally stays below that range to keep simple deployments compact.
+The shared report requires `scope`, counts, connectivity/completion/cleanup flags
+and per-alias results. Single scope has one entry; counts and `all_connected`
+refer only to selected targets. All scope remains all even with one configuration.
+Single metadata/telemetry includes actual alias/type plus scope; all uses scope
+and counts without default identity. `call_completed` tracks normal report return,
+whereas `success` requires all selected connections healthy and no observed
+cleanup failure. Invalid inputs and busy/stopped/disabled requests use tool errors;
+connection failures and incomplete checks are normal structured reports.
+
+Single and all requests share one admission gate, up to four threads and the
+30-second/minimum outer-timeout budget. A timed-out/cancelled running worker
+retains ownership until cleanup completes. Observed cleanup failure sets
+`cleanup_failed`, stops submissions and disables all diagnostics until process
+restart; other tools stay available. False cleanup flags are not proof of driver
+resource release. Fresh connections do not attest to business pool health;
+SQLite WAL and process-exit limits remain documented.
+
+This is a breaking pre-publication tool/output migration. Old single callers
+must read `results[alias].connected`; old message/database_name/config outputs
+are removed. Reusing one existing runner avoids adding another scheduler, at the
+cost of single checks sharing busy/disabled availability. The
+[diagnostic design and migration table](RELEASE_NOTES/GUIDE/V3_7_CONNECTION_DIAGNOSTICS_DESIGN.md)
+records the trade-offs, SQLite isolation evidence and staged Agent acceptance.
+Routing guidance and model-supplied scope are not a per-request authorization
+boundary; DRR-2026-066 remains Open.
+
+Tool count alone is not evidence of Agent reliability. Google's recommendation
+to keep the active tool set small supports careful tool selection; staged task
+results, not a claimed ideal number, determine whether consolidation helps.
+
 
 ## 7. Database Adapter Extensions
 

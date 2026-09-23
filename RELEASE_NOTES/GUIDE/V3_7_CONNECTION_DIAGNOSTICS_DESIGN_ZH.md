@@ -1,40 +1,60 @@
-# 批量连接诊断：设计决策
+# 统一连接诊断：设计决策
 
-[English](BATCH_CONNECTION_CHECK_DESIGN.md)
+[English](V3_7_CONNECTION_DIAGNOSTICS_DESIGN.md)
 
 初始设计日期：2026-09-12，实现在 v3.7.2 维护更新中。
-下文后续的路由及工具契约修正归属 v3.7.3，不改变诊断实现，见
-[v3.7.3 说明](../RELEASE_NOTES_v3_7.md#v373--connection-routing-and-tool-contract-clarity)。
+9 月 13–15 日的路由及工具契约修正归属 v3.7.3，当时不改变诊断实现。
+下文首先描述 9 月 22 日统一入口、独立执行及报告的当前契约；本次为破坏性迁移，
+不调整仓库版本号。见[更新记录](../RELEASE_NOTES_v3_7.md)。
 
 按日期记录的补充评审保留各阶段当时的规则和验证状态。现行路由与部署验收条件
 以[Agent 行为验证指南](MCP_AGENT_BEHAVIOR_VALIDATION_ZH.md#18-限制优先级与配置解读的可复用验收)为准。
 
 ## 目标与接口
 
-`check_connections()` 按配置顺序，对全部已配置别名执行一次用户明确要求的
-诊断，不接受别名、URL 或凭据参数。它将发现、检查和汇总合并为一次工作流，
-既不是启动钩子，也不是普通查询的前置步骤。现有的
-`check_connection(connection_id=None)` 仍检查一个业务适配器，
-`list_connections()` 则只列配置，不探测数据库。
+```python
+check_connection(connection_id: str | None = None, scope: Literal["single", "all"] = "single")
+```
 
-报告包含 `all_connected`、`complete`、`connection_count`、`connected_count`、
-`cleanup_failed`，以及以别名为键的 `results`。每项结果都包含 `db_type`、
-`cleanup_failed` 和必填的 `status`、`connected`：
+无参数检查默认连接；`connection_id="alias"` 检查指定配置别名；`scope="all"`
+按配置顺序检查全部别名。全查仅允许省略／null 的 connection_id。非法 scope、
+空白或未知别名、错误类型、额外参数，以及全查同时传非 null 别名，均在创建连接
+或提交诊断工作前拒绝，不接收 URL 或凭据。旧复数工具删除，不保留别名。
+
+所有范围均使用新建的独立诊断连接。`list_connections()` 只列配置，不探测数据库。
+诊断不是启动钩子或普通查询的前置步骤。全查须明确请求并允许全部目标，省略 scope
+不表示全部；已确定目标须显式传别名，用途／指代未确定或限制无法协调时至多列配置
+后等待澄清。
+
+报告包含必填 `scope`、`all_connected`、`complete`、`connection_count`、
+`connected_count`、`cleanup_failed` 及按别名组织的 `results`。计数与
+`all_connected` 仅描述所选范围；单查只有一项，不为其它配置标记 not_checked。
+仅有一个配置时全查仍为 `scope="all"`。每项包含 `db_type`、`cleanup_failed`
+及必填 `status`、`connected`：
 
 | status | connected | 含义 |
 |---|---|---|
 | connected | true | 新建连接检查成功 |
-| failed | false | 检查已结束，返回经过脱敏的失败信息 |
-| timeout | null | 检查已开始，但在诊断预算内未取得结果 |
-| not_checked | null | 截止时尚未开始，或因清理失败而停止提交该检查 |
+| failed | false | 检查已结束，返回脱敏失败信息 |
+| timeout | null | 已开始，但诊断预算内未取得结果 |
+| not_checked | null | 截止前尚未开始，或清理失败停止后续提交 |
 
-非成功项包含安全的 `error`。所有项均为 connected/failed 时 `complete` 才为
-true；全部连接成功时 `all_connected` 才为 true。即使所有数据库检查都失败，
-报告仍是正常 MCP 结果；诊断忙或停止属于请求级工具错误。
-聚合 metadata/telemetry 使用 `connection_scope=all` 和汇总计数，不附带默认
-连接身份，并区分报告正常完成（`call_completed`）和运行结果成功（`success`）。
-`all_connected` 和 `complete` 只描述连通性；运行结果的 `success` 要求
-`all_connected and not cleanup_failed`。
+非成功项包含安全的 `error`。所选项均为 connected/failed 时 `complete` 才为
+true，所选项全部成功时 `all_connected` 才为 true。连接失败、超时和观察到的清理
+失败都属于正常 MCP 报告；非法输入、忙、停止及清理失败禁用属于报告 schema 外的
+工具错误。
+
+单查 metadata／telemetry 记录已解析的别名、类型及 `connection_scope="single"`；
+全查记录计数及 `connection_scope="all"`，不冒用默认身份。身份来自配置，不获取
+业务适配器。提前报错时尽量保留有效请求范围及已解析身份，不记录原始非法别名或
+用默认身份替代。报告完成（`call_completed`）与运行成功（`success`）分开，后者
+要求 `all_connected and not cleanup_failed`。
+
+Telemetry 存在 SDK 前置校验边界：当前 FastMCP 3.0.2／MCP 1.26 对协议输入的
+枚举、长度、类型及额外参数错误，会在项目工具 middleware 之前拒绝，因此这些
+请求没有项目 telemetry 事件。已经进入 middleware 的非法参数组合、空白／未知
+别名及 busy／stopped／disabled 错误仍有记录，不会冒用默认身份。回归测试同时
+验证拒绝输入零探测及这一观测分层，不为此增加更早的 SDK 拦截层。
 
 ## 决策：复用适配器逻辑，隔离连接实例
 
@@ -68,7 +88,8 @@ true；全部连接成功时 `all_connected` 才为 true。即使所有数据库
 ## 截止时间、取消与资源归属
 
 服务器 lifespan 管理一个专用执行器，最多四个工作线程。每个进程只接纳一轮
-批量诊断，按空闲名额逐步提交检查。其它批量请求收到安全的忙错误，不积累队列。
+诊断（单查或全查），按空闲名额逐步提交检查。其它单查／全查请求收到安全的忙
+错误，不积累队列。
 
 等待预算为 30 秒；若配置了正数 MCP 超时 `T`，则使用 `min(30, 0.8*T)`。
 关闭外层超时不会关闭这个预算。到期后调度器停止提交，返回已完成结果以及明确
@@ -109,12 +130,13 @@ true；全部连接成功时 `all_connected` 才为 true。即使所有数据库
 `cleanup_failed=false` 表示报告生成时没有观察到失败，不证明资源已经释放：
 驱动或 SQLAlchemy 可能在内部处理部分清理错误。超时／取消后发生的清理失败
 仍会设置禁用标记并记录日志；已返回的报告保持不变。后续被拒绝的调用会在
-telemetry 中记录清理失败。该设计有意接受罕见、可观察的清理错误后批量诊断
+telemetry 中记录清理失败。该设计有意接受罕见、可观察的清理错误后全部诊断
 不可用，以避免资源释放不确定时反复新建连接。
 
 结果 schema 现在要求 `status` 和 `connected` 必填，不再由 Pydantic 默认值
-使其成为可选项。忙、停止及禁用错误不属于正常报告的 schema。工具描述明确
-区分复用业务适配器的旧 `check_connection()` 和新建连接的 `check_connections()`。
+使其成为可选项。忙、停止及禁用错误不属于正常报告的 schema。当前工具描述对
+单查和全查采用统一的独立连接、预算及错误通道规则；下表保留统一接口之前最初
+清理／schema 评审时的变更记录。
 
 | 更新事项 | 收益与原因 | 原理／代价 |
 |---|---|---|
@@ -131,7 +153,63 @@ telemetry 中记录清理失败。该设计有意接受罕见、可观察的清�
 [Python 执行器取消语义](https://docs.python.org/3/library/concurrent.futures.html#concurrent.futures.Executor.shutdown)
 支持这些边界，并不意味着取消工具会终止线程。
 
+## 统一契约评审与迁移（2026-09-22）
+
+| 原行为 | 当前行为 | 兼容或运维代价 |
+|---|---|---|
+| `check_connections()` | `check_connection(scope="all")` | 删除旧工具名，不保留弃用别名 |
+| `check_connection()`／指定别名 | 输入写法保留，改为工作线程持有的新连接 | 不再检查复用业务适配器，可能增加每次建连开销；单查也受预算、忙及清理禁用约束 |
+| 顶层 `connected` | `results[alias].connected` | 两种范围共用报告，客户端必须迁移 |
+| `message`、`database_name`、`config` | 移除 | 不再额外查询数据库名称，身份使用别名／类型 |
+| 批量报告无 scope | 所有报告必填 `scope` | 范围显式传递，不按计数推断 |
+| 仅批量接入控制及归属 | 所有诊断按范围记录 telemetry | 全查运行或清理禁用时单查也可能不可用 |
+
+现有执行器本来就接收配置列表，单查传一项即可复用完整生命周期，无须增加调度器。
+这减少了两套执行和返回契约，但不能据此证明 Agent 更准确、响应更快或计费 token
+更少。统一报告可能比旧单查更长，Host 的重复包装也可能仍是可见文本的大头。
+
+| 修改事项 | 原问题 | 方案及收益 | 剩余代价 |
+|---|---|---|---|
+| 一个诊断入口 | 相似名称且存在两种执行契约 | 显式 scope，统一工作线程执行 | 工具名及输出破坏性迁移 |
+| 一种报告模型 | 单查缺少未完成与清理状态 | 共用必填字段及按别名结果 | 单查客户端处理更多字段 |
+| 仅从配置解析身份 | 元数据可能获取业务适配器 | 提交工作前解析配置，避免业务连接副作用 | 无效请求可能没有身份字段 |
+| 评估精简路由说明 | 选择说明重复，Host 再次包装 | 分离接口迁移 B 与文案压缩 C，发现回归即回退 | C 出现未确定用途却检查默认的回归，最终恢复 B；本次不交付压缩收益 |
+| 共享资源保护 | 旧单查不受批量保护约束 | 一套接入限制及清理禁用标记 | 单查共用忙／禁用的可用性代价 |
+
+验证先固定 `7d4a079` 的 A 基线，B 统一接口且只做必要文字迁移，再用仅改变文案
+的 C 与 B 比较。保存元数据、真实调用轨迹，分别统计首次正确、恢复、最终完成及
+禁止目标访问；字符数不等于 token usage，源码或 fixture 测试不能替代刷新后的
+原生 Host 验收。失败样本及历史评分保留，不通过重新评分获得通过。本轮验证结果
+在[9 月 22 日分阶段记录](../LIVE_MCP_TSET/V3_7_3_LIVE_MCP_TEST_UNIFIED_CONNECTION_DIAGNOSTICS_2026_09_22_ZH.md)中，与下方历史证据分开。
+
+本轮 C 的一个隔离 Luna 样本在用途目标未确定时列配置后仍检查默认库，触发预先
+约定的回退。最终源码保留 B 的说明和统一接口，C 的失败及原始轨迹继续保留。
+恢复 B 后的全新上下文也出现同类失误，不能把它归因于文案压缩，或认为恢复 B
+就能可靠阻止猜库。完整六轮任务在上述记录中单独说明。后续已连接 Host 评审
+确认刷新后的统一签名、默认／指定／全部诊断及冲突参数拒绝；这不证明远端
+源码摘要，连接器也未暴露 `_meta`。C 原始字符数的减少不作为最终交付收益。
+
+评审核验将确定性生命周期检查与 Agent 行为分开：默认全量 675 项通过、四项
+既有 opt-in MySQL 测试跳过；十个变更 Python 文件使用仓库配置和显式 venv
+解释器通过 Pyright，不是全仓库 Pyright 通过。超时、取消、清理异常及 WAL
+在隔离环境验证；真实 MySQL／SQLite 只做正常连通性测试，没有制造真实数据库
+故障或业务写入。补齐此前受阻的 fixture 完整任务，不会抹去旧失败或证明路由
+永远正确。
+
+自然语言限制仍是指引，DRR-2026-066 保持开放。严格部署须由可信 Host／应用在
+每次动作前核验实际目标，包括隐式默认及全查的全部配置目标；模型填写 scope 不是
+可信许可。本次没有增加授权子系统或自动重试。
+
+资料支持设计及评估方法，不证明合并必然更优：
+[Google 的明确函数定义及校验建议](https://ai.google.dev/gemini-api/docs/function-calling#best-practices)、
+[MCP 结构化输出及安全要求](https://modelcontextprotocol.io/specification/2025-11-25/server/tools)、
+[Anthropic 按工作流评估工具的方法](https://www.anthropic.com/engineering/writing-tools-for-agents)。
+
 ## 证据与验证
+
+以下按日期记录保留各阶段原有接口及评分，提到两个工具或单查行为不变之处属于
+历史状态；当前契约以上文为准。
+
 
 2026-09-13，八个独立上下文的 `gpt-5.6-luna` 真实任务实例检查了工具选择。
 明确全部、默认、指定连接、只列配置及用途澄清场景的行为符合当时预期。

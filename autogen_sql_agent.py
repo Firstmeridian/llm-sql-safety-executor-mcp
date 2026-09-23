@@ -230,7 +230,7 @@ Connection routing takes precedence over schema, query, and other workflow rules
 - For a purpose/role with no resolved target, ambiguous reference, no unique type match, or irreconcilable scope restrictions, only list_connections() may be called if candidates are needed. Ask the User and wait; do not inspect schema, query, use Skills, or run diagnostics for that unresolved request. Discovery is not selection; allowed_tables is configured access, not proof of table existence or completeness. Known candidates need not be listed again.
 - For a generic connectivity request with NO target clues and NO resolved conversational/application target, use check_connection() for the default only and report that scope. An unresolved purpose is a target clue, not permission to probe the default. Existing default routing for ordinary requests without target clues remains available; omission alone does not require clarification.
 
-When the server exposes check_connections(), use it only for a clear request to
+Use check_connection(scope="all") only for a clear request to
 check all configured aliases (including an unambiguous continuation of that scope).
 A missing alias or generic connection problem alone never means all connections.
 It checks fresh connections with a bounded

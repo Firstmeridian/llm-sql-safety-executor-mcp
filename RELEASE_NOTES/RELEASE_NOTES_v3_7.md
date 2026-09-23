@@ -2,8 +2,80 @@
 
 - Release family: v3.7
 - Initial release: v3.7.0 (2026-08-22)
-- Current repository version: v3.7.3 (routing update 2026-09-15; managed-mutation follow-up 2026-09-16)
-- Version assignment: both updates belong to v3.7.3; creating a tag or publishing a release is a separate step
+- Current repository version: v3.7.3 (routing 2026-09-15; managed mutations 2026-09-16; unified diagnostics 2026-09-22)
+- Version assignment: these pre-publication updates belong to v3.7.3; creating a tag or publishing a release is a separate step
+
+## Unified Connection Diagnostics — September 22, 2026
+
+This update consolidates default, named and all-connection diagnostics into
+`check_connection(connection_id=None, scope="single")`. Explicit `scope="all"`
+selects every configured alias and forbids a non-null connection_id. Invalid
+scope, unknown/blank aliases, wrong types and extra arguments are rejected before
+connections or work submission. `check_connections` is removed without an alias.
+Repository version remains v3.7.3; no release or tag is created by this update.
+
+Both scopes now use independent worker-owned adapters and a single structured
+report with required `scope`. Counts and `all_connected` describe selected
+targets only; single scope has one result and all scope stays all with one config.
+Old single response consumers must read `results[alias].connected` instead of
+`connected`; old message/database_name/config outputs are removed. Single checks
+now share the existing diagnostic budget, busy admission and cleanup-disable
+behavior instead of reusing a business adapter. This is a breaking MCP tool and
+output-contract migration even though the repository version is unchanged.
+
+Configuration-only identity resolution avoids metadata acquiring business
+connections. After target validation succeeds, telemetry preserves validated
+scope and, for single scope, resolved identity even on later busy/stopped/disabled
+errors. Validation failures that reach project middleware omit scope and identity;
+requests rejected by SDK schema validation before that middleware produce no
+project telemetry event. Records for `scope="all"` never use a default-connection
+identity. Completion and operational success remain separate. Existing cancellation,
+timeout, SQLite read-only/WAL and process-exit limits apply to both scopes;
+there is no new recovery platform.
+
+Routing prose is revised around the explicit scope argument while retaining
+clarification and prohibition rules. DRR-2026-066 remains Open: a smaller tool
+set and explicit parameters do not enforce a trusted per-request target scope.
+The design includes [migration and benefit/cost tables](GUIDE/V3_7_CONNECTION_DIAGNOSTICS_DESIGN.md#unified-contract-review-and-migration--september-22-2026).
+
+Verification separates A (baseline `7d4a079`), B (unified contract with necessary
+wording migration), and C (wording-only refinement). Historical test counts and
+live timings below are not validation of this update. Record actual schema,
+automated results and Agent traces per stage; refreshed native-Host acceptance
+requires the live server and Host to discover the new tool signature. Character
+reductions are not claims of billed token or Agent accuracy improvements. See
+the [September 22 staged verification record](LIVE_MCP_TSET/V3_7_3_LIVE_MCP_TEST_UNIFIED_CONNECTION_DIAGNOSTICS_2026_09_22_ZH.md).
+
+C produced an unresolved-purpose default probe in an isolated Luna trial.
+Following the frozen rollback rule, final source restores B wording while
+retaining the unified implementation and schemas. Fresh B rechecks also showed
+this failure, ruling out any claim that it is unique to compressed wording.
+All failed traces remain available. C's shorter text is not a shipped benefit,
+and neither small samples nor deterministic tests prove universal Agent routing
+correctness. DRR-2026-066 remains Open.
+
+Automated verification: **123 targeted tests passed**; the default suite was
+**675 passed, 4 skipped**. Pyright checked the ten changed Python files,
+including the evaluation bridge, with **0 errors, 0 warnings**. The review rerun
+uses the repository configuration and an explicit venv Python path.
+This is a scoped check, not whole-repository Pyright. Compilation and local
+Markdown link checks passed. Fresh-source stdio smoke checks succeeded for
+default MySQL, named SQLite and all three configured aliases. No real-database
+fault injection or business query/write was performed in these smoke checks.
+The restarted connected Host now exposes the new signature and no plural tool.
+Default MySQL, named SQLite and all-three diagnostics also passed through that
+Host; conflicting all-plus-alias arguments returned a tool error. This establishes
+the observable contract, not a remotely attested source digest or live telemetry
+delivery: server `_meta` is not exposed by this connector. The staged record
+separately preserves earlier approval blocks and the subsequently authorized
+workflow cohort; finishing a trial does not mean every behavioral check passed.
+
+That follow-up completed A/B/C × three fresh six-turn Luna workflows: 54 turns,
+63 MCP calls, and nine expected wrong-alias rejections without fallback. No new
+scope violation was observed in those workflows; reply-language and percentage
+wording issues are separately retained. Earlier routing failures remain valid,
+and C is still withdrawn. Native Host description text decreases by 3,405
+characters from A to B, without evidence of billed-token or general accuracy gains.
 
 ## Managed Single-Statement Mutation Contract — September 16, 2026
 
@@ -233,10 +305,10 @@ Cancellation does not kill a driver call, so the batch remains busy until its
 workers finish cleanup attempts. No new environment settings or old-tool API migration
 are required. Restart the server to expose the new tool.
 
-The [design record](GUIDE/BATCH_CONNECTION_CHECK_DESIGN.md) documents why shared
+The [design record](GUIDE/V3_7_CONNECTION_DIAGNOSTICS_DESIGN.md) documents why shared
 business connections were rejected, including the SQLite rollback experiment,
 output states, resource ownership, and validation requirements.
-A [Chinese edition](GUIDE/BATCH_CONNECTION_CHECK_DESIGN_ZH.md) is also available.
+A [Chinese edition](GUIDE/V3_7_CONNECTION_DIAGNOSTICS_DESIGN_ZH.md) is also available.
 
 Review follow-up: output branches now require `status` and `connected`. Observed
 cleanup exceptions set per-result/report `cleanup_failed`, preserve connectivity

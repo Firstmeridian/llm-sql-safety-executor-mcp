@@ -1,0 +1,153 @@
+{
+  "date": "2026-09-22",
+  "agent": "/root/diagnostic_eval/auth_native_b",
+  "model": "gpt-5.6-luna",
+  "fork_turns": "none",
+  "reasoning_effort": "not explicitly overridden; resolved inherited value not exposed",
+  "transport": "Actual connected sql-safety-executor-mcp through current Host; no CLI fixture",
+  "provenance": "Raw return objects saved by evaluation agent after actual tool calls; moderator verified argument and result scope. Not server-side trace or attested build identity.",
+  "capture_file": "UNIFIED_DIAGNOSTICS_NATIVE_LUNA_AUTH_CAPTURE_2026_09_22.txt",
+  "capture_file_sha256": "1d7d0f5c3666f52415dfd70e6c04b8f9b7b05b9bac5a6ea885aaf04932029bf3",
+  "capture_normalization": "Agent file appends accidentally included a literal + before the second and third object opening braces (two lines exactly). Original .txt retained; removed only these two characters to parse JSON, without changing any tool parameters or results. This is a capture-file formatting error, not an MCP request error.",
+  "user_turns": [
+    "请检查所有配置的数据库现在能不能连上，告诉我检查范围。",
+    "现在只看 analytics_demo_sqlite，检查它能否新建连接，其他库不用检查。",
+    "刚才这个库再查一次连通性就好，别查订单内容。"
+  ],
+  "calls": [
+    {
+      "tool_name": "mcp__sql_safety_executor_mcp__check_connection",
+      "parameters": {
+        "scope": "all"
+      },
+      "raw_return": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"scope\":\"all\",\"all_connected\":true,\"complete\":true,\"connection_count\":3,\"connected_count\":3,\"cleanup_failed\":false,\"results\":{\"trade_analysis_mysql\":{\"db_type\":\"mysql\",\"cleanup_failed\":false,\"status\":\"connected\",\"connected\":true},\"analytics_demo_sqlite\":{\"db_type\":\"sqlite\",\"cleanup_failed\":false,\"status\":\"connected\",\"connected\":true},\"live_test_sqlite\":{\"db_type\":\"sqlite\",\"cleanup_failed\":false,\"status\":\"connected\",\"connected\":true}}}"
+          }
+        ],
+        "structuredContent": {
+          "scope": "all",
+          "all_connected": true,
+          "complete": true,
+          "connection_count": 3,
+          "connected_count": 3,
+          "cleanup_failed": false,
+          "results": {
+            "trade_analysis_mysql": {
+              "db_type": "mysql",
+              "cleanup_failed": false,
+              "status": "connected",
+              "connected": true
+            },
+            "analytics_demo_sqlite": {
+              "db_type": "sqlite",
+              "cleanup_failed": false,
+              "status": "connected",
+              "connected": true
+            },
+            "live_test_sqlite": {
+              "db_type": "sqlite",
+              "cleanup_failed": false,
+              "status": "connected",
+              "connected": true
+            }
+          }
+        },
+        "isError": false
+      },
+      "elapsed_ms": 3523
+    },
+    {
+      "tool_name": "mcp__sql_safety_executor_mcp__check_connection",
+      "parameters": {
+        "scope": "single",
+        "connection_id": "analytics_demo_sqlite"
+      },
+      "raw_return": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"scope\":\"single\",\"all_connected\":true,\"complete\":true,\"connection_count\":1,\"connected_count\":1,\"cleanup_failed\":false,\"results\":{\"analytics_demo_sqlite\":{\"db_type\":\"sqlite\",\"cleanup_failed\":false,\"status\":\"connected\",\"connected\":true}}}"
+          }
+        ],
+        "structuredContent": {
+          "scope": "single",
+          "all_connected": true,
+          "complete": true,
+          "connection_count": 1,
+          "connected_count": 1,
+          "cleanup_failed": false,
+          "results": {
+            "analytics_demo_sqlite": {
+              "db_type": "sqlite",
+              "cleanup_failed": false,
+              "status": "connected",
+              "connected": true
+            }
+          }
+        },
+        "isError": false
+      },
+      "elapsed_ms": 29
+    },
+    {
+      "tool_name": "mcp__sql_safety_executor_mcp__check_connection",
+      "parameters": {
+        "scope": "single",
+        "connection_id": "analytics_demo_sqlite"
+      },
+      "raw_return": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"scope\":\"single\",\"all_connected\":true,\"complete\":true,\"connection_count\":1,\"connected_count\":1,\"cleanup_failed\":false,\"results\":{\"analytics_demo_sqlite\":{\"db_type\":\"sqlite\",\"cleanup_failed\":false,\"status\":\"connected\",\"connected\":true}}}"
+          }
+        ],
+        "structuredContent": {
+          "scope": "single",
+          "all_connected": true,
+          "complete": true,
+          "connection_count": 1,
+          "connected_count": 1,
+          "cleanup_failed": false,
+          "results": {
+            "analytics_demo_sqlite": {
+              "db_type": "sqlite",
+              "cleanup_failed": false,
+              "status": "connected",
+              "connected": true
+            }
+          }
+        },
+        "isError": false
+      },
+      "elapsed_ms": 42
+    }
+  ],
+  "visible_reply_excerpts": [
+    "结果：3/3 可连接，报告完整，未发现 cleanup failure",
+    "结果：可新建连接，状态 `connected`；检查范围：1 个连接；其他数据库未检查",
+    "已再次只检查 `analytics_demo_sqlite` 的连通性：状态：`connected`；检查范围：仅此 1 个库；未查询订单内容"
+  ],
+  "reply_provenance": "Short excerpts from visible final replies; list separators condensed, full content is not a verbatim transcript",
+  "assessment": {
+    "turns_completed": 3,
+    "scope_and_contract_first_correct": 3,
+    "mcp_calls": 3,
+    "unexpected_errors": 0,
+    "business_queries": 0,
+    "writes": 0,
+    "scope_violations": 0,
+    "future_turns_preexposed": false,
+    "first_correct": true
+  },
+  "limits": [
+    "One fresh agent context, diagnostic-only; not a native full business workflow",
+    "Host descriptions refreshed to unified API but build hash not remotely attested",
+    "Native connector does not expose _meta",
+    "Elapsed milliseconds are caller-observed single samples; not comparable with fixture process-local timing or latency promises",
+    "Model actual token usage unavailable"
+  ]
+}

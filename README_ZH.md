@@ -149,7 +149,7 @@ Skills 场景：未知 Skill → list_skills(search=..., detail_level="compact",
 - **Skills 参数强类型验证**：type/min/max/enum 约束 + 拒绝 schema 之外的参数（防 injection/hallucination）
 - **Skills 双层开关**：`ENABLE_SKILLS` + `SKILLS_ALLOW_MUTATIONS` 最小权限控制
 - **闭合世界工具提示**：MCP 工具统一设置 `openWorldHint=false`，表示工具只触达已配置的数据库连接/服务边界，不访问任意外部实体。该提示用于改善客户端展示和工具选择，不替代权限控制。**未来新增工具检查清单**：任何新工具如果会越过已配置数据库边界（外部 HTTP API、webhook、第三方服务、未配置 DB 调用等），**必须**显式设置 `openWorldHint=true` 并在 review 时核对此条；`tests/test_annotations_consistency.py` 通过显式 allowlist 提供 pytest/本地测试 guardrail。只有真正加入 CI workflow 后，才应把它描述为 CI enforcement。
-- **Skills 运行元数据**：当前完整 profile 下注册的所有 MCP 工具（最多 13 个）均使用 `ToolResult` 包装结构化 payload，并通过 `meta` 暴露 `tool_name`、`execution_ms`、`success` 及工具特定计数。单连接结果包含 `db_type` 和 `connection_id`；批量诊断使用 `connection_scope="all"` 和汇总计数，不冒用默认连接身份。Mutation 结果还会镜像 `execution_outcome` 和结构化失败的 `error_code`。元数据有意不包含原始 SQL、返回数据行、参数值、DSN、凭据、host 或 SQLite 文件路径。
+- **Skills 运行元数据**：当前完整 profile 下注册的所有 MCP 工具（最多 12 个）均使用 `ToolResult` 包装结构化 payload，并通过 `meta` 暴露 `tool_name`、`execution_ms`、`success` 及工具特定计数。单连接结果包含 `db_type` 和 `connection_id`；批量诊断使用 `connection_scope="all"` 和汇总计数，不冒用默认连接身份。Mutation 结果还会镜像 `execution_outcome` 和结构化失败的 `error_code`。元数据有意不包含原始 SQL、返回数据行、参数值、DSN、凭据、host 或 SQLite 文件路径。
   - **原始 SQL 可见性策略**：原始 `query(sql)` 工具当前会在结构化 payload 中回显提交的 SQL，并可能为了透明排障写入 MCP context。不要在 SQL literal 中放 secret、token、凭据或敏感个人数据。重复且敏感的工作流优先使用经过 review 的 Skills、低敏谓词或数据库 view。
   - **作用范围（v3.5）**：`ToolResult.meta` 在基础工具（`query`、`check_connection`、`list_connections`、`list_tables`、`describe_table`、`get_full_schema`、`get_table_summary`、`sample`、`list_skills`、`get_skill_detail`）与 Skills 工具（`execute_query_skill`、`execute_mutation_skill`）之间保持一致。基础工具走共享的 `_tool_result(...)`，Skills 工具走 `_skill_tool_result(...)`。Python 直接调用方可统一通过 `result.structured_content` 读取 payload、`result.meta` 读取元数据。
   - **客户端可见性**：依据 MCP 规范，`_meta` 字段是**可选**的，客户端 *MAY* 忽略。实测：服务器中间件、MCP Inspector、显式读取 `_meta` 的客户端可以看到；VS Code 的 MCP UI 当前不展示。请把 `ToolResult.meta` 主要视为服务端可观测钩子和"愿意读 meta 的客户端"的可选信号，而**不能**假定它一定对终端用户可见。
@@ -625,7 +625,7 @@ SQLITE_DATABASE_PATH=./sample_data/demo.db
 `DB_USER`、`SQLITE_DATABASE_PATH` 等变量继续生效）。在 legacy 模式下，
 即使环境中存在 `DB_<CONNECTION_ID>_*` 变量也会被忽略；只有设置
 `DB_CONNECTIONS` 后这些 per-connection 变量才会生效；`DEFAULT_DB_CONNECTION`
-在 legacy 模式下同样会被忽略。设置后，列表中的每个 id 都会成为一个可选目标连接。核心只读工具和查询 Skills 接受可选 `connection_id`；省略时使用 `DEFAULT_DB_CONNECTION` 或列表中的第一个 id。
+在 legacy 模式下同样会被忽略。设置后，列表中的每个 id 都会成为一个可选目标连接。核心只读工具和查询 Skills 接受可选 `connection_id`；单目标调用省略时使用 `DEFAULT_DB_CONNECTION` 或列表中的第一个 id。连接诊断只有显式使用 `check_connection(scope="all")` 才检查全部配置目标。
 
 配置生效逻辑：
 
@@ -654,13 +654,13 @@ SQLITE_DATABASE_PATH=./sample_data/demo.db
 
 用途/角色尚无已确定目标、指代不明、类型无唯一匹配或范围限制无法协调时，可按需调用
 `list_connections()` 展示候选项，然后请用户选择或澄清，**等待答复**。
-在此之前，不为该未确定目标的请求查看结构、查询、发现/执行 Skill 或调用任一
-连接诊断工具。已知候选项无需重复列出。这条规则优先于“先查结构/数据”的
+在此之前，不为该未确定目标的请求查看结构、查询、发现/执行 Skill 或运行
+连接诊断。已知候选项无需重复列出。这条规则优先于“先查结构/数据”的
 工作流建议；没有目标线索的普通请求仍保留原有默认路由。
 这是 Agent 行为指引；服务器不会验证聊天上下文或强制用户选库。需要确定性的
 目标限制时，应由可信应用/Host 校验，数据库现有策略继续独立生效。
 对要求硬性限制每次请求目标的部署，该校验是上线前置条件，必须覆盖显式别名、
-省略参数时的实际默认连接及批量的全部配置目标，见[部署验收条件](RELEASE_NOTES/GUIDE/MCP_AGENT_BEHAVIOR_VALIDATION_ZH.md#18-限制优先级与配置解读的可复用验收)。
+单目标调用省略别名时的实际默认连接及 `check_connection(scope="all")` 的全部配置目标，见[部署验收条件](RELEASE_NOTES/GUIDE/MCP_AGENT_BEHAVIOR_VALIDATION_ZH.md#18-限制优先级与配置解读的可复用验收)。
 受信任的本地使用可明确保留已知 Agent 行为限制；当前服务器不提供这套当次授权机制。
 
 明确禁止访问某个目标也包括禁止对它进行连接诊断。
@@ -707,7 +707,7 @@ v3.5 的连接约定与妥协：
   `connection_id` 时仍使用全局默认连接，不会自动选择 Skill 列表的唯一项/第一项。
 - 未设置 `SKILLS_ALLOW_MUTATION_CONNECTIONS` 时，Mutation Skills 保持仅默认连接的兼容模式。设置后进入 v3.6 严格路由：每个目标必须同时出现在该列表、设置 `DB_<ID>_ALLOW_MUTATIONS=1`，并通过 `DB_<ID>_MUTATION_SKILLS` 允许对应 Skill。Preview token 会把预览和执行绑定到同一连接、参数、Skill 版本和 DB 类型。
 - `list_connections()` 只返回连接 id、db type、超时值和 policy 摘要，不暴露 DSN、host、用户名、密码或 SQLite 文件路径。
-- SQLite adapter 内部仍可能需要配置的文件路径，但 `check_connection()`、`list_tables()` 等公开 MCP payload 会把 SQLite 数据库显示为 `sqlite:<connection_id>`，不会返回文件系统路径。
+- SQLite adapter 内部仍可能需要配置的文件路径，但 `list_tables()` 等公开 MCP payload 会把 SQLite 数据库显示为 `sqlite:<connection_id>`，不会返回文件系统路径。连接诊断以别名标识结果，不返回数据库名称。
 
 ### 可选的环境变量
 ```bash
@@ -901,7 +901,7 @@ SKILLS_AUDIT_QUERIES=1
 
 本轮补充纳入首次正式发布前的同一 v3.7.3。以下 Skill 作者接口调整仍需迁移，
 版本号不变不表示扩展契约完全兼容；详见
-[版本范围与兼容性说明](RELEASE_NOTES/RELEASE_NOTES_v3_7.md#v373--managed-single-statement-mutation-contract)。
+[版本范围与兼容性说明](RELEASE_NOTES/RELEASE_NOTES_v3_7.md#managed-single-statement-mutation-contract--september-16-2026)。
 
 - 新增不可变的 `ManagedMutationPlan`，只允许一条参数化 INSERT、UPDATE 或 DELETE。
   discovery 会校验语句、命名绑定、frontmatter 参数引用、精确行数约束和结果字段。
@@ -919,6 +919,20 @@ SKILLS_AUDIT_QUERIES=1
   自定义 `mutation.py`。启用写入并重启后才会导入模块。
 - 删除 `exact_transaction_outcome` 扩展标志及内置名称/路径/类注册机制。发布前的
   自定义 Skill 应迁移到 `ManagedMutationBase`，或明确保留命令式语义。
+
+### 统一连接诊断（2026年9月22日）
+
+- 默认、指定及全部诊断统一为 `check_connection`；全部范围显式使用 `scope="all"`，
+  输出统一为带必填 scope 的报告，删除复数工具且不保留兼容别名。
+- 单查改用工作线程持有的独立连接，共享现有预算、忙及清理失败禁用机制。
+  这是工具及输出的破坏性迁移，仓库版本号保持不变。
+- [当前设计记录](RELEASE_NOTES/GUIDE/V3_7_CONNECTION_DIAGNOSTICS_DESIGN_ZH.md)说明迁移、
+  收益和代价、分阶段验收及未改变的当次授权边界。以下历史条目保留当时状态。
+- 评审验证：**675 passed、4 skipped**；十个变更 Python 文件 Pyright 通过。
+  重启后的 Host 已暴露统一工具，默认 MySQL、指定 SQLite 及全部连接冒烟通过。
+  [分阶段 Agent 证据](RELEASE_NOTES/LIVE_MCP_TSET/V3_7_3_LIVE_MCP_TEST_UNIFIED_CONNECTION_DIAGNOSTICS_2026_09_22_ZH.md)
+  保留路由失败，DRR-2026-066 仍开放；C 文案试验已恢复为 B，不宣称普遍准确率
+  或计费 token 改善。
 
 ### v3.7.3 连接路由与工具契约说明修正（2026年9月）
 
@@ -1204,7 +1218,7 @@ SKILLS_AUDIT_QUERIES=1
 
 ## 公开的 MCP 工具
 
-该服务公开 7–13 个标准化的 MCP 工具（取决于配置）：
+该服务公开 6–12 个标准化的 MCP 工具（取决于配置）：
 
 ### 0. `list_connections`
 用途：列出已配置的数据库连接 id 和非敏感 policy 元数据。
@@ -1278,87 +1292,89 @@ SKILLS_AUDIT_QUERIES=1
 ```
 
 ### 2. `check_connection`
-用途：检查单个数据库连接和配置。传入 `connection_id` 选择别名；省略时仅检查默认连接。
-普通连通性请求**没有目标线索，也没有已确定的会话/应用目标**时，只检查默认连接。
-例如“看看数据库能不能连上”可检查默认库；“看看分析库能不能连上”则需要先确定
-分析库。用途尚未对应到目标、指代不明或范围限制无法协调时，可列候选项，然后澄清并等待
-答复，期间不能先诊断默认库。已有确定目标时，Agent 必须显式传入该别名，
-服务器不会推断聊天历史。
-它仍是原来的单连接工具，复用业务适配器及其超时配置，不使用批量工具的独立诊断
-连接或额外 30 秒预算。仅在用户要求或排查连接故障时调用，不作为查询前置步骤。
-宽泛诊断明确限制为一个已确定别名或默认库时，用本工具检查该目标，并说明其它
-连接未检查；若用户明确拒绝部分检查，应先澄清。
 
-输出：
-```json
-{
-  "connected": true,
-  "connection_id": "trade_analysis_mysql",
-  "db_type": "mysql",
-  "message": "Database connection successful"
-}
+用途：通过一个入口诊断默认连接、指定别名或全部已配置连接的新建连接能力。
+
+```python
+check_connection()                              # 默认连接
+check_connection(connection_id="analytics_demo_sqlite")  # 指定连接
+check_connection(scope="all")                   # 全部已配置连接
 ```
 
-### 2a. `check_connections`
+`scope` 只接受 `"single"`（默认）或 `"all"`。只有单查范围中省略／传 null
+的 `connection_id` 才表示默认连接；全查要求别名省略或为 null，同时传入非 null
+别名会在打开连接前拒绝。非法 scope、空白或未知别名、错误类型和额外参数均严格
+拒绝，不猜测别名或回退。
 
-用途：无参数调用，一次检查**全部已配置别名**。与仅列配置的 `list_connections()`
-不同，本工具会新建诊断连接；它不验证现有业务连接池健康、业务表、Skill 可用性或写入权限。
-仅在用户明确要求且允许全部连接，或无歧义地继续此前已确认的全部范围时调用。
-缺少别名或笼统的连接故障不代表要求全部检查。不自动在启动时执行，也不作为查询前置步骤。
-用途目标未确定、指代不明或范围限制无法协调时，先澄清并等待；期间仅可按需用
-`list_connections()` 提供候选项，不执行诊断。
-若明确只允许一个已确定别名或默认库，改用 `check_connection()` 检查该目标；
-若明确拒绝部分检查，则等待澄清。
+只在用户要求或排查连通性时调用，不作为自动启动检查或普通查询前置步骤。没有
+目标线索、也没有已确定目标的普通连通性请求使用默认连接；已有确定目标须显式传别名。
+用途未确定、指代不明或限制无法协调时，先澄清并等待，期间仅可用
+`list_connections()` 提供配置候选。明确的单目标限制可以收窄宽泛请求，禁止访问
+也包括连接诊断；用户拒绝部分检查时应等待。全查须确认请求允许全部已配置目标。
+这些说明及 `scope` 参数都不是当次请求的授权机制。
+
+所有调用（包括单查）均使用临时独立诊断连接，不验证业务连接池健康、表、Skill
+可用性或写入权限。`list_connections()` 仍只列配置。
+
+单连接返回示例：
 
 ```json
 {
-  "all_connected": false,
-  "complete": false,
-  "connection_count": 3,
+  "scope": "single",
+  "all_connected": true,
+  "complete": true,
+  "connection_count": 1,
   "connected_count": 1,
   "cleanup_failed": false,
   "results": {
-    "trade_analysis_mysql": {"db_type": "mysql", "status": "connected", "connected": true},
-    "analytics_demo_sqlite": {"db_type": "sqlite", "status": "failed", "connected": false, "error": "Database connection check failed."},
-    "live_test_sqlite": {"db_type": "sqlite", "status": "timeout", "connected": null, "error": "The diagnostic deadline was reached."}
+    "analytics_demo_sqlite": {
+      "db_type": "sqlite",
+      "status": "connected",
+      "connected": true,
+      "cleanup_failed": false
+    }
   }
 }
 ```
 
-结果按配置顺序排列。`complete` 表示每个别名都有明确的成功或失败结论；
-`all_connected` 表示全部成功。`timeout` 表示已开始检查但在预算内未获得结果；
-`not_checked` 表示尚未开始。两者的 `connected` 都是 `null`，不能当作连接失败。
-部分失败或全部失败仍返回正常 MCP 诊断报告，不等于请求级错误。
+两种范围使用同一 schema。结果按配置顺序排列，计数及 `all_connected` 仅针对
+本次范围。单查只有一个结果项，不为其它配置生成 `not_checked`。仅有一个配置时，
+全查仍返回 `scope="all"`，不能按连接数量推断范围。
 
-第一版最多使用 4 个工作线程，诊断预算为 30 秒。若
-`MCP_TOOL_TIMEOUT_SECONDS=T` 为正数，预算为 `min(30, 0.8*T)`；关闭外层超时后
-仍保留 30 秒预算。这限制的是等待时间，不能强制终止底层驱动调用。上一批工作线程
-结束清理尝试前，新批次会收到安全的繁忙错误；不提供自动重试或后台任务轮询接口。
+`complete` 表示所选连接都已有成功或失败结论；`all_connected` 表示所选连接
+全部成功。`failed` 使用 `connected=false` 及安全错误；`timeout` 表示已经开始但
+截止时没有结果，`not_checked` 表示截止前尚未开始或清理失败导致停止提交；后两者
+均使用 `connected=null`。连接失败、超时及观察到的清理异常均属于正常诊断报告。
+非法输入、忙、服务停止及清理失败禁用使用 MCP 工具错误通道，不属于报告 schema。
 
-诊断连接复用适配器配置、检查和脱敏逻辑，但不进入业务适配器缓存。
-SQLite 文件只读打开，不创建不存在的数据库；`:memory:` 只验证新建内存连接的能力，
-不验证业务内存库中的数据。聚合 `_meta` 和 telemetry 使用 `connection_scope: "all"`
-及汇总计数，省略 `connection_id`、`db_type`，`success` 等于 `all_connected and not cleanup_failed`，
-`call_completed` 表示是否正常返回报告。
-独立连接的取舍与资源边界见[中文设计记录](RELEASE_NOTES/GUIDE/BATCH_CONNECTION_CHECK_DESIGN_ZH.md)（[English](RELEASE_NOTES/GUIDE/BATCH_CONNECTION_CHECK_DESIGN.md)）。
+所有诊断共用进程级执行器，最多四个工作线程，一次仅接纳一轮诊断，等待预算为
+30 秒。若 `MCP_TOOL_TIMEOUT_SECONDS=T` 为正数，则使用 `min(30, 0.8*T)`；关闭
+外层超时仍保留 30 秒。前一轮线程结束清理尝试前，单查或全查均会收到忙错误，
+超时／取消后也一样。不增加排队、自动重试或轮询接口。预算不能强制终止驱动调用，
+进程退出也可能等待线程；长期无人值守部署前应隔离验证网络故障和进程监管策略。
 
-SQLite 的 `mode=ro` 防止数据库写入，不保证文件系统绝无写入。WAL 模式可能涉及
-创建或更新 `-wal`、`-shm` 辅助文件及其目录权限。本工具不设置 `immutable=1`，
-因为业务数据库可能被其他连接修改。
+适配器创建、检查及关闭都在同一工作线程内完成，不进入业务缓存。SQLite 文件
+使用正确编码的 `mode=ro` URI，不创建不存在的数据库；`:memory:` 只验证新建的
+临时内存库。只读不保证文件系统绝无写入，WAL 读取可能创建或更新 `-wal`、`-shm`
+辅助文件，不使用 `immutable=1` 假设。
 
-每个结果项及报告顶层新增 `cleanup_failed`，将连接结果与清理状态分开。
-已确认连接成功但清理失败时，仍保留 `connected=true`。发现清理异常后停止后续诊断
-提交，并禁用新的批次，直到重启服务**进程**；仅重连客户端或重新进入 lifespan
-不会恢复。普通工具仍可使用。繁忙、服务已停止、清理异常禁用均使用 MCP 工具错误
-通道，不属于正常报告 schema；不增加自动恢复或管理接口。
+清理失败保留已经确认的连通性结果，记录 `cleanup_failed`，停止后续提交并禁用
+**全部诊断**，直至重启服务器进程。重连客户端或重新进入 lifespan 不会恢复，其它
+工具仍可使用。false 仅表示报告时没有观察到清理失败，不证明全部资源已释放；
+延迟发现的异常仍禁用后续调用，但不改写已经返回的报告。
 
-`cleanup_failed=false` 仅表示报告快照时尚未观察到清理异常，不证明驱动的全部资源
-已经释放。超时或取消后才发现的异常会记录日志并禁用后续批次，不回写此前报告。
-每个结果分支的 `status`、`connected` 均为必填字段。
+单查 `_meta`／telemetry 记录实际别名、类型及范围；全查记录
+`connection_scope="all"` 和计数，不冒用默认别名／类型。
+`success = all_connected and not cleanup_failed`，`call_completed` 表示正常返回
+报告；生成元数据不需要业务适配器。
 
-若驱动调用始终不返回，批量诊断可能持续繁忙，即使关闭线程池，进程退出也可能
-被延迟。长期无人值守部署前，应在隔离环境验证网络故障、驱动超时及进程管理器
-的终止策略；诊断预算不等于进程退出期限。
+**破坏性迁移：** 删除 `check_connections()` 且不保留别名，改用
+`check_connection(scope="all")`。旧单查输入写法仍可使用，但应将顶层 `connected`
+改读为 `results[alias].connected`；旧 `message`、`database_name`、`config` 字段
+移除。单查现在也受独立诊断、预算、忙及清理失败禁用约束。见
+[中文设计与迁移记录](RELEASE_NOTES/GUIDE/V3_7_CONNECTION_DIAGNOSTICS_DESIGN_ZH.md)
+（[English](RELEASE_NOTES/GUIDE/V3_7_CONNECTION_DIAGNOSTICS_DESIGN.md)）。
+
 
 ### 3. `list_tables`
 用途：可见数据库概览 - 列出返回/允许访问的表及其估计行数

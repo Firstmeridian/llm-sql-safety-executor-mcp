@@ -1,0 +1,30 @@
+{
+  "metric": "Unicode character count, not tokens; json.dumps ensure_ascii=False,separators=(comma,colon)",
+  "stages": {
+    "A": {
+      "tool_count": 8,
+      "initialize_instructions_chars": 3491,
+      "tool_description_chars": 8620,
+      "public_instructions_and_tools_compact_json_chars": 21946,
+      "full_initialize_and_tools_compact_json_chars": 22447
+    },
+    "B": {
+      "tool_count": 7,
+      "initialize_instructions_chars": 3582,
+      "tool_description_chars": 7777,
+      "public_instructions_and_tools_compact_json_chars": 21075,
+      "full_initialize_and_tools_compact_json_chars": 21576
+    },
+    "C": {
+      "tool_count": 7,
+      "initialize_instructions_chars": 2650,
+      "tool_description_chars": 6996,
+      "public_instructions_and_tools_compact_json_chars": 19345,
+      "full_initialize_and_tools_compact_json_chars": 19846
+    }
+  },
+  "B_C_input_output_schemas_identical": true,
+  "final_selected_stage": "B after C purpose-target regression",
+  "host_wrapped_descriptors": "Only native A available; B/C raw MCP metadata is not native Host wrapping",
+  "actual_token_usage": "unknown"
+}

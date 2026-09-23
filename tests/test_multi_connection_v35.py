@@ -493,6 +493,7 @@ def test_sqlite_database_path_is_not_exposed_in_tool_payload(tmp_path, monkeypat
 
     module = _reload_server(monkeypatch, default_db, analytics_db)
     try:
+        module._connection_diagnostics.start()
         check_payload, check_meta = run_tool(
             module.check_connection(ctx=DummyContext(), connection_id="analytics")
         )
@@ -500,13 +501,16 @@ def test_sqlite_database_path_is_not_exposed_in_tool_payload(tmp_path, monkeypat
             module.list_tables(ctx=DummyContext(), connection_id="analytics")
         )
 
-        assert check_payload["database_name"] == "sqlite:analytics"
+        assert check_payload["scope"] == "single"
+        assert check_payload["results"]["analytics"]["connected"] is True
+        assert "database_name" not in check_payload
         assert tables_payload["database_name"] == "sqlite:analytics"
         assert str(analytics_db) not in str(check_payload)
         assert str(analytics_db) not in str(tables_payload)
         assert str(analytics_db) not in str(check_meta)
         assert str(analytics_db) not in str(tables_meta)
     finally:
+        module._connection_diagnostics.close()
         _cleanup_modules()
 
 

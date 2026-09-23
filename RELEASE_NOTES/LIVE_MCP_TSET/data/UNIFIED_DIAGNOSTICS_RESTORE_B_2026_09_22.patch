@@ -1,0 +1,94 @@
+--- a/mcp_sql_server.py
++++ b/mcp_sql_server.py
+@@ -914,16 +914,18 @@
+ # Create MCP server with lifespan
+ # Server instructions carry cross-tool capabilities and safety-critical routing
+ # invariants; per-tool descriptions remain local and concise.
+-_CONNECTION_ROUTING_GUIDANCE = """Connection routing (before schema, SQL, Skills or diagnostics):
+-- Follow the user's current target and restrictions. Pass exact aliases unchanged; if rejected, ask rather than correcting or falling back.
+-- A resolved target requires explicit user choice, trusted application binding for this request, or the unique db_type match below. Agent guesses, alias names, default flags and successful probes do not establish intent. Pass a referenced resolved alias explicitly.
+-- For a database-type-only request, list_connections() may resolve the target only when exactly one configured alias has that db_type; otherwise ask for an alias.
+-- Prohibitions include connection checks. For requested diagnostics, permission limited to one resolved alias or the default narrows a broader request: check only that target and report others unchecked. If partial checks are rejected or restrictions conflict, ask and wait. This does not authorize writes.
+-- STOP for an unresolved purpose/role, ambiguous reference or non-unique type. List candidates only if needed with list_connections(), then ask and wait. Before the answer, do not inspect schema, query, discover/execute Skills or run diagnostics for that request. Never treat the default as a purpose match.
+-- list_connections() shows configuration, not connectivity, table existence/completeness, target selection or write authorization. Requests only to list aliases require no database access.
+-- Single-target tools default to the configured default when connection_id is omitted. For generic connectivity with no target clues and no resolved target, use check_connection() and identify the default scope. An unresolved purpose is a target clue. Omission alone does not require clarification for ordinary requests without target clues.
+-- Only an explicitly requested and permitted all-connection diagnostic uses check_connection(scope="all"), including an unambiguous continuation of a confirmed all request. Missing aliases or generic failures never imply all; any forbidden configured target rules out all scope. Do not diagnose routinely before queries.
+-- Other all-connection reads use list_connections() then the requested tool per alias. Never broadcast mutations."""
++_CONNECTION_ROUTING_GUIDANCE = """Connection routing:
++- Resolve the target before schema exploration, queries, Skills, or connectivity checks. These routing rules take precedence over instructions to explore or query first.
++- Follow the user's current explicit target or scope. Pass exact aliases unchanged as connection_id; if rejected, do not correct them or fall back to another connection without user clarification.
++- A resolved target comes from the user's explicit choice, a trusted application binding for this request, or the unique database-type match below. An agent's guess, an alias name, the default flag, or a successful connection check does not establish the user's intended target. Pass an unambiguously referenced resolved alias explicitly; do not revert to the global default.
++- If the user specifies only a database type, call list_connections(). Use the only matching connection when exactly one has that db_type; otherwise ask for an exact alias.
++- Explicit prohibitions take precedence: do not access a forbidden target, including for a connection check. For requested connectivity, a restriction permitting one resolved alias or the default limits a broader request: check only that target and state that others were not checked. If partial checks are explicitly rejected or restrictions remain inconsistent, ask and wait instead. This rule does not authorize writes.
++- STOP when a purpose/role has no resolved target, a reference is ambiguous, a type has no unique match, or scope restrictions cannot be reconciled. If candidates are needed, call only list_connections(); then ask the user to choose or clarify and wait for their answer. Until then, do not inspect schema, query, discover or execute Skills, or run connectivity diagnostics for that unresolved request. Do not present the default as a purpose match. Already known candidates need not be listed again.
++- If the user only asks which aliases are available, list them without connecting. If they need to choose a target, ask for that choice and wait; discovery itself is not selection.
++- For single-target tools and diagnostics with scope="single", omitting connection_id selects only the configured default. Only diagnostic scope="all" selects all connections.
++- For a generic connectivity request with NO target clues and NO resolved conversational or application target, call check_connection() for the default only and identify that scope in the reply. An unresolved purpose such as "the analytics database" is a target clue, not permission to use the default. For ordinary requests without target clues, existing default routing remains available; do not demand confirmation solely because connection_id is omitted.
++- Only when the user clearly requests and permits connectivity diagnostics across all configured connections, call check_connection(scope="all") directly. An unambiguous continuation of a previously confirmed all-connection request also qualifies. Never infer this scope just from a generic connection problem.
++- For other read-only requests across all connections, call list_connections() and invoke the requested tool once per connection_id. Never broadcast mutations."""
+ 
+ mcp = FastMCP(
+     name="sql-safety-executor",
+@@ -1834,30 +1836,39 @@
+         description="single checks one alias or the default; all explicitly checks every configured alias.",
+     )] = "single",
+ ) -> ToolResult:
+-    """Diagnose fresh connections: single/default or explicitly permitted all scope.
++    """Check fresh connectivity to one or all configured database connections.
+ 
+-    scope='single' (default) checks connection_id, or the default when omitted.
+-    scope='all' checks every configured alias and requires an omitted/null alias.
+-    Use all only when requested and permitted, never because an alias is missing.
+-    Pass a resolved target explicitly. For unresolved purposes, ambiguous references
+-    or conflicting restrictions, only list_connections() may offer candidates;
+-    ask and wait before diagnostics. Prohibitions include connection checks.
+-    A broad request limited to one resolved alias/default checks only that target
+-    and reports others unchecked; if partial checks are rejected, ask and wait.
+-    Use on request or after an operation reports a connection failure.
+-    Do not call it as a routine prerequisite before queries.
+-
+-    Both scopes use disposable worker-owned connections, not business adapters.
+-    Checks prove neither business pool health, tables, Skill readiness nor write access.
+-    SQLite files use mode=ro; WAL auxiliary files may involve filesystem writes.
+-    :memory: checks a fresh temporary database, not business data.
+-    The report's scope/counts/all_connected cover selected aliases only.
+-    connected/failed are confirmed results; timeout/not_checked use connected=null.
+-    The 30-second waiting budget shortens for a smaller MCP timeout; it cannot
+-    terminate driver calls. Any new diagnostic is busy until prior cleanup ends.
+-    Busy/stopped/disabled requests are MCP tool errors, not report statuses.
+-    cleanup_failed preserves connectivity but disables diagnostics until process
+-    restart. False means no observed cleanup failure at report time, not proven release.
++    With scope='single' (default), omission of connection_id selects only the default.
++    For a generic connectivity request with no target clues and no resolved
++    conversational/application target, check only the default. For a resolved
++    target, pass connection_id explicitly. An unresolved purpose/role, ambiguous
++    reference, or irreconcilable scope restrictions require clarification and waiting first;
++    only list_connections() may be used to offer candidates. Do not probe the default
++    while waiting. A successful check does not establish the user's intended target.
++    A prohibition on accessing a target includes this connection check.
++    If a broader connectivity request explicitly permits only one resolved alias
++    or the default, check only that target and state that others were not checked.
++    If partial checks are explicitly rejected, ask and wait instead.
++    Use scope='all' only when the user clearly requests and permits ALL configured
++    connections, including an unambiguous continuation of a confirmed all-connection
++    request. A generic connection problem or missing alias alone does not request all.
++    scope='all' forbids a non-null connection_id. A prohibition on any configured
++    target rules out scope='all'. Do not call it as a routine prerequisite before queries;
++    use it when requested or after an operation reports a connection failure.
++
++    Both scopes use disposable connections, leaving business connections and transactions
++    alone. SQLite files open read-only; :memory: checks only a fresh memory connection.
++    SQLite WAL auxiliary files may still involve filesystem writes.
++    This does not verify business pool health, tables, Skill readiness or write privileges.
++    Within a 30-second budget (shortened for a smaller MCP timeout), return
++    connected/failed results and timeout/not_checked entries with connected=null.
++    Incomplete checks are not proof of connection failure. Report counts and
++    all_connected cover only the selected scope; single returns one results entry.
++    Underlying checks may continue cleaning up after the response; any new diagnostic
++    then reports busy. Busy, stopped, or disabled diagnostics return an MCP tool error,
++    not a report status. cleanup_failed records an observed cleanup exception separately
++    from connectivity; it disables all diagnostics until the server process restarts.
++    A false flag means no failure observed at report time, not verified release.
+     """
+     start_time = time.perf_counter()
+     configs = _select_diagnostic_configs(connection_id, scope)

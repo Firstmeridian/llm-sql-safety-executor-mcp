@@ -1,0 +1,357 @@
+{
+  "transport": "fresh local stdio subprocess; real configured MySQL/SQLite; not IDE Host cache",
+  "source_sha256": {
+    "mcp_sql_server.py": "cb04d34012969d0005d93f8ec202f9c97a92f7859dcb69e3e195eb25d928006b",
+    "connection_diagnostics.py": "a7d82f121f53d3f93e0240ef3e17c81fea1cdfa0d7ad59813364fdfddd2d6655",
+    "db_adapter.py": "63f87c67b4fcd467970dea9b8b5a0406bdeed9cd56c2370f5bd3dfe677039946",
+    "sql_safety_checker.py": "5d07535d719676abe8a7d937f92016cbef9472df3abca46e58cc34de1729f051",
+    "start_server.py": "dd080b543d8d52cd8fa49f79fe81f95073b08ee094fd47dbc2b98aee346e5ef6"
+  },
+  "calls": [
+    {
+      "tool": "check_connection",
+      "arguments": {},
+      "elapsed_ms": 232.08,
+      "is_error": false,
+      "structured_content": {
+        "scope": "single",
+        "all_connected": true,
+        "complete": true,
+        "connection_count": 1,
+        "connected_count": 1,
+        "cleanup_failed": false,
+        "results": {
+          "trade_analysis_mysql": {
+            "db_type": "mysql",
+            "cleanup_failed": false,
+            "status": "connected",
+            "connected": true
+          }
+        }
+      },
+      "meta": {
+        "tool_name": "check_connection",
+        "db_type": "mysql",
+        "connection_id": "trade_analysis_mysql",
+        "execution_ms": 198.724,
+        "success": true,
+        "cleanup_failed": false,
+        "connection_count": 1,
+        "connected_count": 1,
+        "connection_scope": "single"
+      }
+    },
+    {
+      "tool": "check_connection",
+      "arguments": {
+        "connection_id": "analytics_demo_sqlite"
+      },
+      "elapsed_ms": 40.327,
+      "is_error": false,
+      "structured_content": {
+        "scope": "single",
+        "all_connected": true,
+        "complete": true,
+        "connection_count": 1,
+        "connected_count": 1,
+        "cleanup_failed": false,
+        "results": {
+          "analytics_demo_sqlite": {
+            "db_type": "sqlite",
+            "cleanup_failed": false,
+            "status": "connected",
+            "connected": true
+          }
+        }
+      },
+      "meta": {
+        "tool_name": "check_connection",
+        "db_type": "sqlite",
+        "connection_id": "analytics_demo_sqlite",
+        "execution_ms": 16.271,
+        "success": true,
+        "cleanup_failed": false,
+        "connection_count": 1,
+        "connected_count": 1,
+        "connection_scope": "single"
+      }
+    },
+    {
+      "tool": "check_connection",
+      "arguments": {
+        "scope": "all"
+      },
+      "elapsed_ms": 227.383,
+      "is_error": false,
+      "structured_content": {
+        "scope": "all",
+        "all_connected": true,
+        "complete": true,
+        "connection_count": 3,
+        "connected_count": 3,
+        "cleanup_failed": false,
+        "results": {
+          "trade_analysis_mysql": {
+            "db_type": "mysql",
+            "cleanup_failed": false,
+            "status": "connected",
+            "connected": true
+          },
+          "analytics_demo_sqlite": {
+            "db_type": "sqlite",
+            "cleanup_failed": false,
+            "status": "connected",
+            "connected": true
+          },
+          "live_test_sqlite": {
+            "db_type": "sqlite",
+            "cleanup_failed": false,
+            "status": "connected",
+            "connected": true
+          }
+        }
+      },
+      "meta": {
+        "tool_name": "check_connection",
+        "execution_ms": 198.211,
+        "success": true,
+        "cleanup_failed": false,
+        "connection_count": 3,
+        "connected_count": 3,
+        "connection_scope": "all"
+      }
+    }
+  ],
+  "diagnostic_tool": {
+    "name": "check_connection",
+    "title": "Check Database Connectivity",
+    "description": "Diagnose fresh connections: single/default or explicitly permitted all scope.\n\nscope='single' (default) checks connection_id, or the default when omitted.\nscope='all' checks every configured alias and requires an omitted/null alias.\nUse all only when requested and permitted, never because an alias is missing.\nPass a resolved target explicitly. For unresolved purposes, ambiguous references\nor conflicting restrictions, only list_connections() may offer candidates;\nask and wait before diagnostics. Prohibitions include connection checks.\nA broad request limited to one resolved alias/default checks only that target\nand reports others unchecked; if partial checks are rejected, ask and wait.\nUse on request or after an operation reports a connection failure.\nDo not call it as a routine prerequisite before queries.\n\nBoth scopes use disposable worker-owned connections, not business adapters.\nChecks prove neither business pool health, tables, Skill readiness nor write access.\nSQLite files use mode=ro; WAL auxiliary files may involve filesystem writes.\n:memory: checks a fresh temporary database, not business data.\nThe report's scope/counts/all_connected cover selected aliases only.\nconnected/failed are confirmed results; timeout/not_checked use connected=null.\nThe 30-second waiting budget shortens for a smaller MCP timeout; it cannot\nterminate driver calls. Any new diagnostic is busy until prior cleanup ends.\nBusy/stopped/disabled requests are MCP tool errors, not report statuses.\ncleanup_failed preserves connectivity but disables diagnostics until process\nrestart. False means no observed cleanup failure at report time, not proven release.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "connection_id": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Configured alias for scope='single'; omit or use null for the default. Pass an already resolved target explicitly. Must be omitted or null for scope='all'."
+        },
+        "scope": {
+          "default": "single",
+          "description": "single checks one alias or the default; all explicitly checks every configured alias.",
+          "enum": [
+            "single",
+            "all"
+          ],
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "outputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "scope": {
+          "description": "Requested scope, even when all selects only one configured alias.",
+          "enum": [
+            "single",
+            "all"
+          ],
+          "title": "Scope",
+          "type": "string"
+        },
+        "all_connected": {
+          "description": "All aliases in this report connected; cleanup health is separate.",
+          "title": "All Connected",
+          "type": "boolean"
+        },
+        "complete": {
+          "description": "Every selected alias has a connected or failed result, with none unresolved.",
+          "title": "Complete",
+          "type": "boolean"
+        },
+        "connection_count": {
+          "description": "Number of aliases selected for this diagnostic, not necessarily all configured aliases.",
+          "title": "Connection Count",
+          "type": "integer"
+        },
+        "connected_count": {
+          "title": "Connected Count",
+          "type": "integer"
+        },
+        "cleanup_failed": {
+          "title": "Cleanup Failed",
+          "type": "boolean"
+        },
+        "results": {
+          "additionalProperties": {
+            "discriminator": {
+              "mapping": {
+                "connected": "#/$defs/ConnectedCheck",
+                "failed": "#/$defs/FailedCheck",
+                "not_checked": "#/$defs/IncompleteCheck",
+                "timeout": "#/$defs/IncompleteCheck"
+              },
+              "propertyName": "status"
+            },
+            "oneOf": [
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "db_type": {
+                    "title": "Db Type",
+                    "type": "string"
+                  },
+                  "cleanup_failed": {
+                    "default": false,
+                    "title": "Cleanup Failed",
+                    "type": "boolean"
+                  },
+                  "status": {
+                    "const": "connected",
+                    "title": "Status",
+                    "type": "string"
+                  },
+                  "connected": {
+                    "const": true,
+                    "title": "Connected",
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "db_type",
+                  "status",
+                  "connected"
+                ],
+                "title": "ConnectedCheck",
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "db_type": {
+                    "title": "Db Type",
+                    "type": "string"
+                  },
+                  "cleanup_failed": {
+                    "default": false,
+                    "title": "Cleanup Failed",
+                    "type": "boolean"
+                  },
+                  "status": {
+                    "const": "failed",
+                    "title": "Status",
+                    "type": "string"
+                  },
+                  "connected": {
+                    "const": false,
+                    "title": "Connected",
+                    "type": "boolean"
+                  },
+                  "error": {
+                    "title": "Error",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "db_type",
+                  "status",
+                  "connected",
+                  "error"
+                ],
+                "title": "FailedCheck",
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "db_type": {
+                    "title": "Db Type",
+                    "type": "string"
+                  },
+                  "cleanup_failed": {
+                    "default": false,
+                    "title": "Cleanup Failed",
+                    "type": "boolean"
+                  },
+                  "status": {
+                    "enum": [
+                      "timeout",
+                      "not_checked"
+                    ],
+                    "title": "Status",
+                    "type": "string"
+                  },
+                  "connected": {
+                    "title": "Connected",
+                    "type": "null"
+                  },
+                  "error": {
+                    "default": "The diagnostic deadline was reached.",
+                    "title": "Error",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "db_type",
+                  "status",
+                  "connected"
+                ],
+                "title": "IncompleteCheck",
+                "type": "object"
+              }
+            ]
+          },
+          "title": "Results",
+          "type": "object"
+        }
+      },
+      "required": [
+        "scope",
+        "all_connected",
+        "complete",
+        "connection_count",
+        "connected_count",
+        "cleanup_failed",
+        "results"
+      ],
+      "title": "ConnectionReport",
+      "type": "object"
+    },
+    "icons": null,
+    "annotations": {
+      "title": "Check Database Connectivity",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "meta": {
+      "fastmcp": {
+        "tags": []
+      }
+    },
+    "execution": null
+  },
+  "configured_aliases": [
+    {
+      "connection_id": "trade_analysis_mysql",
+      "db_type": "mysql"
+    },
+    {
+      "connection_id": "analytics_demo_sqlite",
+      "db_type": "sqlite"
+    },
+    {
+      "connection_id": "live_test_sqlite",
+      "db_type": "sqlite"
+    }
+  ]
+}

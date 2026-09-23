@@ -1,0 +1,114 @@
+[
+  {
+    "tool_name": "mcp__sql_safety_executor_mcp__check_connection",
+    "parameters": {
+      "scope": "all"
+    },
+    "raw_return": {
+      "content": [
+        {
+          "type": "text",
+          "text": "{\"scope\":\"all\",\"all_connected\":true,\"complete\":true,\"connection_count\":3,\"connected_count\":3,\"cleanup_failed\":false,\"results\":{\"trade_analysis_mysql\":{\"db_type\":\"mysql\",\"cleanup_failed\":false,\"status\":\"connected\",\"connected\":true},\"analytics_demo_sqlite\":{\"db_type\":\"sqlite\",\"cleanup_failed\":false,\"status\":\"connected\",\"connected\":true},\"live_test_sqlite\":{\"db_type\":\"sqlite\",\"cleanup_failed\":false,\"status\":\"connected\",\"connected\":true}}}"
+        }
+      ],
+      "structuredContent": {
+        "scope": "all",
+        "all_connected": true,
+        "complete": true,
+        "connection_count": 3,
+        "connected_count": 3,
+        "cleanup_failed": false,
+        "results": {
+          "trade_analysis_mysql": {
+            "db_type": "mysql",
+            "cleanup_failed": false,
+            "status": "connected",
+            "connected": true
+          },
+          "analytics_demo_sqlite": {
+            "db_type": "sqlite",
+            "cleanup_failed": false,
+            "status": "connected",
+            "connected": true
+          },
+          "live_test_sqlite": {
+            "db_type": "sqlite",
+            "cleanup_failed": false,
+            "status": "connected",
+            "connected": true
+          }
+        }
+      },
+      "isError": false
+    },
+    "elapsed_ms": 3523
+  }
+,
++{
+  "tool_name": "mcp__sql_safety_executor_mcp__check_connection",
+  "parameters": {
+    "scope": "single",
+    "connection_id": "analytics_demo_sqlite"
+  },
+  "raw_return": {
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"scope\":\"single\",\"all_connected\":true,\"complete\":true,\"connection_count\":1,\"connected_count\":1,\"cleanup_failed\":false,\"results\":{\"analytics_demo_sqlite\":{\"db_type\":\"sqlite\",\"cleanup_failed\":false,\"status\":\"connected\",\"connected\":true}}}"
+      }
+    ],
+    "structuredContent": {
+      "scope": "single",
+      "all_connected": true,
+      "complete": true,
+      "connection_count": 1,
+      "connected_count": 1,
+      "cleanup_failed": false,
+      "results": {
+        "analytics_demo_sqlite": {
+          "db_type": "sqlite",
+          "cleanup_failed": false,
+          "status": "connected",
+          "connected": true
+        }
+      }
+    },
+    "isError": false
+  },
+  "elapsed_ms": 29
+}
+,
++{
+  "tool_name": "mcp__sql_safety_executor_mcp__check_connection",
+  "parameters": {
+    "scope": "single",
+    "connection_id": "analytics_demo_sqlite"
+  },
+  "raw_return": {
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"scope\":\"single\",\"all_connected\":true,\"complete\":true,\"connection_count\":1,\"connected_count\":1,\"cleanup_failed\":false,\"results\":{\"analytics_demo_sqlite\":{\"db_type\":\"sqlite\",\"cleanup_failed\":false,\"status\":\"connected\",\"connected\":true}}}"
+      }
+    ],
+    "structuredContent": {
+      "scope": "single",
+      "all_connected": true,
+      "complete": true,
+      "connection_count": 1,
+      "connected_count": 1,
+      "cleanup_failed": false,
+      "results": {
+        "analytics_demo_sqlite": {
+          "db_type": "sqlite",
+          "cleanup_failed": false,
+          "status": "connected",
+          "connected": true
+        }
+      }
+    },
+    "isError": false
+  },
+  "elapsed_ms": 42
+}
+]

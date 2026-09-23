@@ -155,7 +155,7 @@ Skills Scenario: unknown Skill → list_skills(search=..., detail_level="compact
 - **Skills Strong Parameter Validation**: type/min/max/enum constraints + rejection of parameters outside schema (prevents injection/hallucination)
 - **Skills Dual-Layer Switches**: `ENABLE_SKILLS` + `SKILLS_ALLOW_MUTATIONS` for least-privilege control
 - **Closed-World Tool Hints**: MCP tools set `openWorldHint=false` because they interact with the configured database/server boundary, not arbitrary external entities. These hints improve client UX but are advisory, not security controls. **Future-tool checklist**: any newly added tool that reaches outside the configured database (external HTTP APIs, webhooks, third-party services, cross-instance DB calls, etc.) MUST set `openWorldHint=true` and be reviewed against this list; `tests/test_annotations_consistency.py` provides a pytest/local-test guardrail through an explicit allowlist. Add a CI workflow before describing this as CI enforcement.
-- **Skills Runtime Metadata**: All registered MCP tools in the current full profile (up to 13) wrap their structured payloads in `ToolResult` and expose runtime `meta` fields (`tool_name`, `execution_ms`, `success`, plus tool-specific counters). Single-connection results include `db_type` and `connection_id`; batch diagnostics use `connection_scope="all"` and aggregate counts without a default-connection identity. Mutation results also mirror `execution_outcome` and structured-failure `error_code`. Metadata intentionally excludes raw SQL, returned rows, parameter values, DSNs, credentials, hosts, and SQLite file paths.
+- **Skills Runtime Metadata**: All registered MCP tools in the current full profile (up to 12) wrap their structured payloads in `ToolResult` and expose runtime `meta` fields (`tool_name`, `execution_ms`, `success`, plus tool-specific counters). Single-connection results include `db_type` and `connection_id`; batch diagnostics use `connection_scope="all"` and aggregate counts without a default-connection identity. Mutation results also mirror `execution_outcome` and structured-failure `error_code`. Metadata intentionally excludes raw SQL, returned rows, parameter values, DSNs, credentials, hosts, and SQLite file paths.
   - **Raw SQL visibility policy**: The raw `query(sql)` tool currently echoes the submitted SQL in its structured payload and may log it to the MCP context for transparency and debugging. Do not place secrets, tokens, credentials, or sensitive personal data in SQL literals. Use reviewed Skills, low-sensitivity predicates, or database views for repeatable sensitive workflows.
   - **Scope (v3.5)**: Uniform `ToolResult.meta` across base tools (`list_connections`, `query`, `check_connection`, `list_tables`, `describe_table`, `get_full_schema`, `get_table_summary`, `sample`) **and** Skills tools (`list_skills`, `get_skill_detail`, `execute_query_skill`, `execute_mutation_skill`). Base tools use the shared `_tool_result(...)` helper; Skills tools use `_skill_tool_result(...)`. Direct Python callers can read `result.structured_content` for the payload and `result.meta` for metadata uniformly.
   - **Client visibility**: Per MCP spec, the `_meta` field is OPTIONAL and clients MAY ignore it. Real-world behavior varies: server-side middleware, MCP Inspector, and clients that explicitly surface `_meta` will see runtime metadata; VS Code's MCP UI (as of testing) does not display it. Treat `ToolResult.meta` primarily as a server-side observability hook and an opt-in client signal, not as a guaranteed user-visible diagnostic.
@@ -636,7 +636,9 @@ variables). In that legacy mode, `DB_<CONNECTION_ID>_*` variables are ignored
 even if they are present in the environment, and `DEFAULT_DB_CONNECTION` is also
 ignored. When `DB_CONNECTIONS` is set, each listed id becomes a configured target
 connection. Core read-only tools and query skills accept an optional
-`connection_id`; omitting it uses `DEFAULT_DB_CONNECTION` or the first listed id.
+`connection_id`; single-target calls use `DEFAULT_DB_CONNECTION` or the first
+listed id when it is omitted. Connection diagnostics explicitly select every
+configured target only with `check_connection(scope="all")`.
 
 Effective configuration logic:
 
@@ -669,8 +671,8 @@ of the user's intended target.
 When a purpose/role has no resolved target, a reference is ambiguous, a type has
 no unique match, or scope restrictions cannot be reconciled, optionally list candidates with
 `list_connections()`, then ask the user to choose or clarify and **wait for the
-answer**. Do not inspect schema, query, discover/execute Skills, or run either
-diagnostic for that unresolved request. Already known candidates need not be
+answer**. Do not inspect schema, query, discover/execute Skills, or run connection
+diagnostics for that unresolved request. Already known candidates need not be
 listed again. These rules take precedence over advice to explore/query first;
 ordinary requests without target clues retain existing default routing.
 They guide Agents; the server does not validate conversation state or enforce
@@ -678,7 +680,8 @@ user selection. Deterministic target restrictions require trusted application/
 Host validation in addition to the existing database policies.
 For deployments requiring hard per-request target restrictions, that validation
 is a prerequisite before go-live. It must cover explicit aliases, the actual
-default when omitted, and every configured target for batch checks. See the
+default for an implicit single-target call, and every configured target for
+`check_connection(scope="all")`. See the
 [deployment acceptance criteria](RELEASE_NOTES/GUIDE/MCP_AGENT_BEHAVIOR_VALIDATION_ZH.md#18-限制优先级与配置解读的可复用验收).
 Trusted local use can retain the documented Agent limitation; the current server
 does not supply this per-request authorization mechanism.
@@ -753,8 +756,9 @@ v3.5 connection guarantees and compromises:
   policy summaries only. It does not expose DSNs, hosts, usernames, passwords, or
   SQLite file paths.
 - SQLite adapters may use the configured file path internally, but public MCP
-  payloads such as `check_connection()` and `list_tables()` display SQLite
-  databases as `sqlite:<connection_id>` instead of returning file-system paths.
+  payloads such as `list_tables()` display SQLite databases as
+  `sqlite:<connection_id>` instead of returning file-system paths. Connection
+  diagnostics identify results by alias and do not return database names.
 
 ### Optional Environment Variables
 ```bash
@@ -959,7 +963,7 @@ are listed in the [v3.7.2 migration table](RELEASE_NOTES/RELEASE_NOTES_v3_7.md#s
 
 This follow-up is included in v3.7.3 before its first formal publication.
 The Skill-author contract changes below still require migration; see the
-[version scope and compatibility note](RELEASE_NOTES/RELEASE_NOTES_v3_7.md#v373--managed-single-statement-mutation-contract).
+[version scope and compatibility note](RELEASE_NOTES/RELEASE_NOTES_v3_7.md#managed-single-statement-mutation-contract--september-16-2026).
 
 - Added immutable `ManagedMutationPlan` declarations for one parameterized
   INSERT, UPDATE, or DELETE. Discovery validates the statement, named binds,
@@ -985,6 +989,23 @@ The Skill-author contract changes below still require migration; see the
 - The removed `exact_transaction_outcome` flag and built-in name/path/class
   registry are no longer extension contracts. Pre-release custom Skills should
   migrate to `ManagedMutationBase` or remain imperative.
+
+### Unified connection diagnostics (September 22, 2026)
+
+- Unified default, named and all diagnostics under `check_connection`, with an
+  explicit `scope="all"` and one required-scope report schema. The plural tool
+  is removed without a compatibility alias.
+- Single checks now use independent worker-owned connections and share the
+  existing deadline, busy and cleanup-disable protection. This is a breaking
+  tool/output migration; the repository version is unchanged.
+- The [current design record](RELEASE_NOTES/GUIDE/V3_7_CONNECTION_DIAGNOSTICS_DESIGN.md)
+  covers migration, costs, staged validation and the unchanged per-request
+  authorization limitation. Historical entries below describe their dated stage.
+- Review verification: **675 passed, 4 skipped**; ten changed Python files pass
+  Pyright. The restarted Host exposes the unified tool and passes default MySQL,
+  named SQLite and all-connection smoke checks. [Staged Agent evidence](RELEASE_NOTES/LIVE_MCP_TSET/V3_7_3_LIVE_MCP_TEST_UNIFIED_CONNECTION_DIAGNOSTICS_2026_09_22_ZH.md)
+  preserves routing failures; DRR-2026-066 remains open, and the C wording trial
+  was reverted to B. No universal accuracy or billed-token improvement is claimed.
 
 ### v3.7.3 Connection Routing and Tool Contract Clarity (September 2026)
 
@@ -1305,7 +1326,7 @@ This project has transitioned from direct function calls to a standardized MCP s
 
 ## Exposed MCP Tools
 
-The service exposes 7–13 standardized MCP tools (depending on configuration):
+The service exposes 6–12 standardized MCP tools (depending on configuration):
 
 ### 0. `list_connections`
 Usage: List configured database connection ids and non-sensitive policy metadata.
@@ -1384,104 +1405,105 @@ Output:
 ```
 
 ### 2. `check_connection`
-Usage: Test one database connection and configuration. Pass `connection_id` to
-select an alias; omission checks only the default. A generic connectivity request
-with **no target clues and no resolved conversational/application target** checks
-this default only. “Can the database connect?” qualifies; “Can the analytics
-database connect?” requires a resolved analytics target. For an unresolved purpose,
-ambiguous reference or irreconcilable scope restrictions, optionally list candidates, then ask
-and wait; do not probe the default meanwhile. For a resolved target, pass its
-alias explicitly; the server does not infer conversation state. This is the existing tool,
-using the business adapter and its timeouts, without the batch tool's disposable
-connections or independent 30-second budget. Use on request or when
-troubleshooting connection failures, not as a prerequisite to queries.
-An explicit restriction of a broad diagnostic request to one resolved alias or
-the default uses this tool for that target, with others reported unchecked. If
-partial checks are explicitly rejected, clarify before checking anything.
 
-Output:
-```json
-{
-  "connected": true,
-  "connection_id": "trade_analysis_mysql",
-  "db_type": "mysql",
-  "message": "Database connection successful"
-}
+Usage: Diagnose fresh connection capability for the default, one named alias,
+or all configured aliases through one interface:
+
+```python
+check_connection()                              # default connection
+check_connection(connection_id="analytics_demo_sqlite")  # named connection
+check_connection(scope="all")                   # all configured connections
 ```
 
-### 2a. `check_connections`
+`scope` accepts only `"single"` (default) or `"all"`. Omitted/null
+`connection_id` selects the default only in single scope. All scope requires an
+omitted/null alias; combining it with a non-null alias is rejected before
+opening connections. Invalid scopes, blank/unknown aliases, wrong types and
+extra arguments are rejected without guessing or falling back.
 
-Usage: Check **all configured aliases** with one no-argument call, only when the
-user clearly requests and permits all connections or unambiguously continues that confirmed
-scope. A missing alias or generic connection problem alone does not imply all.
-For an unresolved purpose, ambiguous reference or irreconcilable scope restrictions, ask and wait
-before diagnostics; only `list_connections()` may be used to offer candidates.
-If a broad request explicitly permits only one resolved alias or the default,
-use `check_connection()` for that target; if partial checks are explicitly
-rejected, ask and wait instead.
-Unlike `list_connections()` (configuration only), this opens fresh diagnostic
-connections. It does not verify existing pool health, business tables, Skill
-readiness, or write privileges. It is not an automatic startup check or a query
-prerequisite.
+Use on request or for connection troubleshooting, never as an automatic startup
+check or ordinary query prerequisite. A generic connectivity request without
+target clues or a resolved target uses the default. A known target must be passed
+explicitly. Unresolved purposes, ambiguous references or irreconcilable restrictions
+require clarification and waiting; only `list_connections()` may be used to offer
+configured candidates. Explicit single-target restrictions narrow a broad request;
+prohibitions include diagnostics. If partial checks are rejected, wait instead.
+All scope requires a request that permits every configured target. These instructions
+and the `scope` parameter are not per-request authorization controls.
+
+Every call uses disposable diagnostic connections, including single scope. It
+checks neither business pool health, tables, Skill readiness nor write privileges.
+`list_connections()` remains configuration-only.
+
+Single-connection output:
 
 ```json
 {
-  "all_connected": false,
-  "complete": false,
-  "connection_count": 3,
+  "scope": "single",
+  "all_connected": true,
+  "complete": true,
+  "connection_count": 1,
   "connected_count": 1,
   "cleanup_failed": false,
   "results": {
-    "trade_analysis_mysql": {"db_type": "mysql", "status": "connected", "connected": true},
-    "analytics_demo_sqlite": {"db_type": "sqlite", "status": "failed", "connected": false, "error": "Database connection check failed."},
-    "live_test_sqlite": {"db_type": "sqlite", "status": "timeout", "connected": null, "error": "The diagnostic deadline was reached."}
+    "analytics_demo_sqlite": {
+      "db_type": "sqlite",
+      "status": "connected",
+      "connected": true,
+      "cleanup_failed": false
+    }
   }
 }
 ```
 
-Results follow configuration order. `complete` means every alias has a confirmed
-success/failure; `all_connected` means every alias succeeded. `timeout` means a
-check started without a result before the deadline; `not_checked` means it had
-not started. Both use `connected: null`, not `false`. Partial or all-failed
-diagnoses are normal MCP reports, not request errors.
+Both scopes use this schema. Results preserve configuration order; counts and
+`all_connected` refer only to the selected scope. Single scope has one entry and
+never marks other configured aliases `not_checked`. With one configured alias,
+`scope="all"` still returns `"scope": "all"`.
 
-The first version uses up to four worker threads and a 30-second budget. With a
-positive `MCP_TOOL_TIMEOUT_SECONDS=T`, the budget is `min(30, 0.8*T)`; disabling
-that outer timeout retains the 30-second budget. This limits waiting, not the
-lifetime of underlying driver calls. A new batch receives a safe busy error
-until the previous workers finish cleanup attempts; there is no automatic retry or
-background task polling API.
+`complete` means every selected alias has a confirmed success/failure;
+`all_connected` means all selected aliases connected. `failed` has
+`connected=false` and a safe error; `timeout` means a started check has no result
+by the deadline, and `not_checked` means it did not start before the deadline or
+before cleanup failure stopped scheduling. Both incomplete statuses use
+`connected=null`. Connection failure, timeout and observed cleanup failure return
+normal diagnostic reports. Input errors, busy/stopped diagnostics and cleanup-disabled
+requests use the MCP tool error channel outside the report schema.
 
-Disposable connections reuse adapter configuration, checks and sanitization,
-without entering the business adapter cache. SQLite files open read-only and
-missing files are not created. For `:memory:`, only a fresh in-memory connection
-is tested, not the existing application's data. Aggregate `_meta` and telemetry
-use `connection_scope: "all"` with counts, omit `connection_id`/`db_type`, and
-set `success` to `all_connected and not cleanup_failed`; `call_completed` records report completion.
-See the [design decision and resource boundaries](RELEASE_NOTES/GUIDE/BATCH_CONNECTION_CHECK_DESIGN.md).
+All diagnostics share one process-wide runner with up to four worker threads
+and a 30-second waiting budget. For positive `MCP_TOOL_TIMEOUT_SECONDS=T`, use
+`min(30, 0.8*T)`; disabling the outer timeout retains 30 seconds. A single or all
+request is busy until previous workers finish their cleanup attempts, including
+after cancellation/timeout. There is no queue, automatic retry or polling API.
+The budget cannot kill a driver call; process exit may also wait for workers.
+Validate network faults and the supervisor's termination policy in isolation
+before unattended deployment.
 
-SQLite `mode=ro` prevents database writes; it does not guarantee zero filesystem
-writes. WAL mode can involve creating or updating `-wal`/`-shm` auxiliary files
-and their directory permissions. The diagnostic does not set `immutable=1`,
-because a business database may change concurrently.
+Creation, checking and closing occur in the same worker; adapters never enter
+the business cache. SQLite files use encoded `mode=ro` URIs and missing files are
+not created. `:memory:` tests a fresh disposable memory database only. Read-only
+does not guarantee zero filesystem writes: WAL reads may create or update
+`-wal`/`-shm` files. No `immutable=1` assumption is made.
 
-Cleanup exceptions are reported separately: `cleanup_failed` appears on each
-result and at report level. A confirmed connection success remains `connected=true`
-when its cleanup fails. The runner stops new submissions and disables further
-batches until the server **process** is restarted; cycling a client session or
-lifespan does not reset this state. Ordinary tools remain available. Busy,
-stopped and cleanup-disabled requests use MCP tool errors, outside the report
-schema. No automatic recovery or additional management endpoint is introduced.
+A cleanup failure preserves the confirmed connectivity result, sets
+`cleanup_failed`, stops further submissions and disables **all diagnostics**
+until the server process restarts. Reconnecting the client or cycling lifespan
+does not reset it. Other tools remain available. A false flag only means no
+failure was observed at report time; late failures still disable future calls
+without rewriting earlier reports.
 
-`cleanup_failed=false` means no cleanup exception observed at the snapshot time;
-it does not prove release of every driver resource. A failure discovered after
-a timeout/cancellation is logged and disables future batches without rewriting
-an earlier report. `status` and `connected` are required in every result branch.
+Single-scope `_meta`/telemetry record the selected alias, type and scope; all
+scope uses `connection_scope="all"` and counts without a default alias/type.
+`success = all_connected and not cleanup_failed`, whereas `call_completed`
+records normal report completion. Metadata never requires a business adapter.
 
-A driver call that never returns can keep diagnostics busy and delay process
-exit even after executor shutdown. Before unattended deployment, validate network
-faults, driver timeouts and the process supervisor's termination policy in an
-isolated environment. The diagnostic budget is not a process-exit deadline.
+**Breaking migration:** `check_connections()` is removed without an alias;
+replace it with `check_connection(scope="all")`. Existing single calls retain
+input syntax but must read `results[alias].connected` instead of top-level
+`connected`; old `message`, `database_name` and `config` fields are removed.
+Single checks now share diagnostic isolation, budget, busy and cleanup-disable
+behavior. See the [design and migration record](RELEASE_NOTES/GUIDE/V3_7_CONNECTION_DIAGNOSTICS_DESIGN.md).
+
 
 ### 3. `list_tables`
 Usage: Visible Database Overview - List returned/allowed tables and their estimated row counts.

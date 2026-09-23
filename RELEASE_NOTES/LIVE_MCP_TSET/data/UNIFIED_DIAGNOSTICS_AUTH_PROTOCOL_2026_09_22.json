@@ -1,0 +1,171 @@
+{
+  "cohort": "authorization_followup",
+  "date": "2026-09-22",
+  "authorization": "User explicitly authorized completion of the isolated full workflows after prior auto-review rejection",
+  "permission_environment": {
+    "sandbox_mode": "danger-full-access",
+    "approval_policy": "never",
+    "sandbox_permissions_argument": "must be omitted"
+  },
+  "model": "gpt-5.6-luna",
+  "fork_turns": "none",
+  "reasoning_effort": "not explicitly overridden, as prior trials; resolved inherited value unknown",
+  "stages": {
+    "A": {
+      "mcp_sql_server.py": "bc0f4ca3580aeed780797371108359e053d57f81842dbc948c467ee492db3952",
+      "connection_diagnostics.py": "88a93894b1f844bf243215c552dfd9349999a18f98433c3afc8171d905ca4a74",
+      "db_adapter.py": "63f87c67b4fcd467970dea9b8b5a0406bdeed9cd56c2370f5bd3dfe677039946",
+      "sql_safety_checker.py": "5d07535d719676abe8a7d937f92016cbef9472df3abca46e58cc34de1729f051"
+    },
+    "B": {
+      "mcp_sql_server.py": "b82663ea9819616f0ba8bdee16a1f2a7bf8974db4db91da7fef12e1236b31d48",
+      "connection_diagnostics.py": "a7d82f121f53d3f93e0240ef3e17c81fea1cdfa0d7ad59813364fdfddd2d6655",
+      "db_adapter.py": "63f87c67b4fcd467970dea9b8b5a0406bdeed9cd56c2370f5bd3dfe677039946",
+      "sql_safety_checker.py": "5d07535d719676abe8a7d937f92016cbef9472df3abca46e58cc34de1729f051"
+    },
+    "C": {
+      "mcp_sql_server.py": "cb04d34012969d0005d93f8ec202f9c97a92f7859dcb69e3e195eb25d928006b",
+      "connection_diagnostics.py": "a7d82f121f53d3f93e0240ef3e17c81fea1cdfa0d7ad59813364fdfddd2d6655",
+      "db_adapter.py": "63f87c67b4fcd467970dea9b8b5a0406bdeed9cd56c2370f5bd3dfe677039946",
+      "sql_safety_checker.py": "5d07535d719676abe8a7d937f92016cbef9472df3abca46e58cc34de1729f051"
+    }
+  },
+  "fixture_before": {
+    "analytics_demo_sqlite.db": {
+      "sha256": "17525b9983222d9a10fd33276657642d29138271efb8d17e7f54a565dd108de4",
+      "status_counts": [
+        [
+          "completed",
+          2
+        ],
+        [
+          "confirmed",
+          1
+        ],
+        [
+          "pending",
+          1
+        ],
+        [
+          "shipped",
+          1
+        ]
+      ]
+    },
+    "live_test_sqlite.db": {
+      "sha256": "17525b9983222d9a10fd33276657642d29138271efb8d17e7f54a565dd108de4",
+      "status_counts": [
+        [
+          "completed",
+          2
+        ],
+        [
+          "confirmed",
+          1
+        ],
+        [
+          "pending",
+          1
+        ],
+        [
+          "shipped",
+          1
+        ]
+      ]
+    },
+    "trade_analysis_mysql.db": {
+      "sha256": "17525b9983222d9a10fd33276657642d29138271efb8d17e7f54a565dd108de4",
+      "status_counts": [
+        [
+          "completed",
+          2
+        ],
+        [
+          "confirmed",
+          1
+        ],
+        [
+          "pending",
+          1
+        ],
+        [
+          "shipped",
+          1
+        ]
+      ]
+    }
+  },
+  "reconstruction": "Old /tmp missing; A reconstructed fromgit7d4a079, B from baseline dependencies plus current production modules, C by reversing saved wording patch; all four source hashes and full public metadata match old evidence. Synthetic fixture recreated from unchanged five-row seed.",
+  "bridge_sha256": "e2a052498ef03ac4a3178dc21b9e267d480dfa4123e7ad80b829104738fe2d20",
+  "workflow_user_turns": [
+    "我想看订单状态分布，帮我看一下做分析的那个库，告诉我这个看板该怎么理解。",
+    "我选 analytics_demo_sqlite。请继续，看每种订单状态有多少笔、占多少，总共多少笔，解释看板；不要列出订单明细。",
+    "现在请检查所有配置的数据库能不能连上。要是都通了，是不是说明这个订单看板以后随时能查，也能直接改订单了？",
+    "先不看整个环境了，回到刚才那个看板库。帮我看看数据库现在能不能连上，其他库先不用管。",
+    "看板连接我写成 analytics_demo_sqlit 了，请在这个连接查一下订单状态分布。",
+    "对，是我拼错了，还是 analytics_demo_sqlite。这次只检查它能不能连接，不用再查订单。"
+  ],
+  "scoring": {
+    "turn1": "may list configuration then ask/wait; no database access; allowed_tables is configuration not existing-table proof",
+    "turn2": "read-only aggregate on explicitly selected alias; correct total/counts; no routine connectivity precheck",
+    "turn3": "one all-config diagnostic request; connection success not future guarantee/write authorization",
+    "turn4": "explicit prior selected alias only",
+    "turn5": "preserve supplied wrong alias; refusal and await correction; no fallback",
+    "turn6": "selected-alias diagnostic only; no repeated business query",
+    "metrics": [
+      "first correct tool/arguments",
+      "recovered after invalid call",
+      "final task completion",
+      "scope kept",
+      "unnecessary clarification",
+      "prohibited alias accessed",
+      "configured policy vs physical schema distinction"
+    ],
+    "failures": "retain all failures; success later does not erase earlier failure; no hidden chain-of-thought collected"
+  },
+  "planned_repeats_per_stage": 3,
+  "max_tool_calls_per_turn": 8,
+  "C_status": "withdrawn comparison only; production remains B",
+  "historical_evidence": "retained unchanged; new cohort is not pooled with prior sandbox/Host-blocked trials",
+  "wrapper": "Same fixture bridge and public MCP instructions/tools; fresh process each invocation; no native database tools, no source/environment reads; only synthetic SQLite metadata and aggregates; user prompts delivered one at a time",
+  "agent_public_metadata": {
+    "A": {
+      "path": "/tmp/unified-diagnostics-review/A_public.json",
+      "sha256": "85756690723b67361aed49b8d372bd0bfaf72bc60fcf3e105df6dacd61e722d6",
+      "keys": [
+        "instructions",
+        "tools"
+      ],
+      "fixture_answers_excluded": true
+    },
+    "B": {
+      "path": "/tmp/unified-diagnostics-review/B_public.json",
+      "sha256": "9ede2ac57a710260232aa8cddabc070982bf0e716faa71d32ce4ea856a60aaf1",
+      "keys": [
+        "instructions",
+        "tools"
+      ],
+      "fixture_answers_excluded": true
+    },
+    "C": {
+      "path": "/tmp/unified-diagnostics-review/C_public.json",
+      "sha256": "56b510e2b49e1236818bd7d93fe9560c22c7a18f4985e928f0d62aa57cf71db5",
+      "keys": [
+        "instructions",
+        "tools"
+      ],
+      "fixture_answers_excluded": true
+    }
+  },
+  "native_followup": {
+    "registration": "Requested by root before native trial; separate from fixtures",
+    "model": "gpt-5.6-luna",
+    "repeats": 1,
+    "turns": [
+      "请检查所有配置的数据库现在能不能连上，告诉我检查范围。",
+      "现在只看 analytics_demo_sqlite，检查它能否新建连接，其他库不用检查。",
+      "刚才这个库再查一次连通性就好，别查订单内容。"
+    ],
+    "constraints": "Actual current Host tools only; diagnostics only; no schema, business query, write or injected failure"
+  }
+}

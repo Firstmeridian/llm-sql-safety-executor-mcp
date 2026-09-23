@@ -8,7 +8,6 @@ import sqlite3
 import sys
 import textwrap
 from threading import Event, Lock, get_ident
-from types import SimpleNamespace
 
 from fastmcp import Client
 from mcp.shared.exceptions import McpError
@@ -47,7 +46,7 @@ async def test_batch_outcomes_and_order(successes):
     runner = diagnostics.ConnectionDiagnostics(probe)
     runner.start()
     try:
-        report = await runner.run([config(alias) for alias in ("a", "b", "c")], 2)
+        report = await runner.run([config(alias) for alias in ("a", "b", "c")], 2, scope="all")
         assert list(report.results) == ["a", "b", "c"]
         assert report.connected_count == len(successes)
         assert report.all_connected is (len(successes) == 3)
@@ -84,11 +83,11 @@ async def test_timeout_retains_workers_and_completed_results():
     runner.start()
     aliases = ["fast", "slow1", "slow2", "slow3", "slow4", "queued"]
     try:
-        task = asyncio.create_task(runner.run([config(alias) for alias in aliases], 0.3))
+        task = asyncio.create_task(runner.run([config(alias) for alias in aliases], 0.3, scope="all"))
         await until(lambda: len(slow_started) == 4)
         # This runs while four blocking worker calls are outstanding.
         with pytest.raises(diagnostics.DiagnosticsUnavailable, match="busy"):
-            await runner.run([config()], 1)
+            await runner.run([config()], 1, scope="all")
         report = await task
         assert report.results["fast"].connected is True
         assert report.results["slow1"].status == "timeout"
@@ -99,11 +98,11 @@ async def test_timeout_retains_workers_and_completed_results():
         assert peak == 4
         snapshot = report.model_dump_json()
         with pytest.raises(diagnostics.DiagnosticsUnavailable, match="busy"):
-            await runner.run([config()], 1)
+            await runner.run([config()], 1, scope="all")
         release.set()
         await until(lambda: not runner._batch_active)
         assert report.model_dump_json() == snapshot
-        assert (await runner.run([config("fast")], 1)).all_connected
+        assert (await runner.run([config("fast")], 1, scope="all")).all_connected
     finally:
         release.set()
         runner.close()
@@ -123,9 +122,9 @@ async def test_cancellation_retains_batch_until_cleanup_and_shutdown_blocks_call
 
     runner = diagnostics.ConnectionDiagnostics(probe)
     with pytest.raises(diagnostics.DiagnosticsUnavailable, match="stopped"):
-        await runner.run([config()], 1)
+        await runner.run([config()], 1, scope="all")
     runner.start()
-    task = asyncio.create_task(runner.run([config()], 2))
+    task = asyncio.create_task(runner.run([config()], 2, scope="all"))
     try:
         await until(started.is_set)
         task.cancel()
@@ -133,17 +132,17 @@ async def test_cancellation_retains_batch_until_cleanup_and_shutdown_blocks_call
             await task
         assert not cleaned.is_set()
         with pytest.raises(diagnostics.DiagnosticsUnavailable, match="busy"):
-            await runner.run([config()], 1)
+            await runner.run([config()], 1, scope="all")
         runner.close()
         with pytest.raises(diagnostics.DiagnosticsUnavailable, match="stopped"):
-            await runner.run([config()], 1)
+            await runner.run([config()], 1, scope="all")
         with pytest.raises(diagnostics.DiagnosticsUnavailable, match="draining"):
             runner.start()
         release.set()
         await until(lambda: not runner._batch_active)
         assert cleaned.is_set()
         runner.start()
-        assert (await runner.run([config()], 1)).all_connected
+        assert (await runner.run([config()], 1, scope="all")).all_connected
     finally:
         release.set()
         runner.close()
@@ -192,7 +191,7 @@ async def test_diagnostic_does_not_rollback_business_transaction(tmp_path, memor
         with engine.connect() as db:
             transaction = db.begin()
             db.execute(text("INSERT INTO rows VALUES (1)"))
-            assert (await runner.run([item], 2)).all_connected
+            assert (await runner.run([item], 2, scope="all")).all_connected
             assert db.execute(text("SELECT COUNT(*) FROM rows")).scalar_one() == 1
             transaction.rollback()
     finally:
@@ -214,7 +213,7 @@ async def test_sqlite_wal_diagnostic_preserves_pending_business_transaction(tmp_
         business.execute("INSERT INTO records VALUES (1)")
         business.commit()
         business.execute("INSERT INTO records VALUES (2)")
-        assert (await runner.run([item], 2)).all_connected
+        assert (await runner.run([item], 2, scope="all")).all_connected
         assert business.in_transaction
         assert business.execute("SELECT COUNT(*) FROM records").fetchone()[0] == 2
         assert adapter.connect()
@@ -258,7 +257,7 @@ async def test_process_exit_waits_for_blocked_diagnostic_worker():
                     query_timeout_seconds=1, connect_timeout_seconds=1,
                     policy=ConnectionPolicy(), sqlite_database_path=":memory:",
                 )
-                report = await runner.run([config], 0.2)
+                report = await runner.run([config], 0.2, scope="all")
                 assert report.results["isolated"].status == "timeout"
             finally:
                 runner.close()
@@ -345,7 +344,7 @@ async def test_adapter_cleanup_remains_on_worker_after_cancel(monkeypatch):
     monkeypatch.setattr(diagnostics, "create_adapter", factory)
     runner = diagnostics.ConnectionDiagnostics()
     runner.start()
-    task = asyncio.create_task(runner.run([config()], 2))
+    task = asyncio.create_task(runner.run([config()], 2, scope="all"))
     try:
         await until(created.is_set)
         task.cancel()
@@ -378,12 +377,14 @@ async def test_mcp_schema_partial_results_routing_and_telemetry(server, monkeypa
     monkeypatch.setattr(server, "list_connection_configs", lambda: [config("ok"), config("bad", str(tmp_path / "missing.db"))])
     async with Client(server.mcp) as client:
         tools = {tool.name: tool for tool in await client.list_tools()}
-        tool = tools["check_connections"]
-        assert tool.inputSchema.get("properties", {}) == {}
+        tool = tools["check_connection"]
+        assert "check_connections" not in tools
+        assert set(tool.inputSchema["properties"]) == {"scope", "connection_id"}
+        assert tool.inputSchema["properties"]["scope"]["default"] == "single"
         assert tool.outputSchema is not None
         assert tool.annotations is not None and tool.annotations.readOnlyHint is True
         assert tool.annotations.openWorldHint is False
-        result = await client.call_tool("check_connections", {})
+        result = await client.call_tool("check_connection", {"scope": "all"})
         assert not result.is_error
         payload = result.structured_content
         assert isinstance(payload, dict)
@@ -394,7 +395,7 @@ async def test_mcp_schema_partial_results_routing_and_telemetry(server, monkeypa
         assert isinstance(result.meta, dict)
         assert result.meta["connection_scope"] == "all"
         assert "connection_id" not in result.meta and "db_type" not in result.meta
-        invalid = await client.call_tool("check_connections", {"connection_ids": ["ok"]}, raise_on_error=False)
+        invalid = await client.call_tool("check_connection", {"scope": "all", "connection_ids": ["ok"]}, raise_on_error=False)
         assert invalid.is_error
     records = [json.loads(line) for line in (tmp_path / "telemetry.jsonl").read_text().splitlines()]
     record = next(row for row in records if row["call_completed"])
@@ -402,37 +403,45 @@ async def test_mcp_schema_partial_results_routing_and_telemetry(server, monkeypa
     assert record["connected_count"] == 1
     assert "connection_id" not in record and "db_type" not in record
     assert str(tmp_path) not in json.dumps(records)
-    assert "check_connections() directly" in server._CONNECTION_ROUTING_GUIDANCE
+    assert 'check_connection(scope="all")' in server._CONNECTION_ROUTING_GUIDANCE
 
 
 @pytest.mark.asyncio
-async def test_single_check_routing_and_list_remain_unchanged(server, monkeypatch):
+async def test_single_check_routing_uses_only_config_and_list_never_probes(server, monkeypatch):
     seen = []
 
-    class Adapter:
-        def check_connection(self):
-            return True, "SQLite connection successful"
+    def probe(item):
+        seen.append(item.connection_id)
+        return diagnostics.ConnectedCheck(db_type=item.db_type, status="connected", connected=True)
 
-    def resolve(alias=None):
-        seen.append(alias)
-        item = config(alias or "default")
-        return SimpleNamespace(adapter=Adapter(), db_type="sqlite", connection_id=item.connection_id, config=item)
+    def no_business_adapter(*args, **kwargs):
+        pytest.fail("Diagnostics must not obtain a business adapter")
 
-    monkeypatch.setattr(server, "_resolve_connection_context", resolve)
+    monkeypatch.setattr(server, "_resolve_connection_context", no_business_adapter)
+    monkeypatch.setattr(server, "get_adapter", no_business_adapter)
+    monkeypatch.setattr(server, "get_connection_config", lambda alias=None: config(alias or "default"))
+    monkeypatch.setattr(server, "_connection_diagnostics", diagnostics.ConnectionDiagnostics(probe))
     async with Client(server.mcp) as client:
         await client.call_tool("list_connections", {})
         assert not seen
         for args, expected in [({}, "default"), ({"connection_id": "other"}, "other")]:
             result = await client.call_tool("check_connection", args)
-            assert isinstance(result.structured_content, dict)
-            assert result.structured_content["connection_id"] == expected
-            assert result.structured_content["connected"] is True
-            assert "results" not in result.structured_content
-    assert seen == [None, "other"]
+            payload = result.structured_content
+            assert isinstance(payload, dict)
+            assert payload["scope"] == "single" and payload["connection_count"] == 1
+            assert list(payload["results"]) == [expected]
+            assert payload["results"][expected]["connected"] is True
+            assert payload["all_connected"] and payload["complete"]
+            assert "connected" not in payload and "database_name" not in payload
+            assert isinstance(result.meta, dict)
+            assert result.meta["connection_id"] == expected
+            assert result.meta["connection_scope"] == "single"
+    assert seen == ["default", "other"]
 
 
 @pytest.mark.asyncio
-async def test_mcp_short_timeout_returns_partial_report_and_busy_telemetry(server, monkeypatch, tmp_path):
+@pytest.mark.parametrize("first_scope", ["single", "all"])
+async def test_mcp_short_timeout_returns_partial_report_and_busy_telemetry(server, monkeypatch, tmp_path, first_scope):
     release, started = Event(), Event()
 
     def probe(item):
@@ -444,12 +453,14 @@ async def test_mcp_short_timeout_returns_partial_report_and_busy_telemetry(serve
     monkeypatch.setattr(server, "_connection_diagnostics", runner)
     monkeypatch.setattr(server, "_MCP_TOOL_TIMEOUT", 0.25)
     monkeypatch.setattr(server, "list_connection_configs", lambda: [config()])
+    monkeypatch.setattr(server, "get_connection_config", lambda alias=None: config(alias or "main"))
+    busy_args = {"scope": "all"} if first_scope == "single" else {"connection_id": "other"}
     # Also shorten the actual FastMCP wrapper, not just the internal budget.
-    tool = await server.mcp.get_tool("check_connections")
+    tool = await server.mcp.get_tool("check_connection")
     monkeypatch.setattr(tool, "timeout", 0.25)
     try:
         async with Client(server.mcp) as client:
-            task = asyncio.create_task(client.call_tool("check_connections", {}))
+            task = asyncio.create_task(client.call_tool("check_connection", {"scope": first_scope}))
             await until(started.is_set)
             # Metadata-only discovery remains responsive during blocking I/O.
             assert not (await client.call_tool("list_connections", {})).is_error
@@ -458,17 +469,21 @@ async def test_mcp_short_timeout_returns_partial_report_and_busy_telemetry(serve
             assert isinstance(result.structured_content, dict)
             assert result.structured_content["results"]["main"]["connected"] is None
             assert result.structured_content["results"]["main"]["status"] == "timeout"
-            busy = await client.call_tool("check_connections", {}, raise_on_error=False)
+            busy = await client.call_tool("check_connection", busy_args, raise_on_error=False)
             assert busy.is_error
             release.set()
             await until(lambda: not runner._batch_active)
-            recovered = await client.call_tool("check_connections", {})
+            recovered = await client.call_tool("check_connection", {"scope": "all"})
             assert isinstance(recovered.structured_content, dict)
             assert recovered.structured_content["all_connected"]
         records = [json.loads(line) for line in (tmp_path / "telemetry.jsonl").read_text().splitlines()]
         failure = next(row for row in records if not row["call_completed"])
-        assert failure["connection_scope"] == "all"
-        assert "connection_id" not in failure and "db_type" not in failure
+        if first_scope == "single":
+            assert failure["connection_scope"] == "all"
+            assert "connection_id" not in failure and "db_type" not in failure
+        else:
+            assert failure["connection_scope"] == "single"
+            assert failure["connection_id"] == "other" and failure["db_type"] == "sqlite"
     finally:
         release.set()
         runner.close()
@@ -485,7 +500,7 @@ async def test_shutdown_during_active_batch_and_worker_exception():
 
     runner = diagnostics.ConnectionDiagnostics(probe)
     runner.start()
-    task = asyncio.create_task(runner.run([config()], 2))
+    task = asyncio.create_task(runner.run([config()], 2, scope="all"))
     try:
         await until(started.is_set)
         runner.close()
@@ -494,7 +509,7 @@ async def test_shutdown_during_active_batch_and_worker_exception():
             await task
         await until(lambda: not runner._batch_active)
         runner.start()
-        report = await runner.run([config()], 1)
+        report = await runner.run([config()], 1, scope="all")
         assert report.complete and not report.all_connected
         assert "private" not in report.model_dump_json()
     finally:
@@ -502,14 +517,12 @@ async def test_shutdown_during_active_batch_and_worker_exception():
         runner.close()
 
 
-def test_agent_advertises_batch_tool_only_when_server_exposes_it():
+def test_agent_advertises_unified_diagnostics():
     from agent_examples.autogen_sql_agent_new import ServerCapabilities, build_sql_executor_prompt
 
-    caps = ServerCapabilities()
-    assert "check_connections()" not in build_sql_executor_prompt(caps)
-    caps.tool_names.add("check_connections")
-    prompt = build_sql_executor_prompt(caps)
-    assert "check_connections()" in prompt
+    prompt = build_sql_executor_prompt(ServerCapabilities())
+    assert "check_connections" not in prompt
+    assert 'check_connection(scope="all")' in prompt
     assert "never before routine queries" in prompt
 
 
@@ -528,18 +541,18 @@ async def test_mcp_client_cancellation_keeps_diagnostic_busy_until_cleanup(serve
     try:
         async with Client(server.mcp) as client:
             request_id = client.session._request_id
-            task = asyncio.create_task(client.call_tool("check_connections", {}))
+            task = asyncio.create_task(client.call_tool("check_connection", {"scope": "all"}))
             await until(started.is_set)
             # Cancelling a local asyncio task alone does not notify the server.
             await client.cancel(request_id, reason="Diagnostic no longer needed")
             await until(lambda: runner._draining)
             with pytest.raises(McpError, match="Request cancelled"):
                 await task
-            busy = await client.call_tool("check_connections", {}, raise_on_error=False)
+            busy = await client.call_tool("check_connection", {"scope": "all"}, raise_on_error=False)
             assert busy.is_error
             release.set()
             await until(lambda: not runner._batch_active)
-            result = await client.call_tool("check_connections", {})
+            result = await client.call_tool("check_connection", {"scope": "all"})
             assert isinstance(result.structured_content, dict)
             assert result.structured_content["all_connected"]
     finally:
@@ -554,9 +567,10 @@ async def test_mcp_client_cancellation_keeps_diagnostic_busy_until_cleanup(serve
 def test_wire_schema_requires_status_and_connected(status, connected, extra):
     validator = Draft202012Validator(diagnostics.ConnectionReport.model_json_schema())
     item = {"db_type": "sqlite", "status": status, "connected": connected, **extra}
-    report = {"all_connected": False, "complete": False, "connection_count": 1,
+    report = {"scope": "single", "all_connected": False, "complete": False, "connection_count": 1,
               "connected_count": 0, "cleanup_failed": False, "results": {"main": item}}
     assert validator.is_valid(report)
+    assert not validator.is_valid({key: value for key, value in report.items() if key != "scope"})
     for field in ("status", "connected"):
         incomplete = {key: value for key, value in item.items() if key != field}
         assert not validator.is_valid({**report, "results": {"main": incomplete}})
@@ -583,7 +597,7 @@ async def test_cleanup_failure_preserves_connectivity_and_disables_further_work(
     runner = diagnostics.ConnectionDiagnostics()
     runner.start()
     try:
-        report = await runner.run([config("first"), config("later")], 1)
+        report = await runner.run([config("first"), config("later")], 1, scope="all")
         assert report.cleanup_failed
         assert report.results["first"].connected is connected
         assert report.results["first"].cleanup_failed
@@ -592,11 +606,11 @@ async def test_cleanup_failure_preserves_connectivity_and_disables_further_work(
         assert created == ["first"]
         assert "private" not in report.model_dump_json()
         with pytest.raises(diagnostics.DiagnosticsUnavailable, match="Restart the server process"):
-            await runner.run([config()], 1)
+            await runner.run([config()], 1, scope="all")
         runner.close()
         runner.start()
         with pytest.raises(diagnostics.DiagnosticsUnavailable, match="disabled"):
-            await runner.run([config()], 1)
+            await runner.run([config()], 1, scope="all")
     finally:
         runner.close()
 
@@ -618,7 +632,7 @@ async def test_cleanup_failure_after_timeout_latches_without_rewriting_report(mo
     runner = diagnostics.ConnectionDiagnostics()
     runner.start()
     try:
-        task = asyncio.create_task(runner.run([config()], 0.2))
+        task = asyncio.create_task(runner.run([config()], 0.2, scope="all"))
         await until(started.is_set)
         report = await task
         assert report.results["main"].status == "timeout"
@@ -629,7 +643,7 @@ async def test_cleanup_failure_after_timeout_latches_without_rewriting_report(mo
         assert runner.cleanup_failed
         assert report.model_dump_json() == snapshot
         with pytest.raises(diagnostics.DiagnosticsUnavailable, match="disabled"):
-            await runner.run([config()], 1)
+            await runner.run([config()], 1, scope="all")
     finally:
         release.set()
         runner.close()
@@ -647,19 +661,128 @@ async def test_mcp_cleanup_failure_report_and_telemetry(server, monkeypatch, tmp
     monkeypatch.setattr(diagnostics, "create_adapter", lambda **kwargs: Adapter())
     monkeypatch.setattr(server, "list_connection_configs", lambda: [config()])
     async with Client(server.mcp) as client:
-        result = await client.call_tool("check_connections", {})
+        result = await client.call_tool("check_connection", {"scope": "all"})
         assert isinstance(result.structured_content, dict)
         assert result.structured_content["all_connected"]
         assert result.structured_content["complete"]
         assert result.structured_content["cleanup_failed"]
         assert isinstance(result.meta, dict)
         assert result.meta["success"] is False
-        disabled = await client.call_tool("check_connections", {}, raise_on_error=False)
+        disabled = await client.call_tool("check_connection", {"scope": "all"}, raise_on_error=False)
         assert disabled.is_error
         assert not (await client.call_tool("list_connections", {})).is_error
     records = [json.loads(line) for line in (tmp_path / "telemetry.jsonl").read_text().splitlines()]
-    checks = [row for row in records if row["tool_name"] == "check_connections"]
+    checks = [row for row in records if row["tool_name"] == "check_connection"]
     assert len(checks) == 2
     assert all(row["cleanup_failed"] and not row["success"] for row in checks)
     assert checks[0]["call_completed"] and not checks[1]["call_completed"]
     assert "private" not in json.dumps(records)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("args", [
+    {"scope": "all", "connection_id": "main"},
+    {"scope": "all", "connection_id": ""},
+    {"scope": "ALL"}, {"scope": None}, {"scope": True},
+    {"scope": ["all"]}, {"connection_id": ""}, {"connection_id": "   "},
+    {"connection_id": 1}, {"connection_id": "missing"},
+    {"connection_id": "x" * 65}, {"all": True},
+])
+async def test_invalid_diagnostic_requests_never_probe_or_claim_default_identity(server, monkeypatch, tmp_path, args):
+    seen = []
+
+    def probe(item):
+        seen.append(item.connection_id)
+        return diagnostics.ConnectedCheck(db_type="sqlite", status="connected", connected=True)
+
+    def resolve(alias=None):
+        if alias not in (None, "main"):
+            raise ValueError("Unknown connection_id")
+        return config()
+
+    monkeypatch.setattr(server, "get_connection_config", resolve)
+    monkeypatch.setattr(server, "list_connection_configs", lambda: [config()])
+    monkeypatch.setattr(server, "_connection_diagnostics", diagnostics.ConnectionDiagnostics(probe))
+    async with Client(server.mcp) as client:
+        tool = next(tool for tool in await client.list_tools() if tool.name == "check_connection")
+        schema_rejected = not Draft202012Validator(tool.inputSchema).is_valid(args)
+        result = await client.call_tool("check_connection", args, raise_on_error=False)
+        assert result.is_error
+        assert seen == []
+        # A rejected request must not occupy or disable the diagnostic runner.
+        assert not server._connection_diagnostics._batch_active
+        valid = await client.call_tool("check_connection", {})
+        assert isinstance(valid.structured_content, dict)
+        assert valid.structured_content["all_connected"]
+        assert seen == ["main"]
+    records = [json.loads(line) for line in (tmp_path / "telemetry.jsonl").read_text().splitlines()]
+    failures = [row for row in records if not row["call_completed"]]
+    # The MCP SDK rejects schema-invalid wire calls before FastMCP middleware;
+    # these have no telemetry record. Cross-field/alias errors reach middleware.
+    assert len(failures) == (0 if schema_rejected else 1)
+    for failure in failures:
+        assert "connection_id" not in failure and "db_type" not in failure
+        assert not failure["success"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("scope", ["single", "all"])
+@pytest.mark.parametrize("connected", [True, False])
+async def test_one_config_retains_requested_scope_and_report_contract(server, monkeypatch, scope, connected):
+    def probe(item):
+        if connected:
+            return diagnostics.ConnectedCheck(db_type="sqlite", status="connected", connected=True)
+        return diagnostics.FailedCheck(db_type="sqlite", status="failed", connected=False, error="Safe failure")
+
+    monkeypatch.setattr(server, "get_connection_config", lambda alias=None: config())
+    monkeypatch.setattr(server, "list_connection_configs", lambda: [config()])
+    monkeypatch.setattr(server, "_connection_diagnostics", diagnostics.ConnectionDiagnostics(probe))
+    async with Client(server.mcp) as client:
+        result = await client.call_tool("check_connection", {"scope": scope, "connection_id": None})
+        assert not result.is_error
+        report = result.structured_content
+        assert isinstance(report, dict)
+        assert isinstance(result.meta, dict)
+        assert report["scope"] == scope
+        assert list(report["results"]) == ["main"]
+        assert report["all_connected"] is connected
+        assert report["complete"] is True
+        assert report["connection_count"] == 1
+        assert report["connected_count"] == int(connected)
+        diagnostics.ConnectionReport.model_validate(report)
+        assert result.meta["connection_scope"] == scope
+        assert result.meta["success"] is connected
+        if scope == "all":
+            assert "connection_id" not in result.meta and "db_type" not in result.meta
+        else:
+            assert result.meta["connection_id"] == "main"
+
+
+@pytest.mark.asyncio
+async def test_single_cleanup_failure_disables_all_and_stopped_has_safe_identity(server, monkeypatch, tmp_path):
+    seen = []
+
+    def probe(item):
+        seen.append(item.connection_id)
+        return diagnostics.ConnectedCheck(db_type="sqlite", status="connected", connected=True, cleanup_failed=True)
+
+    monkeypatch.setattr(server, "get_connection_config", lambda alias=None: config(alias or "main"))
+    monkeypatch.setattr(server, "list_connection_configs", lambda: [config()])
+    monkeypatch.setattr(server, "_connection_diagnostics", diagnostics.ConnectionDiagnostics(probe))
+    async with Client(server.mcp) as client:
+        first = await client.call_tool("check_connection", {"connection_id": "other"})
+        assert isinstance(first.structured_content, dict)
+        assert isinstance(first.meta, dict)
+        assert first.structured_content["all_connected"] and first.structured_content["cleanup_failed"]
+        assert not first.meta["success"]
+        disabled = await client.call_tool("check_connection", {"scope": "all"}, raise_on_error=False)
+        assert disabled.is_error
+        assert seen == ["other"]
+        server._connection_diagnostics.close()
+        stopped = await client.call_tool("check_connection", {"connection_id": "main"}, raise_on_error=False)
+        assert stopped.is_error
+    records = [json.loads(line) for line in (tmp_path / "telemetry.jsonl").read_text().splitlines()]
+    assert records[0]["connection_id"] == "other" and records[0]["call_completed"]
+    assert records[1]["connection_scope"] == "all" and "connection_id" not in records[1]
+    assert records[2]["connection_id"] == "main" and not records[2]["call_completed"]
+    assert all(not record["success"] for record in records)

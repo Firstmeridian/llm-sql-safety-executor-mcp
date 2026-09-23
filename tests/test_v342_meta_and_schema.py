@@ -283,7 +283,10 @@ def test_meta_query_rejected_unsafe(base_server):
 
 
 def test_meta_check_connection(base_server):
-    result = asyncio.run(base_server.check_connection(ctx=_DummyContext()))
+    async def scenario():
+        async with base_server.lifespan(base_server.mcp):
+            return await base_server.check_connection(ctx=_DummyContext())
+    result = asyncio.run(scenario())
     _assert_common_meta(result.meta, "check_connection")
     assert result.meta["success"] is True
 

@@ -1,0 +1,14 @@
+{
+  "python": "3.12.3 (main, Aug 31 2026, 10:18:26) [GCC 13.3.0]",
+  "packages": {
+    "fastmcp": "3.0.2",
+    "mcp": "1.26.0",
+    "SQLAlchemy": "2.0.46",
+    "pydantic": "2.12.5",
+    "python-dotenv": "1.2.1"
+  },
+  "native_database_changes": "none; read-only configuration/metadata/aggregates/diagnostics only",
+  "fixture_process_lifetime": "fresh per invocation",
+  "timing_scope": "MCP call only; excludes interpreter/module import",
+  "token_usage": "not exposed"
+}

@@ -1,26 +1,42 @@
-# Batch connection diagnostics — design decision
+# Unified connection diagnostics — design decision
 
-[简体中文](BATCH_CONNECTION_CHECK_DESIGN_ZH.md)
+[简体中文](V3_7_CONNECTION_DIAGNOSTICS_DESIGN_ZH.md)
 
 Initial design: 2026-09-12, implemented in the v3.7.2 maintenance work.
-The later routing/tool-contract follow-ups below belong to v3.7.3; they leave
-the diagnostic implementation unchanged. See the [v3.7.3 notes](../RELEASE_NOTES_v3_7.md#v373--connection-routing-and-tool-contract-clarity).
+The September 13–15 routing follow-ups belong to v3.7.3 and did not change
+the diagnostic implementation. The September 22 update described first below
+unifies the interface, isolated execution and report; it is a breaking migration
+without a repository version change. See the [release record](../RELEASE_NOTES_v3_7.md).
 
 Dated follow-ups retain the rules and validation states of each stage. Current
 routing/deployment acceptance is maintained in the [Agent validation guide](MCP_AGENT_BEHAVIOR_VALIDATION_ZH.md#18-限制优先级与配置解读的可复用验收).
 
 ## Purpose and interface
 
-`check_connections()` performs one explicitly requested diagnostic of all
-configured aliases, in configuration order, without accepting aliases, URLs or
-credentials as arguments. It consolidates discovery, checking and summarization.
-It is never a startup hook or a prerequisite for ordinary queries. The existing
-`check_connection(connection_id=None)` still checks one business adapter, and
-`list_connections()` lists configuration without probing it.
+```python
+check_connection(connection_id: str | None = None, scope: Literal["single", "all"] = "single")
+```
 
-The report contains `all_connected`, `complete`, `connection_count`,
-`connected_count`, `cleanup_failed`, and alias-keyed `results`. Each result carries
-`db_type`, `cleanup_failed`, and required `status`/`connected` fields:
+No arguments checks the default; `connection_id="alias"` checks one configured
+alias; `scope="all"` checks all aliases in configuration order. All scope permits
+only omitted/null connection_id. Invalid scopes, blank/unknown aliases, wrong
+types, extra arguments and all-plus-non-null-alias combinations fail before
+creating a connection or submitting diagnostic work. No URLs or credentials are
+accepted. The old plural tool is removed without an alias.
+
+Every scope uses fresh diagnostic connections. `list_connections()` lists
+configuration without probing it. Diagnostics are never a startup hook or a
+prerequisite for ordinary queries. For routing and restrictions, explicit all
+scope must be requested and permitted; omitted scope does not imply all. A known
+target is passed explicitly, while unresolved purposes/references or irreconcilable
+restrictions require optional configuration discovery followed by waiting.
+
+The report has required `scope`, `all_connected`, `complete`, `connection_count`,
+`connected_count`, `cleanup_failed`, and alias-keyed `results`. Counts and
+`all_connected` describe only the selected scope. Single scope has one entry and
+does not label unrelated aliases not_checked. All scope stays `"all"` even with
+one configured connection. Each result includes `db_type`, `cleanup_failed` and
+required `status`/`connected` fields:
 
 | status | connected | Meaning |
 |---|---|---|
@@ -29,14 +45,28 @@ The report contains `all_connected`, `complete`, `connection_count`,
 | timeout | null | Started, but no result within the diagnostic deadline |
 | not_checked | null | Not started before the deadline or stopped after cleanup failure |
 
-Non-success entries include a safe `error`. `complete` requires every entry to
-be connected/failed; `all_connected` requires every entry to be connected. The
-report is a normal MCP result even if every database fails. Busy or stopped
-diagnostics are request-level tool errors. Aggregate metadata/telemetry use
-`connection_scope=all` and counts, omit default-alias identity, and distinguish
-report completion (`call_completed`) from operational success (`success`).
-`all_connected` and `complete` describe connectivity only. Operational `success`
-requires `all_connected and not cleanup_failed`.
+Non-success entries include a safe `error`. `complete` requires every selected
+entry to be connected/failed; `all_connected` requires every selected entry to
+be connected. Failure, timeout and observed cleanup failure remain normal MCP
+reports. Invalid input, busy/stopped diagnostics and cleanup-disabled requests
+are tool errors outside the report schema.
+
+Single-scope metadata and telemetry include its resolved alias, type and
+`connection_scope="single"`; all scope includes counts and
+`connection_scope="all"` without a default-alias identity. This identity comes
+from configuration, without acquiring a business adapter. Errors retain valid
+request scope and resolved identity when available; invalid aliases are not
+logged verbatim or replaced with default identity. Report completion
+(`call_completed`) is separate from operational `success`, which requires
+`all_connected and not cleanup_failed`.
+
+Telemetry has an SDK boundary: installed FastMCP 3.0.2 / MCP 1.26 validates
+wire-schema errors (enum, length, type and extra arguments) before this tool
+middleware, so those rejected calls have no project telemetry event. Requests
+that reach the middleware still record invalid parameter combinations,
+blank/unknown aliases and busy/stopped/disabled errors, without inventing default
+identity. Regressions verify zero probes for rejected inputs and this observation
+boundary; the project does not add an earlier SDK interception layer.
 
 ## Decision: reuse adapter logic, isolate connection instances
 
@@ -80,8 +110,9 @@ credential is included in the report.
 ## Deadline, cancellation and resource ownership
 
 The server lifespan owns a dedicated executor with at most four workers. One
-batch is admitted per process; work is submitted only as slots become available.
-Other batch requests receive a safe busy error instead of creating a queue.
+diagnostic request is admitted per process, for either scope; work is submitted
+only as slots become available. Other single/all requests receive a safe busy
+error instead of creating a queue.
 
 The waiting budget is 30 seconds, or `min(30, 0.8*T)` for a positive configured
 MCP timeout `T`. Disabling the outer timeout does not disable this budget. At the
@@ -132,13 +163,14 @@ False means no failure observed at report time, not proof of resource release:
 drivers or SQLAlchemy may handle some cleanup errors internally. Cleanup failure
 after timeout/cancellation still latches the flag and is logged; reports already
 returned are immutable. Later rejected calls record cleanup failure in telemetry.
-This intentionally accepts loss of batch diagnostics after a rare observable
+This intentionally accepts loss of all diagnostics after a rare observable
 cleanup error to avoid repeatedly opening connections when release is uncertain.
 
 The result schema now requires `status` and `connected` rather than making them
 optional via Pydantic defaults. Busy/stopped/disabled errors remain outside this
-successful-report schema. Tool descriptions explicitly distinguish the old
-business-adapter `check_connection()` from fresh-connection `check_connections()`.
+successful-report schema. Current tool descriptions apply the same independent
+connection, deadline and error-channel rules to single and all scopes. The table
+below preserves the initial cleanup/schema review changes before consolidation.
 
 | Update | Benefit and reason | Mechanism / cost |
 |---|---|---|
@@ -156,7 +188,76 @@ internal deadline. [FastMCP timeout documentation](https://gofastmcp.com/servers
 and [Python executor cancellation semantics](https://docs.python.org/3/library/concurrent.futures.html#concurrent.futures.Executor.shutdown)
 support these boundaries; they do not imply that cancelling a tool kills a thread.
 
+## Unified contract review and migration — September 22, 2026
+
+| Before | Now | Compatibility / operational cost |
+|---|---|---|
+| `check_connections()` | `check_connection(scope="all")` | Removed tool name; no deprecated alias |
+| `check_connection()` / named call | Input syntax retained; fresh worker-owned connection | No longer tests a reused business adapter; may add per-call connection setup cost and now shares budget, busy and cleanup disable |
+| Top-level `connected` | `results[alias].connected` | One report schema for both scopes; clients must migrate |
+| `message`, `database_name`, `config` | Removed | No additional database-name query; identity is alias/type |
+| Batch-only report without scope | Required `scope` for all reports | Scope is explicit, not inferred from count |
+| Batch-only admission/error attribution | Scope-aware telemetry for every diagnostic | Single checks can be unavailable behind a running or cleanup-disabled all check |
+
+The existing runner already accepts a list of configurations; one-item requests
+reuse its lifecycle instead of adding another scheduler. This reduces two
+execution/return contracts to one. It does not prove fewer Agent mistakes,
+lower latency or lower billed token usage. A single report can be longer than
+the old single response. Host-added repeated instructions can also dominate
+visible tool text even after one tool is removed.
+
+| Change | Earlier problem | Solution and benefit | Remaining cost |
+|---|---|---|---|
+| One diagnostic entry | Similar names plus two execution contracts | Explicit scope; one worker-owned path | Breaking public name/output migration |
+| One report model | Single check lacked incomplete/cleanup states | Common required fields and per-alias outcomes | More fields for single-check clients |
+| Configuration-only identity | Metadata could acquire business adapters | Resolve configuration before submitting workers | Identity may be absent for malformed requests |
+| Evaluate shorter routing guidance | Repeated selection prose and Host wrapping | Separate interface migration B from compression C; revert on regression | C probed the default for an unresolved purpose; final wording restores B, with no delivered compression benefit |
+| Shared resource guard | Separate single check bypassed batch protections | One admission gate and cleanup latch | Single checks share busy/disabled availability |
+
+Validation freezes baseline A at `7d4a079`, compares unified interface B with
+necessary wording changes, then compares wording-only C with B. Save metadata,
+actual call traces, first-call correctness/recovery/final completion and forbidden
+target access separately. Character counts are not token usage; no source-only
+or fixture run establishes refreshed native-Host acceptance. Failed cases and
+historical grades remain evidence, not targets to regrade. The current run's
+verification results are in the [September 22 staged record](../LIVE_MCP_TSET/V3_7_3_LIVE_MCP_TEST_UNIFIED_CONNECTION_DIAGNOSTICS_2026_09_22_ZH.md), separately from the historical evidence below.
+
+One isolated Luna trial on C listed configuration and then probed the default
+despite an unresolved purpose, triggering the predeclared rollback. Final source
+retains B wording and the unified interface; C's failure and raw trace remain
+evidence. Fresh contexts after restoring B also showed the same failure, so it
+cannot be attributed uniquely to compression and B does not reliably prevent
+target guessing. Full six-turn trials are tracked separately in that record.
+The subsequent connected-Host review verifies the refreshed unified signature,
+default/named/all diagnostics and conflicting-argument rejection. It does not
+attest to a remote source digest; that connector also does not expose `_meta`.
+C's character reduction is not a delivered benefit.
+
+Review coverage separates deterministic lifecycle checks from Agent behavior:
+the default suite passed 675 tests with four existing opt-in MySQL skips, and
+Pyright passed the ten changed Python files using the repository configuration
+and explicit venv interpreter. This is not whole-repository Pyright. Timeouts,
+cancellation, cleanup failures and WAL behavior are tested in isolation; live
+MySQL/SQLite calls only check normal connectivity. No real database fault or
+business write was introduced. Completing previously blocked fixture workflows
+does not erase earlier failures or establish universal routing correctness.
+
+Natural-language restrictions remain guidance. DRR-2026-066 stays Open. A strict
+Host/application must authorize the actual targets before every action, including
+implicit defaults and all configured targets; model-generated scope is not trusted
+permission. This update adds no authorization subsystem or automatic retry.
+
+Sources inform the method, not a guaranteed improvement: [Google's explicit
+function definitions and validation](https://ai.google.dev/gemini-api/docs/function-calling#best-practices),
+[MCP structured output and security requirements](https://modelcontextprotocol.io/specification/2025-11-25/server/tools),
+and [Anthropic's workflow-based tool evaluations](https://www.anthropic.com/engineering/writing-tools-for-agents).
+
 ## Evidence and validation
+
+The following dated records describe the interfaces and scores at their original
+stages. References to two tools or unchanged single-check behavior are historical;
+the current contract is above.
+
 
 On 2026-09-13, eight fresh-context `gpt-5.6-luna` live task instances checked
 tool selection. Explicit all/default/named/configuration and role-clarification

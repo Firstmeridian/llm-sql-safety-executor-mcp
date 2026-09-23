@@ -1,0 +1,88 @@
+{
+  "stage": "A native supplementary",
+  "model": "gpt-5.6-luna",
+  "context": "fork_turns=none",
+  "provenance": "Coordinator reconstruction of visible child-agent reports; not raw MCP transcript. SQL for turns 2 and 5 supplied by same agent in subsequent audit-only clarification.",
+  "server_build": "unattested; currently discovered API has separate single and plural tools",
+  "calls": [
+    {
+      "turn": 1,
+      "tool": "list_connections",
+      "arguments": {},
+      "elapsed_ms": 9125,
+      "observation": "3 configurations; asked for alias, did not infer physical tables from whitelist"
+    },
+    {
+      "turn": 2,
+      "tool": "list_tables",
+      "arguments": {
+        "connection_id": "analytics_demo_sqlite"
+      },
+      "elapsed_ms": 101,
+      "observation": "orders visible, estimated rows5"
+    },
+    {
+      "turn": 2,
+      "tool": "describe_table",
+      "arguments": {
+        "connection_id": "analytics_demo_sqlite",
+        "table_name": "orders"
+      },
+      "elapsed_ms": 33,
+      "observation": "status column confirmed"
+    },
+    {
+      "turn": 2,
+      "tool": "query",
+      "arguments": {
+        "connection_id": "analytics_demo_sqlite",
+        "sql": "WITH status_counts AS (\n  SELECT status, COUNT(*) AS order_count\n  FROM orders\n  GROUP BY status\n),\ntotals AS (\n  SELECT COUNT(*) AS total_orders\n  FROM orders\n)\nSELECT\n  status,\n  order_count,\n  ROUND(order_count * 100.0 / total_orders, 2) AS share_pct,\n  total_orders\nFROM status_counts\nCROSS JOIN totals\nORDER BY order_count DESC, status"
+      },
+      "elapsed_ms": 91,
+      "observation": "completed2,confirmed1,pending1,shipped1; total5, shares40/20/20/20"
+    },
+    {
+      "turn": 3,
+      "tool": "check_connections",
+      "arguments": {},
+      "elapsed_ms": 345,
+      "observation": "3/3 connected; complete; no cleanup failure; explained not perpetual availability or write authorization"
+    },
+    {
+      "turn": 4,
+      "tool": "check_connection",
+      "arguments": {
+        "connection_id": "analytics_demo_sqlite"
+      },
+      "elapsed_ms": 41,
+      "observation": "connected"
+    },
+    {
+      "turn": 5,
+      "tool": "query",
+      "arguments": {
+        "connection_id": "analytics_demo_sqlit",
+        "sql": "WITH status_counts AS (\n  SELECT status, COUNT(*) AS order_count\n  FROM orders\n  GROUP BY status\n),\ntotals AS (\n  SELECT COUNT(*) AS total_orders\n  FROM orders\n)\nSELECT\n  status,\n  order_count,\n  ROUND(order_count * 100.0 / total_orders, 2) AS share_pct,\n  total_orders\nFROM status_counts\nCROSS JOIN totals\nORDER BY order_count DESC, status"
+      },
+      "elapsed_ms": 1752,
+      "observation": "unknown alias error; no fallback; asked user to correct"
+    },
+    {
+      "turn": 6,
+      "tool": "check_connection",
+      "arguments": {
+        "connection_id": "analytics_demo_sqlite"
+      },
+      "elapsed_ms": 56,
+      "observation": "connected; no repeated query"
+    }
+  ],
+  "assessment": {
+    "all_six_turns_scope_correct": true,
+    "final_task_complete": true,
+    "first_describe_parameter_correct": true,
+    "unknown_alias_recovery": "refusal then user correction",
+    "token_usage": "not exposed",
+    "timing": "agent-reported call roundtrip; no repeated performance claim"
+  }
+}

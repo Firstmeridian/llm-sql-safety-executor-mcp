@@ -1,11 +1,70 @@
 # MCP SQL Server Refactoring Log
 
-**Date:** December 2, 2025 (Updated: September 16, 2026)
+**Date:** December 2, 2025 (Updated: September 22, 2026)
 **Author:** Code Refactoring Session
 
 ## Overview
 
 This document records the major refactoring changes made to `mcp_sql_server.py` to follow FastMCP best practices and improve the overall design.
+
+## Unified Connection Diagnostics (September 22, 2026)
+
+Unified default/named/all diagnostics under `check_connection`, with optional
+connection_id and explicit `scope="single"|"all"`; removed the plural tool with
+no compatibility alias. Both scopes reuse the existing independent diagnostic
+runner and one required-scope report. A single selection has one result and
+counts only that selection; scope is not inferred from configuration count.
+
+Single checks no longer obtain a cached business adapter or query a database
+name. They now share the 30-second/outer-timeout budget, process-wide busy gate
+and cleanup-failure disable behavior. Result metadata resolves identity from
+configuration only. Scope-aware telemetry replaces the old tool-name special
+case while preserving completion versus success. After target validation succeeds,
+later busy/stopped/disabled errors retain validated scope and, for single scope,
+resolved identity. Validation failures that reach project middleware omit scope
+and identity; requests rejected by SDK schema validation before that middleware
+produce no project telemetry event.
+
+This is a breaking tool/response migration without a repository version change,
+release or tag. Updated current bilingual guidance, design and migration tables;
+retained historical interfaces and scores under explicitly historical sections.
+DRR-2026-066 remains Open because guidance and model-supplied scope do not enforce
+per-request permission. Strict deployments still need trusted Host/app checks.
+
+The staged validation compares baseline A, unified contract B, then wording-only
+C; actual verification is separate from old test counts. Benefits and costs are
+recorded in the [current design](RELEASE_NOTES/GUIDE/V3_7_CONNECTION_DIAGNOSTICS_DESIGN.md#unified-contract-review-and-migration--september-22-2026),
+including changed single-check availability and the absence of proven Agent/token
+improvements before measurement. See the [September 22 staged record](RELEASE_NOTES/LIVE_MCP_TSET/V3_7_3_LIVE_MCP_TEST_UNIFIED_CONNECTION_DIAGNOSTICS_2026_09_22_ZH.md)
+for actual evidence and acceptance limits.
+
+The C wording trial showed an unresolved-purpose default probe absent from the
+initial three matching B samples. Under the frozen rule, restored B wording
+without changing the unified implementation or schemas. Fresh B rechecks also
+showed this failure, so it cannot be attributed uniquely to compression. All
+failed traces are retained. No compression benefit or universal behavior
+improvement is claimed. Earlier Host approval blocks remain historical evidence;
+the user subsequently authorized completion in a new isolated workflow cohort.
+
+Deterministic verification: targeted suite **123 passed**; default suite
+**675 passed, 4 skipped**. Pyright covered the ten changed Python files,
+including the evaluation bridge: **0 errors, 0 warnings**. The review rerun uses
+the repository configuration and an explicit venv Python path; this is not a
+whole-repository Pyright result. Compilation and local Markdown link checks
+passed. Fresh stdio smoke checks passed; a subsequent connected-Host review also
+observed the new signature, absence of the plural tool, successful default MySQL,
+named SQLite and all-three diagnostics, and rejection of conflicting arguments.
+The Host does not expose a remote source digest or server `_meta`; observable
+contract validation is separate from build attestation and telemetry validation.
+Agent workflow results are recorded separately in the staged report.
+
+The authorized follow-up completed three fresh six-turn Luna workflows for each
+of A, B and archived C: 54 user turns and 63 MCP calls. No new target-scope
+violation appeared in this cohort; nine deliberate user-supplied alias typos were
+rejected without fallback. Reply-language and percentage-prose issues are recorded
+separately. Prior purpose/prohibition failures remain unchanged, and C stays
+withdrawn. The observed native Host descriptions shrink by 3,405 characters from
+A to B; actual model usage is unavailable, so this is not a billed-token claim.
 
 ## Managed Single-Statement Mutation Contract (September 16, 2026)
 
@@ -75,7 +134,7 @@ review's version scope, not the runtime version of every historical baseline.
 All five files were still untracked, so they were renamed without staging them.
 Raw evidence filenames, content and hashes are preserved.
 
-Added a complete [Chinese batch-diagnostics design record](RELEASE_NOTES/GUIDE/BATCH_CONNECTION_CHECK_DESIGN_ZH.md),
+Added a complete [Chinese batch-diagnostics design record](RELEASE_NOTES/GUIDE/V3_7_CONNECTION_DIAGNOSTICS_DESIGN_ZH.md),
 with reciprocal language links and Chinese README navigation. Both editions
 include the current strict-deployment and closed-client response-model boundaries;
 dated validation figures and historical grades are retained. No Python or
@@ -233,7 +292,7 @@ retain batch ownership through cleanup after timeout/cancellation, preventing
 repeated requests from accumulating background database calls. Historical live
 test records remain unchanged; the planning-time three-alias MCP baseline is
 identified separately from new-tool validation in the
-[design record](RELEASE_NOTES/GUIDE/BATCH_CONNECTION_CHECK_DESIGN.md).
+[design record](RELEASE_NOTES/GUIDE/V3_7_CONNECTION_DIAGNOSTICS_DESIGN.md).
 
 Validation: the default suite passed (`621 passed, 4 skipped`), followed by a
 separate passing MCP protocol-cancellation regression. Pyright reported no

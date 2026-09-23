@@ -22,6 +22,7 @@ from db_adapter import DatabaseConfig, create_adapter
 logger = logging.getLogger(__name__)
 DIAGNOSTIC_BUDGET_SECONDS = 30.0
 MAX_DIAGNOSTIC_WORKERS = 4
+ConnectionScope = Literal["single", "all"]
 
 
 class _CheckBase(BaseModel):
@@ -54,9 +55,10 @@ ConnectionCheck = Annotated[
 
 class ConnectionReport(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    all_connected: bool
-    complete: bool
-    connection_count: int
+    scope: ConnectionScope = Field(description="Requested scope, even when all selects only one configured alias.")
+    all_connected: bool = Field(description="All aliases in this report connected; cleanup health is separate.")
+    complete: bool = Field(description="Every selected alias has a connected or failed result, with none unresolved.")
+    connection_count: int = Field(description="Number of aliases selected for this diagnostic, not necessarily all configured aliases.")
     connected_count: int
     cleanup_failed: bool
     results: dict[str, ConnectionCheck]
@@ -160,7 +162,13 @@ class ConnectionDiagnostics:
                 self._cleanup_failed = True
         return _Outcome(result, time.monotonic())
 
-    async def run(self, configs: list[DatabaseConfig], budget: float) -> ConnectionReport:
+    async def run(
+        self, configs: list[DatabaseConfig], budget: float, *, scope: ConnectionScope,
+    ) -> ConnectionReport:
+        # Scope is request identity, not something inferred from the list size:
+        # an all-connections request may also contain exactly one connection.
+        if scope not in ("single", "all") or not configs or (scope == "single" and len(configs) != 1):
+            raise ValueError("Invalid diagnostic scope or connection selection.")
         deadline = time.monotonic() + budget
         with self._lock:
             if self._executor is None:
@@ -223,6 +231,7 @@ class ConnectionDiagnostics:
                 results[config.connection_id] = result
             connected_count = sum(result.connected is True for result in results.values())
             return ConnectionReport(
+                scope=scope,
                 all_connected=connected_count == len(configs),
                 complete=all(result.status in ("connected", "failed") for result in results.values()),
                 connection_count=len(configs), connected_count=connected_count,

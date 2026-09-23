@@ -1,0 +1,54 @@
+{
+  "metric": "Unicode characters of actual Host-wrapped name/description definitions; not model or billing tokens",
+  "comparison": "Observed native A and restarted native B; identical non-diagnostic tool names, optional Skills enabled in both; stages differ in signature, schema and wording as intended",
+  "stages": {
+    "A": {
+      "evidence_file": "UNIFIED_DIAGNOSTICS_HOST_A_2026_09_22.json",
+      "evidence_sha256": "d67ce8cd7752de7113087ffc648303959ad60a171eebc03d469fd6f59ba1f228",
+      "tool_count": 11,
+      "tool_names": [
+        "mcp__sql_safety_executor_mcp__check_connection",
+        "mcp__sql_safety_executor_mcp__check_connections",
+        "mcp__sql_safety_executor_mcp__describe_table",
+        "mcp__sql_safety_executor_mcp__execute_mutation_skill",
+        "mcp__sql_safety_executor_mcp__execute_query_skill",
+        "mcp__sql_safety_executor_mcp__get_full_schema",
+        "mcp__sql_safety_executor_mcp__get_skill_detail",
+        "mcp__sql_safety_executor_mcp__list_connections",
+        "mcp__sql_safety_executor_mcp__list_skills",
+        "mcp__sql_safety_executor_mcp__list_tables",
+        "mcp__sql_safety_executor_mcp__query"
+      ],
+      "description_chars": 60176,
+      "compact_name_description_json_chars": 61624
+    },
+    "B": {
+      "evidence_file": "UNIFIED_DIAGNOSTICS_NATIVE_B_REVIEW_2026_09_22.json",
+      "evidence_sha256": "bbd5ecaaf160088399ee9259877fcb602bc8ca7f0d32ac5978cc09404050d5e2",
+      "tool_count": 10,
+      "tool_names": [
+        "mcp__sql_safety_executor_mcp__check_connection",
+        "mcp__sql_safety_executor_mcp__describe_table",
+        "mcp__sql_safety_executor_mcp__execute_mutation_skill",
+        "mcp__sql_safety_executor_mcp__execute_query_skill",
+        "mcp__sql_safety_executor_mcp__get_full_schema",
+        "mcp__sql_safety_executor_mcp__get_skill_detail",
+        "mcp__sql_safety_executor_mcp__list_connections",
+        "mcp__sql_safety_executor_mcp__list_skills",
+        "mcp__sql_safety_executor_mcp__list_tables",
+        "mcp__sql_safety_executor_mcp__query"
+      ],
+      "description_chars": 56771,
+      "compact_name_description_json_chars": 58187
+    }
+  },
+  "limits": [
+    "Single captured catalog per stage, not a latency or model-accuracy experiment",
+    "Includes shared instructions and TypeScript declarations injected by this Host",
+    "Does not include conversation or responses",
+    "No C native Host catalog; C raw metadata cannot substitute for it",
+    "Actual model input, cached and billed token usage not exposed"
+  ],
+  "description_chars_reduction_A_minus_B": 3405,
+  "compact_json_chars_reduction_A_minus_B": 3437
+}

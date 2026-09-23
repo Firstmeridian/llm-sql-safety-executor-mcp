@@ -43,14 +43,14 @@ v3.0 更新内容（相对于旧版 autogen_sql_agent.py）:
 
 MCP Server compatibility:
 - Core tools: list_connections, query, list_tables, describe_table, get_full_schema, check_connection
-- Batch diagnostics: check_connections (advertised only when exposed by the server)
+- Connectivity diagnostics: check_connection with single/all scope
 - Optional tools: sample (ENABLE_SCHEMA_TOOLS=1), get_table_summary (ENABLE_TABLE_SUMMARY=1)
 - Skills tools: list_skills, get_skill_detail, execute_query_skill (ENABLE_SKILLS=1),
   execute_mutation_skill (SKILLS_ALLOW_MUTATIONS=1)
 
 MCP 服务器工具兼容性:
 - 核心工具（始终可用）: list_connections, query, list_tables, describe_table, get_full_schema, check_connection
-- 批量诊断: check_connections（仅在服务器提供时加入提示词）
+- 连通性诊断: check_connection，通过 single/all scope 选择范围
 - 可选工具: sample (需 ENABLE_SCHEMA_TOOLS=1), get_table_summary (需 ENABLE_TABLE_SUMMARY=1)
 - Skills 工具: list_skills, get_skill_detail, execute_query_skill (需 ENABLE_SKILLS=1),
   execute_mutation_skill (需 SKILLS_ALLOW_MUTATIONS=1)
@@ -542,7 +542,7 @@ Core tools (always available):
 3. list_tables(connection_id) - Lightweight visible-table overview with row estimates
 4. describe_table(table_name, connection_id) - Full adapter-visible column metadata + row estimate + is_large hint; not complete DDL
 5. get_full_schema(connection_id, detail_level, group_identical) - Grouped compact by default; request full only for nullable/default/key metadata
-6. check_connection(connection_id) - Check one alias (default if omitted), only on request or connection errors
+6. check_connection(connection_id=None, scope="single") - Check fresh connectivity to one alias (default if omitted), only on request or connection errors
 
 Connection routing takes precedence over schema, query, Skill, and other workflow rules:
 - Explicit prohibitions take precedence, including connection checks on forbidden targets. For requested connectivity, a restriction permitting one resolved alias or the default limits a broader request. Check only that target and report others unchecked; if partial checks are explicitly rejected or restrictions remain inconsistent, ask and wait. This does not authorize writes.
@@ -551,13 +551,11 @@ Connection routing takes precedence over schema, query, Skill, and other workflo
 - For a purpose/role with no resolved target, ambiguous reference, no unique type match, or irreconcilable scope restrictions, only list_connections() may be called if candidates are needed. Ask the User and wait; do not inspect schema, query, use Skills, or run diagnostics for that unresolved request. Discovery is not selection; allowed_tables is configured access, not proof of table existence or completeness. Known candidates need not be listed again.
 - For a generic connectivity request with NO target clues and NO resolved conversational/application target, use check_connection() for the default only and report that scope. An unresolved purpose is a target clue, not permission to probe the default. Existing default routing for ordinary requests without target clues remains available; omission alone does not require clarification. A missing alias or generic connection problem never requests all connections."""
 
+    tools_section += '\nFor explicitly requested and permitted all-connection diagnostics, use check_connection(scope="all"); never before routine queries.'
+
     # --- Optional tools (conditional) ---
     # --- 可选工具（根据服务器配置动态添加） ---
     tool_num = 7  # Continue numbering after core tools / 接着核心工具的编号继续
-    if "check_connections" in caps.tool_names:
-        tools_section += f"""
-{tool_num}. check_connections() - Check fresh connectivity to all configured aliases only when the user clearly requests that scope (including an unambiguous continuation of it); never infer all from a missing alias, and never before routine queries"""
-        tool_num += 1
     if caps.has_sample:
         tools_section += f"""
 {tool_num}. sample(table_name, limit, connection_id) - Quick data preview; limit is 1-20 and MCP rejects out-of-range values"""
