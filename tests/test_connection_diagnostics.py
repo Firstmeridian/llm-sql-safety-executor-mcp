@@ -759,7 +759,10 @@ async def test_one_config_retains_requested_scope_and_report_contract(server, mo
 
 
 @pytest.mark.asyncio
-async def test_single_cleanup_failure_disables_all_and_stopped_has_safe_identity(server, monkeypatch, tmp_path):
+@pytest.mark.parametrize("followup_scope", ["single", "all"])
+async def test_single_cleanup_failure_disables_both_scopes_and_stopped_has_safe_identity(
+    server, monkeypatch, tmp_path, followup_scope,
+):
     seen = []
 
     def probe(item):
@@ -775,14 +778,19 @@ async def test_single_cleanup_failure_disables_all_and_stopped_has_safe_identity
         assert isinstance(first.meta, dict)
         assert first.structured_content["all_connected"] and first.structured_content["cleanup_failed"]
         assert not first.meta["success"]
-        disabled = await client.call_tool("check_connection", {"scope": "all"}, raise_on_error=False)
+        disabled = await client.call_tool("check_connection", {"scope": followup_scope}, raise_on_error=False)
         assert disabled.is_error
+        assert "disabled after a cleanup failure" in str(disabled.content)
         assert seen == ["other"]
         server._connection_diagnostics.close()
         stopped = await client.call_tool("check_connection", {"connection_id": "main"}, raise_on_error=False)
         assert stopped.is_error
     records = [json.loads(line) for line in (tmp_path / "telemetry.jsonl").read_text().splitlines()]
     assert records[0]["connection_id"] == "other" and records[0]["call_completed"]
-    assert records[1]["connection_scope"] == "all" and "connection_id" not in records[1]
+    assert records[1]["connection_scope"] == followup_scope
+    if followup_scope == "single":
+        assert records[1]["connection_id"] == "main"
+    else:
+        assert "connection_id" not in records[1]
     assert records[2]["connection_id"] == "main" and not records[2]["call_completed"]
     assert all(not record["success"] for record in records)
