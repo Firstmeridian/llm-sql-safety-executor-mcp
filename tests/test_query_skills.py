@@ -12,14 +12,11 @@ Usage:
     pytest tests/test_query_skills.py -v
 """
 
-import sys
 import pytest
 from pathlib import Path
 
 # Add project root and _lib to path
 PROJECT_ROOT = Path(__file__).parent.parent
-sys.path.insert(0, str(PROJECT_ROOT))
-sys.path.insert(0, str(PROJECT_ROOT / "skills" / "_lib"))
 
 
 # =============================================================================
@@ -34,7 +31,7 @@ def adapter_with_orders():
     Returns a connected adapter with orders table:
     - id, order_date, amount, status
     """
-    from db_adapter import SQLiteAdapter
+    from tests.support_adapters import SQLiteAdapter
     from sqlalchemy import text
 
     adapter = SQLiteAdapter(":memory:")
@@ -73,9 +70,9 @@ class TestExecuteWithParams:
 
     def test_monthly_sales_report_sqlite_template_executes(self):
         """The SQLite example skill query runs against the demo-style schema."""
-        from db_adapter import SQLiteAdapter
+        from tests.support_adapters import SQLiteAdapter
         from sqlalchemy import text
-        from skill_loader import discover, load_query, validate_params
+        from tests.support_catalog import discover, load_query, validate_params
 
         discover(PROJECT_ROOT / "skills")
         sql_template, param_schema = load_query("sample-monthly-sales-report-sqlite")

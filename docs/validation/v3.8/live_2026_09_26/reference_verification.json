@@ -1,0 +1,48 @@
+{
+  "protocol": "2026-07-28",
+  "descriptions_use_toml": true,
+  "read_cases_checked": 18,
+  "query_skill_matches_raw_aggregate_in_both_modes": true,
+  "aggregate": {
+    "success": true,
+    "data": [
+      {
+        "date": "2026-08-01",
+        "order_count": 1,
+        "revenue": 100.0,
+        "avg_order_value": 100.0
+      },
+      {
+        "date": "2026-08-02",
+        "order_count": 1,
+        "revenue": 250.0,
+        "avg_order_value": 250.0
+      },
+      {
+        "date": "2026-08-03",
+        "order_count": 1,
+        "revenue": 75.5,
+        "avg_order_value": 75.5
+      }
+    ],
+    "row_count": 3,
+    "total_rows": 3,
+    "truncated": false,
+    "truncation_note": null,
+    "query": "SELECT date(order_date) AS date, COUNT(*) AS order_count, SUM(total_amount) AS revenue, AVG(total_amount) AS avg_order_value FROM orders WHERE order_date >= '2026-08-01' AND order_date < '2026-09-01' GROUP BY date(order_date) ORDER BY date",
+    "connection_id": "live_test_sqlite",
+    "db_type": "sqlite"
+  },
+  "tool_names": [
+    "list_connections",
+    "query",
+    "check_connection",
+    "list_tables",
+    "describe_table",
+    "get_full_schema",
+    "list_skills",
+    "get_skill_detail",
+    "execute_query_skill",
+    "execute_mutation_skill"
+  ]
+}

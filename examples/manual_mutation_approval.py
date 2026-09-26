@@ -26,7 +26,6 @@ from typing import Any, Callable, Mapping, Protocol, TextIO
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-DEFAULT_SERVER_SCRIPT = PROJECT_ROOT / "start_server.py"
 _EXPIRY_SAFETY_MARGIN_SECONDS = 1.0
 _CONNECTION_ID_PATTERN = re.compile(r"^[a-z][a-z0-9_]{0,63}$")
 
@@ -541,8 +540,7 @@ async def run_approved_mutation(
             return MutationOutcome(
                 status="preview_expired",
                 message=(
-                    "Preview token expired or is too close to expiry; "
-                    "preview again."
+                    "Preview token expired or is too close to expiry; preview again."
                 ),
             )
 
@@ -567,9 +565,7 @@ async def run_approved_mutation(
             )
 
         try:
-            view_unchanged = (
-                _approval_view_fingerprint(view) == approval_fingerprint
-            )
+            view_unchanged = _approval_view_fingerprint(view) == approval_fingerprint
         except Exception:
             view_unchanged = False
         if not view_unchanged:
@@ -664,6 +660,10 @@ def _build_parser() -> argparse.ArgumentParser:
             "before executing it."
         )
     )
+    parser.add_argument(
+        "--config", required=True, type=Path, help="Explicit server.toml path"
+    )
+    parser.add_argument("--flow", choices=("preview", "mrtr"), default="preview")
     parser.add_argument("--skill", required=True, help="Mutation Skill name")
     parser.add_argument(
         "--params-file",
@@ -680,49 +680,124 @@ def _build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+class MRTRApprovalProvider:
+    """Trusted Host UI: one exact immutable review, no automatic write retry."""
+
+    def __init__(self, request, timeout, provider=None):
+        self.request = request
+        self.timeout = timeout
+        self.provider = provider or ConsoleApprovalProvider()
+        self.view = None
+        self.approved = False
+        self.seen = False
+
+    async def __call__(self, message, response_type, params, context):
+        from fastmcp.client.elicitation import ElicitResult
+
+        if self.seen:
+            return ElicitResult(action="cancel")
+        self.seen = True
+        try:
+            review = json.loads(message.split("\n", 1)[1])
+            if review["skill_name"] != self.request.skill_name or review[
+                "params"
+            ] != dict(self.request.params):
+                raise ApprovalWorkflowError("Review does not match requested mutation")
+            target = _normalize_connection_id(review["connection_id"])
+            if (
+                self.request.connection_id is not None
+                and target != _normalize_connection_id(self.request.connection_id)
+            ):
+                raise ApprovalWorkflowError("Review target mismatch")
+            self.view = ApprovalView(
+                skill_name=review["skill_name"],
+                params=review["params"],
+                connection_id=target,
+                db_type=review["db_type"],
+                preview=review["preview"],
+                expires_at=_parse_expiry(review["expires_at"]),
+                idempotent=False,
+            )
+            remaining = (
+                self.view.expires_at - datetime.now(timezone.utc)
+            ).total_seconds() - _EXPIRY_SAFETY_MARGIN_SECONDS
+            if remaining <= 0:
+                return ElicitResult(action="cancel")
+            decision = await self.provider.decide(
+                self.view, min(self.timeout, remaining)
+            )
+            self.approved = decision is ApprovalDecision.APPROVE
+            return ElicitResult(action="accept", content={"approve": self.approved})
+        except (ValueError, TypeError, KeyError, IndexError):
+            return ElicitResult(action="cancel")
+
+
 async def _run_cli(args: argparse.Namespace) -> MutationOutcome:
+    from sql_safety_executor.mcp.bootstrap import prepare_framework
+
+    prepare_framework()
     from fastmcp import Client
 
     _validate_timeouts(args.approval_timeout, args.tool_timeout)
     params = _load_params(args.params_file)
-    server_script = DEFAULT_SERVER_SCRIPT.resolve()
-    if not server_script.is_file():
-        raise FileNotFoundError(f"Server script not found: {server_script}")
-
-    transport = _build_stdio_transport()
+    transport = _build_stdio_transport(args.config)
     request = MutationRequest(
-        skill_name=args.skill,
-        params=params,
-        connection_id=args.connection_id,
+        skill_name=args.skill, params=params, connection_id=args.connection_id
+    )
+    approval = (
+        MRTRApprovalProvider(request, args.approval_timeout)
+        if args.flow == "mrtr"
+        else None
     )
     async with Client(
         transport,
         timeout=args.tool_timeout,
         init_timeout=args.tool_timeout,
+        elicitation_handler=approval,
     ) as client:
-        return await run_approved_mutation(
-            client,
-            request,
-            ConsoleApprovalProvider(),
-            approval_timeout_seconds=args.approval_timeout,
-            tool_timeout_seconds=args.tool_timeout,
+        if args.flow == "preview":
+            return await run_approved_mutation(
+                client,
+                request,
+                ConsoleApprovalProvider(),
+                approval_timeout_seconds=args.approval_timeout,
+                tool_timeout_seconds=args.tool_timeout,
+            )
+        arguments = {"skill_name": request.skill_name, "params": dict(request.params)}
+        if request.connection_id is not None:
+            arguments["connection_id"] = request.connection_id
+        try:
+            payload = _parse_tool_payload(
+                await client.call_tool(
+                    "request_mutation_approval", arguments, timeout=args.tool_timeout
+                )
+            )
+        except Exception:
+            return MutationOutcome(
+                "execute_unknown",
+                "Approval call failed or response was lost; no automatic retry. Reconcile business state before retrying.",
+            )
+        if approval and approval.view and approval.approved:
+            status, message = _interpret_execute_payload(
+                payload, request, approval.view
+            )
+            return MutationOutcome(status, message, payload)
+        return MutationOutcome(
+            "not_approved", "No approval was granted by this Host.", payload
         )
 
 
-def _build_stdio_transport() -> Any:
-    """Build the local transport with the caller's complete configuration."""
+def _build_stdio_transport(config: Path) -> Any:
+    """Use explicit TOML; inherit environment only for explicitly referenced secrets."""
+    from sql_safety_executor.mcp.bootstrap import prepare_framework
+
+    prepare_framework()
     from fastmcp.client.transports import StdioTransport
 
     return StdioTransport(
         command=sys.executable,
-        args=[str(DEFAULT_SERVER_SCRIPT)],
-        # MCP's stdio transport otherwise inherits only a small safe system
-        # subset. This local host must preserve the exact DB_*/Skill policy
-        # environment that the operator reviewed instead of silently falling
-        # back to a different project .env configuration. The server path is
-        # fixed to this trusted repository rather than accepted from CLI input.
+        args=["-m", "sql_safety_executor", "serve", "--config", str(config.resolve())],
         env=dict(os.environ),
-        cwd=str(PROJECT_ROOT),
         keep_alive=False,
     )
 

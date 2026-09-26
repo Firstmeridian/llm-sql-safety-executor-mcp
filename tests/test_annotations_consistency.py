@@ -20,9 +20,9 @@ that value.
 
 from __future__ import annotations
 
+from tests.support import SCENARIO, make_gateway
+
 import asyncio
-import importlib
-import sys
 
 from mcp.types import Tool
 import pytest
@@ -49,34 +49,28 @@ _EXPECTED_ANNOTATIONS: dict[str, tuple[bool, bool, bool, bool]] = {
 @pytest.fixture
 def all_tools_server(monkeypatch):
     """Import mcp_sql_server with every tool enabled for full enumeration."""
-    monkeypatch.setenv("ENABLE_SKILLS", "1")
-    monkeypatch.setenv("SKILLS_ALLOW_MUTATIONS", "1")
-    monkeypatch.setenv("ENABLE_SCHEMA_TOOLS", "1")
-    monkeypatch.setenv("ENABLE_TABLE_SUMMARY", "1")
-    monkeypatch.setenv("DB_TYPE", "sqlite")
-    monkeypatch.setenv("SQLITE_DATABASE_PATH", ":memory:")
-    monkeypatch.setenv("SKILLS_DIR", "skills/")
-    monkeypatch.setenv("SKILLS_EXCLUDE_PROFILES", "")
-    monkeypatch.setenv("SKILLS_AUDIT_QUERIES", "0")
-    monkeypatch.setenv("MAX_SQL_LENGTH", "20000")
-    monkeypatch.setenv("MCP_TOOL_TIMEOUT_SECONDS", "120")
-    monkeypatch.delenv("SKILLS_LIST_DEFAULT_DETAIL", raising=False)
-    monkeypatch.delenv("SKILLS_LIST_AVAILABLE_ONLY_DEFAULT", raising=False)
-    monkeypatch.delenv("SKILLS_CHECK_SCHEMA_ON_LIST", raising=False)
+    monkeypatch.setitem(SCENARIO, "ENABLE_SKILLS", "1")
+    monkeypatch.setitem(SCENARIO, "SKILLS_ALLOW_MUTATIONS", "1")
+    monkeypatch.setitem(SCENARIO, "ENABLE_SCHEMA_TOOLS", "1")
+    monkeypatch.setitem(SCENARIO, "ENABLE_TABLE_SUMMARY", "1")
+    monkeypatch.setitem(SCENARIO, "DB_TYPE", "sqlite")
+    monkeypatch.setitem(SCENARIO, "SQLITE_DATABASE_PATH", ":memory:")
+    monkeypatch.setitem(SCENARIO, "SKILLS_DIR", "skills/")
+    monkeypatch.setitem(SCENARIO, "SKILLS_EXCLUDE_PROFILES", "")
+    monkeypatch.setitem(SCENARIO, "SKILLS_AUDIT_QUERIES", "0")
+    monkeypatch.setitem(SCENARIO, "MAX_SQL_LENGTH", "20000")
+    monkeypatch.setitem(SCENARIO, "MCP_TOOL_TIMEOUT_SECONDS", "120")
+    monkeypatch.delitem(SCENARIO, "SKILLS_LIST_DEFAULT_DETAIL", raising=False)
+    monkeypatch.delitem(SCENARIO, "SKILLS_LIST_AVAILABLE_ONLY_DEFAULT", raising=False)
+    monkeypatch.delitem(SCENARIO, "SKILLS_CHECK_SCHEMA_ON_LIST", raising=False)
 
     # skill_loader lives under skills/_lib and is sys.path-extended by
     # mcp_sql_server at import time. Pre-extend here so we can patch it first.
-    from pathlib import Path as _Path
-    sys.path.insert(0, str(_Path(__file__).resolve().parent.parent / "skills" / "_lib"))
-    import skill_loader
+    from tests import support_catalog as skill_loader
     monkeypatch.setattr(skill_loader, "generate_skills_md", lambda *_a, **_k: None)
 
-    for mod_name in ("mcp_sql_server", "db_adapter", "sql_safety_checker"):
-        sys.modules.pop(mod_name, None)
-    module = importlib.import_module("mcp_sql_server")
+    module = make_gateway()
     yield module
-    for mod_name in ("mcp_sql_server", "db_adapter", "sql_safety_checker"):
-        sys.modules.pop(mod_name, None)
 
 
 def _collect_tools(server_module) -> dict[str, Tool]:
@@ -90,10 +84,10 @@ def test_every_registered_tool_has_explicit_annotations(all_tools_server):
     for name, tool in tools.items():
         annotations = tool.annotations
         assert annotations is not None, f"{name}: missing ToolAnnotations"
-        assert annotations.readOnlyHint is not None, f"{name}: readOnlyHint not declared"
-        assert annotations.destructiveHint is not None, f"{name}: destructiveHint not declared"
-        assert annotations.idempotentHint is not None, f"{name}: idempotentHint not declared"
-        assert annotations.openWorldHint is not None, f"{name}: openWorldHint not declared"
+        assert annotations.read_only_hint is not None, f"{name}: readOnlyHint not declared"
+        assert annotations.destructive_hint is not None, f"{name}: destructiveHint not declared"
+        assert annotations.idempotent_hint is not None, f"{name}: idempotentHint not declared"
+        assert annotations.open_world_hint is not None, f"{name}: openWorldHint not declared"
 
 
 def test_registered_tools_match_expected_allowlist(all_tools_server):
@@ -128,10 +122,10 @@ def test_registered_tools_match_expected_allowlist(all_tools_server):
         annotations = tools[name].annotations
         assert annotations is not None, f"{name}: missing ToolAnnotations"
         actual_tuple = (
-            annotations.readOnlyHint,
-            annotations.destructiveHint,
-            annotations.idempotentHint,
-            annotations.openWorldHint,
+            annotations.read_only_hint,
+            annotations.destructive_hint,
+            annotations.idempotent_hint,
+            annotations.open_world_hint,
         )
         if actual_tuple != expected_tuple:
             mismatches.append(
@@ -152,7 +146,7 @@ def test_closed_world_hint_is_uniform(all_tools_server):
     tools = _collect_tools(all_tools_server)
     open_world_tools = [
         name for name, tool in tools.items()
-        if tool.annotations and tool.annotations.openWorldHint is True
+        if tool.annotations and tool.annotations.open_world_hint is True
     ]
     assert open_world_tools == [], (
         f"Tools with openWorldHint=True: {open_world_tools}. "

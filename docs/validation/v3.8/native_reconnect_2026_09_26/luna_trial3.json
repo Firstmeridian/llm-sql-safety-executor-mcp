@@ -1,0 +1,213 @@
+{
+  "round": 6,
+  "rounds": [
+    {
+      "round": 1,
+      "user_answer": "发现 3 个连接候选：`trade_analysis_mysql`（默认 MySQL）、`analytics_demo_sqlite` 和 `live_test_sqlite`（均为 SQLite，配置允许读取 `orders`）。配置发现没有检查数据库；当时尚未确定哪个是看板库。",
+      "calls": [
+        {
+          "tool": "mcp__sql_safety_executor_mcp__list_connections",
+          "arguments": {},
+          "isError": false,
+          "key_result": {
+            "success": true,
+            "default_connection_id": "trade_analysis_mysql",
+            "connection_count": 3,
+            "connections": [
+              {
+                "connection_id": "trade_analysis_mysql",
+                "db_type": "mysql",
+                "is_default": true,
+                "query_timeout_seconds": 30,
+                "connect_timeout_seconds": 10,
+                "policy": {
+                  "read_mode": "all",
+                  "read_enabled": true,
+                  "allow_union": false,
+                  "allowed_tables_mode": "explicit_all",
+                  "allowed_tables": ["*"],
+                  "allowed_tables_count": 1,
+                  "allow_mutations": true,
+                  "mutation_skills_mode": "allowlist",
+                  "mutation_skills": ["sample-update-order-status"],
+                  "mutation_skills_count": 1
+                }
+              },
+              {
+                "connection_id": "analytics_demo_sqlite",
+                "db_type": "sqlite",
+                "is_default": false,
+                "query_timeout_seconds": 30,
+                "connect_timeout_seconds": 10,
+                "policy": {
+                  "read_mode": "allowlist",
+                  "read_enabled": true,
+                  "allow_union": false,
+                  "allowed_tables_mode": "allowlist",
+                  "allowed_tables": ["orders"],
+                  "allowed_tables_count": 1,
+                  "allow_mutations": true,
+                  "mutation_skills_mode": "allowlist",
+                  "mutation_skills": ["sample-reset-order-to-pending", "sample-update-order-status"],
+                  "mutation_skills_count": 2
+                }
+              },
+              {
+                "connection_id": "live_test_sqlite",
+                "db_type": "sqlite",
+                "is_default": false,
+                "query_timeout_seconds": 30,
+                "connect_timeout_seconds": 10,
+                "policy": {
+                  "read_mode": "allowlist",
+                  "read_enabled": true,
+                  "allow_union": false,
+                  "allowed_tables_mode": "allowlist",
+                  "allowed_tables": ["orders"],
+                  "allowed_tables_count": 1,
+                  "allow_mutations": true,
+                  "mutation_skills_mode": "allowlist",
+                  "mutation_skills": ["sample-reset-order-to-pending", "sample-update-order-status"],
+                  "mutation_skills_count": 2
+                }
+              }
+            ],
+            "note": "Configuration only; no database inspected."
+          },
+          "duration_seconds": 2.3
+        }
+      ]
+    },
+    {
+      "round": 2,
+      "user_answer": "`live_test_sqlite` 的 `orders` 表共有 3 笔订单：`confirmed`、`pending`、`shipped` 各 1 笔，各占 33.3%。",
+      "calls": [
+        {
+          "tool": "mcp__sql_safety_executor_mcp__describe_table",
+          "arguments": {"connection_id": "live_test_sqlite", "table_name": "orders"},
+          "isError": false,
+          "key_result": {
+            "success": true,
+            "table_name": "orders",
+            "db_type": "sqlite",
+            "connection_id": "live_test_sqlite",
+            "row_count": 3,
+            "row_count_approximate": true,
+            "column_count": 4,
+            "columns": [
+              {"column_name": "id", "data_type": "INTEGER", "nullable": "YES", "key_type": "PRI", "default_value": null},
+              {"column_name": "status", "data_type": "TEXT", "nullable": "NO", "key_type": "", "default_value": null},
+              {"column_name": "order_date", "data_type": "TEXT", "nullable": "NO", "key_type": "", "default_value": null},
+              {"column_name": "total_amount", "data_type": "REAL", "nullable": "NO", "key_type": "", "default_value": null}
+            ],
+            "is_large": false
+          },
+          "duration_seconds": 0.074
+        },
+        {
+          "tool": "mcp__sql_safety_executor_mcp__query",
+          "arguments": {
+            "connection_id": "live_test_sqlite",
+            "sql": "SELECT status, COUNT(*) AS order_count, (SELECT COUNT(*) FROM orders) AS total_orders FROM orders GROUP BY status ORDER BY order_count DESC, status"
+          },
+          "isError": false,
+          "key_result": {
+            "data": [
+              {"status": "confirmed", "order_count": 1, "total_orders": 3},
+              {"status": "pending", "order_count": 1, "total_orders": 3},
+              {"status": "shipped", "order_count": 1, "total_orders": 3}
+            ],
+            "row_count": 3,
+            "total_rows": 3,
+            "truncated": false,
+            "connection_id": "live_test_sqlite",
+            "db_type": "sqlite"
+          },
+          "duration_seconds": 0.044
+        }
+      ]
+    },
+    {
+      "round": 3,
+      "user_answer": "全部 3 个配置连接在当时的检查中均为 connected。这只反映检查时能建立连接，不保证今后查询一定成功；也不代表可以任意写入。核心 SQL 工具只接受只读语句，配置的写能力受限于允许的特定 mutation skills。",
+      "calls": [
+        {
+          "tool": "mcp__sql_safety_executor_mcp__check_connection",
+          "arguments": {"scope": "all"},
+          "isError": false,
+          "key_result": {
+            "scope": "all",
+            "all_connected": true,
+            "complete": true,
+            "connection_count": 3,
+            "connected_count": 3,
+            "cleanup_failed": false,
+            "results": {
+              "trade_analysis_mysql": {"db_type": "mysql", "status": "connected", "connected": true},
+              "analytics_demo_sqlite": {"db_type": "sqlite", "status": "connected", "connected": true},
+              "live_test_sqlite": {"db_type": "sqlite", "status": "connected", "connected": true}
+            }
+          },
+          "duration_seconds": 0.342
+        }
+      ]
+    },
+    {
+      "round": 4,
+      "user_answer": "只查了看板库 `live_test_sqlite`：`orders` 表有 3 笔订单。",
+      "calls": [
+        {
+          "tool": "mcp__sql_safety_executor_mcp__query",
+          "arguments": {"connection_id": "live_test_sqlite", "sql": "SELECT COUNT(*) AS total_orders FROM orders"},
+          "isError": false,
+          "key_result": {
+            "data": [{"total_orders": 3}],
+            "row_count": 1,
+            "total_rows": 1,
+            "truncated": false,
+            "connection_id": "live_test_sqlite",
+            "db_type": "sqlite"
+          },
+          "duration_seconds": 0.042
+        }
+      ]
+    },
+    {
+      "round": 5,
+      "user_answer": "按提供的别名 `live_test_sqlit` 检查时，工具返回 `Unknown connection_id 'live_test_sqlit'`。没有改用其他连接。",
+      "calls": [
+        {
+          "tool": "mcp__sql_safety_executor_mcp__check_connection",
+          "arguments": {"scope": "single", "connection_id": "live_test_sqlit"},
+          "isError": true,
+          "key_result": {"error": "Unknown connection_id 'live_test_sqlit'"},
+          "duration_seconds": 0.017
+        }
+      ]
+    },
+    {
+      "round": 6,
+      "user_answer": "已按更正后的别名 `live_test_sqlite` 单独检查连接，结果为 connected。",
+      "calls": [
+        {
+          "tool": "mcp__sql_safety_executor_mcp__check_connection",
+          "arguments": {"scope": "single", "connection_id": "live_test_sqlite"},
+          "isError": false,
+          "key_result": {
+            "scope": "single",
+            "all_connected": true,
+            "complete": true,
+            "connection_count": 1,
+            "connected_count": 1,
+            "cleanup_failed": false,
+            "results": {
+              "live_test_sqlite": {"db_type": "sqlite", "status": "connected", "connected": true}
+            }
+          },
+          "duration_seconds": 0.046
+        }
+      ]
+    }
+  ],
+  "usage": null
+}

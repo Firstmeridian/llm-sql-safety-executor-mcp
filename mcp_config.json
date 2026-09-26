@@ -2,9 +2,8 @@
   "mcpServers": {
     "sql-safety-executor-mcp": {
       "type": "stdio",
-      "command": "python",
-      "args": ["start_server.py"],
-      "cwd": "/path/to/llm-sql-safety-executor-mcp"
+      "command": "/absolute/path/.venv/bin/sql-safety-executor",
+      "args": ["serve", "--config", "/absolute/path/config/server.toml"]
     }
   }
 }

@@ -15,7 +15,7 @@ import pytest
 
 @pytest.fixture
 def write_adapter():
-    from db_adapter import SQLiteAdapter
+    from tests.support_adapters import SQLiteAdapter
 
     adapter = SQLiteAdapter(":memory:")
     adapter.connect()
@@ -32,7 +32,7 @@ def write_adapter():
 
 
 def test_expected_rowcount_match_commits(write_adapter) -> None:
-    from db_adapter import WriteExecutionOutcome
+    from tests.support_adapters import WriteExecutionOutcome
 
     result = write_adapter.execute_write(
         "UPDATE orders SET status = :status WHERE id = :id",
@@ -51,7 +51,7 @@ def test_expected_rowcount_mismatch_rolls_back_real_sqlite_data(
     write_adapter,
     actual: int,
 ) -> None:
-    from db_adapter import ExpectedRowcountMismatchError, WriteExecutionOutcome
+    from tests.support_adapters import ExpectedRowcountMismatchError, WriteExecutionOutcome
 
     where = "id = 999" if actual == 0 else "id IN (1, 2)"
     before = [
@@ -97,7 +97,7 @@ def test_omitted_expected_rowcount_preserves_legal_batch_write(
 
 @pytest.mark.parametrize("invalid", [True, False, -1, 1.0, "1"])
 def test_expected_rowcount_rejects_invalid_values_before_connect(invalid) -> None:
-    from db_adapter import SQLiteAdapter
+    from tests.support_adapters import SQLiteAdapter
 
     adapter = SQLiteAdapter(":memory:")
     with pytest.raises((TypeError, ValueError), match="expected_rowcount"):
@@ -177,7 +177,7 @@ class _FakeEngine:
 
 
 def _adapter_with_fake_connection(connection: _FakeConnection) -> Any:
-    from db_adapter import SQLiteAdapter
+    from tests.support_adapters import SQLiteAdapter
 
     adapter = SQLiteAdapter(":memory:")
     adapter._engine = _FakeEngine(connection)  # type: ignore[assignment]
@@ -185,7 +185,7 @@ def _adapter_with_fake_connection(connection: _FakeConnection) -> Any:
 
 
 def _mysql_adapter_with_fake_connection(connection: _FakeConnection) -> Any:
-    from db_adapter import MySQLAdapter
+    from tests.support_adapters import MySQLAdapter
 
     adapter = MySQLAdapter()
     adapter._engine = _FakeEngine(connection)  # type: ignore[assignment]
@@ -193,7 +193,7 @@ def _mysql_adapter_with_fake_connection(connection: _FakeConnection) -> Any:
 
 
 def test_execute_failure_and_successful_rollback_is_rolled_back() -> None:
-    from db_adapter import WriteExecutionError, WriteExecutionOutcome, WriteExecutionPhase
+    from tests.support_adapters import WriteExecutionError, WriteExecutionOutcome, WriteExecutionPhase
 
     connection = _FakeConnection(execute_error=RuntimeError("execute disconnected"))
     adapter = _adapter_with_fake_connection(connection)
@@ -208,7 +208,7 @@ def test_execute_failure_and_successful_rollback_is_rolled_back() -> None:
 
 
 def test_rollback_failure_makes_execution_outcome_unknown() -> None:
-    from db_adapter import WriteExecutionError, WriteExecutionOutcome
+    from tests.support_adapters import WriteExecutionError, WriteExecutionOutcome
 
     connection = _FakeConnection(
         execute_error=RuntimeError("execute disconnected"),
@@ -222,7 +222,7 @@ def test_rollback_failure_makes_execution_outcome_unknown() -> None:
 
 
 def test_rowcount_mismatch_and_rollback_failure_keeps_failed_code() -> None:
-    from db_adapter import ExpectedRowcountMismatchError, WriteExecutionOutcome
+    from tests.support_adapters import ExpectedRowcountMismatchError, WriteExecutionOutcome
 
     connection = _FakeConnection(
         rowcount=2,
@@ -247,7 +247,7 @@ def test_real_sqlalchemy_local_rollback_is_not_confirmation(
     """A real RootTransaction may return without calling DBAPI rollback."""
     from sqlalchemy import event
     from sqlalchemy.exc import SAWarning
-    from db_adapter import MySQLAdapter, WriteExecutionError, WriteExecutionOutcome
+    from tests.support_adapters import MySQLAdapter, WriteExecutionError, WriteExecutionOutcome
 
     engine = write_adapter._engine
     adapter = write_adapter
@@ -309,7 +309,7 @@ def test_real_sqlalchemy_local_rollback_is_not_confirmation(
 
 
 def test_commit_failure_stays_unknown_even_when_rollback_returns() -> None:
-    from db_adapter import WriteExecutionError, WriteExecutionOutcome, WriteExecutionPhase
+    from tests.support_adapters import WriteExecutionError, WriteExecutionOutcome, WriteExecutionPhase
 
     connection = _FakeConnection(commit_error=RuntimeError("ack lost"))
     adapter = _adapter_with_fake_connection(connection)
@@ -326,7 +326,7 @@ def test_commit_failure_stays_unknown_even_when_rollback_returns() -> None:
     [_adapter_with_fake_connection, _mysql_adapter_with_fake_connection],
 )
 def test_commit_cancellation_becomes_typed_unknown(adapter_factory) -> None:
-    from db_adapter import (
+    from tests.support_adapters import (
         WriteExecutionError,
         WriteExecutionOutcome,
         WriteExecutionPhase,
@@ -348,7 +348,7 @@ def test_commit_cancellation_becomes_typed_unknown(adapter_factory) -> None:
 
 
 def test_connection_cleanup_failure_does_not_downgrade_commit() -> None:
-    from db_adapter import WriteExecutionOutcome
+    from tests.support_adapters import WriteExecutionOutcome
 
     connection = _FakeConnection(close_error=RuntimeError("pool cleanup failed"))
     result = _adapter_with_fake_connection(connection).execute_write(
@@ -372,7 +372,7 @@ def test_cancellation_cleans_handler_transaction_and_connection() -> None:
 
 def test_mysql_stale_conditional_updates_allow_at_most_one_commit(mysql_adapter) -> None:
     """Opt-in only: two independent pooled connections race one old state."""
-    from db_adapter import ExpectedRowcountMismatchError, WriteExecutionOutcome
+    from tests.support_adapters import ExpectedRowcountMismatchError, WriteExecutionOutcome
     from sqlalchemy import text
 
     engine = mysql_adapter._engine

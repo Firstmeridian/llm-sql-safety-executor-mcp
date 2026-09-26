@@ -1,0 +1,5 @@
+schema_version = 1
+[files]
+connections = "connections.toml"
+[server]
+default_connection = "reporting"

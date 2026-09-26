@@ -6,7 +6,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 
-from preview_token_store import InMemoryPreviewTokenStore
+from sql_safety_executor.core.preview_tokens import InMemoryPreviewTokenStore
 
 
 @pytest.mark.parametrize("max_entries", [0, -1])

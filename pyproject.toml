@@ -1,0 +1,38 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "llm-sql-safety-executor-mcp"
+version = "3.8.0"
+description = "A database safety gateway with explicit policies and one-time mutation proposals"
+readme = "README.md"
+requires-python = ">=3.12"
+license = "MIT"
+dependencies = [
+  "fastmcp==4.0.10",
+  "mcp>=2,<3",
+  "pydantic>=2.12,<3",
+  "sqlparse>=0.5.3,<1",
+  "SQLAlchemy>=2.0,<3",
+  "PyMySQL>=1.1,<2",
+  "PyYAML>=6,<7",
+]
+
+[project.scripts]
+sql-safety-executor = "sql_safety_executor.cli:main"
+
+[dependency-groups]
+dev = ["pytest>=9,<10", "pytest-asyncio>=1,<2", "pyright[nodejs]>=1.1", "build>=1.2"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/sql_safety_executor"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+
+[tool.pyright]
+include = ["src/sql_safety_executor"]
+pythonVersion = "3.12"
+typeCheckingMode = "basic"

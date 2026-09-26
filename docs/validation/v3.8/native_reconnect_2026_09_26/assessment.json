@@ -1,0 +1,60 @@
+{
+  "trials": [
+    {
+      "trial": 1,
+      "round_call_counts": [
+        1,
+        3,
+        1,
+        1,
+        1,
+        1
+      ],
+      "total_calls": 8,
+      "rounds_with_expected_outcome": 6,
+      "wrong_target_accesses_observed": 0,
+      "expected_unknown_alias_errors": 1,
+      "mutation_calls": 0,
+      "usage": null
+    },
+    {
+      "trial": 2,
+      "round_call_counts": [
+        1,
+        2,
+        1,
+        1,
+        1,
+        1
+      ],
+      "total_calls": 7,
+      "rounds_with_expected_outcome": 6,
+      "wrong_target_accesses_observed": 0,
+      "expected_unknown_alias_errors": 1,
+      "mutation_calls": 0,
+      "usage": null
+    },
+    {
+      "trial": 3,
+      "round_call_counts": [
+        1,
+        2,
+        1,
+        1,
+        1,
+        1
+      ],
+      "total_calls": 7,
+      "rounds_with_expected_outcome": 6,
+      "wrong_target_accesses_observed": 0,
+      "expected_unknown_alias_errors": 1,
+      "mutation_calls": 0,
+      "usage": null
+    }
+  ],
+  "native_protocol_version": null,
+  "native_token_usage": null,
+  "tools_contract_text_verified_in_fresh_reference_client": true,
+  "reference_protocol_version": "2026-07-28",
+  "native_cached_description_refreshed_after_edit": false
+}

@@ -1,11 +1,198 @@
 # MCP SQL Server Refactoring Log
 
-**Date:** December 2, 2025 (Updated: September 22, 2026)
+English | [中文](REFACTORING_LOG_ZH.md)
+
+**Date:** December 2, 2025 (Updated: September 26, 2026)
 **Author:** Code Refactoring Session
 
 ## Overview
 
-This document records the major refactoring changes made to `mcp_sql_server.py` to follow FastMCP best practices and improve the overall design.
+This actively maintained log records the project’s refactoring, design decisions, compatibility changes, trade-offs and validation. It began with `mcp_sql_server.py` and now also covers the installed `sql_safety_executor` package.
+
+Dated entries preserve the interfaces, configuration and evidence from their own version. Old filenames, environment variables, test counts and failures remain historical; use the newest entry and linked current guides for deployment. Future implementation changes should update both language editions without rewriting earlier outcomes.
+
+## v3.8.0 native reconnection verification (September 26, 2026)
+
+- After the user's restart, the current IDE conversation directly discovered
+  10 tools. Completed 23 native calls, including reads/policy refusals and a
+  controlled SQLite preview/execute/replay/compensation cycle; the fixture was
+  restored. Three isolated GPT-6 Luna agents completed the same six-turn routing
+  script: 18 rounds, 22 calls, no observed wrong-target access or agent mutations.
+- Corrected another legacy statement in `list_connections`: default targets
+  have no compatibility write grant; all five authorization gates apply.
+  Runtime enforcement already refused the default target. Fresh reference
+  discovery verified the corrected text; the native trials used the already
+  running service and do not verify the new wording after reload.
+- Native protocol/usage were not exposed; MRTR remains disabled. See the
+  [reconnection evidence and limits](docs/validation/V3_8_LIVE_REVIEW_2026_09_26_ZH.md#服务重连后的原生补测).
+- Final documentation review reconciled both READMEs, release notes and the
+  implementation record with the later native evidence: MySQL probes passed,
+  while MySQL writes, native MRTR/human approval UI, Copilot and remote CI remain
+  unverified. Historical failures and test-run scopes are preserved.
+
+## v3.8.0 live review follow-up (September 26, 2026)
+
+- Found and repaired a local Codex launch entry still referencing removed
+  `start_server.py`; backed up the Host configuration and changed only this
+  server's executable/arguments. Documented actual Host configuration migration
+  and reconnection separately from editing repository templates.
+- Corrected the `list_skills` description and parameter descriptions to name
+  TOML discovery fields; corrected the loader's stale directory-trust comment.
+  Routing, defaults, policy and execution logic are unchanged.
+- Fresh stdio clients negotiated both protocol generations. Three local targets,
+  including MySQL, passed connection/read probes. Two controlled SQLite
+  preview/execute/replay/reset cycles restored the original fixture; no MySQL or
+  demonstration-database mutation was invoked.
+- Nine fresh GPT-6 Luna native Codex CLI trials completed scoped tasks or the
+  required clarification/refusal, with 15 tool calls and no observed wrong-target
+  access. One forbidden UNION attempt was rejected and corrected; retain it as
+  an initial planning failure. Actual usage and complete extracted calls are
+  recorded. The current IDE conversation still requires reconnection; CLI wire
+  protocol was not captured and local MRTR remains disabled.
+- Focused MRTR/stdio/disclosure regression: **66 passed, 1 warning**. This is not a
+  rerun of the full suite or the full multi-turn Agent benchmark. See the
+  [live review and evidence](docs/validation/V3_8_LIVE_REVIEW_2026_09_26_ZH.md).
+
+## Update v3.8.0 — FastMCP 4, TOML Configuration and Package Refactoring (September 26, 2026)
+
+### Scope and baseline
+
+Baseline `582822b` used Python 3.12.3, FastMCP 3.0.2 and MCP SDK 1.26.0;
+its isolated default suite passed **676 tests, with 4 skipped**. This update
+adopts FastMCP 4.0.10 with MCP SDK / mcp-types 2.2.0, explicit configuration,
+instance-owned runtime state and optional managed MRTR. Python remains ≥3.12.
+The repository version is 3.8.0; no release or tag is implied by this entry.
+
+### Installed package, safety core and lifecycle
+
+- Move runtime code into `src/sql_safety_executor/`, organized as `config`,
+  `core`, `database`, `skills`, `mcp`, `prompts`, `observability` and the CLI.
+  Whole-file moves use `git mv` before further splitting.
+- Publish `load_config(path) -> AppConfig` and `create_server(config) -> FastMCP`.
+  Configuration, adapters, Skill catalog, proposals and diagnostics belong to
+  each service instance. Basic imports do not connect to a database, import
+  business Skills or create log files. Explicit initialization loads enabled
+  trusted definitions; adapters are lazy and lifespan closes owned resources.
+- Move complete query policy and execution into the core. Remove the public
+  `execute_sql()` helper that applied only part of the policy. Core results use
+  `OperationResult`; MCP handlers handle protocol inputs/context and conversion.
+  Core serialization checks preserve committed-write outcomes when later
+  response processing fails.
+- Move `skills/_lib` into the package and expose extension types/business
+  exceptions from `sql_safety_executor.skills`. Remove `sys.path` injection;
+  update bundled Skills and document custom-import migration. Root `skills/`
+  remains the business definition directory. Explicit external directories are
+  allowed when trusted; resolved path containment is not a Python sandbox.
+- Package UTF-8 prompt resources with `importlib.resources`. Preserve existing
+  routing/instructions first, then add MRTR guidance separately. Missing required
+  resources fail startup. Parameter types/defaults and annotations stay in code.
+- Consolidate dependencies, entry points and checks in `pyproject.toml`, commit
+  `uv.lock`, and isolate AutoGen dependencies. The console command and
+  `python -m sql_safety_executor` replace old root launch scripts.
+
+### Explicit three-file TOML contract
+
+`server.toml` references connections and optional Skills configuration;
+`connections.toml` owns target identity/read/write policy; `skills.toml` owns
+Skills discovery, mutation admission, proposals, MRTR and audit. Each declares
+`schema_version = 1`. `tomllib` and strict Pydantic models reject unknown fields,
+wrong types, invalid defaults/references and out-of-range settings.
+
+Every launch requires `--config`. Paths resolve relative to the declaring file;
+only query/connect timeouts inherit built-in → common → per-connection values.
+Database identities and credentials never inherit from another connection.
+`config check` and `config explain` use the same loader and resolve secrets
+without database connections or business Skill imports. Explain output redacts
+secrets and includes sources/disabled reasons.
+
+Reads default to `deny`; an empty allowlist grants nothing and unrestricted
+reads require explicit `all`. UNION requires explicit enablement and a valid
+read scope. Mutation admission requires all five gates: Skills enabled, global
+writes enabled, connection globally admitted, connection writes enabled and the
+Skill allowlisted. Default-only compatibility grants are removed. Read table
+scopes still do not universally constrain Mutation Skills.
+
+Secrets choose exactly one `value`, `env` or `file` source, with no fallback.
+Files are nonempty UTF-8, at most 64 KiB; whitespace/newlines are preserved.
+Configuration and resolved secrets are immutable startup snapshots. Zero keeps
+its documented unlimited-result/disabled-tool-timeout meaning; invalid negatives
+or proposal bounds now fail startup instead of silently falling back.
+
+Remove project dotenv loading and old environment configuration. Official entry
+points disable FastMCP's automatic `.env` search before importing the framework;
+explicit secret environment references remain supported. Existing private `.env`
+files are preserved. Local TOMLs/secrets are ignored separately from four public
+SQLite/MySQL/multi-target/mutation templates. Skills disabled means no business
+imports, Skills tools or readiness probes.
+
+### Managed MRTR pilot and retained approval flow
+
+Optional `request_mutation_approval(skill_name, params, connection_id=None)` is
+registered only when MRTR, Skills and mutations are enabled. It requires MCP
+`2026-07-28`, client form elicitation and a managed single-statement Skill;
+unsupported protocols/capabilities and imperative Skills are refused. Existing
+`execute_mutation_skill` preview/execute remains available.
+
+Both routes use one `MutationService` and token store. The first MRTR round
+creates an immutable, server-held review of target, Skill, normalized params,
+SQL, bindings and expiry, returning `InputRequiredResult` without executing the
+managed write. Reviews exceeding 64 KiB are refused rather than truncated.
+SDK-sealed `request_state` carries a continuation reference; it cannot replace
+server-side binding/expiry/one-time validation. Per-instance ephemeral sealing
+keys use the configured proposal TTL.
+
+Missing answers resend the same review without a new preview or extended expiry.
+Only `accept` with strict boolean `approve=true` reaches execution. Decline and
+cancel close the proposal. Consumption remains atomic at the shared execution
+boundary and is terminal after every later exception. Waiting holds no database
+transaction or row lock. Lost responses, missing state and uncertain outcomes
+never justify automatic retry.
+
+The reference Host supports `--config` and `--flow preview|mrtr`, defaulting to
+preview. It collects a trusted Host decision, not independently authenticated
+human identity. Telemetry marks waiting as `phase=awaiting_approval` with
+`success=null`. No response caching, Tasks, multi-user approval authentication,
+shared distributed state or durable restart recovery is added; audit stays
+best-effort and imperative whole-operation outcomes remain `unknown`.
+
+### Validation and remaining limits
+
+- Locked-environment suite: **744 passed, 4 skipped**, one legacy logging
+  deprecation warning. The documented rerun took 62.77 seconds; the initial
+  final run took 43.18 seconds. Pyright: **0 errors, 0 warnings**.
+- Built sdist/wheel; a separately installed wheel loaded prompts and completed
+  offline checks plus modern/legacy stdio queries outside the repository.
+- Real stdio covered `2026-07-28` and `2025-11-25`, including reference MRTR and
+  legacy preview/execute. Configuration rejection/privacy, authorization,
+  replay/expiry/binding, concurrency, transaction outcomes, two-instance
+  isolation and resource cleanup have automated coverage.
+- Actual Codex CLI `0.155.0-alpha.16.3` negotiated `2025-06-18`; routing trials
+  recorded no wrong-target access. Its approval policy blocked MRTR before
+  dispatch, so native Codex MRTR did **not** pass. Copilot interactive approval
+  was unavailable; no live MySQL integration was enabled in this v3.8 run.
+- CI now contains locked tests, type checks and packaging/installed-wheel
+  checks, but has not been pushed/run remotely. Local success is not a remote
+  GitHub Actions result. Evidence and actual usage are in the
+  [v3.8 validation record](docs/validation/V3_8_VALIDATION_ZH.md).
+
+### Documentation maintenance and cutover
+
+Root bilingual READMEs retain the author's original structure, narrative,
+examples and screenshots, with targeted v3.8 changes. This refactoring log is
+an actively maintained root document, with a [Chinese edition](REFACTORING_LOG_ZH.md).
+`docs/README.md` / `README_ZH.md` and `config/examples/README.md` / `README_ZH.md`
+provide bilingual indexes and configuration instructions. All six guides formerly
+under `docs/history/guides/` move with `git mv` to `docs/guides/`; versioned
+applicability and historical failures/conclusions remain intact. Archived README
+snapshots, legacy public env templates and dated evidence retain their roles.
+
+Check TOML, stop the old process, then start the matching installed version with
+explicit configuration. Rollback requires matching code, dependencies and
+configuration together. Restart invalidates pending proposals; reconcile any
+uncertain business write before considering another attempt. Detailed contracts
+are in the [configuration guide](docs/guides/CONFIGURATION_ZH.md),
+[implementation record](docs/architecture/V3_8_IMPLEMENTATION_ZH.md) and
+[security boundaries](docs/security/V3_8_SECURITY.md).
 
 ## Unified Connection Diagnostics (September 22, 2026)
 
@@ -33,9 +220,9 @@ per-request permission. Strict deployments still need trusted Host/app checks.
 
 The staged validation compares baseline A, unified contract B, then wording-only
 C; actual verification is separate from old test counts. Benefits and costs are
-recorded in the [current design](RELEASE_NOTES/GUIDE/V3_7_CONNECTION_DIAGNOSTICS_DESIGN.md#unified-contract-review-and-migration--september-22-2026),
+recorded in the [current design](docs/guides/V3_7_CONNECTION_DIAGNOSTICS_DESIGN.md#unified-contract-review-and-migration--september-22-2026),
 including changed single-check availability and the absence of proven Agent/token
-improvements before measurement. See the [September 22 staged record](RELEASE_NOTES/LIVE_MCP_TSET/V3_7_3_LIVE_MCP_TEST_UNIFIED_CONNECTION_DIAGNOSTICS_2026_09_22_ZH.md)
+improvements before measurement. See the [September 22 staged record](docs/validation/v3.7/V3_7_3_LIVE_MCP_TEST_UNIFIED_CONNECTION_DIAGNOSTICS_2026_09_22_ZH.md)
 for actual evidence and acceptance limits.
 
 The C wording trial showed an unresolved-purpose default probe absent from the
@@ -109,7 +296,7 @@ including commit, rollback and no confirmation-time callbacks. Current guides,
 diagrams and checklists now describe this contract; historical registry entries
 remain historical. Error codes are explicitly extensible and the unsupported
 Anthropic quotation is replaced with a sourced paraphrase. Verification counts
-and scope are recorded in the [v3.7.3 managed-mutation verification record](RELEASE_NOTES/RELEASE_NOTES_v3_7.md#verification--september-16-2026).
+and scope are recorded in the [v3.7.3 managed-mutation verification record](docs/releases/RELEASE_NOTES_v3_7.md#verification--september-16-2026).
 
 ## Update v3.7.3 - Connection Routing and Tool Contract Clarity (September 15, 2026)
 
@@ -120,8 +307,8 @@ Batch diagnostics and the earlier Skill-name migration remain part of v3.7.2.
 
 The dated subsections below preserve each implementation/review stage, including
 earlier candidate-version decisions and failed trials. Current behavior and known
-limits are summarized in the [v3.7.3 notes](RELEASE_NOTES/RELEASE_NOTES_v3_7.md#v373--connection-routing-and-tool-contract-clarity).
-The [lessons and commit proposal](RELEASE_NOTES/GUIDE/V3_7_3_CONNECTION_ROUTING_REMEDIATION_ZH.md#12-本轮工程与协作经验)
+limits are summarized in the [v3.7.3 notes](docs/releases/RELEASE_NOTES_v3_7.md#v373--connection-routing-and-tool-contract-clarity).
+The [lessons and commit proposal](docs/guides/V3_7_3_CONNECTION_ROUTING_REMEDIATION_ZH.md#12-本轮工程与协作经验)
 record reusable review practices. This version-only follow-up changes no Python;
 the preceding 640 passed / 4 skipped and seven-file Pyright results still apply
 to the same source. DRR-2026-066 remains Open.
@@ -134,7 +321,7 @@ review's version scope, not the runtime version of every historical baseline.
 All five files were still untracked, so they were renamed without staging them.
 Raw evidence filenames, content and hashes are preserved.
 
-Added a complete [Chinese batch-diagnostics design record](RELEASE_NOTES/GUIDE/V3_7_CONNECTION_DIAGNOSTICS_DESIGN_ZH.md),
+Added a complete [Chinese batch-diagnostics design record](docs/guides/V3_7_CONNECTION_DIAGNOSTICS_DESIGN_ZH.md),
 with reciprocal language links and Chinese README navigation. Both editions
 include the current strict-deployment and closed-client response-model boundaries;
 dated validation figures and historical grades are retained. No Python or
@@ -152,7 +339,7 @@ Documented trusted per-action scope enforcement as a prerequisite for deployment
 requiring hard restrictions. It must cover explicit aliases, implicit default
 resolution and all batch targets, without a model-supplied confirmation shortcut.
 No runtime authorization mechanism was added; trusted local use retains the
-known limitation. See the [review follow-up](RELEASE_NOTES/GUIDE/V3_7_3_CONNECTION_ROUTING_REMEDIATION_ZH.md#14-当前验收入口与部署边界复核2026-09-15).
+known limitation. See the [review follow-up](docs/guides/V3_7_3_CONNECTION_ROUTING_REMEDIATION_ZH.md#14-当前验收入口与部署边界复核2026-09-15).
 
 ### Follow-up: Restricted diagnostics and configuration interpretation (September 15, 2026)
 
@@ -171,8 +358,8 @@ contexts and 13 actual calls. Final interpretation cases passed 3/3; forbidden
 target cases still failed in 2/3 contexts. DRR-2026-068 is implemented with local
 acceptance, while 066 remains Open; native acceptance of the latest descriptions
 is pending. This is guidance, not runtime per-request authorization. See the
-[fixture evidence](RELEASE_NOTES/LIVE_MCP_TSET/V3_7_3_LIVE_MCP_TEST_CONNECTION_BOUNDARIES_2026_09_15_ZH.md)
-and [complete pending-change table](RELEASE_NOTES/GUIDE/V3_7_3_CONNECTION_ROUTING_REMEDIATION_ZH.md#11-本次待提交修改的完整范围).
+[fixture evidence](docs/validation/v3.7/V3_7_3_LIVE_MCP_TEST_CONNECTION_BOUNDARIES_2026_09_15_ZH.md)
+and [complete pending-change table](docs/guides/V3_7_3_CONNECTION_ROUTING_REMEDIATION_ZH.md#11-本次待提交修改的完整范围).
 
 ### Submission review: Routing and public parameter contracts (September 15, 2026)
 
@@ -189,7 +376,7 @@ the describe example test now also reads prompt/initialize through MCP. No Skill
 or preview runs in the new test. Final suite: 637 passed, 4 skipped; metadata file:
 49 passed; six changed Python files: Pyright 0 errors, 0 warnings.
 
-The [complete review](RELEASE_NOTES/LIVE_MCP_TSET/V3_7_3_LIVE_MCP_TEST_CONNECTION_ROUTING_2026_09_15_ZH.md)
+The [complete review](docs/validation/v3.7/V3_7_3_LIVE_MCP_TEST_CONNECTION_ROUTING_2026_09_15_ZH.md)
 records behavior limits, timing corrections, prompt distribution cost and why
 this is a compatible fix, not a new batch-diagnostics feature or API migration.
 
@@ -209,7 +396,7 @@ Adjusted two existing assertions that depended on old wording; default tests:
 635 passed, 4 skipped. Six changed Python files: Pyright 0 errors, 0 warnings.
 Fresh local MCP metadata and schema compatibility were verified. Native Host
 metadata still precedes this follow-up; DRR-2026-066 remains open pending new
-behavior trials. See the [implementation record](RELEASE_NOTES/GUIDE/V3_7_3_CONNECTION_ROUTING_REMEDIATION_ZH.md#8-用途目标未确定时暂停数据库操作2026-09-14).
+behavior trials. See the [implementation record](docs/guides/V3_7_3_CONNECTION_ROUTING_REMEDIATION_ZH.md#8-用途目标未确定时暂停数据库操作2026-09-14).
 
 ### Review follow-up: Native Host validation (September 14, 2026)
 
@@ -226,7 +413,7 @@ historical entries retain their earlier counts. Moved only the uncommitted routi
 release note to a provisional release section, with v3.7.3 proposed as a patch candidate. No production
 Python, version badge or tag changed during this review. Related tests: 92 passed;
 four Python files: Pyright 0 errors, 0 warnings. The
-[native review record](RELEASE_NOTES/LIVE_MCP_TSET/V3_7_3_LIVE_MCP_TEST_CONNECTION_ROUTING_2026_09_14_ZH.md)
+[native review record](docs/validation/v3.7/V3_7_3_LIVE_MCP_TEST_CONNECTION_ROUTING_2026_09_14_ZH.md)
 contains methods, remaining risks and release-scope qualifications.
 
 ### Follow-up: Connection routing guidance and argument examples (September 13, 2026)
@@ -249,7 +436,7 @@ Fresh stdio clients loaded separate A/B source snapshots for isolated Luna
 trials. This fixture Host is distinct from the IDE's previously connected
 service. Observed behavior limitations remain in DRR-2026-066/067; test details
 and pending native-Host acceptance are in the
-[remediation record](RELEASE_NOTES/GUIDE/V3_7_3_CONNECTION_ROUTING_REMEDIATION_ZH.md).
+[remediation record](docs/guides/V3_7_3_CONNECTION_ROUTING_REMEDIATION_ZH.md).
 
 ## Follow-up: Batch connection diagnostics (September 12, 2026)
 
@@ -292,7 +479,7 @@ retain batch ownership through cleanup after timeout/cancellation, preventing
 repeated requests from accumulating background database calls. Historical live
 test records remain unchanged; the planning-time three-alias MCP baseline is
 identified separately from new-tool validation in the
-[design record](RELEASE_NOTES/GUIDE/V3_7_CONNECTION_DIAGNOSTICS_DESIGN.md).
+[design record](docs/guides/V3_7_CONNECTION_DIAGNOSTICS_DESIGN.md).
 
 Validation: the default suite passed (`621 passed, 4 skipped`), followed by a
 separate passing MCP protocol-cancellation regression. Pyright reported no
@@ -313,7 +500,7 @@ original identifiers with a link to the migration table.
 
 The dated entries below this migration retain the names used at the time,
 including historical source paths and recorded test calls. For current names,
-see the [v3.7.2 migration table](RELEASE_NOTES/RELEASE_NOTES_v3_7.md#sample-skill-names-and-local-files).
+see the [v3.7.2 migration table](docs/releases/RELEASE_NOTES_v3_7.md#sample-skill-names-and-local-files).
 
 Non-sample directories under `skills/` are now ignored, with `_lib/` explicitly
 retained as framework code. The generated catalog and default audit log were
@@ -1961,7 +2148,7 @@ Skill definition files are named `skill_def.md` instead of `SKILL.md` to avoid c
 - All tests use SQLite in-memory databases for speed and isolation
 - Key finding: SQLAlchemy Row objects use attribute access (`.column_name`) not dict access (`["column_name"]`)
 
-> **Design Documentation:** See [MCP_AGENTS_SKILLS_DESIGN.md](MCP_AGENTS_SKILLS_DESIGN.md) for full architecture details.
+> **Design Documentation:** See [MCP_AGENTS_SKILLS_DESIGN.md](docs/architecture/MCP_AGENTS_SKILLS_DESIGN.md) for full architecture details.
 
 ### Post-Implementation Audit (March 1, 2026)
 
@@ -2213,7 +2400,7 @@ Introduced `db_adapter.py` implementing the Abstract Base Class (ABC) pattern:
 | `tests/test_sqlite_integration.py` | **NEW** | SQLite integration tests |
 | `requirements.txt` | Modified | Added `pytest` dependency |
 
-> **Detailed Design Documentation:** See [SQLITE_ADAPTER_DESIGN.md](SQLITE_ADAPTER_DESIGN.md) for design decisions, conventions, compromises, potential issues, and implementation details.
+> **Detailed Design Documentation:** See [SQLITE_ADAPTER_DESIGN.md](docs/architecture/SQLITE_ADAPTER_DESIGN.md) for design decisions, conventions, compromises, potential issues, and implementation details.
 
 ---
 
@@ -2792,7 +2979,7 @@ Safe statements: SELECT, SHOW, DESCRIBE, and non-ANALYZE EXPLAIN.
 - **Workflow guidance**: Provides both paths (known/unknown structure) without forcing either
 - **Aligned with MCP spec**: Tools are "model-controlled" - LLM decides based on context
 
-See [PROMPT_ENGINEERING_BEST_PRACTICES.md](PROMPT_ENGINEERING_BEST_PRACTICES.md) for detailed guidelines.
+See [PROMPT_ENGINEERING_BEST_PRACTICES.md](docs/guides/PROMPT_ENGINEERING_BEST_PRACTICES.md) for detailed guidelines.
 
 ### E. Added SQL Injection Prevention
 

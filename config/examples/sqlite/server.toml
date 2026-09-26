@@ -1,0 +1,6 @@
+schema_version = 1
+[files]
+connections = "connections.toml"
+skills = "skills.toml"
+[server]
+default_connection = "demo"

@@ -1,0 +1,28 @@
+name: tests-and-wheel
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+        with:
+          version: '0.12.19'
+          python-version: '3.12'
+          enable-cache: true
+      - run: uv sync --frozen --group dev
+      - run: uv run --frozen pytest -q
+      - run: uv run --frozen pyright
+      - run: uv build
+      - name: Verify installed wheel outside repository
+        shell: bash
+        run: |
+          uv export --frozen --no-dev --no-emit-project --format requirements-txt --output-file /tmp/server-requirements.txt > /dev/null
+          uv venv /tmp/sql-safety-wheel
+          uv pip sync --python /tmp/sql-safety-wheel/bin/python /tmp/server-requirements.txt
+          uv pip install --python /tmp/sql-safety-wheel/bin/python --no-deps dist/*.whl
+          /tmp/sql-safety-wheel/bin/python scripts/verify_installed.py

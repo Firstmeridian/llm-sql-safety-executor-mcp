@@ -1,0 +1,17 @@
+schema_version = 1
+[connections.demo]
+type = "sqlite"
+sqlite.path = "../../../sample_data/demo.db"
+read.mode = "allowlist"
+read.tables = ["orders", "users", "products"]
+
+[connections.reporting]
+type = "mysql"
+mysql.host = "127.0.0.1"
+mysql.user = "readonly_user"
+mysql.database = "reporting"
+mysql.password = { env = "REPORTING_DB_PASSWORD" }
+read.mode = "allowlist"
+read.tables = ["orders"]
+read.allow_union = false
+timeouts.query_seconds = 15

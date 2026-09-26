@@ -1,0 +1,6 @@
+schema_version = 1
+[skills]
+enabled = true
+directory = "../../../skills"
+[skills.mutation]
+enabled = false

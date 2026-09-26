@@ -1,0 +1,8 @@
+..................................................................       [100%]
+=============================== warnings summary ===============================
+tests/test_v38_mrtr.py::test_legacy_host_retains_preview_execute_and_refuses_mrtr
+  <project>/.venv-v38/lib/python3.12/site-packages/fastmcp/server/context.py:1357: MCPDeprecationWarning: The logging capability is deprecated as of 2026-07-28 (SEP-2577).
+    await session.send_log_message(  # ty: ignore[deprecated]
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+66 passed, 1 warning in 15.11s

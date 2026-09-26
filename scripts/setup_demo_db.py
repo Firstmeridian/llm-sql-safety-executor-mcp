@@ -5,8 +5,7 @@ The bundled demo Skills use an `orders` table:
 - sample-monthly-sales-report reads `order_date` and `amount`
 - sample-update-order-status reads and updates `status`
 
-This script is intentionally MySQL-only. It reads the normal project `.env`
-database settings through `db_adapter.py` and refuses to modify an existing
+This script is intentionally MySQL-only. It requires an explicit checked TOML configuration and refuses to modify an existing
 `orders` table unless an explicit flag is provided.
 """
 
@@ -15,11 +14,6 @@ from __future__ import annotations
 import argparse
 import sys
 from pathlib import Path
-
-
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
 
 
 VALID_STATUSES = (
@@ -109,6 +103,8 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Create and seed the MySQL orders table used by demo Skills.",
     )
+    parser.add_argument("--config", required=True, type=Path)
+    parser.add_argument("--connection-id")
     parser.add_argument(
         "--drop-existing",
         action="store_true",
@@ -169,18 +165,24 @@ def seed_orders(conn) -> None:
 def setup_demo_db(args: argparse.Namespace) -> int:
     from sqlalchemy import text
 
-    import db_adapter
+    from sql_safety_executor import load_config
+    from sql_safety_executor.database.registry import ConnectionRegistry
+    config = load_config(args.config)
+    registry = ConnectionRegistry(config.connections, config.server.server.default_connection)
+    target = registry.get_config(args.connection_id)
 
-    if db_adapter.DB_TYPE != "mysql":
+    if target.db_type != "mysql":
         print(
-            "This script is MySQL-only. Set DB_TYPE=mysql in .env before running.",
+            "This script is MySQL-only. Select a MySQL connection from the explicit TOML configuration.",
             file=sys.stderr,
         )
         return 2
 
     adapter = None
     try:
-        adapter = db_adapter.create_adapter("mysql")
+        adapter = registry.get_adapter(target.connection_id)
+        if not adapter.connect():
+            return 1
         database_name = adapter.get_database_name()
         if not database_name:
             print("Could not determine the current MySQL database name.", file=sys.stderr)

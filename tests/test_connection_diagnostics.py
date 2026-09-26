@@ -1,8 +1,9 @@
 """Disposable probes and batch resource ownership, without live databases."""
 
+from tests.support import SCENARIO, make_gateway
+
 import asyncio
 from dataclasses import replace
-import importlib
 import json
 import sqlite3
 import sys
@@ -10,15 +11,14 @@ import textwrap
 from threading import Event, Lock, get_ident
 
 from fastmcp import Client
-from mcp.shared.exceptions import McpError
 from jsonschema import Draft202012Validator
 import pytest
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import DBAPIError
 
-import connection_diagnostics as diagnostics
-from db_adapter import ConnectionPolicy, DatabaseConfig, create_adapter
+import sql_safety_executor.database.diagnostics as diagnostics
+from tests.support_adapters import ConnectionPolicy, DatabaseConfig, create_adapter
 
 
 def config(alias: str = "main", path: str = ":memory:") -> DatabaseConfig:
@@ -181,6 +181,7 @@ def test_sqlite_readonly_special_path_and_missing_file(tmp_path):
 async def test_diagnostic_does_not_rollback_business_transaction(tmp_path, memory):
     item = config(path=":memory:" if memory else str(tmp_path / "business.db"))
     business = create_adapter(config=item)
+    business.connect()
     runner = diagnostics.ConnectionDiagnostics()
     runner.start()
     try:
@@ -238,8 +239,8 @@ async def test_process_exit_waits_for_blocked_diagnostic_worker():
     script = textwrap.dedent('''
         import asyncio
         import sys
-        from connection_diagnostics import ConnectionDiagnostics, ConnectedCheck
-        from db_adapter import DatabaseConfig, ConnectionPolicy
+        from sql_safety_executor.database.diagnostics import ConnectionDiagnostics, ConnectedCheck
+        from tests.support_adapters import DatabaseConfig, ConnectionPolicy
 
         def probe(config):
             try:
@@ -309,7 +310,7 @@ def test_mysql_diagnostic_config_pool_and_safe_driver_failure(monkeypatch):
         return Engine()
 
     monkeypatch.setattr(sqlalchemy, "create_engine", fake_create_engine)
-    item = replace(config(), db_type="mysql", mysql_user="tester", mysql_password="secret-password",
+    item = replace(config(), db_type="mysql", mysql_user="tester", mysql_password=__import__("pydantic").SecretStr("secret-password"),
                    mysql_host="host.example", mysql_database="demo")
     result = diagnostics.probe_connection(item)
     assert result.connected is False
@@ -361,15 +362,13 @@ async def test_adapter_cleanup_remains_on_worker_after_cancel(monkeypatch):
 
 @pytest.fixture
 def server(monkeypatch, tmp_path):
-    monkeypatch.setenv("ENABLE_SKILLS", "0")
-    monkeypatch.setenv("ENABLE_TOOL_TELEMETRY", "1")
-    monkeypatch.setenv("TOOL_TELEMETRY_LOG_PATH", str(tmp_path / "telemetry.jsonl"))
-    monkeypatch.setenv("TOOL_TELEMETRY_SAMPLE_RATE", "1")
-    sys.modules.pop("mcp_sql_server", None)
-    module = importlib.import_module("mcp_sql_server")
+    monkeypatch.setitem(SCENARIO, "ENABLE_SKILLS", "0")
+    monkeypatch.setitem(SCENARIO, "ENABLE_TOOL_TELEMETRY", "1")
+    monkeypatch.setitem(SCENARIO, "TOOL_TELEMETRY_LOG_PATH", str(tmp_path / "telemetry.jsonl"))
+    monkeypatch.setitem(SCENARIO, "TOOL_TELEMETRY_SAMPLE_RATE", "1")
+    module = make_gateway()
     yield module
     module._connection_diagnostics.close()
-    sys.modules.pop("mcp_sql_server", None)
 
 
 @pytest.mark.asyncio
@@ -379,11 +378,11 @@ async def test_mcp_schema_partial_results_routing_and_telemetry(server, monkeypa
         tools = {tool.name: tool for tool in await client.list_tools()}
         tool = tools["check_connection"]
         assert "check_connections" not in tools
-        assert set(tool.inputSchema["properties"]) == {"scope", "connection_id"}
-        assert tool.inputSchema["properties"]["scope"]["default"] == "single"
-        assert tool.outputSchema is not None
-        assert tool.annotations is not None and tool.annotations.readOnlyHint is True
-        assert tool.annotations.openWorldHint is False
+        assert set(tool.input_schema["properties"]) == {"scope", "connection_id"}
+        assert tool.input_schema["properties"]["scope"]["default"] == "single"
+        assert tool.output_schema is not None
+        assert tool.annotations is not None and tool.annotations.read_only_hint is True
+        assert tool.annotations.open_world_hint is False
         result = await client.call_tool("check_connection", {"scope": "all"})
         assert not result.is_error
         payload = result.structured_content
@@ -518,7 +517,7 @@ async def test_shutdown_during_active_batch_and_worker_exception():
 
 
 def test_agent_advertises_unified_diagnostics():
-    from agent_examples.autogen_sql_agent_new import ServerCapabilities, build_sql_executor_prompt
+    from examples.autogen.prompts import ServerCapabilities, build_sql_executor_prompt
 
     prompt = build_sql_executor_prompt(ServerCapabilities())
     assert "check_connections" not in prompt
@@ -540,13 +539,12 @@ async def test_mcp_client_cancellation_keeps_diagnostic_busy_until_cleanup(serve
     monkeypatch.setattr(server, "list_connection_configs", lambda: [config()])
     try:
         async with Client(server.mcp) as client:
-            request_id = client.session._request_id
             task = asyncio.create_task(client.call_tool("check_connection", {"scope": "all"}))
             await until(started.is_set)
-            # Cancelling a local asyncio task alone does not notify the server.
-            await client.cancel(request_id, reason="Diagnostic no longer needed")
+            # SDK v2 sends notifications/cancelled when the call is abandoned.
+            task.cancel()
             await until(lambda: runner._draining)
-            with pytest.raises(McpError, match="Request cancelled"):
+            with pytest.raises(asyncio.CancelledError):
                 await task
             busy = await client.call_tool("check_connection", {"scope": "all"}, raise_on_error=False)
             assert busy.is_error
@@ -705,7 +703,7 @@ async def test_invalid_diagnostic_requests_never_probe_or_claim_default_identity
     monkeypatch.setattr(server, "_connection_diagnostics", diagnostics.ConnectionDiagnostics(probe))
     async with Client(server.mcp) as client:
         tool = next(tool for tool in await client.list_tools() if tool.name == "check_connection")
-        schema_rejected = not Draft202012Validator(tool.inputSchema).is_valid(args)
+        schema_rejected = not Draft202012Validator(tool.input_schema).is_valid(args)
         result = await client.call_tool("check_connection", args, raise_on_error=False)
         assert result.is_error
         assert seen == []
@@ -719,7 +717,7 @@ async def test_invalid_diagnostic_requests_never_probe_or_claim_default_identity
     failures = [row for row in records if not row["call_completed"]]
     # The MCP SDK rejects schema-invalid wire calls before FastMCP middleware;
     # these have no telemetry record. Cross-field/alias errors reach middleware.
-    assert len(failures) == (0 if schema_rejected else 1)
+    assert len(failures) == 1
     for failure in failures:
         assert "connection_id" not in failure and "db_type" not in failure
         assert not failure["success"]

@@ -123,10 +123,9 @@ local_data/live-test.db
 # AI_COLLABORATION_GUIDE.md
 AI_COLLABORATION_GUIDE.md
 
-# Local Skill directories; explicitly allow bundled examples and framework code.
+# Local Skill directories; explicitly allow bundled examples.
 # New bundled examples must be added here; the sample- prefix alone is not enough.
 /skills/*/
-!/skills/_lib/
 !/skills/sample-monthly-sales-report/
 !/skills/sample-monthly-sales-report-sqlite/
 !/skills/sample-update-order-status/
@@ -135,3 +134,11 @@ AI_COLLABORATION_GUIDE.md
 # Generated catalog and runtime audit data (kept locally).
 /skills/SKILLS.md
 /skills/_audit.jsonl
+
+# Isolated development environments and private deployment files
+.venv-*/
+/config/*.toml
+/config/secrets/
+/config/LOCAL_SETUP.md
+/mcp_config.local.json
+/local_data/mutation-demo.db

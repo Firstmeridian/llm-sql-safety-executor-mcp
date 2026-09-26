@@ -1,0 +1,6 @@
+schema_version = 1
+[connections.demo]
+type = "sqlite"
+sqlite.path = "../../../sample_data/demo.db"
+read.mode = "allowlist"
+read.tables = ["orders", "users", "products"]

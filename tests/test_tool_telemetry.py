@@ -10,31 +10,25 @@ Logged fields MUST remain non-sensitive: no SQL, params, rows, or credentials.
 
 from __future__ import annotations
 
-import importlib
+from tests.support import SCENARIO, make_gateway
+
 import json
-import os
-import sys
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
 _SKILLS_LIB = PROJECT_ROOT / "skills" / "_lib"
-if _SKILLS_LIB.is_dir() and str(_SKILLS_LIB) not in sys.path:
-    sys.path.insert(0, str(_SKILLS_LIB))
 
 
 @pytest.fixture()
 def telemetry_module(tmp_path, monkeypatch):
     log_path = tmp_path / "tool_calls.jsonl"
-    monkeypatch.setenv("ENABLE_TOOL_TELEMETRY", "1")
-    monkeypatch.setenv("TOOL_TELEMETRY_LOG_PATH", str(log_path))
+    monkeypatch.setitem(SCENARIO, "ENABLE_TOOL_TELEMETRY", "1")
+    monkeypatch.setitem(SCENARIO, "TOOL_TELEMETRY_LOG_PATH", str(log_path))
     # Force a clean reimport so the env vars are honored.
-    sys.modules.pop("mcp_sql_server", None)
-    module = importlib.import_module("mcp_sql_server")
+    module = make_gateway()
     yield module, log_path
 
 
@@ -134,13 +128,9 @@ async def test_telemetry_sample_rate_zero_suppresses_writes(telemetry_module):
     assert not log_path.exists() or log_path.read_text(encoding="utf-8") == ""
 
 
-def test_parse_telemetry_sample_rate_clamps(telemetry_module):
-    module, _ = telemetry_module
-    assert module._parse_telemetry_sample_rate(None) == 1.0
-    assert module._parse_telemetry_sample_rate("") == 1.0
-    assert module._parse_telemetry_sample_rate("not-a-float") == 1.0
-    assert module._parse_telemetry_sample_rate("nan") == 1.0
-    assert module._parse_telemetry_sample_rate("inf") == 1.0
-    assert module._parse_telemetry_sample_rate("-0.5") == 0.0
-    assert module._parse_telemetry_sample_rate("2.5") == 1.0
-    assert module._parse_telemetry_sample_rate("0.25") == 0.25
+@pytest.mark.parametrize('value',[-.5,2.5,'nan',float('nan'),float('inf'),'0.25'])
+def test_invalid_telemetry_rate_is_rejected(value):
+    from pydantic import ValidationError
+    from sql_safety_executor.config.models import Telemetry
+    with pytest.raises(ValidationError):Telemetry(sample_rate=value)
+    assert Telemetry(sample_rate=.25).sample_rate==.25

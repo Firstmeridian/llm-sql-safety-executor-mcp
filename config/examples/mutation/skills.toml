@@ -1,0 +1,17 @@
+schema_version = 1
+[skills]
+enabled = true
+directory = "../../../skills"
+[skills.mutation]
+enabled = true
+allowed_connections = ["demo_write"]
+[skills.mutation.preview]
+ttl_seconds = 300
+max_entries = 1000
+[skills.mutation.mrtr]
+# Opt into true only after selecting a Host with modern form elicitation.
+enabled = false
+[skills.audit]
+path = "../../../logs/demo-mutations.jsonl"
+queries = false
+agent_id = "demo-host"

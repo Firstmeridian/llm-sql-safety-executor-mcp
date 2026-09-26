@@ -15,14 +15,10 @@ Usage:
 """
 
 import importlib.util
-import sys
 import pytest
 from pathlib import Path
-from unittest.mock import MagicMock
 
 # Add project root and _lib to path
-sys.path.insert(0, str(Path(__file__).parent.parent))
-sys.path.insert(0, str(Path(__file__).parent.parent / "skills" / "_lib"))
 
 
 # =============================================================================
@@ -36,7 +32,7 @@ def adapter_with_orders():
 
     Orders have status field for state machine testing.
     """
-    from db_adapter import SQLiteAdapter
+    from tests.support_adapters import SQLiteAdapter
     from sqlalchemy import text
 
     adapter = SQLiteAdapter(":memory:")
@@ -66,7 +62,7 @@ def adapter_with_orders():
 @pytest.fixture
 def adapter_with_duplicate_orders():
     """Create a deliberately invalid schema with duplicate order IDs."""
-    from db_adapter import SQLiteAdapter
+    from tests.support_adapters import SQLiteAdapter
     from sqlalchemy import text
 
     adapter = SQLiteAdapter(":memory:")
@@ -95,7 +91,7 @@ def adapter_with_duplicate_orders():
 @pytest.fixture
 def mock_audit_logger(tmp_path):
     """Create an AuditLogger pointing to a temp file."""
-    from audit import AuditLogger
+    from sql_safety_executor.observability.audit import AuditLogger
     return AuditLogger(log_path=tmp_path / "test_audit.jsonl")
 
 
@@ -186,7 +182,7 @@ class TestResetDemoOrderToPending:
     def test_managed_execute_resets_expected_order_to_pending(
         self, adapter_with_orders, mock_audit_logger
     ):
-        from mutation_base import run_managed_mutation
+        from sql_safety_executor.skills.mutation import run_managed_mutation
 
         mutation = _load_demo_reset_mutation(
             adapter_with_orders, mock_audit_logger
@@ -215,7 +211,7 @@ class TestResetDemoOrderToPending:
     def test_expected_status_mismatch_and_stale_binding_fail_closed(
         self, adapter_with_orders, mock_audit_logger
     ):
-        from mutation_base import MutationExecutionError, run_managed_mutation
+        from sql_safety_executor.skills.mutation import MutationExecutionError, run_managed_mutation
 
         mutation = _load_demo_reset_mutation(
             adapter_with_orders, mock_audit_logger
@@ -245,7 +241,7 @@ class TestResetDemoOrderToPending:
     def test_direct_unbound_execute_is_rejected(
         self, adapter_with_orders, mock_audit_logger
     ):
-        from fastmcp.exceptions import ToolError
+        from sql_safety_executor.core.types import OperationError as ToolError
 
         mutation = _load_demo_reset_mutation(
             adapter_with_orders, mock_audit_logger
@@ -412,8 +408,8 @@ class TestErrorSanitization:
 
     def test_mutation_error_sanitization(self, adapter_with_orders, mock_audit_logger):
         """#27: Errors are sanitized via _handle_error() + ToolError."""
-        from mutation_base import MutationBase
-        from fastmcp.exceptions import ToolError
+        from sql_safety_executor.skills.mutation import MutationBase
+        from sql_safety_executor.core.types import OperationError as ToolError
 
         class FailingMutation(MutationBase):
             def validate(self, params):
@@ -455,8 +451,8 @@ class TestRunExecuteAudit:
     def test_run_execute_logs_success(self, adapter_with_orders, tmp_path):
         """run_execute() logs successful operations to audit file."""
         import json
-        from audit import AuditLogger
-        from mutation_base import MutationBase
+        from sql_safety_executor.observability.audit import AuditLogger
+        from sql_safety_executor.skills.mutation import MutationBase
 
         log_path = tmp_path / "audit.jsonl"
         audit = AuditLogger(log_path=log_path)
@@ -495,7 +491,7 @@ class TestRunExecuteAudit:
 
     def test_run_execute_reports_audit_write_failure(self, adapter_with_orders):
         """run_execute() exposes best-effort audit write failure in the result."""
-        from mutation_base import MutationBase
+        from sql_safety_executor.skills.mutation import MutationBase
 
         class FailingAuditLogger:
             def log(self, **kwargs):
@@ -528,7 +524,7 @@ class TestRunExecuteAudit:
         mock_audit_logger,
     ):
         """A direct base caller cannot revive the removed exact flag."""
-        from mutation_base import MutationBase
+        from sql_safety_executor.skills.mutation import MutationBase
 
         class ObsoleteFlagMutation(MutationBase):
             exact_transaction_outcome = True
@@ -562,11 +558,11 @@ class TestRunExecuteAudit:
     ):
         """A managed plan cannot claim COMMIT from a plain adapter dict."""
         import json
-        from mutation_base import (
+        from sql_safety_executor.skills.mutation import (
             MutationExecutionError,
             run_managed_mutation,
         )
-        from skill_loader import discover
+        from tests.support_catalog import discover
 
         bundled_dir = Path(__file__).resolve().parent.parent / "skills"
         meta = discover(bundled_dir)[skill_name]
@@ -609,7 +605,7 @@ class TestRunExecuteAudit:
         mock_audit_logger,
     ):
         """The removed flag cannot promote an imperative adapter result."""
-        from mutation_base import MutationBase
+        from sql_safety_executor.skills.mutation import MutationBase
 
         class SelfDeclaredExactMutation(MutationBase):
             exact_transaction_outcome = True
@@ -645,8 +641,8 @@ class TestRunExecuteAudit:
         mock_audit_logger,
     ):
         """One rolled-back statement cannot prove earlier custom work vanished."""
-        from db_adapter import WriteExecutionPhase
-        from mutation_base import (
+        from tests.support_adapters import WriteExecutionPhase
+        from sql_safety_executor.skills.mutation import (
             MutationBase,
             MutationExecutionError,
             WriteExecutionError,
@@ -697,7 +693,7 @@ class TestRunExecuteAudit:
         invalid_result,
     ):
         """Malformed or self-reported failures cannot be upgraded to success."""
-        from mutation_base import MutationBase, MutationExecutionError
+        from sql_safety_executor.skills.mutation import MutationBase, MutationExecutionError
 
         class InvalidResultMutation(MutationBase):
             def validate(self, params):
@@ -725,8 +721,8 @@ class TestRunExecuteAudit:
         mock_audit_logger,
     ):
         """A skill must explicitly honor any non-empty preview-state binding."""
-        from mutation_base import MutationBase
-        from fastmcp.exceptions import ToolError
+        from sql_safety_executor.skills.mutation import MutationBase
+        from sql_safety_executor.core.types import OperationError as ToolError
 
         class UnboundMutation(MutationBase):
             def validate(self, params):
@@ -749,9 +745,9 @@ class TestRunExecuteAudit:
     def test_run_execute_logs_toolerror_from_execute(self, adapter_with_orders, tmp_path):
         """run_execute() audit-logs ToolError raised by execute() before re-raising."""
         import json
-        from audit import AuditLogger
-        from mutation_base import MutationBase
-        from fastmcp.exceptions import ToolError
+        from sql_safety_executor.observability.audit import AuditLogger
+        from sql_safety_executor.skills.mutation import MutationBase
+        from sql_safety_executor.core.types import OperationError as ToolError
 
         log_path = tmp_path / "audit.jsonl"
         audit = AuditLogger(log_path=log_path)
@@ -788,7 +784,7 @@ class TestManagedMutationExecution:
 
     @pytest.mark.parametrize("field", ["error", "error_code"])
     def test_plan_cannot_inject_audit_error_fields(self, field):
-        from mutation_base import (
+        from sql_safety_executor.skills.mutation import (
             ManagedMutationPlan,
             ManagedMutationValue,
             validate_managed_mutation_plan,
@@ -805,7 +801,7 @@ class TestManagedMutationExecution:
             )
 
     def test_plan_validation_rejects_ambiguous_or_mutable_contracts(self):
-        from mutation_base import (
+        from sql_safety_executor.skills.mutation import (
             ManagedMutationPlan,
             ManagedMutationValue,
             validate_managed_mutation_plan,
@@ -849,7 +845,7 @@ class TestManagedMutationExecution:
             )
 
     def test_missing_binding_fails_before_adapter_write(self, mock_audit_logger):
-        from mutation_base import (
+        from sql_safety_executor.skills.mutation import (
             ManagedMutationPlan,
             ManagedMutationValue,
             MutationExecutionError,
@@ -891,7 +887,7 @@ class TestManagedMutationExecution:
         assert raised.value.error_code == "managed_plan_resolution_failed"
 
     def test_non_scalar_binding_fails_before_adapter_write(self, mock_audit_logger):
-        from mutation_base import (
+        from sql_safety_executor.skills.mutation import (
             ManagedMutationPlan,
             ManagedMutationValue,
             MutationExecutionError,

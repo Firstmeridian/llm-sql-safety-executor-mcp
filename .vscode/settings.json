@@ -1,5 +1,3 @@
 {
-  "python.analysis.extraPaths": [
-    "skills/_lib"
-  ]
+  "python.analysis.extraPaths": ["src"]
 }

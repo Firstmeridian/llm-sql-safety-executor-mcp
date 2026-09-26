@@ -1,0 +1,3 @@
+# Install only in the separate example environment. Server uses uv.lock.
+autogen-agentchat
+autogen-ext[openai,mcp]

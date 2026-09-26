@@ -11,9 +11,10 @@
 
 from __future__ import annotations
 
+from tests.support import SCENARIO, make_gateway
+
 import asyncio
 import ast
-import importlib
 import json
 import re
 import sys
@@ -23,10 +24,10 @@ import pytest
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
+    pass  # Explicit instance fixtures need no import-time reset.
 _SKILLS_LIB = PROJECT_ROOT / "skills" / "_lib"
 if _SKILLS_LIB.is_dir() and str(_SKILLS_LIB) not in sys.path:
-    sys.path.insert(0, str(_SKILLS_LIB))
+    pass  # Explicit instance fixtures need no import-time reset.
 
 
 class _DummyContext:
@@ -41,22 +42,22 @@ class _DummyContext:
 
 
 def _reload_server(monkeypatch, **env):
-    monkeypatch.setenv("DB_TYPE", "sqlite")
-    monkeypatch.setenv("SQLITE_DATABASE_PATH", ":memory:")
-    monkeypatch.setenv("SKILLS_EXCLUDE_PROFILES", "")
-    monkeypatch.setenv("SKILLS_AUDIT_QUERIES", "0")
-    monkeypatch.setenv("MAX_SQL_LENGTH", "20000")
-    monkeypatch.setenv("MCP_TOOL_TIMEOUT_SECONDS", "120")
+    monkeypatch.setitem(SCENARIO, "DB_TYPE", "sqlite")
+    monkeypatch.setitem(SCENARIO, "SQLITE_DATABASE_PATH", ":memory:")
+    monkeypatch.setitem(SCENARIO, "SKILLS_EXCLUDE_PROFILES", "")
+    monkeypatch.setitem(SCENARIO, "SKILLS_AUDIT_QUERIES", "0")
+    monkeypatch.setitem(SCENARIO, "MAX_SQL_LENGTH", "20000")
+    monkeypatch.setitem(SCENARIO, "MCP_TOOL_TIMEOUT_SECONDS", "120")
     for k, v in env.items():
-        monkeypatch.setenv(k, v)
+        monkeypatch.setitem(SCENARIO, k, v)
 
     for mod in ("mcp_sql_server", "db_adapter", "sql_safety_checker"):
-        sys.modules.pop(mod, None)
+        pass  # Explicit instance fixtures need no import-time reset.
 
-    import skill_loader
+    from tests import support_catalog as skill_loader
 
     monkeypatch.setattr(skill_loader, "generate_skills_md", lambda *_a, **_k: None)
-    return importlib.import_module("mcp_sql_server")
+    return make_gateway()
 
 
 def _seed_demo_table(module):
@@ -152,7 +153,7 @@ def base_server(monkeypatch):
     _seed_demo_table(module)
     yield module
     for mod in ("mcp_sql_server", "db_adapter", "sql_safety_checker"):
-        sys.modules.pop(mod, None)
+        pass  # Explicit instance fixtures need no import-time reset.
 
 
 def test_meta_query_success(base_server):
@@ -187,10 +188,9 @@ def test_describe_examples_match_published_schema(base_server, monkeypatch, tabl
     async def scenario():
         async with Client(base_server.mcp) as client:
             tools = {tool.name: tool for tool in await client.list_tools()}
-            schema = tools["describe_table"].inputSchema
+            schema = tools["describe_table"].input_schema
             descriptions = [tool.description or "" for tool in tools.values()]
-            initialized = await client.initialize()
-            descriptions.append(initialized.instructions or "")
+            descriptions.append(client.instructions or "")
             prompt = await client.get_prompt("sql_assistant")
             descriptions.extend(
                 message.content.text for message in prompt.messages
@@ -250,13 +250,13 @@ def test_published_prompt_parameters_match_skill_tool_schemas(monkeypatch, allow
             for name, arguments in signatures:
                 assert name in tools, name
                 parameters = {arg.strip() for arg in arguments.split(",") if arg.strip()}
-                assert parameters <= tools[name].inputSchema["properties"].keys(), (name, parameters)
+                assert parameters <= tools[name].input_schema["properties"].keys(), (name, parameters)
 
     try:
         asyncio.run(scenario())
     finally:
         for mod in ("mcp_sql_server", "db_adapter", "sql_safety_checker"):
-            sys.modules.pop(mod, None)
+            pass  # Explicit instance fixtures need no import-time reset.
 
 
 def test_describe_table_rejects_name_without_alias_fallback(base_server):
@@ -596,7 +596,7 @@ def test_get_full_schema_input_schema_exposes_projection_enum(base_server):
 
     tools = asyncio.run(_list_tools())
     schema_tool = next(tool for tool in tools if tool.name == "get_full_schema")
-    properties = schema_tool.inputSchema["properties"]
+    properties = schema_tool.input_schema["properties"]
     detail_schema = properties["detail_level"]
 
     assert detail_schema["enum"] == ["compact", "full"]
@@ -633,8 +633,8 @@ def test_mcp_rejects_wrong_type_scalars(
             return await client.call_tool(tool_name, arguments)
 
     with pytest.raises(
-        base_server.ToolError,
-        match=f"is not of type '{expected_type}'",
+        __import__("fastmcp.exceptions", fromlist=["ToolError"]).ToolError,
+        match=f"valid {expected_type}",
     ):
         asyncio.run(_call_tool())
 
@@ -648,14 +648,14 @@ def test_optional_tool_input_schemas_expose_cost_and_range_contracts(base_server
 
     tools = {tool.name: tool for tool in asyncio.run(_list_tools())}
 
-    limit_schema = tools["sample"].inputSchema["properties"]["limit"]
+    limit_schema = tools["sample"].input_schema["properties"]["limit"]
     assert limit_schema["type"] == "integer"
     assert limit_schema["default"] == 5
     assert limit_schema["minimum"] == 1
     assert limit_schema["maximum"] == 20
     assert "out-of-range values are rejected" in limit_schema["description"]
 
-    exact_count_schema = tools["get_table_summary"].inputSchema["properties"][
+    exact_count_schema = tools["get_table_summary"].input_schema["properties"][
         "exact_count"
     ]
     assert exact_count_schema["type"] == "boolean"
@@ -755,7 +755,7 @@ def test_schema_tool_descriptions_guide_minimal_discovery_path(base_server):
         "list_connections"
     ]
     assert "This tool takes no arguments" in descriptions["list_connections"]
-    assert tools["list_connections"].inputSchema["properties"] == {}
+    assert tools["list_connections"].input_schema["properties"] == {}
     assert "Call compact directly instead of list_tables" in (
         descriptions["get_full_schema"]
     )
@@ -859,14 +859,14 @@ def test_skill_tools_declare_output_schema(monkeypatch):
 
         for tool_name in ("execute_query_skill", "execute_mutation_skill"):
             assert tool_name in by_name, f"{tool_name} missing from list_tools"
-            schema = getattr(by_name[tool_name], "outputSchema", None)
+            schema = getattr(by_name[tool_name], "output_schema", None)
             assert schema is not None, f"{tool_name} outputSchema is None"
             assert schema.get("type") == "object", schema
             assert "properties" in schema and schema["properties"], schema
             assert "success" in schema["properties"], schema
             assert "skill_name" in schema["properties"], schema
 
-        mut_schema = by_name["execute_mutation_skill"].outputSchema
+        mut_schema = by_name["execute_mutation_skill"].output_schema
         assert "mode" in mut_schema["properties"], mut_schema
         mode_enum = mut_schema["properties"]["mode"].get("enum")
         assert mode_enum == ["preview", "execute"], mut_schema
@@ -880,7 +880,7 @@ def test_skill_tools_declare_output_schema(monkeypatch):
         assert "execution_outcome" in mut_schema["required"]
     finally:
         for mod in ("mcp_sql_server", "db_adapter", "sql_safety_checker"):
-            sys.modules.pop(mod, None)
+            pass  # Explicit instance fixtures need no import-time reset.
 
 
 def test_skill_tool_meta_has_uniform_fields(monkeypatch, tmp_path):
@@ -947,7 +947,7 @@ def test_skill_tool_meta_has_uniform_fields(monkeypatch, tmp_path):
         assert mutation_execute_result.meta["preview_token_consumed"] is True
     finally:
         for mod in ("mcp_sql_server", "db_adapter", "sql_safety_checker"):
-            sys.modules.pop(mod, None)
+            pass  # Explicit instance fixtures need no import-time reset.
 
 
 # ─────────────────────────────── E3 ──────────────────────────────────
@@ -1005,7 +1005,7 @@ def test_telemetry_end_to_end_via_client(monkeypatch, tmp_path):
                 assert forbidden not in record, record
     finally:
         for mod in ("mcp_sql_server", "db_adapter", "sql_safety_checker"):
-            sys.modules.pop(mod, None)
+            pass  # Explicit instance fixtures need no import-time reset.
 
 
 def test_skill_telemetry_end_to_end_honors_business_failure(monkeypatch, tmp_path):
@@ -1055,4 +1055,4 @@ def test_skill_telemetry_end_to_end_honors_business_failure(monkeypatch, tmp_pat
             assert forbidden not in record, record
     finally:
         for mod in ("mcp_sql_server", "db_adapter", "sql_safety_checker"):
-            sys.modules.pop(mod, None)
+            pass  # Explicit instance fixtures need no import-time reset.

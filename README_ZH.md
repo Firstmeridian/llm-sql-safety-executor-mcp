@@ -1,12 +1,12 @@
 # 面向 AI Agent 的数据库安全访问入口 - MCP 服务
 
-![Version](https://img.shields.io/badge/version-3.7.3-blue)
+![Version](https://img.shields.io/badge/version-3.8.0-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Python](https://img.shields.io/badge/python-3.12+-blue?logo=python)
 ![MCP](https://img.shields.io/badge/MCP-Protocol-orange)
 ![AutoGen](https://img.shields.io/badge/Framework-AutoGen-blueviolet?logo=microsoft)
 
-[English](README.md) | 中文  
+[English](README.md) | 中文
 > [介绍](#介绍) | 
 > [快速开始](#快速开始) | 
 > [配置](#配置) |
@@ -15,7 +15,9 @@
 > [公开的 MCP 工具](#公开的-mcp-工具) | 
 > [使用此 MCP 服务的 AutoGen 多智能体示例](#autogen-多-agent-示例) | 
 > [本项目的其它文档](#本项目的其它文档)  
-> [项目路线图](#项目路线图) · **v3.0 新功能:** 增加 Skills 扩展层支持  
+> [项目路线图](#项目路线图) · **v3.8 更新：** FastMCP 4、TOML 配置与可选 MRTR 审批  
+
+> **v3.8 部署更新**：采用 FastMCP 4、显式三文件 TOML、可安装包与实例级状态；新增默认关闭的托管 MRTR 审批。原 `.env` 和根目录启动脚本不再作为运行入口。详见 [配置迁移](docs/guides/CONFIGURATION_ZH.md)、[实施决策](docs/architecture/V3_8_IMPLEMENTATION_ZH.md) 和 [验收范围](docs/validation/V3_8_VALIDATION_ZH.md)。
 
 ## 介绍
 
@@ -86,7 +88,7 @@ CTE 文本、会执行底层语句的 `EXPLAIN ANALYZE`，以及服务端语义�
 剥离的 MySQL comment 形式。这是保守 gate，不是面向任意
 SQL 方言的全面语义分析。
 
-**2. Token 保护**：结果截断（`MAX_RESULT_ROWS`）+ 表数限制（`MAX_OVERVIEW_TABLES`）
+**2. Token 保护**：结果截断（`limits.result_rows`）+ 表数限制（`limits.overview_tables`）
 
 **3. 工具设计**：
 - 采用 Model-driven 模式，优先提供决策规则而非固定流程
@@ -94,19 +96,19 @@ SQL 方言的全面语义分析。
 - MCP `ToolAnnotations` 包含只读/破坏性/幂等提示，并统一设置 `openWorldHint=false`，表示工具工作在当前配置的数据库边界内，而不是任意外部系统
 - Skills 执行工具返回结构化业务 payload，并通过 `ToolResult.meta` 附加运行时
   元数据（如耗时、行数、截断状态、Skill 版本），用于调试和可观测性
-- 支持基于配置的策略/提示注入（如 ALLOW_UNION、ALLOWED_TABLES、截断阈值），用更短、更相关的指导减少无效工具调用
+- 支持基于配置的策略/提示注入（如 read.allow_union、read.tables、截断阈值），用更短、更相关的指导减少无效工具调用
 - 错误反馈面向 LLM 优化：明确失败原因（安全拦截/表未允许/语法/超时/截断等）并给出修正建议，减少反复试错与无效调用，同时避免泄露敏感信息（凭据、系统表细节等）
 - 适配 ReAct 模式：推理 → 行动 → 观察 → 再思考
 
-**4. Skills 扩展层**（可选，`ENABLE_SKILLS=1` 启用）：
+**4. Skills 扩展层**（可选，`skills.enabled=true` 启用）：
 - 预定义参数化操作：将复杂查询和敏感写入封装为可复用的 skill，Agent 只需传参数，无需自行编写 SQL
 - 服务端强制约束：启动时 SQL 安全校验 + 参数强类型验证（type/min/max/enum）+ 写操作 best-effort 审计状态
-- 两阶段写协议：mutation skill 需经 preview（`confirm=false`）→ 携带返回的 `preview_token` execute（`confirm=true`），用于绑定已预览的请求/状态并拒绝 replay 或 preview/execute 漂移。只有可信客户端真正展示 preview 并收集批准时才构成人工批准；参见 v3.7 host 示例。
+- 两阶段写协议：mutation skill 需经 preview（`confirm=false`）→ 携带返回的 `preview_token` execute（`confirm=true`），用于绑定已预览的请求/状态并拒绝 replay 或 preview/execute 漂移。只有可信客户端真正展示 preview 并收集批准时才构成人工批准；参见 v3.8 preview/MRTR Host 示例。
 - 事务结论（v3.7.2）：两个内置单语句 mutation 在 COMMIT 前强制
   `expected_rowcount=1`。结构化结果把工具处理 `success` 与
   `execution_outcome`（`not_executed`、`rolled_back`、`committed`、
   `unknown`）分开；宿主不得自动重试结果不确定的 execute。只有保留下来的
-  adapter COMMIT 证据才能产生 `committed`；普通自定义 Skill 成功保守返回
+  adapter COMMIT 证据才能产生 `committed`；命令式自定义 Skill 成功保守返回
   `success=true, unknown`。
 - 渐进式发现：Agent 可先用 `list_skills()` 搜索轻量目录；仅在已知 Skill 但
   参数仍未知时调用 `get_skill_detail(detail_level="execution")`；参数已知（包括
@@ -131,29 +133,29 @@ Skills 场景：未知 Skill → list_skills(search=..., detail_level="compact",
   SELECT、DESCRIBE 或非 ANALYZE EXPLAIN。raw SHOW 会被拒绝，metadata discovery
   使用 `list_tables()`/`describe_table()`；嵌套写 DML、`EXPLAIN ANALYZE`、
   executable comment/hint 与非空白 `--` 形式也会被拒绝
-- **SQL 解析验证**：通过 `sqlparse` 做语句类型 allowlist，并叠加 MCP 层扩展检查
-- **连接安全**：基于环境的凭据管理。v3.5 新增配置化命名连接（`connection_id`），工具和模型输出不能传入任意 DSN。
+- **SQL 解析验证**：通过 `sqlparse` 做语句类型 allowlist，并经过核心的完整查询策略检查
+- **连接安全**：显式 TOML 与密钥来源管理。命名连接（`connection_id`），工具和模型输出不能传入任意 DSN。
 - **错误隔离**：面向LLM的全面异常处理和报告
 - **接入隔离**：由宿主/运行环境控制接入边界
-- **表白名单**：可配置限制访问的表
+- **表白名单**：可配置限制读取的表
 - **数据库授权仍是权威边界**：SQL checker 是保守的 statement-shape/应用
   policy gate，不能证明每个外层 `SELECT` 都没有副作用。MySQL stored function
   与 `GET_LOCK()` 等函数可能产生外层语句类型看不出的效果。生产只读 alias
   应只获得对象级 `SELECT`，并撤销不必要的 `EXECUTE`、`FILE`、`PROCESS`、管理
   权限与跨 schema 权限；可行时应分离读写凭据。
-- **结果截断**：`MAX_RESULT_ROWS` / `MAX_RESULT_CHARS` 防止 Token 溢出
-- **超时控制**：`QUERY_TIMEOUT_SECONDS` 限制只读查询和 MySQL InnoDB mutation 行锁等待；不保证覆盖所有长时间 DML CPU/IO 执行
-- **UNION 控制**：默认禁用，需配合白名单启用
+- **结果截断**：`limits.result_rows` / `limits.result_chars` 防止 Token 溢出
+- **超时控制**：`timeouts.query_seconds` 限制只读查询和 MySQL InnoDB mutation 行锁等待；不保证覆盖所有长时间 DML CPU/IO 执行
+- **UNION 控制**：默认禁用，启用时需显式配置有效读取范围
 #### Skills 相关
-- **Skills 模板即白名单**：SQL 模板启动期校验只读形态并缓存，运行时再按目标连接 policy 复核；运行时零磁盘 I/O（防 TOCTOU）
+- **Skills 模板即白名单**：SQL 模板启动期校验只读形态并缓存，运行时再按目标连接 policy 复核；调用时不重新读取已缓存定义（防 TOCTOU）
 - **Skills 参数强类型验证**：type/min/max/enum 约束 + 拒绝 schema 之外的参数（防 injection/hallucination）
-- **Skills 双层开关**：`ENABLE_SKILLS` + `SKILLS_ALLOW_MUTATIONS` 最小权限控制
-- **闭合世界工具提示**：MCP 工具统一设置 `openWorldHint=false`，表示工具只触达已配置的数据库连接/服务边界，不访问任意外部实体。该提示用于改善客户端展示和工具选择，不替代权限控制。**未来新增工具检查清单**：任何新工具如果会越过已配置数据库边界（外部 HTTP API、webhook、第三方服务、未配置 DB 调用等），**必须**显式设置 `openWorldHint=true` 并在 review 时核对此条；`tests/test_annotations_consistency.py` 通过显式 allowlist 提供 pytest/本地测试 guardrail。只有真正加入 CI workflow 后，才应把它描述为 CI enforcement。
-- **Skills 运行元数据**：当前完整 profile 下注册的所有 MCP 工具（最多 12 个）均使用 `ToolResult` 包装结构化 payload，并通过 `meta` 暴露 `tool_name`、`execution_ms`、`success` 及工具特定计数。单连接结果包含 `db_type` 和 `connection_id`；批量诊断使用 `connection_scope="all"` 和汇总计数，不冒用默认连接身份。Mutation 结果还会镜像 `execution_outcome` 和结构化失败的 `error_code`。元数据有意不包含原始 SQL、返回数据行、参数值、DSN、凭据、host 或 SQLite 文件路径。
-  - **原始 SQL 可见性策略**：原始 `query(sql)` 工具当前会在结构化 payload 中回显提交的 SQL，并可能为了透明排障写入 MCP context。不要在 SQL literal 中放 secret、token、凭据或敏感个人数据。重复且敏感的工作流优先使用经过 review 的 Skills、低敏谓词或数据库 view。
-  - **作用范围（v3.5）**：`ToolResult.meta` 在基础工具（`query`、`check_connection`、`list_connections`、`list_tables`、`describe_table`、`get_full_schema`、`get_table_summary`、`sample`、`list_skills`、`get_skill_detail`）与 Skills 工具（`execute_query_skill`、`execute_mutation_skill`）之间保持一致。基础工具走共享的 `_tool_result(...)`，Skills 工具走 `_skill_tool_result(...)`。Python 直接调用方可统一通过 `result.structured_content` 读取 payload、`result.meta` 读取元数据。
-  - **客户端可见性**：依据 MCP 规范，`_meta` 字段是**可选**的，客户端 *MAY* 忽略。实测：服务器中间件、MCP Inspector、显式读取 `_meta` 的客户端可以看到；VS Code 的 MCP UI 当前不展示。请把 `ToolResult.meta` 主要视为服务端可观测钩子和"愿意读 meta 的客户端"的可选信号，而**不能**假定它一定对终端用户可见。
-  - **最小示例**（完整请求/响应见 [TEST_MCP_CLIENT_GUIDE.md](TEST_MCP_CLIENT_GUIDE.md)）：
+- **Skills 双层开关**：`skills.enabled` + `skills.mutation.enabled`，并同时要求全局连接准入、连接写入开关与 Skill 白名单授权
+- **闭合世界工具提示**：MCP 工具统一设置 `openWorldHint=false`，表示工具只触达已配置的数据库连接/服务边界，不访问任意外部实体。该提示用于改善客户端展示和工具选择，不替代权限控制。**未来新增工具检查清单**：任何新工具如果会越过已配置数据库边界（外部 HTTP API、webhook、第三方服务、未配置 DB 调用等），**必须**显式设置 `openWorldHint=true` 并在 review 时核对此条；`tests/test_annotations_consistency.py` 通过显式 allowlist 提供 pytest/本地测试 guardrail。v3.8 CI 已包含这些测试；本地通过不代表远端工作流已运行。
+- **Skills 运行元数据**：普通工具响应使用 `ToolResult` 包装结构化 payload，并通过 `meta` 暴露 `tool_name`、`execution_ms`、`success` 及工具特定计数。单连接结果包含 `db_type` 和 `connection_id`；批量诊断使用 `connection_scope="all"` 和汇总计数，不冒用默认连接身份。Mutation 结果还会镜像 `execution_outcome` 和结构化失败的 `error_code`。元数据有意不包含原始 SQL、返回数据行、参数值、DSN、凭据、host 或 SQLite 文件路径。
+  - **原始 SQL 可见性策略**：原始 `query(sql)` 工具当前会在结构化 payload 中回显提交的 SQL，并可能为了透明排障通过工具上下文记录日志（现代协议使用服务日志，旧协议使用客户端日志通知）。不要在 SQL literal 中放 secret、token、凭据或敏感个人数据。重复且敏感的工作流优先使用经过 review 的 Skills、低敏谓词或数据库 view。
+  - **作用范围（v3.5）**：`ToolResult.meta` 在基础工具（`query`、`check_connection`、`list_connections`、`list_tables`、`describe_table`、`get_full_schema`、`get_table_summary`、`sample`、`list_skills`、`get_skill_detail`）与 Skills 工具（`execute_query_skill`、`execute_mutation_skill`）之间保持一致。基础工具走共享的 `_tool_result(...)`，Skills 工具走 `_skill_tool_result(...)`。核心返回 `OperationResult`，MCP 层转换为框架结果。Python 直接调用方可通过 `result.structured_content` 读取 payload、`result.meta` 读取元数据。
+  - **客户端可见性**：依据 MCP 规范，`_meta` 字段是**可选**的，客户端 *MAY* 忽略。实测：服务器中间件、MCP Inspector、显式读取 `_meta` 的客户端可以看到；此前测试的 VS Code MCP UI 不展示（不代表所有当前版本）。请把 `ToolResult.meta` 主要视为服务端可观测钩子和"愿意读 meta 的客户端"的可选信号，而**不能**假定它一定对终端用户可见。
+  - **最小示例**（参见[历史响应格式示例](docs/guides/TEST_MCP_CLIENT_GUIDE_v3_7.md)和[当前客户端指南](docs/guides/TEST_MCP_CLIENT_GUIDE.md)）：
 
     ```jsonc
     // execute_query_skill 响应
@@ -169,26 +171,32 @@ Skills 场景：未知 Skill → list_skills(search=..., detail_level="compact",
     }
     ```
 
-  | 级别 | 配置 | `ENABLE_SKILLS` | `SKILLS_ALLOW_MUTATIONS` | 可用工具 | 权限层级 |
+  | 级别 | 配置 | `skills.enabled` | `skills.mutation.enabled` | 可用工具 | 权限层级 |
   |:---:|------|:---:|:---:|------|------|
-  | L0 | 默认 | `0` | — | 基础工具（query, list_tables 等） | 仅只读查询 |
-  | L1 | 启用 Skills | `1` | `0` | + list_skills, get_skill_detail, execute_query_skill | + 预定义只读 Skill |
-  | L2 | 启用 Mutations | `1` | `1` | + execute_mutation_skill | + 受控写操作（两阶段 preview/execute gate） |
+  | L0 | 默认 | `false` | — | 基础工具（query, list_tables 等） | 读取需另行授权 |
+  | L1 | 启用 Skills | `true` | `false` | + list_skills, get_skill_detail, execute_query_skill | + 预定义只读 Skill |
+  | L2 | 启用 Mutations | `true` | `true` | + execute_mutation_skill | + 目标授权后的受控写操作（两阶段 preview/execute gate） |
 
+- **MRTR（可选）**：完整配置最多注册 13 个工具；审批等待返回 `InputRequiredResult`，遥测记录 `phase=awaiting_approval`、`success=null`。续接共用同一提案与执行服务，不把等待当成业务成功。
 - **Skills 两阶段 Preview/Execute Gate**：写操作必须携带匹配的服务端 preview token；它阻止 replay/漂移，但没有可信客户端流程时不能证明人工批准
 - **Skills 审计日志**：mutation preview/execute 路径会在服务端尝试 best-effort JSONL 审计，正常工具结果会报告 `audit_logged`
 
 ### 关键组件
 
-| 文件 | 职责 |
-|------|------|
-| `mcp_sql_server.py` | MCP 工具定义、安全验证、结果处理 |
-| `sql_safety_checker.py` | SQL 语句解析和安全检查 |
-| `db_adapter.py` | 数据库适配器抽象层（MySQL/SQLite 支持） |
-| `start_server.py` | 服务启动、环境验证 |
-| `skills/_lib/skill_loader.py` | 技能发现、YAML 解析、参数校验 (v3.0) |
-| `skills/_lib/mutation_base.py` | 写操作技能抽象基类 (v3.0) |
-| `skills/_lib/audit.py` | 写操作 JSONL 审计日志 (v3.0) |
+运行代码统一放在 `src/sql_safety_executor/`：
+
+| 子模块 | 职责 |
+|---|---|
+| `config/` | 严格 TOML、密钥解析与配置来源 |
+| `core/` | 完整读取策略、查询服务、提案与写入执行 |
+| `database/` | MySQL/SQLite 适配器、连接注册与事务证据 |
+| `skills/` | 可信 Skill SDK、定义加载、发现与就绪检查 |
+| `mcp/` | FastMCP 工厂、工具注册、结果转换与 MRTR |
+| `prompts/` | 随包分发的服务说明、路由规则与工具描述 |
+| `observability/` | 审计与脱敏工具遥测 |
+| `cli.py` | 显式启动及离线配置检查/解释 |
+
+根目录 `skills/` 继续存放业务定义。公开入口为 `load_config(path)` 与 `create_server(config)`；基础包导入不连接数据库、不导入业务 Skill、不创建日志。每个服务实例持有配置、连接、目录快照、提案和诊断状态，由 lifespan 清理。详见 [v3.8 实施与决策](docs/architecture/V3_8_IMPLEMENTATION_ZH.md)。
 
 ## 设计理念
 ### 启发：基于LLM/Agents的用户界面
@@ -200,7 +208,7 @@ Skills 场景：未知 Skill → list_skills(search=..., detail_level="compact",
 3. 生成SQL的查询准确性、查询质量和查询效率
 
 **关于问题1：**  
-此场景并非“前端直接传递 SQL 给后端执行”。LLM（Agent）更接近运行在服务端的程序，SQL 在受控服务端环境中生成；Mutation 推荐使用 stdio。条件性私有 HTTP 使用必须遵守后文的单进程和信任边界，v3.6.1-v3.7 不定义多用户认证 HTTP mutation。Agent 的输入/输出仍需约束，但 prompt injection 防护只能补充、不能替代服务端 policy 与授权检查。
+此场景并非“前端直接传递 SQL 给后端执行”。LLM（Agent）更接近运行在服务端的程序，SQL 在受控服务端环境中生成；Mutation 推荐使用 stdio。条件性私有 HTTP 使用必须遵守后文的单进程和信任边界，v3.8 仍不定义多用户认证 HTTP mutation。Agent 的输入/输出仍需约束，但 prompt injection 防护只能补充、不能替代服务端 policy 与授权检查。
 **关于问题2：**  
 LLM的生成具有不确定性。即便有极小概率，这也会导致生成SQL的安全性无法得到保障。需要有SQL安全检查工具对生成的SQL进行检查和过滤。  
 **关于问题3：**  
@@ -210,9 +218,9 @@ LLM(Agents)不能凭空生成SQL，需要有一定的上下文基础。这里的
 ### 项目演进
 在早期，本项目的目标是编写一个简易的SQL安全检查工具，用于在执行前对SQL语句检查和过滤。作为方法供LLM(Agents)进行调用(FunctionCall)
 
-- 之后，[在(v1.0)版本](LLM_TO_MCP_FEASIBILITY_ANALYSIS.md) 为了增加对标准化MCP服务架构的支持，对解决方案进行了重构。同时进行解耦，在增强安全性和可扩展性的同时简化维护。
+- 之后，[在(v1.0)版本](docs/architecture/LLM_TO_MCP_FEASIBILITY_ANALYSIS.md) 为了增加对标准化MCP服务架构的支持，对解决方案进行了重构。同时进行解耦，在增强安全性和可扩展性的同时简化维护。
 
-- [在(v2.0)版本](REFACTORING_LOG.md) 针对实际的MCP使用场景，进行了查询效率和调用风险的优化。
+- [在(v2.0)版本](REFACTORING_LOG_ZH.md) 针对实际的MCP使用场景，进行了查询效率和调用风险的优化。
   1. 通过工具合并以及增加新的常用工具，减少工具调用次数，优化工具调用效率。
   2. 聚焦于真实使用中的Token爆炸风险（这可能导致大量的LLM API费用支出）进行针对性优化。
   3. 同时新增了[多Agent调用该MCP服务的示例](#autogen-多-agent-示例)，基于AutoGen框架，用于示范Agents与本服务的结合。
@@ -223,9 +231,12 @@ LLM(Agents)不能凭空生成SQL，需要有一定的上下文基础。这里的
 在本项目构思初期（2025年3-4月），此类系统还是较为少见的。在当时，类似的Text2SQL实践主要还停留在：接收相关人员的提示，LLM单次生成SQL语句辅助其进行查询的背景下。而本项目的出发点不同，核心动机主要是 **使LLM(Agents)代替传统前端，成为新的“前端”，无论是界面中的数据还是界面本身，都能动态地与用户进行交互。** 让整个系统达到充分灵活且动态的效果。  
 就目前来说，**本项目的核心思想是赋予LLM(Agents)进入数据库的能力。** 搭配不同的Agent，可以开发扩展出不同的工作场景。
 
+
+- [在(v3.8)版本](docs/releases/RELEASE_NOTES_v3_8.md)，迁移到 FastMCP 4 与独立包结构，将配置拆为显式 TOML，隔离服务实例状态并拆出提示词；在保留 preview/execute 的基础上加入可选托管 MRTR 审批。
+
 ### 项目路线图
 **Agent Skills和扩展性**  
-**Skills 扩展层已在 v3.0 版本中添加**（2026年3月）。详见 [MCP_AGENTS_SKILLS_DESIGN.md](MCP_AGENTS_SKILLS_DESIGN.md)。
+**Skills 扩展层已在 v3.0 版本中添加**（2026年3月）。详见 [MCP_AGENTS_SKILLS_DESIGN.md](docs/architecture/MCP_AGENTS_SKILLS_DESIGN.md)。
 在现有的实践中，我们认识到提供（封装成）具体的语义化工具的意义。业界也有对应的最佳实践论述：
 > "Offload the burden from the model and use code where possible."  
 > "Don't make the model fill arguments you already know."  
@@ -270,7 +281,7 @@ LLM(Agents)不能凭空生成SQL，需要有一定的上下文基础。这里的
 
 **3. TOCTOU 安全要求与 lazy loading 矛盾**
 
-标准 Agent Skills 采用按需加载（Agent 运行时用 bash 读文件） [1], [2]，意味着文件随时可能被篡改。对于文档处理类 Skill 这无关紧要，但对于 SQL 模板和 mutation 代码，运行时从磁盘读取会引入 TOCTOU（Time-of-Check-Time-of-Use）风险 [4]。本项目的全量预加载（`discover()` 启动时校验 + 缓存到内存，运行时零磁盘 I/O）是刻意的安全设计，与标准 Skills 的 lazy 模型直接冲突。
+标准 Agent Skills 采用按需加载（Agent 运行时用 bash 读文件） [1], [2]，意味着文件随时可能被篡改。对于文档处理类 Skill 这无关紧要，但对于 SQL 模板和 mutation 代码，运行时从磁盘读取会引入 TOCTOU（Time-of-Check-Time-of-Use）风险 [4]。本项目的全量预加载（`discover()` 启动时校验 + 缓存到内存，调用时不重新读取已缓存定义）是刻意的安全设计，与标准 Skills 的 lazy 模型直接冲突。
 
 **4. 标准 Skills 是"教 Agent 怎么做"，本项目是"替 Agent 做"**
 
@@ -339,15 +350,15 @@ flowchart TB
 
         subgraph S3["Layer 3: 运行时保护"]
             R1["QUERY_TIMEOUT<br/>超时中断"]
-            R2["MAX_RESULT_ROWS/CHARS<br/>结果截断"]
+            R2["limits.result_rows/CHARS<br/>结果截断"]
             R3["_handle_error()<br/>错误消息脱敏"]
-            R4["SKILLS_DIR 路径约束<br/>必须在项目根目录内"]
+            R4["skills.directory 路径约束<br/>源码留在声明的可信目录内"]
         end
 
         subgraph S4["Layer 4: 审计与可见性"]
             AU1["AuditLogger<br/>JSONL 审计日志"]
-            AU2["SKILLS.md<br/>自动生成总览"]
-            AU3["ctx.info() / ctx.warning()<br/>MCP 进度通知"]
+            AU2["目录快照<br/>可选人工导出总览"]
+            AU3["ToolContext<br/>现代服务日志 / 旧协议通知"]
         end
     end
 
@@ -413,10 +424,10 @@ Agent **既是决策者又是执行者**，安全保障依赖于：
 | **SQL 白名单校验** | 启动时 `is_sql_safe()` 验证，不安全的 skill 直接拒绝注册 | Agent 运行时自己读 SQL 文件再执行，绕过校验 |
 | **参数强类型验证** | `validate_params()` 强制 type/min/max/enum | Agent 从自然语言理解参数，无硬约束 |
 | **防参数注入** | 拒绝 schema 之外的参数 (`unexpected` check) | Agent 自己决定传什么参数 |
-| **TOCTOU 防护** | 启动时读入内存，运行时零磁盘 I/O | Agent 每次用 bash 读文件，文件可能已被篡改 |
+| **TOCTOU 防护** | 启动时读入内存，调用时不重新读取已缓存定义 | Agent 每次用 bash 读文件，文件可能已被篡改 |
 | **Mutation 事务安全** | Adapter 强制 BEGIN→UPDATE→提交前行数检查→COMMIT/ROLLBACK，并显式报告不确定状态 | Agent 自己写事务代码，可能遗漏回滚或误判 COMMIT 失败 |
-| **审计日志** | mutation preview/execute 路径尝试写入 `_audit.jsonl`，正常返回中报告 `audit_logged` | 依赖 Agent 自觉调logging（不可靠） |
-| **确认机制** | 服务端强制 preview → 一次性绑定 token → execute；可选 v3.7 host 收集精确 `APPROVE`，但服务端不能据此证明人类身份 | Agent 自行决定是否确认，没有硬性的服务端 preview/replay 边界 |
+| **审计日志** | mutation preview/execute 路径尝试写入 `skills.audit.path`，正常返回中报告 `audit_logged` | 依赖 Agent 自觉调logging（不可靠） |
+| **确认机制** | 服务端强制 preview → 一次性绑定 token → execute；可选 preview/MRTR Host 收集精确 `APPROVE`，但服务端不能据此证明人类身份 | Agent 自行决定是否确认，没有硬性的服务端 preview/replay 边界 |
 
 标准 Agent Skills 的安全模型是 **"sandbox 隔离 + 信任 Agent"**。本项目的安全模型是 **"不信任 Agent，Server 强制执行所有安全约束"**。转为标准 Agent Skills 等于把安全控制权从 Server 交还给 Agent——在面向生产数据库的场景下，这是一个降级，不是升级。
 
@@ -428,7 +439,7 @@ Agent **既是决策者又是执行者**，安全保障依赖于：
 3. 在满足1，2的前提下，尽可能减少对AI的约束。用最简洁的提示和步骤完成任务，并使AI完成完整的工作流。
 > 对于上下文，要尽可能的保留充分完整；对于提示和约束，要尽量减少。
 
-这就是本项目虽然保留了最初的GEMINI.md，但仅作为记录使用，并且也未增加AGENTS.md的原因。但SKILL.md或类似的"渐进式"文档是良好的实践。本项目的相关文档 [REFACTORING_LOG.md](REFACTORING_LOG.md) 和 [PROMPT_ENGINEERING_BEST_PRACTICES.md](PROMPT_ENGINEERING_BEST_PRACTICES.md) 体现了这一实践。
+这就是本项目虽然保留了最初的GEMINI.md，但仅作为记录使用，并且也未增加AGENTS.md的原因。但SKILL.md或类似的"渐进式"文档是良好的实践。本项目的相关文档 [REFACTORING_LOG_ZH.md](REFACTORING_LOG_ZH.md) 和 [PROMPT_ENGINEERING_BEST_PRACTICES.md](docs/guides/PROMPT_ENGINEERING_BEST_PRACTICES.md) 体现了这一实践。
 
 ### 风险和局限
 在编写本项目的实践中，使用了大量的AI辅助开发。尽管已经尽可能的review代码和进行测试，并添加了一系列安全设置。但精力有限，无法覆盖全部情况，尤其是考虑到有LLM参与其中的情况。  
@@ -444,14 +455,14 @@ Agent **既是决策者又是执行者**，安全保障依赖于：
   - **SQLite**：来自 `sqlite_stat1`（如果已运行 ANALYZE）或最多 10,000 行的有界采样；如果达到采样上限，则该值是下界估算，除非已有统计信息
   - adapter 无法安全提供估计时，单个 `row_count` 可以是 `null`；`null` 表示未知，不表示空表。此时单表工具也会返回 `row_count_approximate=null` 和 `is_large=null`，不会把该表归类为小表。这包括名称超出生成 metadata SQL 所用保守语法的 SQLite 表，以及在 discovery 与有界采样之间被删除的表。
   - 仅建议用于“量级判断/是否加 LIMIT/是否大表”等策略，不应当作精确计数。
-  - 如需精确行数，请使用 `SELECT COUNT(*) ...`，或启用 `ENABLE_TABLE_SUMMARY=1` 后使用 `get_table_summary(exact_count=True)`（注意大表可能较慢）。
+  - 如需精确行数，请使用 `SELECT COUNT(*) ...`，或启用 `tools.table_summary=true` 后使用 `get_table_summary(exact_count=True)`（注意大表可能较慢）。
 
-- **通过截断和投影避免 Token 爆炸**：`query()` 使用 `MAX_RESULT_ROWS` / `MAX_RESULT_CHARS`，`list_tables()` 使用 `MAX_OVERVIEW_TABLES`，`get_full_schema()` 使用 `MAX_SCHEMA_TABLES`，因此返回的行或表可能不是全量。`MAX_RESULT_CHARS` 不限制 Schema 工具 payload。全局解释优先使用 `get_full_schema(detail_level="compact")`，仅在需要某张表的详情时调用 `describe_table()`。`query()` 截断不等于限制数据库执行量或 Python 侧获取量；请在 SQL 中显式使用 `WHERE`、`LIMIT`、`ORDER BY` 来限制工作量并稳定结果顺序。
+- **通过截断和投影避免 Token 爆炸**：`query()` 使用 `limits.result_rows` / `limits.result_chars`，`list_tables()` 使用 `limits.overview_tables`，`get_full_schema()` 使用 `limits.schema_tables`，因此返回的行或表可能不是全量。`limits.result_chars` 不限制 Schema 工具 payload。全局解释优先使用 `get_full_schema(detail_level="compact")`，仅在需要某张表的详情时调用 `describe_table()`。`query()` 截断不等于限制数据库执行量或 Python 侧获取量；请在 SQL 中显式使用 `WHERE`、`LIMIT`、`ORDER BY` 来限制工作量并稳定结果顺序。
 
 - **部分“总数”字段是“可见范围”语义**：例如 `total_tables` 表示 allowlist 过滤后、响应截断前的可见表数量，并非数据库物理总表数；`returned_table_count` 才是截断后实际返回的数量。
 
 ### 使用本项目的最佳实践
-- **推荐首先接入VS Code的GitHub Copilot进行试用。** VS Code中的GitHub Copilot是一个成熟的AI Agent工具，你可以选择免费模型（例如GPT-5 mini）在测试数据库中进行使用，这样安全性较高，同时可以避免额外的AI请求费用消耗。
+- **推荐首先接入VS Code的GitHub Copilot进行试用。** VS Code中的GitHub Copilot是一个成熟的AI Agent工具，你可以按当前账户可用模型和额度，在测试数据库中进行使用，并控制额外请求费用。
 - **在GitHub Copilot中使用的另一个好处是：可以赋予Copilot这种辅助编码AI进入数据库的能力，** 使其了解目标数据库的结构和数据分布。这在编写程序时可以提供更好的开发辅助和建议。
 - **（以GitHub Copilot为例）在使用时，可以在提示中加上类似“为了回答的数据和理由准确充分，你需要一步一步，多次进行查询。”** 的提醒。这会引导AI进行多次逐步求精的，类似ReAct模式的查询，以获得更好的效果。这在解决复杂问题时尤为有用。
 - **（以GitHub Copilot为例）在使用时显式的附加“#sql-safety-executor-mcp”工具，这样可以提醒AI优先使用该工具。** 
@@ -461,7 +472,7 @@ Agent **既是决策者又是执行者**，安全保障依赖于：
 
     ![todo](readme_pic/todo.png)
 - 在最近的几次修改中（截至2026.1.7），进行了多次的安全优化，比如大数据量下的截断，特殊关键词的使用（比如union），表的白名单设置，针对不同配置的动态提示词等。但是 **更高的安全意味着更低的性能、效率和更高的消耗（比如更多的请求参数和Token消耗），因此请酌情配置安全性设置。**
-- 实际上，Claude Code、Codex、Gemini CLI这样的AI客户端也与GitHub Copilot类似，但是 **应注意AI调用可能产生大量Token的费用问题。** 并且目前的测试（包括能力测试）主要集中在GitHub Copilot上完成。
+- 实际上，Claude Code、Codex、Gemini CLI这样的AI客户端也与GitHub Copilot类似，但是 **应注意AI调用可能产生大量Token的费用问题。** 此前的测试（包括能力测试）主要集中在 GitHub Copilot；v3.8 的参考 Client、实际 Codex 与尚未完成的 Copilot 验收分别记录在[验收文档](docs/validation/V3_8_VALIDATION_ZH.md)。
 
 
 ## 快速开始
@@ -471,10 +482,10 @@ Agent **既是决策者又是执行者**，安全保障依赖于：
 在 VS Code 通过配置 `mcp.json` 实现快速集成，可以直接在 GitHub Copilot Chat 中调用本项目的 SQL 工具。使 GitHub Copilot Chat 拥有面向数据库的能力。[当然，还可以在其它支持MCP的AI助手中使用。](#配置-mcp-客户端)
 
 #### 1. 准备工作
-*   确保 VS Code 为最新版本。
+*   使用支持 MCP 的 VS Code，并安装 Python ≥3.12 和 uv。
 *   安装 **GitHub Copilot Chat** 扩展。
-*   确保本项目已安装依赖 (在本项目路径下运行 `pip install -r requirements.txt`)。
-*   配置环境 `cp .env.example .env` 使用您的数据库凭据编辑 .env [在.env中配置环境变量](#配置)
+*   确保本项目已安装依赖 (在本项目路径下运行 `uv sync --frozen --group dev`)。
+*   先运行 `uv run sql-safety-executor config check --config config/examples/sqlite/server.toml` 验证 SQLite 示例；实际数据库按下方[配置](#配置)创建三份 TOML。
 
 #### 2. 创建配置文件
 在项目根目录下新建文件夹 `.vscode`（可能已存在，不存在则新建），并在其中新建文件 `mcp.json`。
@@ -484,21 +495,25 @@ Agent **既是决策者又是执行者**，安全保障依赖于：
 
 ```json
 {
-  "mcpServers": {
+  "servers": {
     "sql-safety-executor-mcp": {
       "type": "stdio",
-      "command": "/absolute/path/to/python", 
-      "args": ["/absolute/path/to/start_server.py"],
-      "cwd": "/absolute/path/to/project_root"
+      "command": "/absolute/path/to/project/.venv/bin/sql-safety-executor",
+      "args": [
+        "serve",
+        "--config",
+        "/absolute/path/to/project/config/examples/sqlite/server.toml"
+      ]
     }
   }
 }
 ```
 
 **配置详解：**
-*   `command`: **必须**指向虚拟环境中的 Python 解释器绝对路径 (例如 `.venv/bin/python`)，不要直接用系统 `python`。
-*   `args`: 指向 `start_server.py` 的绝对路径。
-*   `cwd`: 项目根目录的绝对路径，确保能读取到 `.env` 文件。
+*   `command`：指向已安装本项目的虚拟环境中的 `sql-safety-executor`，使用绝对路径。
+*   `args`：`serve --config` 后跟主 TOML 的绝对路径。示例使用仓库提供的 SQLite 配置；实际部署改为自己的 `server.toml`。
+*   不再依靠 `cwd` 搜索 `.env`；TOML 内部路径相对于声明文件解析。
+*   VS Code `.vscode/mcp.json` 使用顶层 `servers`；其它客户端按其格式使用 `mcpServers` 等容器，不能混用。参见 [VS Code 官方配置说明](https://code.visualstudio.com/docs/agent-customization/mcp-servers)。
 
 **也可以用以下方式在 VS Code 的图形界面中配置：（推荐）**
 
@@ -509,7 +524,7 @@ Agent **既是决策者又是执行者**，安全保障依赖于：
     ![MCP: Add Server](readme_pic/MCP:AddServer.png)
 4. 根据引导一步一步添加上面的内容（请根据实际路径修改）。
 
-实际上二者殊途同归，它们会生成一样位置的 `mcp.json` 文件。无论如何，您只需要保证 `.vscode` 中的 `mcp.json` 有以上配置即可。
+图形向导会让您选择工作区或用户范围；请核对实际保存位置和 command/args。下方截图保留原使用过程，界面位置可能随客户端版本变化。
 
 #### 4. 验证与使用
 1.  重启 VS Code，或使用 VS Code 命令面板重新加载窗口。
@@ -520,12 +535,12 @@ Agent **既是决策者又是执行者**，安全保障依赖于：
     ![Add tools](readme_pic/Addtools.png)
 5.  直接在对话中发送提问即可：“列出所有表”或“查询 users 表的前5行”。
 
-    ![ask](readme_pic/ask.png)  
+    ![ask](readme_pic/ask.png)
 6. 之后可以看到 MCP 工具被调用。
 
-    ![answer](readme_pic/answer.png) 
+    ![answer](readme_pic/answer.png)
 
-注意：虽然已经优化了工具使用，但还是推荐在 GitHub Copilot Chat 中通过免费模型（例如GPT-5 mini）进行使用，以避免额外的请求消耗。
+注意：先使用可丢弃测试库，并按当前账户可用模型和额度选择。v3.8 的 Copilot 交互审批尚未实测；工具可见不等于支持 MRTR，见[验收记录](docs/validation/V3_8_VALIDATION_ZH.md)。
 
 #### 常见问题
 *   **找不到工具？** 检查 `Output` (输出) 面板，切换到 "GitHub Copilot" 查看是否有报错。
@@ -534,37 +549,40 @@ Agent **既是决策者又是执行者**，安全保障依赖于：
 ### MCP 服务用法
 ```bash
 # 安装包括 MCP 支持在内的依赖
-pip install -r requirements.txt
+uv sync --frozen --group dev
 
-# 配置环境
-cp .env.example .env
-# 使用您的数据库凭据编辑 .env
+# 离线检查 SQLite 示例配置
+uv run sql-safety-executor config check --config config/examples/sqlite/server.toml
+# 实际部署请按下方配置说明编辑自己的 TOML
 
 # 启动 MCP 服务器
-python start_server.py
+uv run sql-safety-executor serve --config config/examples/sqlite/server.toml
 
 # 运行默认 hermetic pytest 套件
 # 该命令只收集 tests/、忽略 .env，并使用安全的 SQLite 默认值。
-python -m pytest -q
+uv run pytest -q
 
 # 可选 live/manual smoke 检查：内部函数会连接当前配置的 DB
-python test_mcp_functions.py
+uv run python scripts/query.py --config config/examples/sqlite/server.toml 'SELECT 1 AS value'
 
-# 可选 live/manual smoke 检查：通过客户端测试 MCP 服务器
-python test_mcp_client.py
+# 可选：通过客户端查看协议、工具和已配置连接，不主动探测数据库
+uv run python scripts/inspect_mcp.py --config config/examples/sqlite/server.toml
 ```
 
 ### AutoGen 多 Agent 示例
-```bash
-# 运行 AutoGen 多 Agent SQL 查询系统
-# 需要：GEMINI_API_KEY、OPENAI_API_KEY 或 USE_OLLAMA=true
-python autogen_sql_agent.py
 
-# 或使用特定任务运行
-python autogen_sql_agent.py "列出所有表并描述它们的结构"
+AutoGen 示例保留多 Agent 团队（PlanningAgent、SQLExecutorAgent、AnalystAgent）的用法，依赖改为独立环境。模型凭据须显式导出，不加载 `.env`。
+
+```bash
+python3 -m venv .venv-autogen
+.venv-autogen/bin/pip install -r examples/autogen/requirements.txt
+.venv-autogen/bin/python -m examples.autogen.autogen_sql_agent_new \
+  --server-python /absolute/path/to/project/.venv/bin/python \
+  --config /absolute/path/to/project/config/examples/sqlite/server.toml \
+  "List all tables and describe their structure"
 ```
 
-`autogen_sql_agent.py` 展示了如何使用 Microsoft AutoGen 框架的多 Agent 团队（PlanningAgent、SQLExecutorAgent、AnalystAgent）与 MCP 服务器交互。
+[示例说明](examples/autogen/README.md)记录环境隔离与验证范围；当前未宣称 AutoGen/模型实测兼容。
 
 ### 配置 MCP 客户端
 将服务器添加到您的 MCP 兼容客户端配置中（例如 VS Code、Claude Desktop 或其它 MCP 客户端）：
@@ -574,79 +592,99 @@ python autogen_sql_agent.py "列出所有表并描述它们的结构"
   "mcpServers": {
     "sql-safety-executor-mcp": {
       "type": "stdio",
-      "command": "python",
-      "args": ["start_server.py"],
-      "cwd": "/path/to/llm-sql-safety-executor-mcp"
+      "command": "/absolute/path/to/project/.venv/bin/sql-safety-executor",
+      "args": [
+        "serve",
+        "--config",
+        "/absolute/path/to/project/config/examples/sqlite/server.toml"
+      ]
     }
   }
 }
 ```
 
 - 将 `/path/to/` 替换为您的实际项目路径。
-- 服务器从工作目录中的 `.env` 文件加载凭据。
+- 服务器只读取显式 TOML 与密钥引用；旧 `.env` 不会被加载。
 - 对于虚拟环境，使用 Python 解释器的完整路径。
 
 ## 配置
-位于.env文件中。需要先拷贝.env.example，重命名为.env以进行配置
+
+v3.8 将原 `.env` 配置拆为三份 TOML。旧文件保留作迁移参考，服务不再自动加载它，也不再读取 `DB_*` / `SKILLS_*` 作为配置覆盖。每份文件声明 `schema_version = 1`；未知字段、错误类型、负数限额和越界令牌配置会在启动时拒绝。
+
+| 文件 | 配置内容 |
+|---|---|
+| `server.toml` | 子文件引用、默认连接、工具、输出限额、公共超时、日志与遥测 |
+| `connections.toml` | 每个连接的类型、目标、密钥、读取策略与连接级写入授权 |
+| `skills.toml` | Skills 目录、发现/就绪、全局写入准入、预览令牌、MRTR 与审计 |
+
+以下配置片段假设三份文件放在仓库 `config/` 下。同一文件的片段应合并，每个表头只定义一次。复制其它目录中的模板时，务必同步调整相对路径。
+
+主文件 `config/server.toml`：
+```toml
+schema_version = 1
+[files]
+connections = "connections.toml"
+skills = "skills.toml"
+[server]
+default_connection = "trade_analysis_mysql"
+tool_timeout_seconds = 120
+```
+
+`files.connections` 和 `server.default_connection` 必填；默认连接必须存在。省略 `files.skills` 即关闭 Skills。显式引用的文件缺失或错误会报错，不静默忽略。
 
 ### 数据库类型选择
-```bash
-# 数据库类型：'mysql'（默认）或 'sqlite'
-DB_TYPE=mysql
+
+每个 `connections.<id>` 都显式设置 `type = "mysql"` 或 `type = "sqlite"`，并仅声明对应后端。数据库身份与凭据不从默认连接继承。
+
+### MySQL 配置（type = "mysql"）
+
+在 `config/connections.toml` 中填写：
+```toml
+schema_version = 1
+[connections.trade_analysis_mysql]
+type = "mysql"
+[connections.trade_analysis_mysql.mysql]
+host = "your_database_host"
+user = "your_database_user"
+database = "your_database_name"
+password = { file = "secrets/mysql.password" }
+[connections.trade_analysis_mysql.read]
+mode = "allowlist"
+tables = ["products", "orders", "customers"]
+allow_union = false
 ```
 
-### MySQL 配置（当 DB_TYPE=mysql 时使用）
-```bash
-DB_USER=your_database_user
-DB_PASSWORD=your_database_password
-DB_HOST=your_database_host
-DB_NAME=your_database_name
+密码可使用 `{file="secrets/mysql.password"}`、`{env="MYSQL_PASSWORD"}` 或 `{value="..."}` 三选一。环境来源仅在明确引用时读取，不会加载 `.env`。密钥来源失败不回退；文件采用 UTF-8、最多 64 KiB，空密码拒绝，空格和末尾换行均属于内容。实际密钥文件中不要添加注释或引号。
+
+### SQLite 配置（type = "sqlite"）
+
+在同一个 `connections.toml` 中增加：
+```toml
+[connections.analytics_demo_sqlite]
+type = "sqlite"
+[connections.analytics_demo_sqlite.sqlite]
+path = "../sample_data/demo.db"
+progress_handler_interval = 100
+[connections.analytics_demo_sqlite.read]
+mode = "allowlist"
+tables = ["orders"]
+allow_union = false
+[connections.analytics_demo_sqlite.timeouts]
+query_seconds = 30
 ```
 
-### SQLite 配置（当 DB_TYPE=sqlite 时使用）
-```bash
-# SQLite 数据库文件路径，或使用 ':memory:' 创建内存数据库
-SQLITE_DATABASE_PATH=./sample_data/demo.db
-# SQLITE_DATABASE_PATH=:memory:
-```
+> `sample_data/demo.db` 是仓库自带测试库。`:memory:` 创建初始为空的内存库，重启即丢失。`progress_handler_interval` 是检查超时的 SQLite 虚拟机指令间隔，越小检查越频繁，也有更多回调开销。
 
-> **注意 1：** `./sample_data/demo.db` 为示例数据库，适合测试场景。  
-> **注意 2：** `SQLITE_DATABASE_PATH=:memory:` 会创建临时内存数据库（创建时数据库为空），服务重启后数据丢失，可用于测试和其他特殊用途。
+### 命名连接
 
-```bash
-# 可选：查询超时进度处理器间隔（默认：100）
-# 较低的值 = 超时响应更快，但 CPU 开销更高
-# SQLITE_PROGRESS_HANDLER_INTERVAL=100
-```
-
-### 命名连接（v3.5，可选）
-
-不设置 `DB_CONNECTIONS` 时，服务器保留原有单默认连接行为（`DB_TYPE`、
-`DB_USER`、`SQLITE_DATABASE_PATH` 等变量继续生效）。在 legacy 模式下，
-即使环境中存在 `DB_<CONNECTION_ID>_*` 变量也会被忽略；只有设置
-`DB_CONNECTIONS` 后这些 per-connection 变量才会生效；`DEFAULT_DB_CONNECTION`
-在 legacy 模式下同样会被忽略。设置后，列表中的每个 id 都会成为一个可选目标连接。核心只读工具和查询 Skills 接受可选 `connection_id`；单目标调用省略时使用 `DEFAULT_DB_CONNECTION` 或列表中的第一个 id。连接诊断只有显式使用 `check_connection(scope="all")` 才检查全部配置目标。
-
-配置生效逻辑：
-
-1. `DB_CONNECTIONS` 是命名连接的唯一 feature gate。未设置或为空时就是
-  legacy 模式，即使存在 `DB_TRADE_ANALYSIS_MYSQL_*`、
-  `DB_ANALYTICS_DEMO_SQLITE_*` 或
-  `DEFAULT_DB_CONNECTION` 也不会生效。
-2. 命名连接模式下，`DEFAULT_DB_CONNECTION` 必须出现在 `DB_CONNECTIONS`
-  列表中；工具传入未知 `connection_id` 会 fail closed，不会回退。
-3. 每个连接优先读取 `DB_<ID>_<SETTING>`。实际默认连接可以回退到 legacy
-  变量，例如 `DB_TYPE`、`DB_USER`、`DB_HOST`、`DB_NAME`、
-  `SQLITE_DATABASE_PATH`、`ALLOW_UNION`、`ALLOWED_TABLES`。
-4. 非默认连接建议写全。字段省略时，启动期加载的实现默认值仍可能生效；
-  依赖这层隐式默认值不如显式写出 `DB_<ID>_*` 容易审计。
+单连接和多连接使用同一种显式定义方式，不再有 `DB_CONNECTIONS` 功能开关或旧身份回退。工具和 Query Skills 省略 `connection_id` 时使用 `server.default_connection`；未知目标拒绝，绝不回退。只有 `check_connection(scope="all")` 明确选择所有配置目标。
 
 推荐使用语义化连接 id，例如 `trade_analysis_mysql`、
 `analytics_demo_sqlite`、`orders_primary`。裸 `mysql`/`sqlite` 虽合法，
 但容易和 DB 类型混淆。示例中不使用 `default`，因为实际默认目标已由
-`DEFAULT_DB_CONNECTION` 表示。
+`server.default_connection` 表示。
 连接 id 是不透明的路由 alias：不要根据 alias 名称或后缀推断 `db_type`。
-应使用配置的 `DB_<ID>_TYPE`，或 `list_connections()` 返回的结构化
+应使用配置的 `connections.<id>.type`，或 `list_connections()` 返回的结构化
 `db_type` 字段；也不要从 alias 推断业务用途或角色。已确定目标须来自用户明确
 选择、适用于本请求的可信应用绑定，或用户仅指定数据库类型时唯一的结构化
 `db_type` 匹配。模型猜测、别名名称、默认标记、一次连接成功，都不能证明用户
@@ -660,7 +698,7 @@ SQLITE_DATABASE_PATH=./sample_data/demo.db
 这是 Agent 行为指引；服务器不会验证聊天上下文或强制用户选库。需要确定性的
 目标限制时，应由可信应用/Host 校验，数据库现有策略继续独立生效。
 对要求硬性限制每次请求目标的部署，该校验是上线前置条件，必须覆盖显式别名、
-单目标调用省略别名时的实际默认连接及 `check_connection(scope="all")` 的全部配置目标，见[部署验收条件](RELEASE_NOTES/GUIDE/MCP_AGENT_BEHAVIOR_VALIDATION_ZH.md#18-限制优先级与配置解读的可复用验收)。
+单目标调用省略别名时的实际默认连接及 `check_connection(scope="all")` 的全部配置目标，见[部署验收条件](docs/guides/MCP_AGENT_BEHAVIOR_VALIDATION_ZH.md#18-限制优先级与配置解读的可复用验收)。
 受信任的本地使用可明确保留已知 Agent 行为限制；当前服务器不提供这套当次授权机制。
 
 明确禁止访问某个目标也包括禁止对它进行连接诊断。
@@ -669,239 +707,182 @@ SQLITE_DATABASE_PATH=./sample_data/demo.db
 仍未确定或限制本身仍矛盾，则澄清并等待。这不授权写操作或任意选库，也不能把
 单库结果说成整个环境都正常。
 
-```bash
-# 两个配置化连接。id 必须匹配 ^[a-z][a-z0-9_]{0,63}$。
-DB_CONNECTIONS=trade_analysis_mysql,analytics_demo_sqlite
-DEFAULT_DB_CONNECTION=trade_analysis_mysql
 
-# MySQL 连接，并作为默认目标
-DB_TRADE_ANALYSIS_MYSQL_TYPE=mysql
-DB_TRADE_ANALYSIS_MYSQL_USER=your_database_user
-DB_TRADE_ANALYSIS_MYSQL_PASSWORD=your_database_password
-DB_TRADE_ANALYSIS_MYSQL_HOST=your_database_host
-DB_TRADE_ANALYSIS_MYSQL_NAME=your_database_name
-DB_TRADE_ANALYSIS_MYSQL_ALLOWED_TABLES=products,orders,customers
-DB_TRADE_ANALYSIS_MYSQL_ALLOW_UNION=0
+v3.8 的连接约定与妥协：
 
-# SQLite analytics 连接
-DB_ANALYTICS_DEMO_SQLITE_TYPE=sqlite
-DB_ANALYTICS_DEMO_SQLITE_SQLITE_DATABASE_PATH=./sample_data/demo.db
-DB_ANALYTICS_DEMO_SQLITE_ALLOWED_TABLES=orders
-DB_ANALYTICS_DEMO_SQLITE_QUERY_TIMEOUT_SECONDS=30
+- 先解析目标，再做 SQL policy、schema readiness、执行、元数据、审计和遥测；工具不能传入任意 DSN。
+- `read.mode` 默认为 `deny`；`allowlist` 的空名单不授权，全部读取须显式 `all`。`tables` 只在 allowlist 下使用，不接受 `"*"`。
+- UNION 还需 `allow_union=true` 与有效表范围。旧空白名单不能机械转换成同时允许全部表和 UNION。
+- 写入必须通过 Skills 总开关、全局写入开关、全局连接准入、连接写入开关及连接 Skill 白名单；不再有 default-only 隐式授权。读取表范围不构成 Mutation 的通用写入范围。
+- 只有 query/connect timeout 允许“内置 → 公共 → 连接”覆盖；结果限额属于服务实例。`sql_assistant` 保持连接中立，通过 `list_connections()` 查看选定目标策略。
+- Skill `connection_ids` 与 `databases`、profile 和执行策略取交集；未配置的 portable 别名显示 unavailable，不创建连接，不授予权限。省略请求目标仍使用默认连接，不会自动取 Skill 列表第一项。
+- 公开连接信息不暴露 DSN、host、账户、密码或 SQLite 路径。SQLite 数据库显示为 `sqlite:<connection_id>`；诊断以别名标识。
+
+### 可选服务配置
+
+以下片段加入 `server.toml`：
+```toml
+[tools]
+schema = true
+table_summary = false
+large_table_threshold = 1000
+[defaults.timeouts]
+query_seconds = 30
+connect_seconds = 10
+[limits]
+result_rows = 100
+result_chars = 16000
+sql_chars = 20000
+schema_tables = 50
+overview_tables = 100
+[observability.logging]
+level = "INFO"
+# path = "../logs/server.log"
+[observability.telemetry]
+enabled = false
+path = "../logs/tool_calls.jsonl"
+sample_rate = 1.0
 ```
 
-v3.5 的连接约定与妥协：
+`tools.schema` 保留历史语义，只控制 `sample`；基础 metadata 工具仍注册。`table_summary` 控制可选计数工具，精确 COUNT(*) 可能扫描大表。限额中 0 表示不限额；工具超时中 0 表示禁用；数据库 query/connect 超时必须为正整数。结果截断不限制数据库扫描量或所有瞬时内存。MySQL Mutation 的 query timeout 限制行锁等待，不保证覆盖全部 DML CPU/IO 工作。
 
-- 服务器会先解析目标连接，再做 SQL policy、schema readiness、执行、结果元数据、审计和遥测。未知 `connection_id` 会 fail closed，不会回退到默认连接。
-- 工具和 Skills 不接受模型传入的任意 DSN；数据库 URL 与凭据只能来自环境配置。
-- per-connection policy 当前覆盖 `ALLOW_UNION`、`ALLOWED_TABLES`、查询超时、连接超时和 SQLite progress interval。结果大小限制（`MAX_RESULT_ROWS`、`MAX_RESULT_CHARS`、schema 概览上限）仍是进程级配置。
-- `sql_assistant` 没有目标参数，因此 UNION 提示有意保持 connection-neutral；应通过
-  `list_connections()` 查看所选 alias 的 policy，raw query 与 Query Skill 会在
-  runtime 对该目标做权威校验。
-- 读写 allowlist 的空值语义有意不同：`DB_<ID>_ALLOWED_TABLES` 为空时，为兼容旧行为，允许读取所有可见表；`DB_<ID>_MUTATION_SKILLS` 为空时拒绝所有写入。生产环境应显式配置读表 allowlist。
-- 查询 Skills 是 connection-scoped：`list_skills(connection_id=...)`、`get_skill_detail(connection_id=...)`、`execute_query_skill(..., connection_id=...)` 会用同一个目标连接做 DB 兼容性、表 readiness、allowlist、执行、`ToolResult.meta`、可选查询审计和遥测。
-- v3.7 的 `skill_def.md` 可选声明 `connection_ids: [...]`，把单个 Skill
-  收窄到合法连接别名标识符列表。只有当前部署已配置的成员可执行，未配置成员
-  作为 portable metadata 保留并显示 unavailable。它会与 `databases` 及既有
-  query/mutation policy 取交集，不创建连接也不授予权限；省略时保持 v3.6.1 行为。调用省略
-  `connection_id` 时仍使用全局默认连接，不会自动选择 Skill 列表的唯一项/第一项。
-- 未设置 `SKILLS_ALLOW_MUTATION_CONNECTIONS` 时，Mutation Skills 保持仅默认连接的兼容模式。设置后进入 v3.6 严格路由：每个目标必须同时出现在该列表、设置 `DB_<ID>_ALLOW_MUTATIONS=1`，并通过 `DB_<ID>_MUTATION_SKILLS` 允许对应 Skill。Preview token 会把预览和执行绑定到同一连接、参数、Skill 版本和 DB 类型。
-- `list_connections()` 只返回连接 id、db type、超时值和 policy 摘要，不暴露 DSN、host、用户名、密码或 SQLite 文件路径。
-- SQLite adapter 内部仍可能需要配置的文件路径，但 `list_tables()` 等公开 MCP payload 会把 SQLite 数据库显示为 `sqlite:<connection_id>`，不会返回文件系统路径。连接诊断以别名标识结果，不返回数据库名称。
-
-### 可选的环境变量
-```bash
-# 功能开关（1=启用，0=禁用）
-ENABLE_SCHEMA_TOOLS=1    # 控制 sample() 工具
-ENABLE_TABLE_SUMMARY=0   # 控制 get_table_summary() 工具（默认：禁用）
-                         # describe_table() 已提供估计行数
-
-# 大表阈值，用于 is_large 标志和查询建议
-# 超过此行数的表会触发 LIMIT/聚合提示
-LARGE_TABLE_THRESHOLD=1000
-
-# 安全配置（生产环境推荐）
-QUERY_TIMEOUT_SECONDS=30   # 只读查询超时；MySQL mutation 行锁等待超时
-CONNECT_TIMEOUT_SECONDS=10 # 连接超时秒数
-MCP_TOOL_TIMEOUT_SECONDS=120 # FastMCP 前台工具超时（0=禁用）
-
-# 表白名单（逗号分隔，不区分大小写）
-# 仅允许访问特定表 - 留空则允许所有
-# 使用 "*" 显式允许所有表（UNION 需要配合此设置）
-ALLOWED_TABLES=products,orders,customers
-
-# UNION 查询策略
-# 重要：UNION 需要双重配置才能启用：
-#   1. ALLOW_UNION=1
-#   2. ALLOWED_TABLES=table1,table2 或 ALLOWED_TABLES=*
-# 如果 ALLOW_UNION=1 但 ALLOWED_TABLES 为空，UNION 仍会被阻止。
-ALLOW_UNION=0
-
-# Token 优化：限制结果大小以防止上下文溢出
-# 设为 0 可禁用截断（用于数据导出场景）
-MAX_RESULT_ROWS=100      # 每次查询返回的最大行数（0=不限制）
-MAX_RESULT_CHARS=16000   # query/Query Skill 序列化 data 的截断阈值（0=禁用）
-MAX_SQL_LENGTH=20000     # query(sql) 接受的最大字符数（0=不限制）
-MAX_SCHEMA_TABLES=50     # get_full_schema 返回的最大表数（0=不限制）
-MAX_OVERVIEW_TABLES=100  # list_tables 返回的最大表数（0=不限制）
-
-# Skills 扩展 (v3.0)
-ENABLE_SKILLS=0          # 主开关：启用 Skills 层（1=启用，0=禁用）
-SKILLS_ALLOW_MUTATIONS=0 # 允许写操作技能（需要 ENABLE_SKILLS=1）
-# SKILLS_ALLOW_MUTATION_CONNECTIONS=trade_analysis_mysql,analytics_demo_sqlite # 启用严格命名写策略
-MUTATION_PREVIEW_TOKEN_TTL_SECONDS=300 # Preview token 有效期（1-86400 秒）
-MUTATION_PREVIEW_TOKEN_STORE_MAX_ENTRIES=10000 # 未过期 token 容量
-SKILLS_LIST_DEFAULT_DETAIL=summary # list_skills 默认元数据粒度：compact、summary 或 full
-SKILLS_LIST_AVAILABLE_ONLY_DEFAULT=1 # list_skills 默认仅展示当前可执行 Skill
-SKILLS_CHECK_SCHEMA_ON_LIST=1 # 默认隐藏缺表或无法验证表 readiness 的 Skill
-# SKILLS_EXCLUDE_PROFILES=demo # 隐藏并阻止匹配 profile 的 Skill
-# SKILLS_DIR=skills/     # Skills 目录路径（相对或绝对）
-# SKILLS_AUDIT_LOG=skills/_audit.jsonl  # 审计日志路径（JSONL 格式）
-SKILLS_AUDIT_QUERIES=0   # 可选查询 Skill 审计；mutation 审计仍会自动尝试
-# AGENT_ID=my-agent      # 审计日志中的 Agent 标识
-```
+服务日志始终到 stderr，设置 `logging.path` 后同时写文件；stdout 专用于 MCP。遥测只记录脱敏调用元数据，`sample_rate` 范围为 0～1。配置、已解析密钥和 Skill 定义使用启动快照，修改后需重启。
 
 **Skills 配置说明**：
 
-Skills 层允许你将常用的 SQL 查询和数据变更操作封装为可复用的"技能"。默认关闭，不影响已有功能。
+Skills 层允许你将常用的 SQL 查询和数据变更操作封装为可复用的“技能”。默认关闭；启用后仍受目标策略约束。完整 `config/skills.toml` 示例：
+```toml
+schema_version = 1
+[skills]
+enabled = false
+directory = "../skills"
+[skills.discovery]
+default_detail = "summary"
+available_only = true
+[skills.readiness]
+check_schema = true
+[skills.policy]
+exclude_profiles = []
+[skills.mutation]
+enabled = false
+allowed_connections = []
+[skills.mutation.preview]
+ttl_seconds = 300
+max_entries = 10000
+[skills.mutation.mrtr]
+enabled = false
+[skills.audit]
+queries = false
+path = "../logs/skill_audit.jsonl"
+agent_id = "unknown"
+```
 
-| 变量 | 默认值 | 说明 |
-|------|--------|------|
-| `ENABLE_SKILLS` | `0` | 主开关。设为 `1` 后注册 `list_skills`、`get_skill_detail` 和 `execute_query_skill` 工具 |
-| `SKILLS_ALLOW_MUTATIONS` | `0` | 写操作开关。设为 `1` 后额外注册 `execute_mutation_skill` 工具，需要 `ENABLE_SKILLS=1` |
-| `SKILLS_ALLOW_MUTATION_CONNECTIONS` | 空 | 可选 mutation 目标连接 allowlist。为空时保持仅默认连接的兼容模式；非空时进入严格模式，并要求匹配的 per-connection 写策略 |
-| `DB_<ID>_ALLOW_MUTATIONS` | `0` | 严格模式下的 per-connection 写开关；每个允许写入的目标都必须设为 `1` |
-| `DB_<ID>_MUTATION_SKILLS` | 空 | 严格模式下的 mutation Skill allowlist。空值 deny-all；`*` 表示显式允许所有仍通过其他检查的 mutation Skills |
-| `MUTATION_PREVIEW_TOKEN_TTL_SECONDS` | `300` | Mutation preview token 有效期（秒）；有效范围 `1-86400`，无效值回退到 `300` |
-| `MUTATION_PREVIEW_TOKEN_STORE_MAX_ENTRIES` | `10000` | 每进程未过期 preview token 上限（有效范围 `1-100000`）。容量满时 fail closed，不驱逐有效 token |
-| `SKILLS_LIST_DEFAULT_DETAIL` | `summary` | `list_skills` 默认元数据粒度：`compact`、`summary` 或 `full`。单次调用的 `detail_level` 会覆盖该值 |
-| `SKILLS_LIST_AVAILABLE_ONLY_DEFAULT` | `1` | `list_skills` 默认可用性过滤。设为 `1` 时，Agent 发现面会隐藏目标 `connection_id` 下因 DB 类型、mutation 开关/写策略、未设置 `SKILLS_ALLOW_MUTATION_CONNECTIONS` 时的仅默认连接兼容模式、查询连接 allowlist 或 schema readiness 不可执行的 Skill；开发者可传 `available_only=false` 查看完整目录 |
-| `SKILLS_CHECK_SCHEMA_ON_LIST` | `1` | 在 Skills 可用性元数据中加入实时表存在性检查。缺少所需表时 `schema_ready=false`；若 metadata 不可用，依赖表的 Skill 也会以 `schema_check_available=false`、`schema_ready=false`、`executable=false` fail closed。两类情况都会被 `available_only=true` 隐藏；`available_only=false` 仍返回开发者目录和失败原因 |
-| `SKILLS_EXCLUDE_PROFILES` | 空 | 逗号分隔的 profile 策略。匹配的 Skill 会被标记为不可执行，默认发现面隐藏，并在直接执行时被拒绝。生产环境可用 `demo` 隐藏仓库内置示例 |
-| `SKILLS_DIR` | `skills/` | 技能目录路径。必须位于项目根目录下（安全约束） |
-| `SKILLS_AUDIT_LOG` | `skills/_audit.jsonl` | 审计日志路径。mutation preview/execute 路径尝试 best-effort 写入；启用查询 Skill 审计时也使用该路径 |
-| `SKILLS_AUDIT_QUERIES` | `0` | 可选查询 Skill 审计。记录 Skill 名、参数、行数、状态、错误、`connection_id` 和实际 `db_type`，不记录返回数据或连接串 |
-| `AGENT_ID` | `unknown` | 审计日志中标识调用者的 Agent ID |
-
-迁移说明：`MUTATION_PREVIEW_TOKEN_SECRET` 已废弃且会被忽略。部署中应删除此
-变量；若仍存在，服务端只会发出告警，不会记录变量值。
+| 字段（均位于 skills 下） | 默认值 | 说明 |
+|---|---|---|
+| `enabled` | false | 关闭时不导入业务 Skill、不注册其工具、不探测就绪 |
+| `directory` | ../skills | 可指定外部可信目录；解析后的定义和源码必须位于声明目录内，Python 并非沙箱 |
+| `discovery.default_detail` | summary | compact / summary / full；可被单次调用覆盖 |
+| `discovery.available_only` | true | 隐藏当前目标不可执行的 Skill；false 用于目录诊断，不授予权限 |
+| `readiness.check_schema` | true | 影响发现与执行；缺表或元数据不可用时 fail closed，禁用不等于已证实就绪 |
+| `policy.exclude_profiles` | [] | 匹配 profile 不可执行，并从默认发现面隐藏 |
+| `mutation.enabled` | false | 写入总开关，还需其它四层配置条件 |
+| `mutation.allowed_connections` | [] | 精确连接准入，空名单不授权；还需连接 Skill 名单 |
+| `mutation.preview.ttl_seconds` | 300 | 1～86400 秒；非法值启动报错，不静默回落 |
+| `mutation.preview.max_entries` | 10000 | 1～100000 条；满时拒绝签发，不驱逐有效提案 |
+| `mutation.mrtr.enabled` | false | 可选托管单语句审批工具；要求 Skills 和写入均开启 |
+| `audit.queries` | false | 可选查询 Skill 审计，Mutation 审计仍按既有流程尽力记录 |
+| `audit.path` / `audit.agent_id` | ../logs/skill_audit.jsonl / unknown | 审计路径与来源标签；标签不是认证身份 |
 
 **Preview-token 部署边界**：
 
-- Preview-token 状态保存在单个有界进程内 memory store。stdio 下，preview 与
-  execute 必须留在同一客户端启动的 server 进程；这是推荐的 mutation 部署方式。
-- 若集成方通过 HTTP transport 暴露 mutation，当前设计只支持受信任的单操作者/
-  私有边界，并且只能运行一个启用 mutation 的进程；不定义多用户认证 HTTP
-  mutation 服务。程序不会检测或强制 worker/replica 数，部署配置必须都保持为 1。
-- 进程重启会使全部未消费 handle 失效。这是有意的 fail-closed 连续性边界；若
-  execute 结果不确定，必须先核查当前业务状态，再决定是否重新 preview。
-- 不得把多个启用 mutation 的 worker 放在普通负载均衡器后。只读容量只能通过
-  独立的 read-only endpoint、profile 或 pool 扩展；v3.6.1-v3.7.3 不支持跨 worker 或
-  跨副本 mutation。
-- 不存在 stateless token fallback，也不提供 SQLite、SQL 表或其他外部共享
-  token backend。
+- 状态位于服务实例的有界内存 Store，preview/execute 必须留在同一 server 实例。正式 CLI 使用 stdio。
+- 重启使未消费提案失效；缺记录不证明从未执行。结果不确定时先复核业务状态，不自动重试写入。
+- 不支持多 worker/副本间共享批准，不提供持久完成记录、stateless fallback 或跨重启恢复。
+- Python Skill 属于受信任代码；目录边界和计划校验不隔离模块导入、preview 或任意进程内副作用。
 
-**v3.7 人工批准 host 示例**：
+**人工批准 Host 示例（preview / MRTR）**：
 
-`examples/manual_mutation_approval.py` 在同一个 stdio Client context 中完成
-preview 与 execute，并保持同一 server 子进程。它用当前 venv 启动仓库固定的
-`start_server.py`，显式继承操作者完整环境以保留导出的 DB/policy 配置；展示精确
-有限 JSON 参数快照但不展示 bearer token；自定义 provider 若修改已展示的参数或
-preview，workflow 会拒绝执行。只有在强制截止时间内输入精确文本 `APPROVE` 才会
-执行。建议通过 JSON `--params-file` 传参；参数、preview 和终端打印的 execute
-结果都可能包含敏感业务数据。execute 超时/异常
-绝不自动重试，因为 token 可能已消费，写结果也可能未知。这是客户端/host 参考
-流程，不是服务端可验证的人类身份。直接 MCP 客户端仍可绕过它；deny 不会在 TTL
-前撤销未用 token record，外部 payload/debug logging 仍可能泄露 token。多用户认证
-HTTP 批准和合规级批准人审计不属于当前设计。自定义批准 provider 必须配合 async
-取消；恶意 provider 的硬终止需要进程隔离。详见
-[v3.7/v3.7.3 发布说明](RELEASE_NOTES/RELEASE_NOTES_v3_7.md)。
-该可信本地示例为避免静默切换到另一套 `.env`，会转发完整进程环境；因此所有
-已导出的 secret 与 Python 控制变量也进入子进程/Skill 信任边界。产品化 host
-应维护项目专用环境 allowlist。
+`examples/manual_mutation_approval.py` 用当前 Python 启动安装后的包，要求 `--config`；`--flow preview` 为默认。它在同一 stdio Client/子进程中保留精确参数和提案，只接受截止时间内的字面值 `APPROVE`。`--flow mrtr` 需要在 Skills TOML 显式启用 MRTR、托管单语句 Skill、MCP `2026-07-28` 及 Host 表单能力。
+
+MRTR 保存最多 64 KiB 的同一审阅快照，用框架密封状态续接；缺回答重发，不重新 preview，不延长原期限。只有有效 accept 且布尔 approve=true 才执行。拒绝/取消关闭提案；既有 preview 示例的本地拒绝不主动撤销服务端令牌，令牌仍按 TTL 过期。两条流程都不自动重试未知写入。
+
+批准仍信任 Host，并非独立的人类身份认证。审阅及终端结果可能含业务数据；密封状态也应视为敏感。子进程仍继承调用者导出的环境，生产 Host 应按自身需要收窄环境。此行为不恢复旧 `.env` 配置通道。
 
 **隐私与日志运维说明**：
 
 - Skill audit params 只做长度截断，不按 key/value 脱敏。请把 Skill 参数视为业务审计数据，不要把 secret、token、凭据或敏感个人数据作为 Skill 参数传入。
-- 开启 mutation skills 后，mutation audit 会自动尝试记录，但审计写入失败不会阻断操作；query skill audit 仍保持 opt-in（`SKILLS_AUDIT_QUERIES=0` 默认关闭），避免意外记录读查询参数。v3.5 审计条目可包含安全别名 `connection_id` 和实际 `db_type`，仍不包含 DSN、host、密码、SQLite 文件路径、SQL 文本或返回行。
+- 开启 mutation skills 后，mutation audit 会自动尝试记录，但审计写入失败不会阻断操作；query skill audit 仍保持 opt-in（`skills.audit.queries=false` 默认关闭），避免意外记录读查询参数。v3.5 审计条目可包含安全别名 `connection_id` 和实际 `db_type`，仍不包含 DSN、host、密码、SQLite 文件路径、SQL 文本或返回行。
 - Token 前的参数/validation 拒绝和审计写入失败可能返回 `audit_logged=false` 的正常工具结果。命令式 execute 消费有效 token 后，后续动态 validation 拒绝会尝试 best-effort execute audit；受管确认不执行动态 Skill validation。JSONL audit 仍是可见性辅助，不是 fail-closed 事务控制。
 - 如果数据库写入已经提交，但随后 context 通知或响应构造失败，系统会保留已有 success audit，不再追加矛盾的 failure。能返回 fallback 时结果为 `success=false, execution_outcome=committed`；响应完全丢失时客户端仍只能判为未知。两者都必须终止当前流程，token 仍保持已消费。
-- 进程本地 preview-token store 支持推荐的 stdio 路径，以及有条件的单个受信任私有 HTTP mutation 进程；多用户认证 HTTP、跨 worker/跨副本 mutation 不属于当前设计，且绝不回退到 stateless token acceptance。
-- `SKILLS_AUDIT_LOG`、`TOOL_TELEMETRY_LOG_PATH` 和 `logs/sql_safety_checker_*.log` 都是本地文件。生产环境应放在可信存储上，限制文件权限，并使用外部轮转/保留机制，例如 `logrotate`、平台日志、cron cleanup 或托管日志 sink。常见起点是按天或按大小轮转、压缩，并根据合规需求保留 14-90 天。
+- 进程本地 preview-token store 支持本项目的 stdio 部署；自定义 transport 嵌入仍限于受信任单进程边界；多用户认证 HTTP、跨 worker/跨副本 mutation 不属于当前设计，且绝不回退到 stateless token acceptance。
+- `skills.audit.path`、`observability.telemetry.path` 和 `observability.logging.path` 都是本地文件。生产环境应放在可信存储上，限制文件权限，并使用外部轮转/保留机制，例如 `logrotate`、平台日志、cron cleanup 或托管日志 sink。常见起点是按天或按大小轮转、压缩，并根据合规需求保留 14-90 天。
+
 
 **典型配置场景**：
 
-```bash
-# 场景 1：仅启用只读查询技能（如 sample-monthly-sales-report）
-ENABLE_SKILLS=1
-SKILLS_ALLOW_MUTATIONS=0
+以下是修改对应字段的场景提示，不要把所有场景重复追加到同一 TOML 表中。
 
-# 场景 2：同时启用查询和写操作技能（如 sample-update-order-status）
-ENABLE_SKILLS=1
-SKILLS_ALLOW_MUTATIONS=1
+| 场景 | 配置调整 |
+|---|---|
+| 只读查询 Skills | `skills.enabled=true`，`skills.mutation.enabled=false`，并授权连接读取范围 |
+| 查询及写入 Skills | 两个开关设 true，填写 `skills.mutation.allowed_connections`，并设置下方连接授权 |
+| 自定义目录与审计 | 修改 `skills.directory`、`skills.audit.path`、`skills.audit.agent_id` |
+| 完整目录审查 | `skills.discovery.available_only=false`，或单次调用传 available_only=false |
+| 跳过实时 schema 检查 | `skills.readiness.check_schema=false`；需要完全离线检查配置时使用 CLI check/explain |
+| 排除 demo | `skills.policy.exclude_profiles=["demo"]`，同时影响发现与执行 |
+| 审计 Query Skills | `skills.audit.queries=true`，可能记录业务参数，不记录结果行 |
+| 托管 MRTR | 写入授权完整后再设 `skills.mutation.mrtr.enabled=true`，核验实际 Host 能力 |
 
-# 场景 2b：严格命名连接 mutation 路由
-ENABLE_SKILLS=1
-SKILLS_ALLOW_MUTATIONS=1
-DB_CONNECTIONS=trade_analysis_mysql,analytics_demo_sqlite
-DEFAULT_DB_CONNECTION=trade_analysis_mysql
-SKILLS_ALLOW_MUTATION_CONNECTIONS=trade_analysis_mysql,analytics_demo_sqlite
-DB_TRADE_ANALYSIS_MYSQL_ALLOW_MUTATIONS=1
-DB_TRADE_ANALYSIS_MYSQL_MUTATION_SKILLS=sample-update-order-status
-DB_ANALYTICS_DEMO_SQLITE_ALLOW_MUTATIONS=1
-DB_ANALYTICS_DEMO_SQLITE_MUTATION_SKILLS=sample-update-order-status,sample-reset-order-to-pending
-
-# 场景 3：自定义技能目录和审计日志路径
-ENABLE_SKILLS=1
-SKILLS_ALLOW_MUTATIONS=1
-SKILLS_DIR=my_custom_skills/
-SKILLS_AUDIT_LOG=logs/skills_audit.jsonl
-AGENT_ID=copilot-agent-1
-
-# 场景 4：开发者审查完整目录，包括当前不可执行的 Skill
-ENABLE_SKILLS=1
-SKILLS_LIST_AVAILABLE_ONLY_DEFAULT=0
-
-# 场景 5：离线审查目录，不做实时 schema readiness 过滤
-ENABLE_SKILLS=1
-SKILLS_CHECK_SCHEMA_ON_LIST=0
-
-# 场景 6：生产环境隐藏仓库内置 demo 示例
-ENABLE_SKILLS=1
-SKILLS_EXCLUDE_PROFILES=demo
-
-# 场景 7：审计只读查询 Skill，但不记录返回行数据
-ENABLE_SKILLS=1
-SKILLS_AUDIT_QUERIES=1
+例如允许 `analytics_demo_sqlite` 执行两个示例 Mutation：先在 skills.toml 中设 `skills.enabled=true`、`skills.mutation.enabled=true`、`skills.mutation.allowed_connections=["analytics_demo_sqlite"]`，再向 connections.toml 增加：
+```toml
+[connections.analytics_demo_sqlite.mutation]
+enabled = true
+skills = ["sample-update-order-status", "sample-reset-order-to-pending"]
 ```
 
 **Demo Skills schema**：
 
-仓库内置的 `sample-monthly-sales-report` 和 `sample-update-order-status` 是 demo profile 示例，依赖 `orders` 表。MySQL 演示环境可用以下脚本创建兼容表并写入示例行：
-
+内置销售报告、订单状态变更和重置 Skill 均为 demo profile，依赖兼容的 orders 表。使用独立可丢弃数据库：
 ```bash
-.venv/bin/python scripts/setup_demo_db.py
+uv run python scripts/setup_sqlite_demo.py --output local_data/mutation-demo.db
+# MySQL: only use a dedicated demo target
+uv run python scripts/setup_demo_db.py --config /path/server.toml --connection-id mysql_demo
+uv run python -m examples.manual_mutation_approval \
+  --config config/examples/mutation/server.toml --flow preview \
+  --skill sample-update-order-status --params-file /path/params.json
 ```
 
-该脚本使用 `.env` 中的 MySQL 连接配置；如果 `orders` 表已存在，会默认拒绝修改，除非显式传入 `--drop-existing` 或 `--seed-existing`。修改 `SKILLS_LIST_AVAILABLE_ONLY_DEFAULT` 等环境变量后，需要重启 MCP server，运行中的进程才会读取新配置。
+SQLite 初始化拒绝覆盖已有文件；MySQL 初始化遇到现存 orders 表时，仍需显式选择 `--drop-existing` 或 `--seed-existing` 才会修改。公开 [写入模板](config/examples/mutation/server.toml) 默认关闭 MRTR。
 
-> **安全提示**：`SKILLS_ALLOW_MUTATIONS` 是独立于 `ENABLE_SKILLS` 的第二层开关。即使 `ENABLE_SKILLS=1`，写操作默认仍然禁用，需要显式开启。这遵循最小权限原则。
-
-额外的服务端保护默认开启：FastMCP 会遮蔽未预期异常细节（`mask_error_details=True`），所有 MCP 工具有可配置前台超时（`MCP_TOOL_TIMEOUT_SECONDS`），自由 SQL 工具 `query(sql)` 会受 `MAX_SQL_LENGTH` 限制。显式 `ToolError` 消息仍会保留，用于向 Agent 返回安全的校验失败原因。
+额外保护包括 `strict_input_validation=True`、`mask_error_details=True`、工具超时和自由 SQL 长度限额；显式安全校验错误仍向调用者提供可操作的原因。
 
 ### MCP 客户端集成
-有关完整的客户端配置示例，请参阅 `mcp_config.json`。
+
+公共模板见 [mcp_config.json](mcp_config.json)。本地可采用 `config/*.toml`、`config/secrets/` 和 `mcp_config.local.json`，均被 Git 忽略；不要提交真实凭据。完整逐字段迁移、默认值、SDK 导入表和切换/回退步骤见 [配置指南](docs/guides/CONFIGURATION_ZH.md)。先检查 TOML、停止旧进程，再使用新依赖与入口启动；回退也须同步恢复代码、依赖和配置。
+
 
 ## 更新日志
 
+### v3.8.0 FastMCP 4、TOML 与托管 MRTR（2026年9月）
+
+- FastMCP 4.0.10 / MCP SDK 2.2.0；由框架负责协议协商，验证现代 `2026-07-28` 和旧 `2025-11-25` stdio。
+- 重构为 `src/sql_safety_executor` 安装包；配置、连接、Skill 目录、令牌与诊断由实例持有，提示词作为资源随 wheel 分发。
+- 三文件 TOML、显式 `--config`、严格模型、密钥来源、离线 `config check/explain`；读取默认 deny，写入要求全部准入条件，移除 default-only 兼容授权和弱 `execute_sql()` 入口。
+- 默认关闭的 `request_mutation_approval` 仅支持托管单语句；密封续接、64 KiB 审阅上限、严格批准值、原期限校验及单次消费，不自动重试未知写入。
+- 公开 Skill SDK 导入迁移，允许显式外部可信目录；更新客户端、AutoGen 隔离环境、迁移文档、依赖锁与 CI。
+- 自动化 744 passed、4 skipped，类型检查和仓库外 wheel 验证通过。后续实测已验证 MySQL 连通/基础读取、原生 Codex 的 SQLite preview/execute 及数据恢复，以及三组隔离 Luna 六轮路由任务。早期 MRTR 调用拦截仍保留记录；原生 MRTR/人工审批 UI、Copilot、MySQL 写入与远端 CI 仍未验收。
+
+参见 [v3.8 发布说明](docs/releases/RELEASE_NOTES_v3_8.md) 和 [验收记录](docs/validation/V3_8_VALIDATION_ZH.md)。以下历史条目保留当时版本的配置、路径与结论，不作为 v3.8 部署指令。
+
+
 历史版本条目保留当时的 Skill 原名；当前名称见
-[v3.7.2 迁移表](RELEASE_NOTES/RELEASE_NOTES_v3_7.md#sample-skill-names-and-local-files)。
+[v3.7.2 迁移表](docs/releases/RELEASE_NOTES_v3_7.md#sample-skill-names-and-local-files)。
 
 ### 受管单语句 Mutation（2026年9月16日）
 
 本轮补充纳入首次正式发布前的同一 v3.7.3。以下 Skill 作者接口调整仍需迁移，
 版本号不变不表示扩展契约完全兼容；详见
-[版本范围与兼容性说明](RELEASE_NOTES/RELEASE_NOTES_v3_7.md#managed-single-statement-mutation-contract--september-16-2026)。
+[版本范围与兼容性说明](docs/releases/RELEASE_NOTES_v3_7.md#managed-single-statement-mutation-contract--september-16-2026)。
 
 - 新增不可变的 `ManagedMutationPlan`，只允许一条参数化 INSERT、UPDATE 或 DELETE。
   discovery 会校验语句、命名绑定、frontmatter 参数引用、精确行数约束和结果字段。
@@ -926,11 +907,11 @@ SKILLS_AUDIT_QUERIES=1
   输出统一为带必填 scope 的报告，删除复数工具且不保留兼容别名。
 - 单查改用工作线程持有的独立连接，共享现有预算、忙及清理失败禁用机制。
   这是工具及输出的破坏性迁移，仓库版本号保持不变。
-- [当前设计记录](RELEASE_NOTES/GUIDE/V3_7_CONNECTION_DIAGNOSTICS_DESIGN_ZH.md)说明迁移、
+- [当前设计记录](docs/guides/V3_7_CONNECTION_DIAGNOSTICS_DESIGN_ZH.md)说明迁移、
   收益和代价、分阶段验收及未改变的当次授权边界。以下历史条目保留当时状态。
 - 评审验证：**675 passed、4 skipped**；十个变更 Python 文件 Pyright 通过。
   重启后的 Host 已暴露统一工具，默认 MySQL、指定 SQLite 及全部连接冒烟通过。
-  [分阶段 Agent 证据](RELEASE_NOTES/LIVE_MCP_TSET/V3_7_3_LIVE_MCP_TEST_UNIFIED_CONNECTION_DIAGNOSTICS_2026_09_22_ZH.md)
+  [分阶段 Agent 证据](docs/validation/v3.7/V3_7_3_LIVE_MCP_TEST_UNIFIED_CONNECTION_DIAGNOSTICS_2026_09_22_ZH.md)
   保留路由失败，DRR-2026-066 仍开放；C 文案试验已恢复为 B，不宣称普遍准确率
   或计费 token 改善。
 
@@ -947,7 +928,7 @@ SKILLS_AUDIT_QUERIES=1
 - 补充协议回归、原生及 fixture Agent 实测记录。源码验证：**640 passed、
   4 skipped**，七个 Python 文件 Pyright 通过。明确禁止访问的 fixture 仍有失败，
   DRR-2026-066 保持开放；最新说明仍需原生 Host 重新发现并验收。
-- 兼容性及证据边界见 [v3.7.3 发布说明](RELEASE_NOTES/RELEASE_NOTES_v3_7.md#v373--connection-routing-and-tool-contract-clarity)。
+- 兼容性及证据边界见 [v3.7.3 发布说明](docs/releases/RELEASE_NOTES_v3_7.md#v373--connection-routing-and-tool-contract-clarity)。
   批量连接诊断归属此前的 v3.7.2 工作。
 
 ### v3.7.2 写事务结论与宿主不重试（2026年9月）
@@ -974,7 +955,7 @@ SKILLS_AUDIT_QUERIES=1
   连接级 `MUTATION_SKILLS` 白名单仍按当前目录的 Skill 名称授权；更换
   `SKILLS_DIR` 时须同时复核目录源码与连接权限。
 - 完整公共契约、兼容影响、接受边界、测试和经过 review 的一手资料见
-  [v3.7.2 发布说明](RELEASE_NOTES/RELEASE_NOTES_v3_7.md#v372--write-transactions-and-uncertain-results)。
+  [v3.7.2 发布说明](docs/releases/RELEASE_NOTES_v3_7.md#v372--write-transactions-and-uncertain-results)。
 
 ### v3.7.1 不透明 Preview Handle 与 Agent 工作流优化（2026年8月）
 
@@ -1060,7 +1041,7 @@ SKILLS_AUDIT_QUERIES=1
 - 查询截断提示现在明确：截断只限制返回 payload；仍需在 SQL 中使用 `WHERE`/`LIMIT`/`ORDER BY` 来限制数据库工作量并稳定顺序
 - `list_tables()` 和 `get_full_schema()` 描述改为 visible/truncated 语义，不再暗示一定返回所有表或完整 schema
 - 安全文档措辞区分 sqlparse 语句类型 allowlist、MCP 层扩展检查、Skills 参数校验和基础 SQL/table 校验
-- 新增 [设计风险登记表](DESIGN_RISK_REGISTER_ZH.md) 与 [English version](DESIGN_RISK_REGISTER.md)，长期跟踪已接受、暂缓、拒绝和需要策略决策的设计风险
+- 新增 [设计风险登记表](docs/security/DESIGN_RISK_REGISTER_ZH.md) 与 [English version](docs/security/DESIGN_RISK_REGISTER.md)，长期跟踪已接受、暂缓、拒绝和需要策略决策的设计风险
 - 最终复审补充修复了 SQLite timeout 分类、MCP client smoke test 的断言/结果解析、完整配置工具数量表述，以及 SQLite 写锁风险措辞。直接 MCP stdio 验证覆盖了基础工具、Skills 工具、mutation preview 和脱敏 telemetry。
 
 ### v3.4.2 统一 ToolResult、输出 Schema 与可选遥测（2026年5月）
@@ -1132,7 +1113,7 @@ SKILLS_AUDIT_QUERIES=1
 - **新增依赖**：`pyyaml` 用于 skill_def.md 的 frontmatter 解析；新增 `SQLAlchemy>=2.0` 版本约束
 - **完全向后兼容**：`ENABLE_SKILLS=0`（默认）时零开销，不注册任何工具
 
-设计详情参见 [MCP_AGENTS_SKILLS_DESIGN.md](MCP_AGENTS_SKILLS_DESIGN.md)。
+设计详情参见 [MCP_AGENTS_SKILLS_DESIGN.md](docs/architecture/MCP_AGENTS_SKILLS_DESIGN.md)。
 
 ### v2.2 SQLite 支持（2026年1月）
 
@@ -1156,7 +1137,7 @@ SKILLS_AUDIT_QUERIES=1
 - **新增 `db_type` 字段**：工具响应包含 `db_type` 字段标识当前数据库类型（v3.5 起语义为目标连接的 DB 类型）
 - **完整测试套件**：53 个测试覆盖 MySQL 和 SQLite 适配器
 
-详细设计决策、妥协和实现细节请参阅 [SQLITE_ADAPTER_DESIGN.md](SQLITE_ADAPTER_DESIGN.md)。变更日志详情请参阅 [REFACTORING_LOG.md](REFACTORING_LOG.md)。
+详细设计决策、妥协和实现细节请参阅 [SQLITE_ADAPTER_DESIGN.md](docs/architecture/SQLITE_ADAPTER_DESIGN.md)。变更日志详情请参阅 [REFACTORING_LOG_ZH.md](REFACTORING_LOG_ZH.md)。
 
 ### v2.1 工具优化（2026年1月）
 
@@ -1174,7 +1155,7 @@ SKILLS_AUDIT_QUERIES=1
   - `MAX_OVERVIEW_TABLES=100` - `list_tables()` 最大表数
 - **AutoGen Agent 提示更新**：移除 `get_table_summary()` 引用，更新工作流为 `list_tables() → describe_table()` 模式
 
-详细变更请参阅 [REFACTORING_LOG.md](REFACTORING_LOG.md)。
+详细变更请参阅 [REFACTORING_LOG_ZH.md](REFACTORING_LOG_ZH.md)。
 
 ### v2.0 重构（2025年12月）- 历史分支：`feature/v2.0-mcp-server-refactoring`
 
@@ -1204,7 +1185,7 @@ SKILLS_AUDIT_QUERIES=1
 - **生命周期管理**：正确的异步资源生命周期（FastMCP 最佳实践）
 - **SQL 注入防护**：为动态表名添加标识符验证
 
-详细变更请参阅 [REFACTORING_LOG.md](REFACTORING_LOG.md)。
+详细变更请参阅 [REFACTORING_LOG_ZH.md](REFACTORING_LOG_ZH.md)。
 
 ### v1.0 - MCP 服务架构
 
@@ -1218,7 +1199,7 @@ SKILLS_AUDIT_QUERIES=1
 
 ## 公开的 MCP 工具
 
-该服务公开 6–12 个标准化的 MCP 工具（取决于配置）：
+该服务公开 6–13 个标准化的 MCP 工具（取决于配置）。下方响应示例展示主要字段；示例表名需要对应的读取授权：
 
 ### 0. `list_connections`
 用途：列出已配置的数据库连接 id 和非敏感 policy 元数据。
@@ -1243,21 +1224,21 @@ SKILLS_AUDIT_QUERIES=1
       "connection_id": "trade_analysis_mysql",
       "db_type": "mysql",
       "is_default": true,
-      "policy": {"allow_union": false, "allowed_tables_mode": "allowlist"}
+      "policy": {"read_mode": "allowlist", "read_enabled": true, "allow_union": false, "allowed_tables_mode": "allowlist"}
     },
     {
       "connection_id": "analytics_demo_sqlite",
       "db_type": "sqlite",
       "is_default": false,
-      "policy": {"allow_union": false, "allowed_tables_mode": "allowlist"}
+      "policy": {"read_mode": "allowlist", "read_enabled": true, "allow_union": false, "allowed_tables_mode": "allowlist"}
     }
   ]
 }
 ```
 
 该工具不暴露 DSN、host、用户名、密码或 SQLite 文件路径。返回的 alias 可传给只读
-工具和 Query Skills，但仍受目标 policy 与 Skill scope 约束。Mutation Skill 可在
-兼容模式使用默认 alias；非默认 alias 则要求严格命名写策略授权目标连接和 Skill。
+工具和 Query Skills，但仍受目标 policy 与 Skill scope 约束。Mutation Skill 必须通过
+全局连接准入和连接级 Skill 授权，默认 alias 同样适用。
 发现连接本身不授予写权限。
 
 ### 1. `query`（自由形式只读工具）
@@ -1272,7 +1253,7 @@ SKILLS_AUDIT_QUERIES=1
 输入：
 ```json
 {
-  "sql": "SELECT COUNT(*) as total FROM products",
+  "sql": "SELECT COUNT(*) as total FROM orders",
   "connection_id": "analytics_demo_sqlite"
 }
 ```
@@ -1283,7 +1264,7 @@ SKILLS_AUDIT_QUERIES=1
   "success": true,
   "connection_id": "analytics_demo_sqlite",
   "db_type": "sqlite",
-  "query": "SELECT COUNT(*) as total FROM products",
+  "query": "SELECT COUNT(*) as total FROM orders",
   "data": [
     {"total": 150}
   ],
@@ -1348,7 +1329,7 @@ check_connection(scope="all")                   # 全部已配置连接
 非法输入、忙、服务停止及清理失败禁用使用 MCP 工具错误通道，不属于报告 schema。
 
 所有诊断共用进程级执行器，最多四个工作线程，一次仅接纳一轮诊断，等待预算为
-30 秒。若 `MCP_TOOL_TIMEOUT_SECONDS=T` 为正数，则使用 `min(30, 0.8*T)`；关闭
+30 秒。若 `server.tool_timeout_seconds=T` 为正数，则使用 `min(30, 0.8*T)`；关闭
 外层超时仍保留 30 秒。前一轮线程结束清理尝试前，单查或全查均会收到忙错误，
 超时／取消后也一样。不增加排队、自动重试或轮询接口。预算不能强制终止驱动调用，
 进程退出也可能等待线程；长期无人值守部署前应隔离验证网络故障和进程监管策略。
@@ -1372,14 +1353,14 @@ check_connection(scope="all")                   # 全部已配置连接
 `check_connection(scope="all")`。旧单查输入写法仍可使用，但应将顶层 `connected`
 改读为 `results[alias].connected`；旧 `message`、`database_name`、`config` 字段
 移除。单查现在也受独立诊断、预算、忙及清理失败禁用约束。见
-[中文设计与迁移记录](RELEASE_NOTES/GUIDE/V3_7_CONNECTION_DIAGNOSTICS_DESIGN_ZH.md)
-（[English](RELEASE_NOTES/GUIDE/V3_7_CONNECTION_DIAGNOSTICS_DESIGN.md)）。
+[中文设计与迁移记录](docs/guides/V3_7_CONNECTION_DIAGNOSTICS_DESIGN_ZH.md)
+（[English](docs/guides/V3_7_CONNECTION_DIAGNOSTICS_DESIGN.md)）。
 
 
 ### 3. `list_tables`
 用途：可见数据库概览 - 列出返回/允许访问的表及其估计行数
 
-轻量级的初始探索工具。表列表可能被 `MAX_OVERVIEW_TABLES` 截断。MySQL 行数为 INFORMATION_SCHEMA 估计值（InnoDB 粗略估算可能与实际行数有明显差异），SQLite 来自统计信息或采样。
+轻量级的初始探索工具。表列表可能被 `limits.overview_tables` 截断。MySQL 行数为 INFORMATION_SCHEMA 估计值（InnoDB 粗略估算可能与实际行数有明显差异），SQLite 来自统计信息或采样。
 
 无法安全取得估计时，单个 `row_count` 为 `null`；它表示未知，而不是空表。此时
 仍会保留表发现结果，必须生成 metadata SQL 的工具则会明确拒绝不支持的标识符。
@@ -1432,7 +1413,7 @@ check_connection(scope="all")                   # 全部已配置连接
   "table_name": "users",
   "row_count": 1500,
   "row_count_approximate": true,
-  "column_count": 5,
+  "column_count": 2,
   "columns": [
     {"column_name": "id", "data_type": "int", "nullable": "NO", "key_type": "PRI", "default_value": null},
     {"column_name": "name", "data_type": "varchar", "nullable": "YES", "key_type": "", "default_value": null}
@@ -1445,7 +1426,7 @@ check_connection(scope="all")                   # 全部已配置连接
 ### 5. `sample`（可选）
 用途：从指定表中检索示例数据
 
-**注意**：此工具由 `ENABLE_SCHEMA_TOOLS` 环境变量控制（默认：启用）
+**注意**：此工具由 `tools.schema` TOML 配置控制（默认：启用）
 
 `limit` 默认 5；MCP 输入 schema 只接受 1 到 20（含端点）的整数。越界 MCP 调用会
 在 SQL 执行前被拒绝，不再静默 clamp。Python 直接调用也会得到同样的明确拒绝，
@@ -1478,7 +1459,7 @@ check_connection(scope="all")                   # 全部已配置连接
 
 `detail_level="compact"` 是机器可见的默认值，适用于全局表说明和多表规划；省略该参数等同于显式传入 `compact`。它返回 `[字段名, 类型]` 二元组、主键、字段数和每张表的近似行数。默认 `group_identical=true`，只有当前 adapter 可见的全部列元数据和字段顺序均相等的表才会共享一个分组。对 MySQL 而言，判等范围包括字段名、基础数据类型、可空性、key 标记和默认值；它**不能**证明完整 DDL、索引、外键、check、长度/精度、unsigned、collation 或生成表达式等价。响应以 `grouping_basis` 明示这一边界；compact 需要每张表独立保留时传 `group_identical=false`，full 模式会忽略该参数。
 
-需要跨多张表查看 `nullable`、`default` 和 key 元数据时，应显式传入 `detail_level="full"`。数据库/元数据读取失败会返回 `success=false` 和 `error_code="metadata_query_failed"`，不会再伪装成空数据库、空 schema、表不存在或 0 行估计。无法取得行数估计时，`row_count` 可以为 `null`，不表示空表。若 table discovery 返回超出 schema 工具保守 identifier 语法的数据库对象名，投影会明确返回 `error_code="unsupported_metadata_identifier"`，不会把它误报为查询失败或输出空表。可见表可能受 allowlist 过滤并被 `MAX_SCHEMA_TABLES` 截断；单表深入查看使用 `describe_table()`。
+需要跨多张表查看 `nullable`、`default` 和 key 元数据时，应显式传入 `detail_level="full"`。数据库/元数据读取失败会返回 `success=false` 和 `error_code="metadata_query_failed"`，不会再伪装成空数据库、空 schema、表不存在或 0 行估计。无法取得行数估计时，`row_count` 可以为 `null`，不表示空表。若 table discovery 返回超出 schema 工具保守 identifier 语法的数据库对象名，投影会明确返回 `error_code="unsupported_metadata_identifier"`，不会把它误报为查询失败或输出空表。可见表可能受 allowlist 过滤并被 `limits.schema_tables` 截断；单表深入查看使用 `describe_table()`。
 
 Compact 输出：
 ```json
@@ -1511,7 +1492,7 @@ Full 输出继续使用以表名为 key 的 `schema` 映射；每个字段包含
 ### 7. `get_table_summary`（可选）
 用途：获取表统计信息，支持可选的精确行数计算
 
-**注意**：此工具由 `ENABLE_TABLE_SUMMARY` 环境变量控制（默认：**禁用**）。`describe_table()` 工具已经提供估计行数，因此只有在需要精确计数时才需要此工具。
+**注意**：此工具由 `tools.table_summary` TOML 配置控制（默认：**禁用**）。`describe_table()` 工具已经提供估计行数，因此只有在需要精确计数时才需要此工具。
 
 **警告**：`exact_count=True` 会运行 COUNT(*)，在大型表上可能很慢（全表扫描；
 MySQL 还可能遇到 metadata-lock contention）。该成本警告也写入机器可见的参数说明。
@@ -1537,8 +1518,11 @@ MySQL 还可能遇到 metadata-lock contention）。该成本警告也写入机�
   "table_name": "users",
   "row_count": 1500,
   "row_count_approximate": true,
-  "column_count": 5,
-  "columns": [...],
+  "column_count": 2,
+  "columns": [
+    {"column_name": "id", "data_type": "int", "nullable": "NO", "key_type": "PRI", "default_value": null},
+    {"column_name": "name", "data_type": "varchar", "nullable": "YES", "key_type": "", "default_value": null}
+  ],
   "is_large": true,
   "recommendation": "Large table (~1500 rows). Use LIMIT or aggregation (COUNT/GROUP BY)."
 }
@@ -1547,7 +1531,7 @@ MySQL 还可能遇到 metadata-lock contention）。该成本警告也写入机�
 ### 8. `list_skills`（Skills 扩展，可选）
 用途：列出预定义技能（查询和写操作），支持搜索、category 过滤、元数据粒度选择和可用性过滤。
 
-**注意：** 需要 `ENABLE_SKILLS=1`。`detail_level` 是非空的 `compact|summary|full` 枚举，其机器可见默认值等于启动时解析的 `SKILLS_LIST_DEFAULT_DETAIL`（默认 `summary`）。`full` 已包含参数 schema，之后不应再调用 `get_skill_detail()`。`available_only` 是非空布尔值，其机器可见默认值也等于启动时解析的 `SKILLS_LIST_AVAILABLE_ONLY_DEFAULT`（默认 `true`），因此 Agent 发现面会隐藏目标 `connection_id` 下因可选 Skill `connection_ids` 范围、DB 类型、mutation 开关/写策略、查询连接 allowlist、缺少所需表，或已启用但 metadata 不可用的 schema readiness 检查而不可执行的 Skill。最后一种情况以 `schema_check_available=false` 区分“无法验证”和已知 `missing_tables`。传 `available_only=false` 可查看完整开发者目录和失败原因。这只影响 Agent 看到的元数据；执行期会再次做权威检查，并在已启用的 readiness 无法验证时 fail closed。查询 Skills 接受 `connection_id`；严格命名写策略授权目标时，mutation Skills 也接受该参数。
+**注意：** 需要 `skills.enabled=true`。`detail_level` 是非空的 `compact|summary|full` 枚举，其机器可见默认值等于启动时解析的 `skills.discovery.default_detail`（默认 `summary`）。`full` 已包含参数 schema，之后不应再调用 `get_skill_detail()`。`available_only` 是非空布尔值，其机器可见默认值也等于启动时解析的 `skills.discovery.available_only`（默认 `true`），因此 Agent 发现面会隐藏目标 `connection_id` 下因可选 Skill `connection_ids` 范围、DB 类型、mutation 开关/写策略、查询连接 allowlist、缺少所需表，或已启用但 metadata 不可用的 schema readiness 检查而不可执行的 Skill。最后一种情况以 `schema_check_available=false` 区分“无法验证”和已知 `missing_tables`。传 `available_only=false` 可查看完整开发者目录和失败原因。这只影响 Agent 看到的元数据；执行期会再次做权威检查，并在已启用的 readiness 无法验证时 fail closed。查询 Skills 接受 `connection_id`；严格命名写策略授权目标时，mutation Skills 也接受该参数。
 
 summary/full 输出中的 `configured_connection_ids` 只表示该 Skill 声明的
 `connection_ids` 中当前部署已配置的子集，并不是服务端全部连接列表；
@@ -1617,7 +1601,7 @@ summary/full 输出中的 `configured_connection_ids` 只表示该 Skill 声明�
 ### 9. `get_skill_detail`（Skills 扩展，可选）
 用途：获取单个 Skill 的执行字段或完整缓存元数据。
 
-**注意：** 需要 `ENABLE_SKILLS=1`。`detail_level` 是非空的 `execution|full` 枚举，机器可见默认值为 `full`。已知 Skill 名但不知道参数时直接调用 `execution`，无需先列出目录；它是获取参数 schema 和下一步操作的推荐投影。`full` 只用于显式需要 catalog/readiness 诊断的场景；若 `list_skills(detail_level="full")` 已返回参数，则不要再调用。本模式仅返回执行字段、解析后的连接/DB 类型和下一步操作。该工具不会在运行时读取 Skill 文件，也不会暴露原始 SQL 或 mutation Python 源码。MCP 响应只可能包含解析后的 YAML frontmatter 值；YAML 注释和 Markdown 正文仍是开发者文档，不消耗 Agent 上下文。
+**注意：** 需要 `skills.enabled=true`。`detail_level` 是非空的 `execution|full` 枚举，机器可见默认值为 `full`。已知 Skill 名但不知道参数时直接调用 `execution`，无需先列出目录；它是获取参数 schema 和下一步操作的推荐投影。`full` 只用于显式需要 catalog/readiness 诊断的场景；若 `list_skills(detail_level="full")` 已返回参数，则不要再调用。本模式仅返回执行字段、解析后的连接/DB 类型和下一步操作。该工具不会在运行时读取 Skill 文件，也不会暴露原始 SQL 或 mutation Python 源码。MCP 响应只可能包含解析后的 YAML frontmatter 值；YAML 注释和 Markdown 正文仍是开发者文档，不消耗 Agent 上下文。
 
 输入：
 ```json
@@ -1651,7 +1635,7 @@ summary/full 输出中的 `configured_connection_ids` 只表示该 Skill 声明�
 ### 10. `execute_query_skill`（Skills 扩展，可选）
 用途：执行预定义的查询技能，支持参数化 SQL。
 
-**注意：** 需要 `ENABLE_SKILLS=1`。查询 Skills 是经过 review 的 SQL 模板：启动期会做只读/结构性安全校验，运行时仍会针对已解析的目标连接重新检查，包括 per-connection table allowlist。它们不再依赖纯启动期 trust 路径。
+**注意：** 需要 `skills.enabled=true`。查询 Skills 是经过 review 的 SQL 模板：启动期会做只读/结构性安全校验，运行时仍会针对已解析的目标连接重新检查，包括 per-connection table allowlist。它们不再依赖纯启动期 trust 路径。
 
 输入：
 ```json
@@ -1664,7 +1648,7 @@ summary/full 输出中的 `configured_connection_ids` 只表示该 Skill 声明�
 ### 11. `execute_mutation_skill`（Skills 扩展，可选）
 用途：通过两阶段 preview/execute gate 执行预定义的写操作技能。
 
-**注意：** 需要 `ENABLE_SKILLS=1` 和 `SKILLS_ALLOW_MUTATIONS=1`。遵循 validate → preview → execute 模式。
+**注意：** 需要 `skills.enabled=true` 和 `skills.mutation.enabled=true`。遵循 validate → preview → execute 模式。
 
 输入：
 ```json
@@ -1710,13 +1694,34 @@ sandbox。MCP 会直接调用基类 wrapper，因此 discovery 后替换子类�
 处理中状态、保留期和 terminal-not-found 语义。暂缓设计的触发条件统一登记在
 DRR-2026-061，不另建推测性计划文档。
 
-### Skills 扩展详解（v3.0）
+### 12. `request_mutation_approval`（可选 MRTR 审批）
+
+用途：为托管单语句 Mutation 准备不可变提案，通过可信 Host 收集批准，并在有效续接时执行一次。
+
+**条件**：`skills.mutation.mrtr.enabled=true`、Skills 与写入均启用、完整目标授权、MCP `2026-07-28` 与客户端 form elicitation。默认不注册；旧协议或命令式 Skill 会明确拒绝，既有 preview/execute 工具保留。
+
+输入：
+```json
+{
+  "skill_name": "sample-update-order-status",
+  "params": {"order_id": 42, "new_status": "shipped"},
+  "connection_id": "analytics_demo_sqlite"
+}
+```
+
+首轮返回 `InputRequiredResult`，展示目标、Skill、规范化参数、SQL、绑定值和有效期限，不执行托管写入。Host 通过框架处理 input responses 与密封 request_state；模型无需复制原始令牌。服务端保存同一审阅快照（最多 64 KiB），缺回答时重发，不能重跑 preview 后沿用旧批准。
+
+只有有效 accept 且布尔 `approve=true` 才进入共享执行边界。拒绝或取消关闭提案；原期限、绑定和原子单次消费继续生效。等待不占事务或行锁，重复续接不能授权第二次执行。消费后异常不恢复令牌；丢失响应或找不到状态不意味着“之前没有执行”。最终仍检查 `success` 和 `execution_outcome`，未知写入不得自动重试。
+
+这验证了可信 Host 的批准消息与提案绑定，并不独立认证真实人类。参考 Host 的 `--flow mrtr` 与协议测试已经覆盖；具体 Codex/Copilot 的验收限制见 [实测记录](docs/validation/V3_8_VALIDATION_ZH.md)。
+
+### Skills 扩展详解（始于 v3.0）
 
 Skills（技能）是预定义的、参数化的 SQL 操作，封装了常见的业务查询和数据变更逻辑。与核心工具 `query()` 允许 Agent 自由编写 SQL 不同，Skills 提供经过代码审查的 SQL 模板，Agent 只需传入参数即可执行，无需（也无法）自行编写 SQL。
 
 **为什么需要 Skills？**
 - **降低出错概率**：复杂的多表 JOIN、聚合查询容易出错，预定义模板确保 SQL 正确性
-- **安全写操作**：核心工具仅支持只读查询（SELECT），Skills 通过服务端强制的 preview/token gate 和 best-effort 审计元数据支持写操作；可选 host-side 批准是 v3.7 独立客户端流程
+- **安全写操作**：核心工具仅支持只读查询（SELECT），Skills 通过服务端强制的 preview/token gate 和 best-effort 审计元数据支持写操作；可信 Host 可通过保留的 preview 流程或可选 v3.8 MRTR 收集批准
 - **效率提升**：Agent 无需多轮探索表结构再编写 SQL，一步调用即可完成
 - **可扩展**：开发者可以根据业务需求自行添加新的 Skill
 
@@ -1767,7 +1772,7 @@ ORDER BY date ASC
 {"skill_name": "sample-monthly-sales-report", "params": {"year": 2026, "month": 1}}
 ```
 
-**工作原理**：服务器启动时，`skill_loader.py` 扫描 `skills/` 目录，解析 `skill_def.md` 的 YAML frontmatter，读取 `source` 字段声明的源文件，并通过 `is_sql_safe()` 进行安全检查。运行时，Agent 传入参数 `year` 和 `month`，服务器通过 SQLAlchemy 的参数化绑定（`:year`、`:month`）安全地执行查询，防止 SQL 注入。
+**工作原理**：服务器启动时，`sql_safety_executor.skills.catalog.SkillCatalog` 扫描 `skills/` 目录，解析 `skill_def.md` 的 YAML frontmatter，读取 `source` 字段声明的源文件，并通过 `is_sql_safe()` 进行安全检查。运行时，Agent 传入参数 `year` 和 `month`，服务器通过 SQLAlchemy 的参数化绑定（`:year`、`:month`）安全地执行查询，防止 SQL 注入。
 
 #### SQLite 对应版本：`sample-monthly-sales-report-sqlite`
 
@@ -1803,7 +1808,7 @@ GROUP BY date(order_date)
 ORDER BY date ASC
 ```
 
-仓库内置的 `sample-monthly-sales-report`、`sample-monthly-sales-report-sqlite`、`sample-update-order-status` 和 `sample-reset-order-to-pending` 都标记为 `profiles: [demo]`，因为它们依赖 demo `orders` schema。开启 `SKILLS_CHECK_SCHEMA_ON_LIST=1` 时，如果目标连接没有所需表，或数据库 metadata 不可用而无法验证 readiness，`available_only=true` 都会默认隐藏这些 Skill。方言相关 query SQL 保持为独立 Skill，跨数据库 mutation 则显式声明两种受支持类型；这能保持启动期校验简单，并让 `available_only` 对 Agent 的过滤结果更加确定。
+仓库内置的 `sample-monthly-sales-report`、`sample-monthly-sales-report-sqlite`、`sample-update-order-status` 和 `sample-reset-order-to-pending` 都标记为 `profiles: [demo]`，因为它们依赖 demo `orders` schema。开启 `skills.readiness.check_schema=true` 时，如果目标连接没有所需表，或数据库 metadata 不可用而无法验证 readiness，`available_only=true` 都会默认隐藏这些 Skill。方言相关 query SQL 保持为独立 Skill，跨数据库 mutation 则显式声明两种受支持类型；这能保持启动期校验简单，并让 `available_only` 对 Agent 的过滤结果更加确定。
 
 #### 示例 2：`sample-update-order-status`（写操作技能）
 
@@ -1867,7 +1872,7 @@ Handle 只能使用一次：execute 会在命令式动态 validation 或受管/�
 原子匹配并消费 record；若此后 validation、数据库、timeout、audit 或响应失败使结果不确定，调用方
 必须先核查当前业务状态，再决定是否进行新的 preview/mutation，不能盲目重试。
 静态 request/policy 拒绝或 request-binding 不匹配不会消耗有效 record。默认有效期
-为 `MUTATION_PREVIEW_TOKEN_TTL_SECONDS=300`，有效范围是 `1-86400` 秒。进程内
+为 `skills.mutation.preview.ttl_seconds=300`，有效范围是 `1-86400` 秒。进程内
 memory store 在重启时丢失全部未消费 handle。Preview 与 execute 必须到达同一
 进程；跨 worker/跨副本 mutation 不受支持，且绝不会开放 stateless token acceptance。
 
@@ -1927,23 +1932,22 @@ preview，并优先为每个 live-test 场景启动新的 stdio server 进程。
 
 仓库示例统一使用保留前缀 `sample-`。自定义 Skill 请使用不带此前缀的目录，
 例如 `skills/my-report/`。Git 默认忽略 `skills/` 的直接子目录，仅放行
-`.gitignore` 中明确列出的四个内置示例目录和框架目录 `_lib/`。
+`.gitignore` 中明确列出的四个内置示例目录；框架 SDK 已移入安装包。
 新建的 `sample-*` 目录也会被忽略；新增内置示例时需同步更新 `.gitignore`。
 目录名仍须与 frontmatter 的 `name` 一致。
 此前缀仅用于仓库命名与版本管理，不授予执行权限或受管计划资格；元数据/路径校验、
 Mutation 开关、连接白名单和受管计划校验仍然生效。
 
-`skills/SKILLS.md` 是启动时生成的本地清单，`skills/_audit.jsonl` 是默认审计输出，
-两者均不再纳入版本控制；共享示例说明保留在本文和各示例的 `skill_def.md` 中。
+`skills/SKILLS.md` 是可显式导出的本地清单，v3.8 服务启动不自动写出；旧 `skills/_audit.jsonl` 仍被忽略，当前默认审计路径由 skills.toml 所在目录解析为 `../logs/skill_audit.jsonl`。共享示例说明保留在本文和各示例的 `skill_def.md` 中。
 `.gitignore` 不会自动停止跟踪已有自定义文件；可使用
 `git rm --cached -r -- skills/my-report/` 将已有目录移出索引，同时保留本地文件。
-若配置其它项目内 `SKILLS_DIR` 或审计路径，需要为这些路径补充忽略规则。
-现有配置升级请参阅[名称迁移表](RELEASE_NOTES/RELEASE_NOTES_v3_7.md#sample-skill-names-and-local-files)。
+若配置其它可信 `skills.directory` 或审计路径，需要为这些路径补充忽略规则。
+现有配置升级请参阅[名称迁移表](docs/releases/RELEASE_NOTES_v3_7.md#sample-skill-names-and-local-files)。
 
 部署或重启服务前，应审核自定义 Skill 的所有文件及其依赖。Git 忽略规则不影响
-发现流程，也不提供执行隔离：`SKILLS_ALLOW_MUTATIONS=1` 时 mutation 模块会在 discovery 阶段导入，
+发现流程，也不提供执行隔离：`skills.mutation.enabled=true` 时 mutation 模块会在 discovery 阶段导入，
 执行模块顶层的 Python 代码。数据库账号应遵循最小权限原则，并将实际 Skill
-目录与连接策略一起审核，详见[技能安全规范](skills/SAFETY.md#11-mutationpy-execution-constraints)。
+目录与连接策略一起审核，详见[技能安全规范](docs/security/SAFETY.md#11-mutationpy-execution-constraints)。
 
 **查询技能**（只读）：
 1. 在 `skills/` 下创建目录，如 `skills/my-report/`
@@ -1958,6 +1962,17 @@ Mutation 开关、连接白名单和受管计划校验仍然生效。
 3. 编写对应的 `.sql` 文件（使用 `:param_name` 作为参数占位符），文件名须与 `source` 字段一致
 4. 重启服务即可自动发现和注册
 
+v3.8 扩展从安装包导入 SDK，不再向 `sys.path` 注入 `skills/_lib`：
+
+```python
+from sql_safety_executor.skills import (
+    ManagedMutationBase, ManagedMutationPlan, ManagedMutationValue,
+    MutationBase, OperationError,
+)
+```
+
+业务错误使用 `OperationError`，由 MCP 边界转换；完整导入迁移表见 [配置指南](docs/guides/CONFIGURATION_ZH.md#扩展导入与切换)。外部目录必须显式配置且可信，定义/源码解析后仍需留在目录内；这些检查不构成 Python 沙箱。
+
 **写操作技能**（mutation）：
 1. 同上创建目录和 `skill_def.md`（`type: mutation`），须包含 `source` 字段指向 Python 文件（如 `source: mutation.py`）
 2. 优先编写继承 `ManagedMutationBase` 的具体 `Mutation` 类，声明不可变
@@ -1966,14 +1981,14 @@ Mutation 开关、连接白名单和受管计划校验仍然生效。
    `build_execution_binding()` 仅服务 preview；所有可变条件都必须进入 SQL 谓词。
    受管 `preview()` 只返回业务说明、warnings 和状态，删除自行生成的
    `preview_sql`、`bound_params`；框架负责生成，并在 token 签发前拒绝未解析的 SQL/
-   结果值。[结果保留字段清单](skills/SAFETY.md#11-mutationpy-execution-constraints)
+   结果值。[结果保留字段清单](docs/security/SAFETY.md#11-mutationpy-execution-constraints)
 3. 只有无法用一条语句表达、且经过信任审查的工作流才使用 `MutationBase`。实现
    `validate()`、`preview()`、`execute()`，需要时再实现 binding 方法；整个操作始终
    返回 `execution_outcome=unknown`
 4. 不要覆盖 `run_execute()`，也不要通过中间自定义父类替换；它是命令式路径的框架包装器
 5. 删除 `exact_transaction_outcome`；discovery 会拒绝这个旧标志。受管资格来自已
    校验的 plan 类型，不来自 Skill 名称、文件路径、布尔声明或 Python 返回对象
-6. 设置 `ENABLE_SKILLS=1` 和 `SKILLS_ALLOW_MUTATIONS=1`，确保数据库账号具备所需写入权限。若配置 `SKILLS_ALLOW_MUTATION_CONNECTIONS` 启用严格模式，目标连接必须在该列表中，且设置 `DB_<ID>_ALLOW_MUTATIONS=1`，并将该 Skill 名称加入 `DB_<ID>_MUTATION_SKILLS`。未启用严格模式时，写操作仍限于默认连接
+6. 设置 `skills.enabled=true` 和 `skills.mutation.enabled=true`，将目标加入 `skills.mutation.allowed_connections`，再在该连接设置 `mutation.enabled=true` 并将 Skill 名称加入 `mutation.skills`。所有条件都必须满足，包括默认连接；数据库账户也须具备对应权限。
 7. 审核 Skill 代码与连接策略后，重启服务
 
 > **关于 `source` 字段**：`source` 是必填字段，显式声明技能定义文件（`skill_def.md`）与执行文件的关联。
@@ -1981,7 +1996,7 @@ Mutation 开关、连接白名单和受管计划校验仍然生效。
 > npm（`package.json` 的 `main` 字段）等行业标准一致。
 > `source` 文件名会经过安全校验：禁止路径遍历、后缀须匹配 `type`（query→`.sql`, mutation→`.py`）。
 
-详细规范请参阅 [MCP_AGENTS_SKILLS_DESIGN.md](MCP_AGENTS_SKILLS_DESIGN.md) 和 [skills/SAFETY.md](skills/SAFETY.md)。
+设计背景请参阅 [MCP_AGENTS_SKILLS_DESIGN.md](docs/architecture/MCP_AGENTS_SKILLS_DESIGN.md) 和[历史 Skills 安全策略](docs/security/SAFETY.md)。当前部署与扩展契约以 [v3.8 配置指南](docs/guides/CONFIGURATION_ZH.md)及[安全边界](docs/security/V3_8_SECURITY.md)为准。
 
 #### Skills 设计架构
 
@@ -2001,9 +2016,9 @@ flowchart LR
         S1["扫描 skills/ 目录"]
         S2["解析 YAML frontmatter"]
         S3["SQL 安全校验\nis_sql_safe()"]
-        S4["导入 Mutation 类\nimportlib.util"]
-        S5["写入内存缓存\n_skills_cache"]
-        S6["生成 SKILLS.md"]
+        S4["写入启用时导入 Mutation 类\nimportlib.util"]
+        S5["写入实例目录快照\nSkillCatalog"]
+        S6["可选导出清单"]
     end
 
     subgraph Runtime["阶段 3: 运行时 — Agent 交互"]
@@ -2019,7 +2034,7 @@ flowchart LR
     S1 --> S2 --> S3 & S4
     S3 --> S5
     S4 --> S5
-    S5 --> S6
+    S5 -.-> S6
     S5 -.->|"内存缓存"| R1 & R2 & R3 & R4
 ```
 
@@ -2037,7 +2052,7 @@ sequenceDiagram
     participant Agent
     participant MCP as MCP Server
     participant Mutation as MutationBase
-    participant Adapter as db_adapter
+    participant Adapter as DatabaseAdapter
     participant Audit as AuditLogger
     participant DB as Database
 
@@ -2076,7 +2091,7 @@ sequenceDiagram
 
 `skill_def.md` 采用 YAML frontmatter + Markdown body 的分层设计，服务于不同的受众：
 
-- **YAML frontmatter**（上半部分）：由 `skill_loader.py` 在服务启动时机器解析，提取 `name`、`type`、`params` 等结构化字段用于注册和校验。Agent 通过 `list_skills()` 和 `get_skill_detail()` 获取这些元数据（经过格式化），而非直接读取文件。
+- **YAML frontmatter**（上半部分）：由 `sql_safety_executor.skills.catalog.SkillCatalog` 在服务启动时机器解析，提取 `name`、`type`、`params` 等结构化字段用于注册和校验。Agent 通过 `list_skills()` 和 `get_skill_detail()` 获取这些元数据（经过格式化），而非直接读取文件。
 - **Markdown body**（下半部分）：面向开发者的自然语言文档（使用说明、工作流提示、注意事项等）。**不会发送给 Agent**——这是与标准 Agent Skills 的关键差异：标准 SKILL.md 的 body 是给 Agent 读的指令，而本项目的 body 是给人读的文档。
 - **参数约束声明**：`type`/`min`/`max`/`enum` 在 YAML 中声明，由 `validate_params()` 统一执行。Skill 作者无需在代码中重复实现验证逻辑。
 
@@ -2123,75 +2138,74 @@ execute_query_skill("sample-monthly-sales-report", {"year": 2026, "month": 1})
 | *"Validate all inputs"* | [MCP 规范 §7 — 安全](https://modelcontextprotocol.io/specification/2025-03-26/basic/security) | Skills 执行调用校验 skill 名称和参数；基础工具使用 SQL/table 专用校验 |
 | 参数化查询 | [OWASP — SQL 注入防护](https://cheatsheetseries.owasp.org/cheatsheets/SQL_Injection_Prevention_Cheat_Sheet.html) | SQLAlchemy `text()` + 参数绑定，零字符串拼接 |
 
-完整设计详情、执行流程图和行业最佳实践对齐分析，请参阅 [MCP_AGENTS_SKILLS_DESIGN.md](MCP_AGENTS_SKILLS_DESIGN.md)。
+完整设计详情、执行流程图和行业最佳实践对齐分析，请参阅 [MCP_AGENTS_SKILLS_DESIGN.md](docs/architecture/MCP_AGENTS_SKILLS_DESIGN.md)。
 
 
 ## 依赖要求
 
-- Python 3.12+
-- MySQL 或 SQLite 数据库
-- 依赖：`sqlparse`、`SQLAlchemy>=2.0`、`PyMySQL`、`fastMCP`、`python-dotenv>=1.2.0`、`pyyaml`
+- Python 3.12+，MySQL 或 SQLite 数据库。
+- FastMCP 4.0.10 / MCP SDK 2.2.0；SQLAlchemy、sqlparse、PyMySQL、Pydantic 和 PyYAML 等依赖由 `pyproject.toml` 管理、`uv.lock` 锁定。
+- AutoGen 示例采用独立环境，不进入核心运行依赖。间接依赖中可能存在 python-dotenv，不代表项目继续支持旧配置。
 
 ## 测试
 
-默认 pytest 套件是 hermetic 的，并通过 `pytest.ini` 限定为只收集 `tests/`。
-`tests/conftest.py` 会在应用模块导入前禁用 `python-dotenv`，并设置安全的
-SQLite、policy、Skills 和 telemetry 默认值，因此本地 `.env` 不能把测试重定向到
-live database。可选 MySQL integration fixture 还要求显式设置
-`RUN_MYSQL_INTEGRATION_TESTS=1`，并在进程环境中导出 MySQL 凭据；`.env` 仍不会加载：
+默认 pytest 通过 `pyproject.toml` 只收集 `tests/`，使用隔离的临时配置和 SQLite fixture，不加载本地 `.env`。可选 MySQL 集成检查需显式设置 `RUN_MYSQL_INTEGRATION_TESTS=1` 并导出测试凭据；这只是测试夹具接口，不是服务端环境配置回退。
 
 ```bash
-python -m pytest -q
+uv run pytest -q -rs
+uv run pyright
+uv build
 ```
 
-根目录 smoke 脚本是 manual/live 检查。只应在安全的开发库或 fixture 库上运行，因为它们会连接当前配置的数据库，并可能打印表元数据或 sampled rows。
+v3.8 实测：744 passed、4 skipped；类型检查无错误，wheel 在独立环境、仓库外 cwd 加载提示词并完成新旧协议查询。四项 MySQL 实库检查未启用。CI 已配置这些步骤，尚未推送触发；实际 Host 的通过/限制分别记入[验收文档](docs/validation/V3_8_VALIDATION_ZH.md)。
+
+后续[本地实测与原生重连测试](docs/validation/V3_8_LIVE_REVIEW_2026_09_26_ZH.md)验证了 MySQL 连通/基础读取及原生 SQLite 预览、执行和补偿。三个隔离上下文 GPT-6 Luna 各完成六轮任务（共 22 次调用，未观察到误访问）；主持者写入试验的夹具已恢复。这与四项跳过的 MySQL 集成测试分别记录，不代表原生 MRTR、人工审批 UI 或 MySQL 写入已通过。原生子代理未暴露 usage/协商协议，不据此推算费用或协议版本。
 
 ### 测试脚本
 
-该项目包括两个互补的测试脚本：
+#### 1. `scripts/query.py` — 核心查询检查
 
-#### 1. `test_mcp_functions.py` - 内部函数测试
-直接测试底层函数，不通过 MCP 协议：
+通过与 MCP 相同的完整读取策略执行查询，并实际连接所选数据库；仅在适当的测试目标运行：
+
 ```bash
-python test_mcp_functions.py
+uv run python scripts/query.py --config config/examples/sqlite/server.toml \
+  --connection-id demo 'SELECT 1 AS value'
 ```
 
-此脚本验证：
-- SQL 验证逻辑（安全和不安全的查询）
-- 数据库连接
-- 查询执行
-- 模式内省（如果启用）
-- 示例数据检索（如果启用）
+#### 2. `scripts/inspect_mcp.py` — MCP 协议检查
 
-#### 2. `test_mcp_client.py` - MCP 协议测试
-使用 FastMCP Client 通过 MCP 协议测试服务器：
+启动新 stdio 子进程，展示协商协议、工具定义、instructions 和配置连接，不主动执行数据库探测或业务查询：
+
 ```bash
-python test_mcp_client.py
+uv run python scripts/inspect_mcp.py --config config/examples/sqlite/server.toml --mode auto
+uv run python scripts/inspect_mcp.py --config config/examples/sqlite/server.toml --mode legacy
 ```
 
-此脚本：
-- 使用 FastMCP 的 `Client` API 连接到 MCP 服务器
-- 测试服务器信息和数据库连接
-- 执行多个 SQL 查询（列出表、SELECT、COUNT）
-- 测试可选的模式工具（如果启用）
-- 验证数据序列化格式
+启动仍会加载已启用的可信 Skill。仅需离线检查时使用 `config check/explain`；`scripts/check_prompt_contract.py` 可检查已安装提示词。详情见[客户端指南](docs/guides/TEST_MCP_CLIENT_GUIDE.md)。
 
 ## 本项目的其它文档
 
-- [Skills 设计文档](MCP_AGENTS_SKILLS_DESIGN.md)：v3.0 Skills 扩展层架构和设计决策
-- [Skills 安全策略](skills/SAFETY.md)：面向技能作者的安全治理
-- [v3.5-v3.7 命名连接、Skills 与批准流程说明](RELEASE_NOTES/GUIDE/V3_5-V3_7_SKILLS_GUIDE_ZH.md)：解释命名连接、Mutation 写策略、preview-token、Skill 连接范围、单 mutation worker 与批准边界
-- [v3.5 发布说明](RELEASE_NOTES/RELEASE_NOTES_v3_5.md)：命名多连接版本摘要、兼容性、限制和验证证据
-- [v3.6/v3.6.1 发布说明](RELEASE_NOTES/RELEASE_NOTES_v3_6.md)：Mutation preview-token、命名写策略、execution binding 修复与同进程部署边界定稿
-- [v3.7/v3.7.3 发布说明](RELEASE_NOTES/RELEASE_NOTES_v3_7.md)：v3.7 能力、事务结论及当前连接路由/工具契约修正
-- [设计风险登记表](DESIGN_RISK_REGISTER_ZH.md)：长期维护的设计、安全与运维风险登记
-- [可行性分析](LLM_TO_MCP_FEASIBILITY_ANALYSIS.md)：LLM 到 MCP 转换的详细分析
+- [配置示例说明](config/examples/README_ZH.md)：SQLite、MySQL、多连接与受控写入
+- [v3.8 配置与迁移](docs/guides/CONFIGURATION_ZH.md)：三文件 TOML、权限变化、SDK 导入与部署切换
+- [v3.8 实施决策](docs/architecture/V3_8_IMPLEMENTATION_ZH.md)：包结构、状态归属及参考稿评审
+- [v3.8 安全边界](docs/security/V3_8_SECURITY.md)：可信 Python/Host、MRTR、审计与未知结果
+- [v3.8 发布说明](docs/releases/RELEASE_NOTES_v3_8.md)及[验收记录](docs/validation/V3_8_VALIDATION_ZH.md)
+- [文档索引](docs/README_ZH.md)：区分当前契约与历史资料
+
+- [Skills 设计文档](docs/architecture/MCP_AGENTS_SKILLS_DESIGN.md)：v3.0 Skills 扩展层架构和设计决策
+- [历史 Skills 安全策略](docs/security/SAFETY.md)：旧版安全治理说明；当前边界以上方 v3.8 文档为准
+- [v3.5-v3.7 命名连接、Skills 与批准流程说明](docs/guides/V3_5-V3_7_SKILLS_GUIDE_ZH.md)：解释命名连接、Mutation 写策略、preview-token、Skill 连接范围、单 mutation worker 与批准边界
+- [v3.5 发布说明](docs/releases/RELEASE_NOTES_v3_5.md)：命名多连接版本摘要、兼容性、限制和验证证据
+- [v3.6/v3.6.1 发布说明](docs/releases/RELEASE_NOTES_v3_6.md)：Mutation preview-token、命名写策略、execution binding 修复与同进程部署边界定稿
+- [v3.7/v3.7.3 发布说明](docs/releases/RELEASE_NOTES_v3_7.md)：v3.7 能力、事务结论及当前连接路由/工具契约修正
+- [设计风险登记表](docs/security/DESIGN_RISK_REGISTER_ZH.md)：长期维护的设计、安全与运维风险登记
+- [可行性分析](docs/architecture/LLM_TO_MCP_FEASIBILITY_ANALYSIS.md)：LLM 到 MCP 转换的详细分析
 - [原始上下文](GEMINI.md)：项目背景和开发指南
-- [重构日志](REFACTORING_LOG.md)：重构变更文档（v2.0 — v3.7.3）
-- [MCP 客户端测试指南](TEST_MCP_CLIENT_GUIDE.md)：通过客户端测试 MCP 服务器的指南
-- [MCP Agent 编排行为验证方法](RELEASE_NOTES/GUIDE/MCP_AGENT_BEHAVIOR_VALIDATION_ZH.md)：验证 Agent 自然工具选择、重复调用、连接路由和渐进披露效果
-- [MCP 工具契约与评测指南](PROMPT_ENGINEERING_BEST_PRACTICES.md)：面向本项目的工具 schema、描述、instructions、安全边界与评测指南
-- [Agent 示例开发日志](agent_examples/AGENT_DEVELOPMENT_ZH.md)：AutoGen 多智能体示例的设计与决策
+- [重构日志](REFACTORING_LOG_ZH.md)：持续维护重构决策与验证记录（v2.0 — v3.8）
+- [MCP 客户端测试指南](docs/guides/TEST_MCP_CLIENT_GUIDE.md)：通过客户端测试 MCP 服务器的指南
+- [MCP Agent 编排行为验证方法](docs/guides/MCP_AGENT_BEHAVIOR_VALIDATION_ZH.md)：验证 Agent 自然工具选择、重复调用、连接路由和渐进披露效果
+- [MCP 工具契约与评测指南](docs/guides/PROMPT_ENGINEERING_BEST_PRACTICES.md)：面向本项目的工具 schema、描述、instructions、安全边界与评测指南
+- [Agent 示例开发日志](examples/autogen/AGENT_DEVELOPMENT_ZH.md)：AutoGen 多智能体示例的设计与决策
 
 ## 贡献
 

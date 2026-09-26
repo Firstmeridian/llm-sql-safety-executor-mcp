@@ -15,16 +15,11 @@ Usage:
     pytest tests/test_skill_loader.py -v
 """
 
-import os
-import sys
 import pytest
 import logging
 from pathlib import Path
-from unittest.mock import patch
 
 # Add project root and _lib to path
-sys.path.insert(0, str(Path(__file__).parent.parent))
-sys.path.insert(0, str(Path(__file__).parent.parent / "skills" / "_lib"))
 
 
 # =============================================================================
@@ -34,12 +29,10 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "skills" / "_lib"))
 @pytest.fixture(autouse=True)
 def reset_skill_cache():
     """Reset the module-level skill cache before each test."""
-    import skill_loader
-    skill_loader._skills_cache = {}
-    skill_loader._skills_dir = None
+    from tests import support_catalog as skill_loader
+    skill_loader.reset()
     yield
-    skill_loader._skills_cache = {}
-    skill_loader._skills_dir = None
+    skill_loader.reset()
 
 
 @pytest.fixture
@@ -100,7 +93,7 @@ def skills_dir(tmp_path):
         encoding="utf-8",
     )
     (m_dir / "mutation.py").write_text(
-        "from mutation_base import MutationBase\n\n"
+        "from sql_safety_executor.skills.mutation import MutationBase\n\n"
         "class Mutation(MutationBase):\n"
         "    def validate(self, params): return {'valid': True}\n"
         "    def preview(self, params): return {'preview_sql': 'UPDATE ...'}\n"
@@ -118,7 +111,7 @@ def skills_dir(tmp_path):
 @pytest.fixture
 def discovered_skills(skills_dir):
     """Run discover() and return the results."""
-    from skill_loader import discover
+    from tests.support_catalog import discover
     return discover(skills_dir)
 
 
@@ -151,7 +144,7 @@ class TestValidateName:
 
     def test_valid_names(self):
         """Valid names pass regex validation."""
-        from skill_loader import validate_name
+        from tests.support_catalog import validate_name
 
         valid_names = [
             "my-skill-1",
@@ -166,49 +159,49 @@ class TestValidateName:
 
     def test_path_traversal_rejected(self):
         """#5: Path traversal attempts are rejected."""
-        from skill_loader import validate_name
+        from tests.support_catalog import validate_name
 
         with pytest.raises(ValueError, match="Invalid skill name"):
             validate_name("../../../etc/passwd")
 
     def test_uppercase_rejected(self):
-        from skill_loader import validate_name
+        from tests.support_catalog import validate_name
 
         with pytest.raises(ValueError, match="Invalid skill name"):
             validate_name("MySkill")
 
     def test_underscore_rejected(self):
-        from skill_loader import validate_name
+        from tests.support_catalog import validate_name
 
         with pytest.raises(ValueError, match="Invalid skill name"):
             validate_name("my_skill")
 
     def test_empty_rejected(self):
-        from skill_loader import validate_name
+        from tests.support_catalog import validate_name
 
         with pytest.raises(ValueError):
             validate_name("")
 
     def test_too_long_rejected(self):
-        from skill_loader import validate_name
+        from tests.support_catalog import validate_name
 
         with pytest.raises(ValueError):
             validate_name("a" * 65)
 
     def test_starts_with_hyphen_rejected(self):
-        from skill_loader import validate_name
+        from tests.support_catalog import validate_name
 
         with pytest.raises(ValueError, match="Invalid skill name"):
             validate_name("-bad-name")
 
     def test_slash_rejected(self):
-        from skill_loader import validate_name
+        from tests.support_catalog import validate_name
 
         with pytest.raises(ValueError, match="Invalid skill name"):
             validate_name("skill/name")
 
     def test_backslash_rejected(self):
-        from skill_loader import validate_name
+        from tests.support_catalog import validate_name
 
         with pytest.raises(ValueError, match="Invalid skill name"):
             validate_name("skill\\name")
@@ -223,7 +216,7 @@ class TestLoadQuery:
 
     def test_load_skill_success(self, discovered_skills):
         """#3: Successful frontmatter parse + query.sql load."""
-        from skill_loader import load_query
+        from tests.support_catalog import load_query
 
         sql, params = load_query("test-query")
         assert "SELECT" in sql
@@ -233,7 +226,7 @@ class TestLoadQuery:
 
     def test_load_query_returns_cached_sql(self, skills_dir, discovered_skills):
         """#28: load_query() returns cached SQL, not from disk."""
-        from skill_loader import load_query
+        from tests.support_catalog import load_query
 
         # Modify the file on disk — should not affect load_query()
         (skills_dir / "test-query" / "query.sql").write_text(
@@ -248,14 +241,14 @@ class TestLoadQuery:
 
     def test_load_skill_not_found(self, discovered_skills):
         """#4: Non-existent skill returns error."""
-        from skill_loader import load_query
+        from tests.support_catalog import load_query
 
         with pytest.raises(FileNotFoundError, match="not found"):
             load_query("nonexistent-skill")
 
     def test_query_skill_type_mismatch(self, discovered_skills):
         """#22: Calling load_query on a mutation skill raises TypeError."""
-        from skill_loader import load_query
+        from tests.support_catalog import load_query
 
         with pytest.raises(TypeError, match="mutation"):
             load_query("test-mutation")
@@ -271,7 +264,7 @@ class TestValidateParams:
 
     def test_validate_params_valid(self):
         """#6: Valid parameters pass schema validation."""
-        from skill_loader import validate_params
+        from tests.support_catalog import validate_params
 
         schema = {
             "year": {"type": "int", "required": True, "min": 2000, "max": 2100},
@@ -282,7 +275,7 @@ class TestValidateParams:
 
     def test_validate_params_missing_required(self):
         """#7: Missing required parameter raises ValueError."""
-        from skill_loader import validate_params
+        from tests.support_catalog import validate_params
 
         schema = {"year": {"type": "int", "required": True}}
         with pytest.raises(ValueError, match="Missing required"):
@@ -290,7 +283,7 @@ class TestValidateParams:
 
     def test_validate_params_wrong_type(self):
         """#7: Wrong type raises TypeError."""
-        from skill_loader import validate_params
+        from tests.support_catalog import validate_params
 
         schema = {"year": {"type": "int", "required": True}}
         with pytest.raises(TypeError, match="expected type"):
@@ -298,14 +291,14 @@ class TestValidateParams:
 
     def test_validate_params_out_of_range(self):
         """#7: Out-of-range value raises ValueError."""
-        from skill_loader import validate_params
+        from tests.support_catalog import validate_params
 
         schema = {"month": {"type": "int", "required": True, "min": 1, "max": 12}}
         with pytest.raises(ValueError, match="exceeds maximum"):
             validate_params({"month": 13}, schema)
 
     def test_validate_params_below_min(self):
-        from skill_loader import validate_params
+        from tests.support_catalog import validate_params
 
         schema = {"month": {"type": "int", "required": True, "min": 1, "max": 12}}
         with pytest.raises(ValueError, match="below minimum"):
@@ -313,7 +306,7 @@ class TestValidateParams:
 
     def test_validate_params_invalid_enum(self):
         """#7: Non-enum value raises ValueError."""
-        from skill_loader import validate_params
+        from tests.support_catalog import validate_params
 
         schema = {
             "status": {
@@ -326,7 +319,7 @@ class TestValidateParams:
             validate_params({"status": "invalid"}, schema)
 
     def test_validate_params_valid_enum(self):
-        from skill_loader import validate_params
+        from tests.support_catalog import validate_params
 
         schema = {
             "status": {
@@ -340,14 +333,14 @@ class TestValidateParams:
 
     def test_no_params_skill(self):
         """#29: Skill with no params field validates empty dict."""
-        from skill_loader import validate_params
+        from tests.support_catalog import validate_params
 
         result = validate_params({}, {})
         assert result == {}
 
     def test_validate_params_type_coercion(self):
         """String '42' is coerced to int 42."""
-        from skill_loader import validate_params
+        from tests.support_catalog import validate_params
 
         schema = {"year": {"type": "int", "required": True}}
         result = validate_params({"year": "2024"}, schema)
@@ -365,7 +358,7 @@ class TestValidateParams:
     )
     def test_validate_params_bool_accepts_json_literals(self, raw_value, expected):
         """Boolean params accept JSON bools and explicit true/false strings."""
-        from skill_loader import validate_params
+        from tests.support_catalog import validate_params
 
         schema = {"enabled": {"type": "bool", "required": True}}
 
@@ -380,7 +373,7 @@ class TestValidateParams:
     )
     def test_validate_params_bool_rejects_truthy_coercion(self, raw_value):
         """Boolean params should not use Python truthiness coercion."""
-        from skill_loader import validate_params
+        from tests.support_catalog import validate_params
 
         schema = {"enabled": {"type": "bool", "required": True}}
 
@@ -389,7 +382,7 @@ class TestValidateParams:
 
     def test_validate_params_rejects_unknown_schema_type(self):
         """Unknown param type names fail closed instead of passing through."""
-        from skill_loader import validate_params
+        from tests.support_catalog import validate_params
 
         schema = {"starts_on": {"type": "date", "required": True}}
 
@@ -398,7 +391,7 @@ class TestValidateParams:
 
     def test_validate_params_optional_missing(self):
         """Optional parameter not provided is silently skipped."""
-        from skill_loader import validate_params
+        from tests.support_catalog import validate_params
 
         schema = {
             "year": {"type": "int", "required": True},
@@ -409,7 +402,7 @@ class TestValidateParams:
 
     def test_validate_params_rejects_extra_params(self):
         """P2#2: Extra parameters not defined in schema are rejected."""
-        from skill_loader import validate_params
+        from tests.support_catalog import validate_params
 
         schema = {
             "year": {"type": "int", "required": True},
@@ -423,7 +416,7 @@ class TestValidateParams:
 
     def test_validate_params_rejects_multiple_extra(self):
         """Multiple extra parameters are reported."""
-        from skill_loader import validate_params
+        from tests.support_catalog import validate_params
 
         schema = {"year": {"type": "int", "required": True}}
         with pytest.raises(ValueError, match="Unexpected parameter"):
@@ -443,7 +436,7 @@ class TestDiscover:
 
     def test_discover_finds_skills(self, skills_dir):
         """discover() finds and loads valid skills."""
-        from skill_loader import discover
+        from tests.support_catalog import discover
 
         skills = discover(skills_dir)
         assert "test-query" in skills
@@ -457,7 +450,7 @@ class TestDiscover:
 
     def test_skill_enabled_false_skipped(self, tmp_path):
         """#14: enabled: false skill is not in results."""
-        from skill_loader import discover
+        from tests.support_catalog import discover
 
         sd = tmp_path / "skills"
         sd.mkdir()
@@ -485,7 +478,7 @@ class TestDiscover:
     )
     def test_policy_booleans_require_yaml_boolean(self, tmp_path, field):
         """Quoted booleans must not become truthy policy metadata."""
-        from skill_loader import discover
+        from tests.support_catalog import discover
 
         skills_dir = _write_minimal_query_skill(
             tmp_path,
@@ -512,7 +505,7 @@ class TestDiscover:
         self, tmp_path, frontmatter_lines
     ):
         """Catalog fields retain predictable list/string shapes."""
-        from skill_loader import discover
+        from tests.support_catalog import discover
 
         skills_dir = _write_minimal_query_skill(tmp_path, frontmatter_lines)
 
@@ -520,7 +513,7 @@ class TestDiscover:
 
     def test_malformed_skill_md(self, tmp_path):
         """#20: Malformed YAML frontmatter is skipped with error."""
-        from skill_loader import discover
+        from tests.support_catalog import discover
 
         sd = tmp_path / "skills"
         sd.mkdir()
@@ -545,7 +538,7 @@ class TestDiscover:
         self, tmp_path, unknown_field
     ):
         """A scope typo must not silently turn into an unrestricted Skill."""
-        from skill_loader import discover
+        from tests.support_catalog import discover
 
         sd = tmp_path / "skills"
         sd.mkdir()
@@ -566,7 +559,7 @@ class TestDiscover:
         assert "scope-typo" not in discover(sd)
 
     def test_duplicate_frontmatter_key_fails_closed(self, tmp_path):
-        from skill_loader import discover
+        from tests.support_catalog import discover
 
         sd = tmp_path / "skills"
         sd.mkdir()
@@ -589,7 +582,7 @@ class TestDiscover:
 
     def test_malformed_missing_required_field(self, tmp_path):
         """#20: Missing required field (type) is skipped."""
-        from skill_loader import discover
+        from tests.support_catalog import discover
 
         sd = tmp_path / "skills"
         sd.mkdir()
@@ -609,7 +602,7 @@ class TestDiscover:
 
     def test_malformed_missing_name_field(self, tmp_path):
         """skill_def.md without name is skipped at discovery."""
-        from skill_loader import discover
+        from tests.support_catalog import discover
 
         sd = tmp_path / "skills"
         sd.mkdir()
@@ -631,7 +624,7 @@ class TestDiscover:
 
     def test_discover_rejects_frontmatter_name_mismatch(self, tmp_path):
         """frontmatter name must match the skill directory name."""
-        from skill_loader import discover
+        from tests.support_catalog import discover
 
         sd = tmp_path / "skills"
         sd.mkdir()
@@ -655,7 +648,7 @@ class TestDiscover:
 
     def test_discover_rejects_invalid_frontmatter_name(self, tmp_path):
         """frontmatter name must follow the skill-name regex."""
-        from skill_loader import discover
+        from tests.support_catalog import discover
 
         sd = tmp_path / "skills"
         sd.mkdir()
@@ -678,7 +671,7 @@ class TestDiscover:
 
     def test_discover_rejects_unsafe_sql(self, tmp_path):
         """#26: query.sql with DROP TABLE is rejected at startup."""
-        from skill_loader import discover
+        from tests.support_catalog import discover
 
         sd = tmp_path / "skills"
         sd.mkdir()
@@ -704,7 +697,7 @@ class TestDiscover:
 
     def test_discover_uses_custom_query_validator(self, tmp_path):
         """MCP can pass the raw query(sql) policy into skill discovery."""
-        from skill_loader import discover
+        from tests.support_catalog import discover
 
         sd = tmp_path / "skills"
         sd.mkdir()
@@ -730,7 +723,7 @@ class TestDiscover:
 
     def test_discover_rejects_unknown_param_schema_type(self, tmp_path):
         """Unsupported frontmatter param type names are rejected at startup."""
-        from skill_loader import discover
+        from tests.support_catalog import discover
 
         sd = tmp_path / "skills"
         sd.mkdir()
@@ -773,7 +766,7 @@ class TestDiscover:
         self, tmp_path, param_type, constraint
     ):
         """Constraint typos and incompatible values are rejected at startup."""
-        from skill_loader import discover
+        from tests.support_catalog import discover
 
         indented_constraint = constraint.replace("\n", "\n    ")
         skills_dir = _write_minimal_query_skill(
@@ -790,7 +783,7 @@ class TestDiscover:
 
     def test_numeric_and_boolean_param_constraints_are_accepted(self, tmp_path):
         """The lightweight schema accepts valid typed bounds and enums."""
-        from skill_loader import discover
+        from tests.support_catalog import discover
 
         skills_dir = _write_minimal_query_skill(
             tmp_path,
@@ -811,14 +804,14 @@ class TestDiscover:
 
     def test_skills_dir_not_found(self, tmp_path):
         """#23: Non-existent skills dir returns empty, no crash."""
-        from skill_loader import discover
+        from tests.support_catalog import discover
 
         skills = discover(tmp_path / "nonexistent")
         assert skills == {}
 
     def test_related_skills_warning(self, tmp_path, caplog):
         """#16: related_skills referencing non-existent skill logs warning."""
-        from skill_loader import discover
+        from tests.support_catalog import discover
 
         sd = tmp_path / "skills"
         sd.mkdir()
@@ -860,7 +853,7 @@ class TestGenerateSkillsMd:
 
     def test_generate_skills_md(self, skills_dir, discovered_skills):
         """#25: SKILLS.md contains all enabled skill names and descriptions."""
-        from skill_loader import generate_skills_md
+        from tests.support_catalog import generate_skills_md
 
         output = skills_dir / "SKILLS.md"
         generate_skills_md(discovered_skills, output)
@@ -883,7 +876,7 @@ class TestLoadMutation:
 
     def test_mutation_missing_mutation_class(self, tmp_path):
         """#21: mutation.py without Mutation class — skill excluded at discover()."""
-        from skill_loader import discover
+        from tests.support_catalog import discover
 
         sd = tmp_path / "skills"
         sd.mkdir()
@@ -910,7 +903,7 @@ class TestLoadMutation:
 
     def test_mutation_import_error(self, tmp_path):
         """#30: mutation.py with import error — skill excluded at discover()."""
-        from skill_loader import discover
+        from tests.support_catalog import discover
 
         sd = tmp_path / "skills"
         sd.mkdir()
@@ -937,7 +930,7 @@ class TestLoadMutation:
 
     def test_mutation_export_must_be_class(self, tmp_path):
         """mutation.py Mutation export must be a class, not any attribute."""
-        from skill_loader import discover
+        from tests.support_catalog import discover
 
         sd = tmp_path / "skills"
         sd.mkdir()
@@ -963,7 +956,7 @@ class TestLoadMutation:
 
     def test_mutation_class_must_subclass_base(self, tmp_path):
         """mutation.py Mutation class must inherit MutationBase."""
-        from skill_loader import discover
+        from tests.support_catalog import discover
 
         sd = tmp_path / "skills"
         sd.mkdir()
@@ -990,7 +983,7 @@ class TestLoadMutation:
 
     def test_mutation_class_must_be_concrete(self, tmp_path):
         """MutationBase subclasses missing abstract methods are rejected."""
-        from skill_loader import discover
+        from tests.support_catalog import discover
 
         sd = tmp_path / "skills"
         sd.mkdir()
@@ -1007,7 +1000,7 @@ class TestLoadMutation:
             encoding="utf-8",
         )
         (m / "mutation.py").write_text(
-            "from mutation_base import MutationBase\n\n"
+            "from sql_safety_executor.skills.mutation import MutationBase\n\n"
             "class Mutation(MutationBase):\n"
             "    def validate(self, params): return {'valid': True}\n"
             "    def preview(self, params): return {'preview_sql': 'UPDATE ...'}\n",
@@ -1021,7 +1014,7 @@ class TestLoadMutation:
         "source",
         [
             (
-                "from mutation_base import MutationBase\n\n"
+                "from sql_safety_executor.skills.mutation import MutationBase\n\n"
                 "class Mutation(MutationBase):\n"
                 "    def validate(self, params): return {'valid': True}\n"
                 "    def preview(self, params): return {}\n"
@@ -1030,7 +1023,7 @@ class TestLoadMutation:
                 "        return self.execute(args[0])\n"
             ),
             (
-                "from mutation_base import MutationBase\n\n"
+                "from sql_safety_executor.skills.mutation import MutationBase\n\n"
                 "class UnsafeMutationBase(MutationBase):\n"
                 "    def run_execute(self, *args, **kwargs):\n"
                 "        return self.execute(args[0])\n\n"
@@ -1048,7 +1041,7 @@ class TestLoadMutation:
         source,
     ):
         """Direct and intermediate-base wrapper overrides fail at load time."""
-        from skill_loader import _load_mutation_class
+        from tests.support_catalog import _load_mutation_class
 
         mutation_path = tmp_path / "mutation.py"
         mutation_path.write_text(source, encoding="utf-8")
@@ -1064,18 +1057,18 @@ class TestLoadMutation:
 
     def test_framework_run_execute_is_marked_final(self):
         """Type checkers receive the same framework-owned contract as the loader."""
-        from mutation_base import MutationBase
+        from sql_safety_executor.skills.mutation import MutationBase
 
         assert getattr(MutationBase.run_execute, "__final__", False) is True
 
     @pytest.mark.parametrize("skill_name", ["custom-exact", "sample-custom-exact"])
     def test_removed_exact_declaration_has_managed_migration_error(self, tmp_path, skill_name):
         """The old opt-in flag cannot manufacture a transaction contract."""
-        from skill_loader import _load_mutation_class
+        from tests.support_catalog import _load_mutation_class
 
         mutation_path = tmp_path / "mutation.py"
         mutation_path.write_text(
-            "from mutation_base import MutationBase\n\n"
+            "from sql_safety_executor.skills.mutation import MutationBase\n\n"
             "class Mutation(MutationBase):\n"
             "    exact_transaction_outcome = True\n"
             "    def validate(self, params): return {'valid': True}\n"
@@ -1098,12 +1091,12 @@ class TestLoadMutation:
         self, tmp_path, reserved_name,
     ):
         """Names alone cannot grant whole-Skill transaction evidence."""
-        from skill_loader import _load_mutation_class, discover
+        from tests.support_catalog import _load_mutation_class, discover
 
         mutation_path = tmp_path / reserved_name / "mutation.py"
         mutation_path.parent.mkdir()
         mutation_path.write_text(
-            "from mutation_base import MutationBase\n"
+            "from sql_safety_executor.skills.mutation import MutationBase\n"
             "class Mutation(MutationBase):\n"
             "    exact_transaction_outcome = True\n"
             "    def validate(self, params): return {'valid': True}\n"
@@ -1128,8 +1121,8 @@ class TestLoadMutation:
 
     def test_discovery_caches_managed_plans_without_name_registry(self, tmp_path):
         """Managed eligibility is structural and stored with discovered metadata."""
-        from skill_loader import discover
-        from mutation_base import ManagedMutationBase, ManagedMutationPlan
+        from tests.support_catalog import discover
+        from sql_safety_executor.skills.mutation import ManagedMutationBase, ManagedMutationPlan
 
         bundled = Path(__file__).resolve().parent.parent / "skills"
         original = discover(bundled)
@@ -1165,7 +1158,7 @@ class TestLoadMutation:
         expected_error,
     ):
         """The public discovery/cache path rejects either unsafe declaration."""
-        from skill_loader import discover, get_skills_cache
+        from tests.support_catalog import discover, get_skills_cache
 
         mutation_path = skills_dir / "test-mutation" / "mutation.py"
         mutation_path.write_text(
@@ -1182,14 +1175,14 @@ class TestLoadMutation:
 
     def test_load_mutation_type_mismatch(self, discovered_skills):
         """Calling load_mutation on a query skill raises TypeError."""
-        from skill_loader import load_mutation
+        from tests.support_catalog import load_mutation
 
         with pytest.raises(TypeError, match="query"):
             load_mutation("test-query", None, None)
 
     def test_mutation_class_cached_at_discover(self, skills_dir):
         """P2#1: Mutation class is pre-loaded and cached by discover()."""
-        from skill_loader import discover, get_skills_cache
+        from tests.support_catalog import discover, get_skills_cache
 
         discover(skills_dir)
         cache = get_skills_cache()
@@ -1202,7 +1195,7 @@ class TestLoadMutation:
         tmp_path,
     ):
         """Disabled writes do not execute top-level code from mutation.py."""
-        from skill_loader import discover
+        from tests.support_catalog import discover
 
         skills_dir = tmp_path / "skills"
         skill_dir = skills_dir / "disabled-write"
@@ -1263,7 +1256,7 @@ class TestLoadMutation:
         parameters,
         error,
     ):
-        from skill_loader import discover
+        from tests.support_catalog import discover
 
         skills_dir = tmp_path / "skills"
         skill_dir = skills_dir / "managed-write"
@@ -1280,7 +1273,7 @@ class TestLoadMutation:
             encoding="utf-8",
         )
         (skill_dir / "mutation.py").write_text(
-            "from mutation_base import (ManagedMutationBase, ManagedMutationPlan, "
+            "from sql_safety_executor.skills.mutation import (ManagedMutationBase, ManagedMutationPlan, "
             "ManagedMutationValue)\n"
             "class Mutation(ManagedMutationBase):\n"
             f"    managed_plan = ManagedMutationPlan({sql!r}, {parameters}, 1)\n"
@@ -1296,11 +1289,11 @@ class TestLoadMutation:
         assert error in caplog.text
 
     def test_managed_mutation_cannot_override_execution_callback(self, tmp_path):
-        from skill_loader import _load_mutation_class
+        from tests.support_catalog import _load_mutation_class
 
         mutation_path = tmp_path / "mutation.py"
         mutation_path.write_text(
-            "from mutation_base import (ManagedMutationBase, ManagedMutationPlan)\n"
+            "from sql_safety_executor.skills.mutation import (ManagedMutationBase, ManagedMutationPlan)\n"
             "class Mutation(ManagedMutationBase):\n"
             "    managed_plan = ManagedMutationPlan('DELETE FROM orders', (), 1)\n"
             "    def validate(self, params): return {'valid': True}\n"
@@ -1314,7 +1307,7 @@ class TestLoadMutation:
 
     def test_load_mutation_uses_cached_class(self, discovered_skills):
         """P2#1: load_mutation() instantiates from cache, no disk I/O."""
-        from skill_loader import load_mutation
+        from tests.support_catalog import load_mutation
         from unittest.mock import MagicMock
 
         mock_adapter = MagicMock()
@@ -1337,7 +1330,7 @@ class TestSourceField:
 
     def test_source_missing_rejected(self, tmp_path):
         """skill_def.md without 'source' field is rejected."""
-        from skill_loader import discover
+        from tests.support_catalog import discover
 
         sd = tmp_path / "skills"
         sd.mkdir()
@@ -1359,7 +1352,7 @@ class TestSourceField:
 
     def test_source_path_traversal_rejected(self, tmp_path):
         """source: ../etc/passwd is rejected (path traversal prevention)."""
-        from skill_loader import discover
+        from tests.support_catalog import discover
 
         sd = tmp_path / "skills"
         sd.mkdir()
@@ -1381,7 +1374,7 @@ class TestSourceField:
 
     def test_source_backslash_traversal_rejected(self, tmp_path):
         """source with backslash path separator is rejected."""
-        from skill_loader import discover
+        from tests.support_catalog import discover
 
         sd = tmp_path / "skills"
         sd.mkdir()
@@ -1403,7 +1396,7 @@ class TestSourceField:
 
     def test_source_wrong_suffix_rejected(self, tmp_path):
         """query type with .py suffix is rejected (suffix enforcement)."""
-        from skill_loader import discover
+        from tests.support_catalog import discover
 
         sd = tmp_path / "skills"
         sd.mkdir()
@@ -1425,7 +1418,7 @@ class TestSourceField:
 
     def test_source_mutation_wrong_suffix_rejected(self, tmp_path):
         """mutation type with .sql suffix is rejected."""
-        from skill_loader import discover
+        from tests.support_catalog import discover
 
         sd = tmp_path / "skills"
         sd.mkdir()
@@ -1447,7 +1440,7 @@ class TestSourceField:
 
     def test_source_hidden_file_rejected(self, tmp_path):
         """source: .secret.sql is rejected (hidden file prevention)."""
-        from skill_loader import discover
+        from tests.support_catalog import discover
 
         sd = tmp_path / "skills"
         sd.mkdir()
@@ -1469,7 +1462,7 @@ class TestSourceField:
 
     def test_source_custom_name(self, tmp_path):
         """Custom source filename (e.g. daily-revenue.sql) works correctly."""
-        from skill_loader import discover
+        from tests.support_catalog import discover
 
         sd = tmp_path / "skills"
         sd.mkdir()
@@ -1501,7 +1494,7 @@ class TestSourceField:
     def test_source_symlink_escape_rejected(self, tmp_path):
         """Symlink in skill dir pointing outside is rejected (resolved path check)."""
         import os
-        from skill_loader import discover
+        from tests.support_catalog import discover
 
         sd = tmp_path / "skills"
         sd.mkdir()
@@ -1539,7 +1532,7 @@ class TestDatabasesField:
 
     def test_databases_omitted_means_all(self, tmp_path):
         """skill_def.md without 'databases' field -> databases=None (all compatible)."""
-        from skill_loader import discover
+        from tests.support_catalog import discover
 
         sd = tmp_path / "skills"
         sd.mkdir()
@@ -1563,7 +1556,7 @@ class TestDatabasesField:
 
     def test_databases_single_value(self, tmp_path):
         """databases: [mysql] -> only MySQL supported."""
-        from skill_loader import discover
+        from tests.support_catalog import discover
 
         sd = tmp_path / "skills"
         sd.mkdir()
@@ -1588,7 +1581,7 @@ class TestDatabasesField:
 
     def test_databases_multiple_values(self, tmp_path):
         """databases: [mysql, sqlite] -> both supported."""
-        from skill_loader import discover
+        from tests.support_catalog import discover
 
         sd = tmp_path / "skills"
         sd.mkdir()
@@ -1613,7 +1606,7 @@ class TestDatabasesField:
 
     def test_databases_string_coerced_to_list(self, tmp_path):
         """databases: mysql (scalar string) -> ["mysql"]."""
-        from skill_loader import discover
+        from tests.support_catalog import discover
 
         sd = tmp_path / "skills"
         sd.mkdir()
@@ -1638,7 +1631,7 @@ class TestDatabasesField:
 
     def test_databases_invalid_type_rejected(self, tmp_path):
         """databases: [postgres] -> rejected (not a supported DB type)."""
-        from skill_loader import discover
+        from tests.support_catalog import discover
 
         sd = tmp_path / "skills"
         sd.mkdir()
@@ -1662,7 +1655,7 @@ class TestDatabasesField:
 
     def test_databases_case_insensitive(self, tmp_path):
         """databases: [MySQL] -> normalized to ['mysql']."""
-        from skill_loader import discover
+        from tests.support_catalog import discover
 
         sd = tmp_path / "skills"
         sd.mkdir()
@@ -1687,7 +1680,7 @@ class TestDatabasesField:
 
     def test_databases_empty_list_rejected(self, tmp_path):
         """databases: [] -> rejected (empty list is invalid)."""
-        from skill_loader import discover
+        from tests.support_catalog import discover
 
         sd = tmp_path / "skills"
         sd.mkdir()
@@ -1715,7 +1708,7 @@ class TestConnectionIdsField:
 
     @staticmethod
     def _discover(tmp_path, frontmatter_line: str | None):
-        from skill_loader import discover
+        from tests.support_catalog import discover
 
         skills_dir = tmp_path / "skills"
         skills_dir.mkdir()
@@ -1742,8 +1735,8 @@ class TestConnectionIdsField:
 
     def test_connection_id_grammar_matches_runtime_registry(self):
         """Prevent parser/runtime alias syntax from drifting independently."""
-        import db_adapter
-        import skill_loader
+        from tests import support_adapters as db_adapter
+        from tests import support_catalog as skill_loader
 
         assert (
             skill_loader._CONNECTION_ID_PATTERN.pattern

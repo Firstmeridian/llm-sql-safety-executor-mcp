@@ -1,6 +1,6 @@
 # LLM Database Safety Gateway - MCP Service
 
-![Version](https://img.shields.io/badge/version-3.7.3-blue)
+![Version](https://img.shields.io/badge/version-3.8.0-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Python](https://img.shields.io/badge/python-3.12+-blue?logo=python)
 ![MCP](https://img.shields.io/badge/MCP-Protocol-orange)
@@ -14,7 +14,9 @@ English | [中文](README_ZH.md)
 > [Exposed MCP Tools](#exposed-mcp-tools) | 
 > [AutoGen Multi Agent Example](#autogen-multi-agent-example) | 
 > [Other Documentation](#other-documentation)  
-> [Roadmap](#roadmap) · **v3.0 New Feature:** Skills Extension Layer Support  
+> [Roadmap](#roadmap) · **v3.8 Update:** FastMCP 4, TOML configuration and optional MRTR approval  
+
+> **v3.8 deployment update**: FastMCP 4, explicit three-file TOML, an installed package and instance-owned state; optional managed MRTR is disabled by default. Legacy `.env` configuration and root launch scripts are retired. See [migration](docs/guides/CONFIGURATION_ZH.md), [implementation decisions](docs/architecture/V3_8_IMPLEMENTATION_ZH.md) and [validation scope](docs/validation/V3_8_VALIDATION_ZH.md).
 
 ## introduction
 
@@ -39,7 +41,7 @@ Traditional LLM-database integration faces the following limitations:
 - Enable conservatively filtered SQL query execution for AI models (the MCP
   policy accepts one `SELECT`, `DESCRIBE`, or non-ANALYZE `EXPLAIN`; use schema
   tools instead of raw `SHOW`).
-- Prevent Token Explosion: Result truncation (`MAX_RESULT_ROWS`) + Table count limits (`MAX_OVERVIEW_TABLES`).
+- Prevent Token Explosion: Result truncation (`limits.result_rows`) + Table count limits (`limits.overview_tables`).
 - Provide a standardized MCP interface across different AI platforms.
 - Support ReAct Pattern: Provide table structure information for LLM decision-making.
 - Configurable Security Policies: Allowlists, timeouts, UNION control.
@@ -86,7 +88,7 @@ nested write-DML CTE text, executing `EXPLAIN ANALYZE` forms, and MySQL comment
 forms whose server semantics differ from generic comment stripping. This is a
 conservative gate, not comprehensive SQL semantic analysis for arbitrary dialects.
 
-**2. Token Protection**: Result truncation (`MAX_RESULT_ROWS`) + Table count limits (`MAX_OVERVIEW_TABLES`).
+**2. Token Protection**: Result truncation (`limits.result_rows`) + Table count limits (`limits.overview_tables`).
 
 **3. Tool Design**:
 - Adopts a Model-driven pattern, prioritizing decision rules over fixed workflows.
@@ -95,14 +97,14 @@ conservative gate, not comprehensive SQL semantic analysis for arbitrary dialect
 - Skills execution tools return structured business payloads and attach
   `ToolResult.meta` runtime metadata (for example elapsed time, row counts,
   truncation state, and Skill version) for debugging and observability.
-- Supports configuration-based policy/prompt injection (e.g., ALLOW_UNION, ALLOWED_TABLES, truncation thresholds), using shorter, more relevant guidance to reduce invalid tool calls.
+- Supports configuration-based policy/prompt injection (e.g., read.allow_union, read.tables, truncation thresholds), using shorter, more relevant guidance to reduce invalid tool calls.
 - Error feedback optimized for LLMs: Clearly identifies failure reasons (security blocking/table not allowed/syntax/timeout/truncation, etc.) and offers correction suggestions, reducing trial-and-error and invalid calls while avoiding leakage of sensitive information (credentials, system table details, etc.).
 - Adapted for ReAct Pattern: Thought → Action → Observation → Rethink.
 
-**4. Skills Extension Layer** (Optional, enabled with `ENABLE_SKILLS=1`):
+**4. Skills Extension Layer** (Optional, enabled with `skills.enabled=true`):
 - Pre-defined parameterized operations: Encapsulate complex queries and sensitive writes as reusable skills — Agents only need to pass parameters, no need to write SQL
 - Server-side enforcement: SQL safety checks at startup + strong parameter type validation (type/min/max/enum) + best-effort audit state for write operations
-- Two-phase write protocol: Mutation skills require preview (`confirm=false`) → execute with the returned `preview_token` (`confirm=true`) to bind the reviewed request/state and reject replay or preview/execute drift. Human approval exists only when a trusted client presents the preview and collects it; see the v3.7 host example.
+- Two-phase write protocol: Mutation skills require preview (`confirm=false`) → execute with the returned `preview_token` (`confirm=true`) to bind the reviewed request/state and reject replay or preview/execute drift. Human approval exists only when a trusted client presents the preview and collects it; see the v3.8 preview/MRTR Host example.
 - Transaction outcomes (v3.7.2): built-in single-statement mutations enforce
   `expected_rowcount=1` before COMMIT. Structured results separate tool
   `success` from `execution_outcome` (`not_executed`, `rolled_back`,
@@ -134,11 +136,11 @@ Skills Scenario: unknown Skill → list_skills(search=..., detail_level="compact
   is rejected; use `list_tables()`/`describe_table()` for metadata. Nested write
   DML, `EXPLAIN ANALYZE`, executable comments/hints, and ambiguous
   non-whitespace `--` forms are rejected.
-- **SQL Parsing Validation**: Statement-type allowlist via `sqlparse` plus MCP-layer extended checks.
-- **Connection Security**: Environment-based credential management. v3.5 adds configured named connections (`connection_id`) without accepting arbitrary DSNs from tools or model output.
+- **SQL Parsing Validation**: Statement-type allowlist via `sqlparse` plus the complete core query policy.
+- **Connection Security**: Explicit TOML and secret-source configuration. Named connections (`connection_id`) without accepting arbitrary DSNs from tools or model output.
 - **Error Isolation**: Comprehensive exception handling and reporting tailored for LLMs.
 - **Access Isolation**: Access boundaries controlled by the host/runtime environment.
-- **Table Allowlist**: Configurable restrictions on accessible tables.
+- **Table Allowlist**: Configurable restrictions on readable tables.
 - **Database Authorization Remains Authoritative**: The SQL checker is a
   conservative statement-shape/application-policy gate, not a proof that every
   `SELECT` is side-effect free. MySQL stored functions and functions such as
@@ -146,20 +148,20 @@ Skills Scenario: unknown Skill → list_skills(search=..., detail_level="compact
   Production read aliases should have object-level `SELECT` only and should
   not receive unnecessary `EXECUTE`, `FILE`, `PROCESS`, administrative, or
   cross-schema privileges. Keep mutation credentials separate where practical.
-- **Result Truncation**: `MAX_RESULT_ROWS` / `MAX_RESULT_CHARS` to prevent Token overflow.
-- **Timeout Controls**: `QUERY_TIMEOUT_SECONDS` limits read queries and MySQL InnoDB mutation row-lock waits; it is not a guarantee for all long-running DML CPU/IO work.
-- **UNION Control**: Disabled by default, requires allowlist to enable.
+- **Result Truncation**: `limits.result_rows` / `limits.result_chars` to prevent Token overflow.
+- **Timeout Controls**: `timeouts.query_seconds` limits read queries and MySQL InnoDB mutation row-lock waits; it is not a guarantee for all long-running DML CPU/IO work.
+- **UNION Control**: Disabled by default; enabling requires an explicit valid read scope.
 
 #### Skills-Related
-- **Skills Template-as-Allowlist**: SQL templates are validated for read-only shape at startup, cached in memory, and re-checked against target-connection policy at runtime — zero disk I/O at runtime (prevents TOCTOU)
+- **Skills Template-as-Allowlist**: SQL templates are validated for read-only shape at startup, cached in memory, and re-checked against target-connection policy at runtime — no runtime reread of cached definitions (limits definition-file TOCTOU)
 - **Skills Strong Parameter Validation**: type/min/max/enum constraints + rejection of parameters outside schema (prevents injection/hallucination)
-- **Skills Dual-Layer Switches**: `ENABLE_SKILLS` + `SKILLS_ALLOW_MUTATIONS` for least-privilege control
-- **Closed-World Tool Hints**: MCP tools set `openWorldHint=false` because they interact with the configured database/server boundary, not arbitrary external entities. These hints improve client UX but are advisory, not security controls. **Future-tool checklist**: any newly added tool that reaches outside the configured database (external HTTP APIs, webhooks, third-party services, cross-instance DB calls, etc.) MUST set `openWorldHint=true` and be reviewed against this list; `tests/test_annotations_consistency.py` provides a pytest/local-test guardrail through an explicit allowlist. Add a CI workflow before describing this as CI enforcement.
-- **Skills Runtime Metadata**: All registered MCP tools in the current full profile (up to 12) wrap their structured payloads in `ToolResult` and expose runtime `meta` fields (`tool_name`, `execution_ms`, `success`, plus tool-specific counters). Single-connection results include `db_type` and `connection_id`; batch diagnostics use `connection_scope="all"` and aggregate counts without a default-connection identity. Mutation results also mirror `execution_outcome` and structured-failure `error_code`. Metadata intentionally excludes raw SQL, returned rows, parameter values, DSNs, credentials, hosts, and SQLite file paths.
-  - **Raw SQL visibility policy**: The raw `query(sql)` tool currently echoes the submitted SQL in its structured payload and may log it to the MCP context for transparency and debugging. Do not place secrets, tokens, credentials, or sensitive personal data in SQL literals. Use reviewed Skills, low-sensitivity predicates, or database views for repeatable sensitive workflows.
-  - **Scope (v3.5)**: Uniform `ToolResult.meta` across base tools (`list_connections`, `query`, `check_connection`, `list_tables`, `describe_table`, `get_full_schema`, `get_table_summary`, `sample`) **and** Skills tools (`list_skills`, `get_skill_detail`, `execute_query_skill`, `execute_mutation_skill`). Base tools use the shared `_tool_result(...)` helper; Skills tools use `_skill_tool_result(...)`. Direct Python callers can read `result.structured_content` for the payload and `result.meta` for metadata uniformly.
+- **Skills Dual-Layer Switches**: `skills.enabled` + `skills.mutation.enabled`, plus global connection admission and connection-level mutation/Skill authorization
+- **Closed-World Tool Hints**: MCP tools set `openWorldHint=false` because they interact with the configured database/server boundary, not arbitrary external entities. These hints improve client UX but are advisory, not security controls. **Future-tool checklist**: any newly added tool that reaches outside the configured database (external HTTP APIs, webhooks, third-party services, cross-instance DB calls, etc.) MUST set `openWorldHint=true` and be reviewed against this list; `tests/test_annotations_consistency.py` provides a pytest/local-test guardrail through an explicit allowlist. The v3.8 CI workflow includes these tests; local passage does not claim a remote CI run.
+- **Skills Runtime Metadata**: Ordinary tool responses wrap their structured payloads in `ToolResult` and expose runtime `meta` fields (`tool_name`, `execution_ms`, `success`, plus tool-specific counters). Single-connection results include `db_type` and `connection_id`; batch diagnostics use `connection_scope="all"` and aggregate counts without a default-connection identity. Mutation results also mirror `execution_outcome` and structured-failure `error_code`. Metadata intentionally excludes raw SQL, returned rows, parameter values, DSNs, credentials, hosts, and SQLite file paths.
+  - **Raw SQL visibility policy**: The raw `query(sql)` tool currently echoes the submitted SQL in its structured payload and may log it through the tool context for transparency and debugging (service logs on modern protocols; client logging notifications on legacy protocols). Do not place secrets, tokens, credentials, or sensitive personal data in SQL literals. Use reviewed Skills, low-sensitivity predicates, or database views for repeatable sensitive workflows.
+  - **Scope (v3.5)**: Uniform `ToolResult.meta` across base tools (`list_connections`, `query`, `check_connection`, `list_tables`, `describe_table`, `get_full_schema`, `get_table_summary`, `sample`) **and** Skills tools (`list_skills`, `get_skill_detail`, `execute_query_skill`, `execute_mutation_skill`). Base tools use the shared `_tool_result(...)` helper; Skills tools use `_skill_tool_result(...)`. Core services return `OperationResult`, converted at the MCP boundary. Direct Python callers can read `result.structured_content` for the payload and `result.meta` for metadata uniformly.
   - **Client visibility**: Per MCP spec, the `_meta` field is OPTIONAL and clients MAY ignore it. Real-world behavior varies: server-side middleware, MCP Inspector, and clients that explicitly surface `_meta` will see runtime metadata; VS Code's MCP UI (as of testing) does not display it. Treat `ToolResult.meta` primarily as a server-side observability hook and an opt-in client signal, not as a guaranteed user-visible diagnostic.
-  - **Minimal example** (see [TEST_MCP_CLIENT_GUIDE.md](TEST_MCP_CLIENT_GUIDE.md) for full request/response examples):
+  - **Minimal example** (see the [historical envelope examples](docs/guides/TEST_MCP_CLIENT_GUIDE_v3_7.md) and the [current client guide](docs/guides/TEST_MCP_CLIENT_GUIDE.md)):
 
     ```jsonc
     // execute_query_skill response
@@ -175,26 +177,32 @@ Skills Scenario: unknown Skill → list_skills(search=..., detail_level="compact
     }
     ```
 
-  | Level | Configuration | `ENABLE_SKILLS` | `SKILLS_ALLOW_MUTATIONS` | Available Tools | Permission |
+  | Level | Configuration | `skills.enabled` | `skills.mutation.enabled` | Available Tools | Permission |
   |:---:|------|:---:|:---:|------|------|
-  | L0 | Default | `0` | — | Base tools (query, list_tables, etc.) | Read-only queries |
-  | L1 | Skills enabled | `1` | `0` | + list_skills, get_skill_detail, execute_query_skill | + Pre-defined read-only skills |
-  | L2 | Mutations enabled | `1` | `1` | + execute_mutation_skill | + Controlled writes (two-phase preview/execute gate) |
+  | L0 | Default | `false` | — | Base tools (query, list_tables, etc.) | Reads require explicit authorization |
+  | L1 | Skills enabled | `true` | `false` | + list_skills, get_skill_detail, execute_query_skill | + Pre-defined read-only skills |
+  | L2 | Mutations enabled | `true` | `true` | + execute_mutation_skill | + Controlled writes after target authorization (two-phase preview/execute gate) |
 
+- **MRTR (optional)**: The full configuration exposes up to 13 tools. Approval waiting returns `InputRequiredResult`; telemetry records `phase=awaiting_approval`, `success=null`. Continuations share the same proposal/execution service; waiting is not business success.
 - **Skills Two-Phase Preview/Execute Gate**: Write operations require a matching server-issued preview token; this prevents replay and drift but is not proof of human approval without a trusted client workflow
 - **Skills Audit Logging**: Mutation preview/execute paths attempt best-effort JSONL audit logging; normal tool results report `audit_logged`
 
 ### Key Components
 
-| File | Responsibility |
-|------|----------------|
-| `mcp_sql_server.py` | MCP tool definition, security validation, result processing |
-| `sql_safety_checker.py` | SQL statement parsing and security checking |
-| `db_adapter.py` | Database adapter abstraction (MySQL/SQLite support) |
-| `start_server.py` | Service startup, environment verification |
-| `skills/_lib/skill_loader.py` | Skill discovery, YAML parsing, parameter validation (v3.0) |
-| `skills/_lib/mutation_base.py` | ABC for write operation skills (v3.0) |
-| `skills/_lib/audit.py` | JSONL audit logger for mutations (v3.0) |
+Runtime code lives in `src/sql_safety_executor/`:
+
+| Module | Responsibility |
+|---|---|
+| `config/` | Strict TOML, secret resolution and configuration provenance |
+| `core/` | Complete read policy, query services, proposals and mutation execution |
+| `database/` | MySQL/SQLite adapters, connection registry and transaction evidence |
+| `skills/` | Trusted Skill SDK, definition loading, discovery and readiness |
+| `mcp/` | FastMCP factory, tool registration, encoding and MRTR |
+| `prompts/` | Packaged instructions, routing guidance and tool descriptions |
+| `observability/` | Audit and sanitized tool telemetry |
+| `cli.py` | Explicit startup and offline configuration check/explain |
+
+The root `skills/` directory still holds business definitions. Public factories are `load_config(path)` and `create_server(config)`. Basic imports do not connect, import business Skills or create logs. Configuration, connections, catalog snapshots, proposals and diagnostics belong to a service instance and are cleaned up by its lifespan. See [v3.8 implementation decisions](docs/architecture/V3_8_IMPLEMENTATION_ZH.md).
 
 ## Design Philosophy
 ### Motivation: LLM/Agent-Based User Interface
@@ -206,7 +214,7 @@ However, three key issues need to be considered:
 3. The accuracy, quality, and efficiency of the generated SQL queries.
 
 **Regarding Issue 1:**
-This is not a case of a frontend directly sending SQL to a backend for execution. Here, LLMs (Agents) behave more like server-side programs. SQL is generated in a controlled server environment, with stdio as the recommended mutation transport. Conditional private HTTP use has the single-process and trust-boundary limits documented below; v3.6.1-v3.7 do not define multi-user authenticated HTTP mutation. Agents remain programs with constrained inputs and outputs, but prompt injection defenses complement rather than replace server-side policy and authorization.
+This is not a case of a frontend directly sending SQL to a backend for execution. Here, LLMs (Agents) behave more like server-side programs. SQL is generated in a controlled server environment, with stdio as the recommended mutation transport. Conditional private HTTP use has the single-process and trust-boundary limits documented below; v3.8 still does not define multi-user authenticated HTTP mutation. Agents remain programs with constrained inputs and outputs, but prompt injection defenses complement rather than replace server-side policy and authorization.
 
 **Regarding Issue 2:**
 LLM generation is uncertain. Even with a very low probability, this can lead to generated SQL safety not being guaranteed. A SQL safety check tool is needed to inspect and filter generated SQL.
@@ -219,7 +227,7 @@ LLMs (Agents) cannot generate SQL out of thin air; they need a certain context f
 ### Project Evolution
 Early on, the goal was to build a simple SQL safety checker that could inspect and filter SQL statements before execution, to be invoked by LLMs (Agents) through function calling.
 
-- Later, [in version (v1.0)](LLM_TO_MCP_FEASIBILITY_ANALYSIS.md), the solution was refactored to add support for the standardized MCP service architecture. Decoupling was also performed to simplify maintenance while enhancing security and scalability.
+- Later, [in version (v1.0)](docs/architecture/LLM_TO_MCP_FEASIBILITY_ANALYSIS.md), the solution was refactored to add support for the standardized MCP service architecture. Decoupling was also performed to simplify maintenance while enhancing security and scalability.
 
 - [In version (v2.0)](REFACTORING_LOG.md), optimizations for query efficiency and call risks were made for actual MCP usage scenarios.
   1. Optimized tool call efficiency by merging tools and adding new commonly used tools to reduce the number of tool calls.
@@ -232,9 +240,12 @@ Through these iterations, this project evolved from an initial concept of an LLM
 In the early conception of this project (March-April 2025), such systems were relatively rare. At that time, similar Text2SQL practices were mainly stuck in the context of receiving prompts from relevant personnel and the LLM generating SQL statements once to assist their queries. The core motivation of this project is **to enable LLMs (Agents) to replace traditional frontends and become the new "frontend", capable of dynamic interaction with users regarding both the data in the interface and the interface itself.** Making the entire system fully flexible and dynamic.  
 For now, **the core idea of this project is to empower LLMs (Agents) with the ability to enter the database.** Combined with different Agents, different work scenarios can be developed and extended.
 
+
+- [In v3.8](docs/releases/RELEASE_NOTES_v3_8.md), FastMCP 4 and the installed package separate runtime state, explicit TOML and prompt resources. Optional managed MRTR extends the retained preview/execute workflow.
+
 ### Roadmap
 **Agent Skills and Extensibility**
-**Skills extension layer added in v3.0** (March 2026). See [MCP_AGENTS_SKILLS_DESIGN.md](MCP_AGENTS_SKILLS_DESIGN.md) for details.
+**Skills extension layer added in v3.0** (March 2026). See [MCP_AGENTS_SKILLS_DESIGN.md](docs/architecture/MCP_AGENTS_SKILLS_DESIGN.md) for details.
 In existing practices, we realize the significance of providing (encapsulated) specific semantic tools. The industry also has corresponding best practice discussions:
 > "Offload the burden from the model and use code where possible."  
 > "Don't make the model fill arguments you already know."  
@@ -278,7 +289,7 @@ Standard Agent Skills lack these mechanisms because their design assumption is "
 
 **3. TOCTOU Security Requirements Conflict with Lazy Loading**
 
-Standard Agent Skills use on-demand loading (Agent reads files at runtime via bash) [1], [2], meaning files can be tampered with at any time. For document-processing Skills this is irrelevant, but for SQL templates and mutation code, reading from disk at runtime introduces TOCTOU (Time-of-Check-Time-of-Use) risk [4]. This project's full pre-loading (`discover()` validates at startup + caches to memory, zero disk I/O at runtime) is an intentional security design that directly conflicts with the standard Skills' lazy model.
+Standard Agent Skills use on-demand loading (Agent reads files at runtime via bash) [1], [2], meaning files can be tampered with at any time. For document-processing Skills this is irrelevant, but for SQL templates and mutation code, reading from disk at runtime introduces TOCTOU (Time-of-Check-Time-of-Use) risk [4]. This project's full pre-loading (`discover()` validates at startup + caches to memory, no runtime reread of cached definitions) is an intentional security design that directly conflicts with the standard Skills' lazy model.
 
 **4. Standard Skills "Teach Agent How to Do" vs. This Project "Does It for Agent"**
 
@@ -347,15 +358,15 @@ flowchart TB
 
         subgraph S3["Layer 3: Runtime Protection"]
             R1["QUERY_TIMEOUT<br/>Timeout interruption"]
-            R2["MAX_RESULT_ROWS/CHARS<br/>Result truncation"]
+            R2["limits.result_rows/CHARS<br/>Result truncation"]
             R3["_handle_error()<br/>Error message sanitization"]
-            R4["SKILLS_DIR path constraint<br/>Must be within project root"]
+            R4["skills.directory containment<br/>Sources stay inside the declared trusted root"]
         end
 
         subgraph S4["Layer 4: Audit & Visibility"]
             AU1["AuditLogger<br/>JSONL audit log"]
-            AU2["SKILLS.md<br/>Auto-generated overview"]
-            AU3["ctx.info() / ctx.warning()<br/>MCP progress notifications"]
+            AU2["Catalog snapshot<br/>Optional overview export"]
+            AU3["ToolContext<br/>Modern logs / legacy notifications"]
         end
     end
 
@@ -421,10 +432,10 @@ If the standard Agent Skills model were adopted, it would mean letting the Agent
 | **SQL Allowlist Validation** | `is_sql_safe()` validates at startup; unsafe skills are rejected from registration | Agent reads SQL files at runtime and executes them, bypassing validation |
 | **Strong Parameter Validation** | `validate_params()` enforces type/min/max/enum | Agent understands parameters from natural language, no hard constraints |
 | **Anti-Parameter Injection** | Rejects parameters outside schema (`unexpected` check) | Agent decides what parameters to pass |
-| **TOCTOU Protection** | Loaded into memory at startup, zero disk I/O at runtime | Agent reads files via bash each time, files may have been tampered with |
+| **TOCTOU Protection** | Loaded into memory at startup, no runtime reread of cached definitions | Agent reads files via bash each time, files may have been tampered with |
 | **Mutation Transaction Safety** | Adapter enforces BEGIN→UPDATE→pre-COMMIT rowcount check→COMMIT/ROLLBACK and reports uncertainty | Agent writes transaction code itself, may miss rollback or misclassify COMMIT failure |
-| **Audit Logging** | Mutation preview/execute paths attempt best-effort writes to `_audit.jsonl`; normal results report `audit_logged` | Depends on Agent voluntarily calling logging (unreliable) |
-| **Confirmation Mechanism** | Server enforces preview → one-time bound token → execute; optional v3.7 host collects exact `APPROVE`, without proving human identity to the server | Agent decides whether to confirm, with no hard server-side preview/replay boundary |
+| **Audit Logging** | Mutation preview/execute paths attempt best-effort writes to `skills.audit.path`; normal results report `audit_logged` | Depends on Agent voluntarily calling logging (unreliable) |
+| **Confirmation Mechanism** | Server enforces preview → one-time bound token → execute; optional preview/MRTR Host collects exact `APPROVE`, without proving human identity to the server | Agent decides whether to confirm, with no hard server-side preview/replay boundary |
 
 The standard Agent Skills security model is **"sandbox isolation + trust Agent"**. This project's security model is **"do not trust Agent, Server enforces all security constraints"**. Converting to standard Agent Skills would mean handing security control from the Server back to the Agent — in a production database scenario, this is a downgrade, not an upgrade.
 
@@ -436,7 +447,7 @@ When using AI to assist in developing this project, the following experiences we
 3. Under the premise of satisfying 1 and 2, minimize constraints on the AI. Use the simplest prompts and steps to complete tasks, and let the AI complete the full workflow.
 > Keep context as full and complete as possible; keep prompts and constraints to a minimum.
 
-This is why although the original GEMINI.md is retained, it is only for record-keeping, and AGENTS.md was not added. However, skill_def.md or similar "progressive" documentation is good practice. The project's related documents [REFACTORING_LOG.md](REFACTORING_LOG.md) and [PROMPT_ENGINEERING_BEST_PRACTICES.md](PROMPT_ENGINEERING_BEST_PRACTICES.md) reflect this practice.
+This is why although the original GEMINI.md is retained, it is only for record-keeping, and AGENTS.md was not added. However, skill_def.md or similar "progressive" documentation is good practice. The project's related documents [REFACTORING_LOG.md](REFACTORING_LOG.md) and [PROMPT_ENGINEERING_BEST_PRACTICES.md](docs/guides/PROMPT_ENGINEERING_BEST_PRACTICES.md) reflect this practice.
 
 ### Risks and Limitations
 In the practice of writing this project, a large amount of AI-assisted development was used. Although code reviews and tests have been conducted as much as possible, and a series of security settings have been added, with limited resources, it cannot cover all situations, especially considering the involvement of LLMs.
@@ -452,14 +463,14 @@ In recent updates, multiple efficiency optimizations have been carried out for t
   - **SQLite**: from `sqlite_stat1` (if ANALYZE has been run) or bounded 10,000-row sampling; if the sample cap is reached, the value is a lower-bound estimate unless statistics exist
   - An individual `row_count` can be `null` when the adapter cannot safely provide an estimate; `null` means unknown, not an empty table. In that case, single-table tools also return `row_count_approximate=null` and `is_large=null` rather than classifying the table as small. This includes a SQLite name outside the conservative generated-metadata grammar and a table dropped between discovery and bounded sampling.
   - Only recommended for "order of magnitude judgment/whether to add LIMIT/whether it is a large table" strategies.
-  - If an exact count is needed, please use `SELECT COUNT(*) ...`, or enable `ENABLE_TABLE_SUMMARY=1` and use `get_table_summary(exact_count=True)` (note that large tables may be slow).
+  - If an exact count is needed, please use `SELECT COUNT(*) ...`, or enable `tools.table_summary=true` and use `get_table_summary(exact_count=True)` (note that large tables may be slow).
 
-- **Result truncation and projection to avoid Token explosion**: `query()` uses `MAX_RESULT_ROWS` / `MAX_RESULT_CHARS`, `list_tables()` uses `MAX_OVERVIEW_TABLES`, and `get_full_schema()` uses `MAX_SCHEMA_TABLES`; therefore, returned rows or tables may not be complete. `MAX_RESULT_CHARS` does not cap schema-tool payloads. Use `get_full_schema(detail_level="compact")` for broad schema explanations, then `describe_table()` only for requested table details. Query truncation does not reduce database execution work or Python-side fetching; use explicit `WHERE`, `LIMIT`, and `ORDER BY` to limit work and stabilize ordering.
+- **Result truncation and projection to avoid Token explosion**: `query()` uses `limits.result_rows` / `limits.result_chars`, `list_tables()` uses `limits.overview_tables`, and `get_full_schema()` uses `limits.schema_tables`; therefore, returned rows or tables may not be complete. `limits.result_chars` does not cap schema-tool payloads. Use `get_full_schema(detail_level="compact")` for broad schema explanations, then `describe_table()` only for requested table details. Query truncation does not reduce database execution work or Python-side fetching; use explicit `WHERE`, `LIMIT`, and `ORDER BY` to limit work and stabilize ordering.
 
 - **Some "Total" fields have "Visible Range" semantics**: For example, `total_tables` represents the number of visible tables after allowlist filtering and **before** response truncation. It is not necessarily the physical database total; `returned_table_count` is the number actually returned after truncation.
 
 ### Best Practices
-- **We recommend starting with GitHub Copilot in VS Code.** GitHub Copilot in VS Code is a mature AI agent tool. You can choose a free model (for example, GPT-5 mini) and use it against a test database, which improves safety and avoids extra AI request costs.
+- **We recommend starting with GitHub Copilot in VS Code.** GitHub Copilot in VS Code is a mature AI agent tool. Earlier trials used GPT-5 mini. Choose a model within your current account allowance and start with a test database to control risk and cost.
 - **Another benefit of using GitHub Copilot is that it empowers this coding-assistant AI with database access capabilities,** allowing it to understand the target database's structure and data distribution. This leads to better development assistance and suggestions when writing code.
 - **When using GitHub Copilot, you can add a prompt reminder such as "To make the data and reasoning accurate and sufficient, query step by step and refine the answer over multiple queries."** This nudges the AI toward a multi-step refinement process similar to a ReAct workflow, which is especially useful for complex tasks.
 - **When using GitHub Copilot, explicitly attach the "#sql-safety-executor-mcp" tool so the model is reminded to prioritize it.** 
@@ -471,7 +482,7 @@ In recent updates, multiple efficiency optimizations have been carried out for t
     ![todo](readme_pic/todo.png)
 
 - In recent modifications (as of Jan 7, 2026), multiple security optimizations have been made, such as truncation for large data volumes, use of special keywords (like union), table allowlist settings, and dynamic prompts for different configurations. However, **higher security means lower performance/efficiency and higher consumption (e.g., more request parameters and Token consumption), so please configure security settings as appropriate.**
-- In practice, AI clients such as Claude Code, Codex, and Gemini CLI are similar to GitHub Copilot, but **be aware that AI calls may generate substantial token costs.** Current testing, including capability testing, has mainly been completed on GitHub Copilot.
+- In practice, AI clients such as Claude Code, Codex, and Gemini CLI are similar to GitHub Copilot, but **be aware that AI calls may generate substantial token costs.** Earlier testing, including capability testing, mainly used GitHub Copilot. v3.8 reference Client results, actual Codex behavior and pending Copilot validation are recorded separately in [validation](docs/validation/V3_8_VALIDATION_ZH.md).
 
 ## Quick Start
 
@@ -480,10 +491,10 @@ In recent updates, multiple efficiency optimizations have been carried out for t
 By configuring `mcp.json` in VS Code for quick integration, you can directly call the SQL tools of this project in GitHub Copilot Chat. This empowers GitHub Copilot Chat with database-oriented capabilities. [Of course, it can also be used in other MCP-supported AI assistants.](README.md#configuring-mcp-client)
 
 #### 1. Preparation
-*   Ensure VS Code is the latest version.
+*   Use a VS Code version with MCP support, Python ≥3.12, and uv.
 *   Install the **GitHub Copilot Chat** extension.
-*   Ensure project dependencies are installed (run `pip install -r requirements.txt` in the project path).
-*   Configure the environment `cp .env.example .env` and edit .env with your database credentials [Configure environment variables in .env](README.md#configuration).
+*   Ensure project dependencies are installed (run `uv sync --frozen --group dev` in the project path).
+*   Check the SQLite example with `uv run sql-safety-executor config check --config config/examples/sqlite/server.toml`; create your own TOMLs using [Configuration](#configuration) for real targets.
 
 #### 2. Create Configuration File
 Create a new folder `.vscode` in the project root directory (create if it doesn't exist), and create a file `mcp.json` inside it.
@@ -493,21 +504,25 @@ Copy the following content into `mcp.json` (if `mcp.json` already exists, append
 
 ```json
 {
-  "mcpServers": {
+  "servers": {
     "sql-safety-executor-mcp": {
       "type": "stdio",
-      "command": "/absolute/path/to/python", 
-      "args": ["/absolute/path/to/start_server.py"],
-      "cwd": "/absolute/path/to/project_root"
+      "command": "/absolute/path/to/project/.venv/bin/sql-safety-executor",
+      "args": [
+        "serve",
+        "--config",
+        "/absolute/path/to/project/config/examples/sqlite/server.toml"
+      ]
     }
   }
 }
 ```
 
 **Configuration Details:**
-*   `command`: **Must** point to the absolute path of the Python interpreter in the virtual environment (e.g., `.venv/bin/python`), do not use system `python` directly.
-*   `args`: Point to the absolute path of `start_server.py`.
-*   `cwd`: The absolute path of the project root directory, ensuring `.env` file can be read.
+*   `command`: the absolute path of `sql-safety-executor` in the environment where this package is installed.
+*   `args`: `serve --config` followed by the absolute main TOML path. The example uses the bundled SQLite configuration; select your own `server.toml` for deployment.
+*   No `cwd` is needed to discover `.env`; paths inside TOML are resolved relative to their declaring file.
+*   VS Code `.vscode/mcp.json` uses top-level `servers`; other clients may use `mcpServers`. See the [official VS Code configuration guide](https://code.visualstudio.com/docs/agent-customization/mcp-servers).
 
 **You can also configure via VS Code GUI: (Recommended)**
 
@@ -518,7 +533,7 @@ Copy the following content into `mcp.json` (if `mcp.json` already exists, append
     ![MCP: Add Server](readme_pic/MCP:AddServer_en.png)
 4. Add the above content step by step following the guide (please modify according to actual path).
 
-Basically, both methods achieve the same goal; they generate the `mcp.json` file in the same location. In any case, you just need to ensure `.vscode/mcp.json` has the above configuration.
+The guided flow lets you choose workspace or user scope; verify the saved location and command/args. The original screenshots below illustrate the workflow; UI positions may vary by client version.
 
 #### 4. Verification and Usage
 1.  Restart VS Code, or use the Command Palette to reload the window.
@@ -534,7 +549,7 @@ Basically, both methods achieve the same goal; they generate the `mcp.json` file
 
     ![answer](readme_pic/answer_en.png)
 
-Note: Although tool usage has been optimized, it is still recommended to use free models (e.g., GPT-5 mini) in GitHub Copilot Chat to avoid extra request consumption.
+Note: start with a disposable database and choose a model within your current account allowance. Copilot interactive approval has not been tested for v3.8; tool visibility does not prove MRTR support. See [validation](docs/validation/V3_8_VALIDATION_ZH.md).
 
 #### Common Issues
 *   **Cannot find tools?** Check the `Output` panel, switch to "GitHub Copilot" to see if there are errors.
@@ -543,37 +558,40 @@ Note: Although tool usage has been optimized, it is still recommended to use fre
 ### MCP Service Usage
 ```bash
 # Install dependencies including MCP support
-pip install -r requirements.txt
+uv sync --frozen --group dev
 
-# Configure environment
-cp .env.example .env
-# Edit .env with your database credentials
+# Check the SQLite example offline
+uv run sql-safety-executor config check --config config/examples/sqlite/server.toml
+# For real targets, prepare explicit TOMLs as described below
 
 # Start MCP Server
-python start_server.py
+uv run sql-safety-executor serve --config config/examples/sqlite/server.toml
 
 # Run the default hermetic pytest suite
 # This collects tests/ only, ignores .env, and uses safe SQLite defaults.
-python -m pytest -q
+uv run pytest -q
 
 # Optional live/manual smoke check: internal functions against configured DB
-python test_mcp_functions.py
+uv run python scripts/query.py --config config/examples/sqlite/server.toml 'SELECT 1 AS value'
 
-# Optional live/manual smoke check: MCP Server via client
-python test_mcp_client.py
+# Optional: inspect protocol, tools and configured targets without database probes
+uv run python scripts/inspect_mcp.py --config config/examples/sqlite/server.toml
 ```
 
 ### AutoGen Multi-Agent Example
-```bash
-# Run AutoGen Multi-Agent SQL Query System
-# Requires: GEMINI_API_KEY, OPENAI_API_KEY, or USE_OLLAMA=true
-python autogen_sql_agent.py
 
-# Or run with a specific task
-python autogen_sql_agent.py "List all tables and describe their structure"
+The AutoGen example retains its multi-Agent team (PlanningAgent, SQLExecutorAgent, AnalystAgent), now in a separate dependency environment. Export provider credentials explicitly; no `.env` is loaded.
+
+```bash
+python3 -m venv .venv-autogen
+.venv-autogen/bin/pip install -r examples/autogen/requirements.txt
+.venv-autogen/bin/python -m examples.autogen.autogen_sql_agent_new \
+  --server-python /absolute/path/to/project/.venv/bin/python \
+  --config /absolute/path/to/project/config/examples/sqlite/server.toml \
+  "List all tables and describe their structure"
 ```
 
-`autogen_sql_agent.py` demonstrates how to use a multi-Agent team (PlanningAgent, SQLExecutorAgent, AnalystAgent) from the Microsoft AutoGen framework to interact with the MCP server.
+See the [example guide](examples/autogen/README.md) for isolation and validation scope; live AutoGen/model compatibility is not claimed.
 
 ### Configuring MCP Client
 Add the server to your MCP-compatible client configuration (e.g., VS Code, Claude Desktop, or other MCP clients):
@@ -583,84 +601,99 @@ Add the server to your MCP-compatible client configuration (e.g., VS Code, Claud
   "mcpServers": {
     "sql-safety-executor-mcp": {
       "type": "stdio",
-      "command": "python",
-      "args": ["start_server.py"],
-      "cwd": "/path/to/llm-sql-safety-executor-mcp"
+      "command": "/absolute/path/to/project/.venv/bin/sql-safety-executor",
+      "args": [
+        "serve",
+        "--config",
+        "/absolute/path/to/project/config/examples/sqlite/server.toml"
+      ]
     }
   }
 }
 ```
 
-- Replace `/path/to/` with your actual project path.
-- The server loads credentials from the `.env` file in the working directory.
-- For virtual environments, use the full path to the Python interpreter.
+- Replace `/absolute/path/to/project` with your actual project path.
+- The server reads explicit TOML and secret references; it does not load the old `.env`.
+- Use the executable in the actual v3.8 environment, or its Python with `-m sql_safety_executor serve --config ...`.
 
-## Configuration 
-Located in .env file. Copy .env.example to .env to configure
+## Configuration
+
+v3.8 replaces `.env` configuration with three TOMLs. Existing private `.env` files are retained, but neither dotenv loading nor ambient `DB_*` / `SKILLS_*` configuration overrides remain. Each file declares `schema_version = 1`; unknown fields, invalid types, negative limits and out-of-range proposal settings fail startup.
+
+| File | Ownership |
+|---|---|
+| `server.toml` | File references, default target, tools, output limits, common timeouts, logging and telemetry |
+| `connections.toml` | Per-target backend, identity, secret, read policy and mutation authorization |
+| `skills.toml` | Definition directory, discovery/readiness, global write admission, proposals, MRTR and audit |
+
+The following fragments assume files under the repository's `config/` directory. Merge fragments for the same file without repeating table declarations. Adjust relative paths when copying templates from another directory.
+
+Main file `config/server.toml`:
+```toml
+schema_version = 1
+[files]
+connections = "connections.toml"
+skills = "skills.toml"
+[server]
+default_connection = "trade_analysis_mysql"
+tool_timeout_seconds = 120
+```
+
+`files.connections` and `server.default_connection` are required; the default must exist. Omitting `files.skills` disables Skills. An explicitly referenced missing or invalid file is an error.
 
 ### Database Type Selection
-```bash
-# Database Type: 'mysql' (default) or 'sqlite'
-DB_TYPE=mysql
+
+Each `connections.<id>` explicitly declares `type = "mysql"` or `type = "sqlite"` and exactly the matching backend section. Database identity and credentials do not inherit from another connection.
+
+### MySQL Configuration (type = "mysql")
+
+In `config/connections.toml`:
+```toml
+schema_version = 1
+[connections.trade_analysis_mysql]
+type = "mysql"
+[connections.trade_analysis_mysql.mysql]
+host = "your_database_host"
+user = "your_database_user"
+database = "your_database_name"
+password = { file = "secrets/mysql.password" }
+[connections.trade_analysis_mysql.read]
+mode = "allowlist"
+tables = ["products", "orders", "customers"]
+allow_union = false
 ```
 
-### MySQL Configuration (used when DB_TYPE=mysql)
-```bash
-DB_USER=your_database_user
-DB_PASSWORD=your_database_password
-DB_HOST=your_database_host
-DB_NAME=your_database_name
+Choose exactly one password source: `{file="secrets/mysql.password"}`, `{env="MYSQL_PASSWORD"}`, or `{value="..."}`. Environment references are explicit and do not load `.env`. No source fallback is permitted. Secret files are UTF-8, at most 64 KiB, nonempty, and preserve whitespace including trailing newlines. Do not add comments or quotes to the secret file.
+
+### SQLite Configuration (type = "sqlite")
+
+Add to the same `connections.toml`:
+```toml
+[connections.analytics_demo_sqlite]
+type = "sqlite"
+[connections.analytics_demo_sqlite.sqlite]
+path = "../sample_data/demo.db"
+progress_handler_interval = 100
+[connections.analytics_demo_sqlite.read]
+mode = "allowlist"
+tables = ["orders"]
+allow_union = false
+[connections.analytics_demo_sqlite.timeouts]
+query_seconds = 30
 ```
 
-### SQLite Configuration (used when DB_TYPE=sqlite)
-```bash
-# Path to SQLite database file, or ':memory:' for in-memory database
-SQLITE_DATABASE_PATH=./sample_data/demo.db
-# SQLITE_DATABASE_PATH=:memory:
-```
+> `sample_data/demo.db` is the bundled test database. `:memory:` starts empty and loses data on restart. `progress_handler_interval` counts SQLite virtual-machine instructions between timeout checks; smaller intervals check more frequently with more callback overhead.
 
-> **Note 1:** `./sample_data/demo.db` is a sample database provided for testing purposes.  
-> **Note 2:** `SQLITE_DATABASE_PATH=:memory:` creates a temporary in-memory database (which is empty on initialization). Data is lost when the server restarts. It is suitable for testing and other specialized use cases.
+### Named Connections
 
-```bash
-# Optional: Query timeout progress handler interval (default: 100)
-# Lower value = more responsive timeout, higher CPU overhead
-# SQLITE_PROGRESS_HANDLER_INTERVAL=100
-```
-
-### Named Connections (v3.5, Optional)
-
-If `DB_CONNECTIONS` is not set, the server keeps the legacy single active
-connection behavior (`DB_TYPE`, `DB_USER`, `SQLITE_DATABASE_PATH`, and related
-variables). In that legacy mode, `DB_<CONNECTION_ID>_*` variables are ignored
-even if they are present in the environment, and `DEFAULT_DB_CONNECTION` is also
-ignored. When `DB_CONNECTIONS` is set, each listed id becomes a configured target
-connection. Core read-only tools and query skills accept an optional
-`connection_id`; single-target calls use `DEFAULT_DB_CONNECTION` or the first
-listed id when it is omitted. Connection diagnostics explicitly select every
-configured target only with `check_connection(scope="all")`.
-
-Effective configuration logic:
-
-1. `DB_CONNECTIONS` is the named-connection feature gate. Empty or unset means
-  legacy mode, even if `DB_TRADE_ANALYSIS_MYSQL_*`,
-  `DB_ANALYTICS_DEMO_SQLITE_*`, or
-  `DEFAULT_DB_CONNECTION` are present.
-2. In named mode, `DEFAULT_DB_CONNECTION` must be one of the ids listed in
-  `DB_CONNECTIONS`; unknown tool-provided ids fail closed and never fall back.
-3. For each connection, `DB_<ID>_<SETTING>` wins. The actual default connection
-  may fall back to legacy variables such as `DB_TYPE`, `DB_USER`, `DB_HOST`,
-  `DB_NAME`, `SQLITE_DATABASE_PATH`, `ALLOW_UNION`, and `ALLOWED_TABLES`.
-4. Non-default connections should be configured explicitly. If a field is
-  omitted, implementation defaults loaded at startup may still apply; relying on
-  that implicit layer is harder to audit than writing the `DB_<ID>_*` value.
+Single and multiple targets use the same explicit definitions; there is no `DB_CONNECTIONS` feature gate or legacy identity fallback. Omitted `connection_id` uses `server.default_connection`; unknown targets fail closed. Only `check_connection(scope="all")` explicitly selects all configured targets.
 
 Prefer semantic connection ids such as `trade_analysis_mysql`,
 `analytics_demo_sqlite`, or `orders_primary`. Bare `mysql`/`sqlite` are legal
 but easy to confuse with DB-type values. Avoid `default` because the actual
-default is already represented by `DEFAULT_DB_CONNECTION`.
+default is already represented by `server.default_connection`.
 Connection ids are opaque routing aliases: never infer `db_type` from an alias
-suffix or name. Use the configured `DB_<ID>_TYPE` value or the structured
+suffix or name. Use the configured `connections.<id>.type` value or the structured
 `db_type` returned by `list_connections()`. Do not infer a business purpose or
 role from an alias either. A resolved target must come from the user's explicit
 choice, a trusted application binding for this request, or exactly one matching
@@ -682,7 +715,7 @@ For deployments requiring hard per-request target restrictions, that validation
 is a prerequisite before go-live. It must cover explicit aliases, the actual
 default for an implicit single-target call, and every configured target for
 `check_connection(scope="all")`. See the
-[deployment acceptance criteria](RELEASE_NOTES/GUIDE/MCP_AGENT_BEHAVIOR_VALIDATION_ZH.md#18-限制优先级与配置解读的可复用验收).
+[deployment acceptance criteria](docs/guides/MCP_AGENT_BEHAVIOR_VALIDATION_ZH.md#18-限制优先级与配置解读的可复用验收).
 Trusted local use can retain the documented Agent limitation; the current server
 does not supply this per-request authorization mechanism.
 
@@ -694,276 +727,182 @@ checks, the permitted target is unresolved, or the restrictions remain
 inconsistent, ask and wait. This does not authorize writes or arbitrary target
 selection and does not turn a single-connection result into an all-connection report.
 
-```bash
-# Two configured connections. Ids must match ^[a-z][a-z0-9_]{0,63}$.
-DB_CONNECTIONS=trade_analysis_mysql,analytics_demo_sqlite
-DEFAULT_DB_CONNECTION=trade_analysis_mysql
 
-# MySQL connection selected as the default target
-DB_TRADE_ANALYSIS_MYSQL_TYPE=mysql
-DB_TRADE_ANALYSIS_MYSQL_USER=your_database_user
-DB_TRADE_ANALYSIS_MYSQL_PASSWORD=your_database_password
-DB_TRADE_ANALYSIS_MYSQL_HOST=your_database_host
-DB_TRADE_ANALYSIS_MYSQL_NAME=your_database_name
-DB_TRADE_ANALYSIS_MYSQL_ALLOWED_TABLES=products,orders,customers
-DB_TRADE_ANALYSIS_MYSQL_ALLOW_UNION=0
+v3.8 connection conventions and trade-offs:
 
-# SQLite analytics demo target
-DB_ANALYTICS_DEMO_SQLITE_TYPE=sqlite
-DB_ANALYTICS_DEMO_SQLITE_SQLITE_DATABASE_PATH=./sample_data/demo.db
-DB_ANALYTICS_DEMO_SQLITE_ALLOWED_TABLES=orders
-DB_ANALYTICS_DEMO_SQLITE_QUERY_TIMEOUT_SECONDS=30
+- Resolve the target before policy, readiness, execution, metadata, audit and telemetry; tools cannot supply arbitrary DSNs.
+- Reads default to `deny`. An empty `allowlist` grants nothing; unrestricted business-table scope requires explicit `all`. `tables` is only meaningful for allowlists and rejects `"*"`.
+- UNION additionally needs `allow_union=true` and valid table scope. Do not mechanically turn an old empty allowlist into both unrestricted reads and UNION permission.
+- Writes require Skills, global mutation enablement, admitted connection, connection mutation enablement and a matching Skill allowlist. There is no default-only implicit grant. Read scopes are not universal mutation scopes.
+- Only query/connect timeouts inherit built-in → common → connection values. Output limits belong to the service instance. `sql_assistant` stays connection-neutral; inspect the selected target through `list_connections()`.
+- Skill `connection_ids` intersects `databases`, profile and execution policy. Unconfigured portable aliases remain unavailable, do not create connections and grant no access. Omitting the request target still uses the default, never the Skill list's first member.
+- Public connection metadata omits DSNs, hosts, users, passwords and SQLite paths. SQLite database labels use `sqlite:<connection_id>`; diagnostics identify aliases.
+
+### Optional Service Settings
+
+Add these sections to `server.toml`:
+```toml
+[tools]
+schema = true
+table_summary = false
+large_table_threshold = 1000
+[defaults.timeouts]
+query_seconds = 30
+connect_seconds = 10
+[limits]
+result_rows = 100
+result_chars = 16000
+sql_chars = 20000
+schema_tables = 50
+overview_tables = 100
+[observability.logging]
+level = "INFO"
+# path = "../logs/server.log"
+[observability.telemetry]
+enabled = false
+path = "../logs/tool_calls.jsonl"
+sample_rate = 1.0
 ```
 
-v3.5 connection guarantees and compromises:
+`tools.schema` retains its historical sample-only registration meaning; basic metadata tools remain registered. `table_summary` enables optional counts, whose exact COUNT(*) may be expensive. Limits accept 0 for unlimited; tool timeout accepts 0 for disabled, while database query/connect timeouts must be positive integers. Truncation does not bound database work or all peak memory. MySQL mutation query timeout bounds row-lock waits, not all DML CPU/IO work.
 
-- The server resolves the target connection before SQL policy, schema readiness,
-  execution, result metadata, audit, or telemetry. Unknown `connection_id` values
-  fail closed and never fall back to the default connection.
-- Tools and Skills do not accept arbitrary DSNs. All database URLs/credentials
-  must come from environment configuration.
-- Per-connection policy currently covers `ALLOW_UNION`, `ALLOWED_TABLES`, query
-  timeout, connect timeout, and SQLite progress interval. Result-size limits
-  (`MAX_RESULT_ROWS`, `MAX_RESULT_CHARS`, schema overview caps) remain
-  process-wide.
-- Because `sql_assistant` has no target argument, its UNION guidance is
-  deliberately connection-neutral. Inspect the selected alias's policy in
-  `list_connections()`; raw queries and Query Skills enforce that target at
-  runtime.
-- Empty read and write allowlists intentionally have different meanings: an
-  empty `DB_<ID>_ALLOWED_TABLES` permits reads from all visible tables for
-  compatibility, while an empty `DB_<ID>_MUTATION_SKILLS` denies all writes.
-  Configure an explicit read allowlist for production.
-- Query Skills are connection-scoped: `list_skills(connection_id=...)`,
-  `get_skill_detail(connection_id=...)`, and `execute_query_skill(...,
-  connection_id=...)` use the same target connection for DB compatibility,
-  table readiness, allowlist checks, execution, `ToolResult.meta`, optional query
-  audit, and telemetry.
-- v3.7 Skill frontmatter may optionally add `connection_ids: [...]` to narrow
-  one Skill to valid alias identifiers. Only currently configured members can
-  execute; portable unconfigured members are disclosed as unavailable. The
-  field is intersected with `databases` and all existing query/mutation policy;
-  it never creates a connection or grants access. Omission preserves v3.6.1 behavior. An omitted runtime
-  `connection_id` still means the global default—there is no automatic
-  selection of the only/first Skill-scoped alias.
-- Mutation Skills remain default-connection only when
-  `SKILLS_ALLOW_MUTATION_CONNECTIONS` is omitted. Setting it enables strict
-  v3.6 routing: every target must be listed there, set
-  `DB_<ID>_ALLOW_MUTATIONS=1`, and allow the skill through
-  `DB_<ID>_MUTATION_SKILLS`. Preview tokens bind preview and execute to the same
-  connection, params, skill version, and DB type.
-- `list_connections()` returns configured ids, db types, timeout values, and
-  policy summaries only. It does not expose DSNs, hosts, usernames, passwords, or
-  SQLite file paths.
-- SQLite adapters may use the configured file path internally, but public MCP
-  payloads such as `list_tables()` display SQLite databases as
-  `sqlite:<connection_id>` instead of returning file-system paths. Connection
-  diagnostics identify results by alias and do not return database names.
+Service logs go to stderr, with an optional additional file; stdout is reserved for MCP. Telemetry contains sanitized call metadata; sample_rate is in [0,1]. Configuration, resolved secrets and Skill definitions are snapshots; changes require restart.
 
-### Optional Environment Variables
-```bash
-# Feature Switches (1=Enabled, 0=Disabled)
-ENABLE_SCHEMA_TOOLS=1    # Controls sample() tool
-ENABLE_TABLE_SUMMARY=0   # Controls get_table_summary() tool (Default: Disabled)
-                         # describe_table() already provides estimated row counts
+**Skills configuration**:
 
-# Large Table Threshold, used for is_large flag and query suggestions
-# Tables exceeding this row count will trigger LIMIT/Aggregation hints
-LARGE_TABLE_THRESHOLD=1000
-
-# Security Configuration (Recommended for Production)
-QUERY_TIMEOUT_SECONDS=30   # Read-query timeout; MySQL mutation row-lock wait timeout
-CONNECT_TIMEOUT_SECONDS=10 # Connection timeout in seconds
-MCP_TOOL_TIMEOUT_SECONDS=120 # FastMCP foreground tool timeout (0=disabled)
-
-# Table Allowlist (Comma separated, case insensitive)
-# Only allow access to specific tables - Leave empty to allow all
-# Use "*" to explicitly allow all tables (UNION requires this setting)
-ALLOWED_TABLES=products,orders,customers
-
-# UNION Query Policy
-# Important: UNION requires double configuration to enable:
-#   1. ALLOW_UNION=1
-#   2. ALLOWED_TABLES=table1,table2 OR ALLOWED_TABLES=*
-# If ALLOW_UNION=1 but ALLOWED_TABLES is empty, UNION will still be blocked.
-ALLOW_UNION=0
-
-# Token Optimization: Limit result size to prevent context overflow
-# Set to 0 to disable truncation (for data export scenarios)
-MAX_RESULT_ROWS=100      # Max rows returned per query (0=unlimited)
-MAX_RESULT_CHARS=16000   # Truncation threshold for serialized query/Query Skill data (0=disabled)
-MAX_SQL_LENGTH=20000     # Max characters accepted by raw query(sql) (0=unlimited)
-MAX_SCHEMA_TABLES=50     # Max tables returned by get_full_schema (0=unlimited)
-MAX_OVERVIEW_TABLES=100  # Max tables returned by list_tables (0=unlimited)
-
-# Skills Extension (v3.0)
-ENABLE_SKILLS=0          # Master switch: enable Skills layer (1=enabled, 0=disabled)
-SKILLS_ALLOW_MUTATIONS=0 # Allow mutation (write) skills (requires ENABLE_SKILLS=1)
-# SKILLS_ALLOW_MUTATION_CONNECTIONS=trade_analysis_mysql,analytics_demo_sqlite # Enables strict named-write policy
-MUTATION_PREVIEW_TOKEN_TTL_SECONDS=300 # Preview token lifetime (1-86400 seconds)
-MUTATION_PREVIEW_TOKEN_STORE_MAX_ENTRIES=10000 # Outstanding token capacity
-SKILLS_LIST_DEFAULT_DETAIL=summary  # list_skills default: compact, summary, or full
-SKILLS_LIST_AVAILABLE_ONLY_DEFAULT=1  # list_skills default availability filter
-SKILLS_CHECK_SCHEMA_ON_LIST=1  # hide missing/unverified table-dependent skills
-# SKILLS_EXCLUDE_PROFILES=demo  # hide matching profiles from default discovery and execution
-# SKILLS_DIR=skills/     # Skills directory path (relative or absolute)
-# SKILLS_AUDIT_LOG=skills/_audit.jsonl  # Audit log path (JSONL)
-SKILLS_AUDIT_QUERIES=0   # Optional query skill audit; mutation audit is still attempted automatically
-# AGENT_ID=my-agent      # Agent identifier for audit logging
+Skills package common SQL queries and mutations as reusable operations. They are disabled by default and remain subject to target authorization when enabled. Complete `config/skills.toml` example:
+```toml
+schema_version = 1
+[skills]
+enabled = false
+directory = "../skills"
+[skills.discovery]
+default_detail = "summary"
+available_only = true
+[skills.readiness]
+check_schema = true
+[skills.policy]
+exclude_profiles = []
+[skills.mutation]
+enabled = false
+allowed_connections = []
+[skills.mutation.preview]
+ttl_seconds = 300
+max_entries = 10000
+[skills.mutation.mrtr]
+enabled = false
+[skills.audit]
+queries = false
+path = "../logs/skill_audit.jsonl"
+agent_id = "unknown"
 ```
 
-**Skills Configuration Details**:
-
-The Skills layer lets you package common SQL queries and data mutations as reusable "skills". Disabled by default — zero impact on existing functionality.
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `ENABLE_SKILLS` | `0` | Master switch. When `1`, registers `list_skills`, `get_skill_detail`, and `execute_query_skill` tools |
-| `SKILLS_ALLOW_MUTATIONS` | `0` | Write switch. When `1`, additionally registers `execute_mutation_skill` (requires `ENABLE_SKILLS=1`) |
-| `SKILLS_ALLOW_MUTATION_CONNECTIONS` | empty | Optional configured connection-id allowlist for mutation routing. Empty keeps compatibility mode (default connection only). Non-empty enables strict mode and requires matching per-connection write policy |
-| `DB_<ID>_ALLOW_MUTATIONS` | `0` | Strict-mode per-connection write switch. Must be `1` for each authorized mutation target |
-| `DB_<ID>_MUTATION_SKILLS` | empty | Strict-mode per-connection mutation skill allowlist. Empty denies all; `*` explicitly permits all discovered mutation skills allowed by other checks |
-| `MUTATION_PREVIEW_TOKEN_TTL_SECONDS` | `300` | Preview-token lifetime in seconds; valid range `1-86400`, invalid values fall back to `300` |
-| `MUTATION_PREVIEW_TOKEN_STORE_MAX_ENTRIES` | `10000` | Per-process maximum outstanding unexpired preview tokens (valid range `1-100000`). Full capacity fails closed without eviction |
-| `SKILLS_LIST_DEFAULT_DETAIL` | `summary` | Default metadata projection for `list_skills`: `compact`, `summary`, or `full`. Per-call `detail_level` overrides this value |
-| `SKILLS_LIST_AVAILABLE_ONLY_DEFAULT` | `1` | Default availability filter for `list_skills`. When `1`, Agent-facing discovery hides skills that cannot execute for the target `connection_id` because of DB type compatibility, mutation switch, default-only compatibility mode when `SKILLS_ALLOW_MUTATION_CONNECTIONS` is omitted, connection allowlist, or schema readiness. Pass `available_only=false` for the full developer catalog |
-| `SKILLS_CHECK_SCHEMA_ON_LIST` | `1` | Include live table-existence checks in Skills availability metadata. Missing required tables set `schema_ready=false`. If metadata is unavailable, table-dependent Skills also fail closed with `schema_check_available=false`, `schema_ready=false`, and `executable=false`; both cases are hidden by `available_only=true`. `available_only=false` still returns the developer catalog and its failure reason |
-| `SKILLS_EXCLUDE_PROFILES` | empty | Comma-separated profile policy. Matching skills are marked non-executable, hidden by default discovery, and rejected at execution time. Use `demo` in production to hide bundled examples |
-| `SKILLS_DIR` | `skills/` | Skills directory path. Must be within the project root (security constraint) |
-| `SKILLS_AUDIT_LOG` | `skills/_audit.jsonl` | Audit log path. Mutation preview/execute paths attempt best-effort writes; query skill audit uses the same path when enabled |
-| `SKILLS_AUDIT_QUERIES` | `0` | Optional query skill audit. Records skill name, params, row counts, status, errors, `connection_id`, and actual `db_type`, but not returned data or connection strings |
-| `AGENT_ID` | `unknown` | Identifies the calling agent in audit logs |
-
-Migration note: `MUTATION_PREVIEW_TOKEN_SECRET` is obsolete and ignored. Remove
-it from deployments; when present, the server emits a warning without logging
-its value.
+| Field (under skills) | Default | Meaning |
+|---|---|---|
+| `enabled` | false | Disabled means no business Skill imports, tools or readiness probes |
+| `directory` | ../skills | Explicit external trusted directories allowed; resolved sources/definitions must remain inside, but Python is not sandboxed |
+| `discovery.default_detail` | summary | compact / summary / full; individual calls can override |
+| `discovery.available_only` | true | Hide unavailable Skills for the target; false is diagnostic, not permission |
+| `readiness.check_schema` | true | Discovery and execution fail closed on missing tables/unavailable metadata; disabling is not proof of readiness |
+| `policy.exclude_profiles` | [] | Matching profiles cannot execute and disappear from default discovery |
+| `mutation.enabled` | false | Global write switch, subject to four further configuration gates |
+| `mutation.allowed_connections` | [] | Exact target admission; empty grants nothing; connection Skill allowlist still applies |
+| `mutation.preview.ttl_seconds` | 300 | 1–86400 seconds; invalid values fail startup rather than falling back |
+| `mutation.preview.max_entries` | 10000 | 1–100000 entries; full stores refuse issuance, not evict valid proposals |
+| `mutation.mrtr.enabled` | false | Optional managed single-statement approval; Skills and writes must also be enabled |
+| `audit.queries` | false | Opt-in query audit; mutation audit retains its best-effort behavior |
+| `audit.path` / `audit.agent_id` | ../logs/skill_audit.jsonl / unknown | Audit location and source label; the label is not an authenticated identity |
 
 **Preview-token deployment boundary**:
 
-- Preview-token state is held in one bounded process-local memory store. For
-  stdio, preview and execute must remain in the same client-launched server
-  process. This is the recommended mutation deployment.
-- If an integrator exposes mutations through an HTTP transport, the current design limits
-  that use to a trusted single-operator/private boundary with exactly one
-  mutation-enabled process. It does not define a multi-user authenticated HTTP
-  mutation service. The application does not detect or enforce worker/replica
-  counts; deployment configuration must keep both values at one.
-- Process restart invalidates all outstanding handles. This is a deliberate
-  fail-closed continuity boundary. If an execute outcome is unknown, inspect
-  current business state before deciding whether to preview again.
-- Do not place multiple mutation-enabled workers behind ordinary load balancing.
-  Read-only capacity may scale only through a separate read-only endpoint,
-  profile, or pool. Cross-worker or cross-replica mutation execution is not
-  supported in v3.6.1 through v3.7.3.
-- There is no stateless token fallback and no SQLite, SQL-table, or external
-  shared token backend.
+- Proposals live in one bounded service-instance memory store; preview and execute must reach that same instance. The supported CLI transport is stdio.
+- Restart invalidates pending proposals. Missing state does not prove no earlier write occurred; reconcile uncertain outcomes before deciding whether to preview again.
+- No shared multi-worker approvals, durable completion ledger, stateless fallback or cross-restart recovery is provided.
+- Python Skills remain trusted code; containment and managed plans do not isolate module imports, preview callbacks or arbitrary in-process effects.
 
-**v3.7 manual approval host example**:
+**Manual approval Host (preview / MRTR)**:
 
-`examples/manual_mutation_approval.py` keeps preview and execute in one stdio
-client context/server subprocess, launches the repository's fixed
-`start_server.py` with the active venv, and explicitly inherits the operator's
-complete environment so exported DB/policy settings are preserved. It shows the
-exact finite-JSON snapshot without showing the bearer token, rejects a custom
-provider that changes the displayed params/preview, and executes only after the
-literal input `APPROVE` within a workflow-enforced deadline. Use a JSON
-`--params-file`; params, preview, and printed execute results may contain
-sensitive business data. Execute errors/timeouts are never retried because token
-consumption and the write outcome may be unknown. This is a reference
-client/host workflow, not server-verifiable human identity. A direct MCP client
-can bypass it, denial does not revoke the unused token record before TTL expiry,
-and payload-level protocol/debug logging may still expose tokens. Multi-user
-authenticated HTTP approval and compliance-grade approver audit remain outside
-the current design. Custom approval providers must cooperate with async cancellation; a
-hostile provider requires process isolation for hard termination. See
-[Release Notes v3.7/v3.7.3](RELEASE_NOTES/RELEASE_NOTES_v3_7.md).
-This trusted local example forwards the complete process environment so it does
-not silently switch to another `.env`; consequently, every exported secret and
-Python control variable enters the child/Skill trust boundary. A productized
-host should maintain a project-specific environment allowlist.
+`examples/manual_mutation_approval.py` starts the installed package with the active Python and requires `--config`; `--flow preview` is the default. It keeps exact parameters and proposals in one stdio Client/subprocess and accepts only literal `APPROVE` before its deadline. `--flow mrtr` additionally needs explicit MRTR enablement, a managed single-statement Skill, MCP `2026-07-28` and Host form support.
+
+MRTR holds the same review snapshot (at most 64 KiB) and uses framework-sealed continuation state. Missing answers resend the review without rerunning preview or extending the original expiry. Only accept plus strict boolean approve=true executes. Decline/cancel closes the proposal; a local denial in the retained preview Host does not revoke its server token before TTL. Neither flow automatically retries uncertain writes.
+
+Approval trusts the Host rather than independently authenticating a human. Review/terminal output can contain business data, and sealed state is sensitive. The child inherits exported process variables; a productized Host should restrict that environment as appropriate. This does not restore dotenv configuration.
 
 **Privacy and log operations notes**:
 
 - Skill audit params are truncated for log size, not key/value redacted. Treat skill parameters as business audit data and do not pass secrets, tokens, credentials, or sensitive personal data as skill params.
-- Mutation audit is attempted automatically when mutation skills are enabled, but audit write failures do not block the operation. Query skill audit remains opt-in (`SKILLS_AUDIT_QUERIES=0` by default) to avoid surprising read-query parameter logs. v3.5 audit entries may include a safe `connection_id` alias and actual `db_type`; they still do not contain DSNs, hosts, passwords, SQLite file paths, SQL text, or returned rows.
+- Mutation audit is attempted automatically when mutation skills are enabled, but audit write failures do not block the operation. Query skill audit remains opt-in (`skills.audit.queries=false` by default) to avoid surprising read-query parameter logs. v3.5 audit entries may include a safe `connection_id` alias and actual `db_type`; they still do not contain DSNs, hosts, passwords, SQLite file paths, SQL text, or returned rows.
 - Pre-token parameter/validation rejection and audit write failures can return a normal tool result with `audit_logged=false`. Once imperative execute has consumed a valid token, a later dynamic validation rejection attempts a best-effort execute audit. Managed confirmation performs no dynamic Skill validation. The JSONL file remains a visibility aid, not a fail-closed transaction control.
 - If a write commits but context notification or response construction later fails, the existing success audit is retained without a contradictory failure record. When a fallback response is deliverable it says `success=false, execution_outcome=committed`; complete response loss remains unknown to the client. Either case is terminal and the token remains consumed.
-- The process-local preview-token store supports the recommended stdio path and, conditionally, one trusted private HTTP mutation process. Multi-user authenticated HTTP mutation, cross-worker execution, and cross-replica execution are outside the current design; the server never falls back to stateless token acceptance.
-- `SKILLS_AUDIT_LOG`, `TOOL_TELEMETRY_LOG_PATH`, and `logs/sql_safety_checker_*.log` are local files. In production, place them on trusted storage with restricted permissions and external rotation/retention, such as `logrotate`, platform logging, cron cleanup, or a managed log sink. A typical starting point is daily or size-based rotation, compression, and 14-90 days retention depending on compliance needs.
+- The process-local preview-token store supports the stdio deployment. Custom transport embedding remains within a trusted single-process boundary. Multi-user authenticated HTTP mutation, cross-worker execution, and cross-replica execution are outside the current design; the server never falls back to stateless token acceptance.
+- `skills.audit.path`, `observability.telemetry.path`, and `observability.logging.path` are local files. In production, place them on trusted storage with restricted permissions and external rotation/retention, such as `logrotate`, platform logging, cron cleanup, or a managed log sink. A typical starting point is daily or size-based rotation, compression, and 14-90 days retention depending on compliance needs.
+
 
 **Typical configuration scenarios**:
 
-```bash
-# Scenario 1: Read-only query skills only (e.g. sample-monthly-sales-report)
-ENABLE_SKILLS=1
-SKILLS_ALLOW_MUTATIONS=0
+These are edits to the named fields, not fragments to append repeatedly to the same table.
 
-# Scenario 2: Both query and mutation skills (e.g. sample-update-order-status)
-ENABLE_SKILLS=1
-SKILLS_ALLOW_MUTATIONS=1
+| Scenario | Configuration |
+|---|---|
+| Read-only Query Skills | `skills.enabled=true`, `skills.mutation.enabled=false`, plus target read authorization |
+| Query and mutation Skills | Enable both switches, list `skills.mutation.allowed_connections`, and grant the connection policy below |
+| Custom directory/audit | Set `skills.directory`, `skills.audit.path`, `skills.audit.agent_id` |
+| Complete catalog review | `skills.discovery.available_only=false`, or override available_only in the call |
+| Skip live schema checks | `skills.readiness.check_schema=false`; use CLI check/explain for entirely offline configuration validation |
+| Exclude demo Skills | `skills.policy.exclude_profiles=["demo"]`, affecting both discovery and execution |
+| Audit Query Skills | `skills.audit.queries=true`; may record business parameters, not returned rows |
+| Managed MRTR | After write authorization, enable `skills.mutation.mrtr.enabled=true` and verify actual Host support |
 
-# Scenario 2b: Strict named-connection mutation routing
-ENABLE_SKILLS=1
-SKILLS_ALLOW_MUTATIONS=1
-DB_CONNECTIONS=trade_analysis_mysql,analytics_demo_sqlite
-DEFAULT_DB_CONNECTION=trade_analysis_mysql
-SKILLS_ALLOW_MUTATION_CONNECTIONS=trade_analysis_mysql,analytics_demo_sqlite
-DB_TRADE_ANALYSIS_MYSQL_ALLOW_MUTATIONS=1
-DB_TRADE_ANALYSIS_MYSQL_MUTATION_SKILLS=sample-update-order-status
-DB_ANALYTICS_DEMO_SQLITE_ALLOW_MUTATIONS=1
-DB_ANALYTICS_DEMO_SQLITE_MUTATION_SKILLS=sample-update-order-status,sample-reset-order-to-pending
-
-# Scenario 3: Custom skills directory and audit log path
-ENABLE_SKILLS=1
-SKILLS_ALLOW_MUTATIONS=1
-SKILLS_DIR=my_custom_skills/
-SKILLS_AUDIT_LOG=logs/skills_audit.jsonl
-AGENT_ID=copilot-agent-1
-
-# Scenario 4: Developer catalog review, including currently unavailable skills
-ENABLE_SKILLS=1
-SKILLS_LIST_AVAILABLE_ONLY_DEFAULT=0
-
-# Scenario 5: Disable live schema-readiness filtering for offline catalog review
-ENABLE_SKILLS=1
-SKILLS_CHECK_SCHEMA_ON_LIST=0
-
-# Scenario 6: Production Skills catalog without bundled demo examples
-ENABLE_SKILLS=1
-SKILLS_EXCLUDE_PROFILES=demo
-
-# Scenario 7: Audit read-only query skill executions without logging returned rows
-ENABLE_SKILLS=1
-SKILLS_AUDIT_QUERIES=1
+For example, allow the two demo mutations on `analytics_demo_sqlite`: set `skills.enabled=true`, `skills.mutation.enabled=true` and `skills.mutation.allowed_connections=["analytics_demo_sqlite"]` in skills.toml, then add to connections.toml:
+```toml
+[connections.analytics_demo_sqlite.mutation]
+enabled = true
+skills = ["sample-update-order-status", "sample-reset-order-to-pending"]
 ```
 
 **Demo Skills schema**:
 
-The bundled `sample-monthly-sales-report` and `sample-update-order-status` Skills are demo-profile examples that require an `orders` table. For MySQL demos, create the compatible table and seed rows with:
-
+The bundled sales report, status update and reset Skills use the demo profile and a compatible orders table. Use a separate disposable database:
 ```bash
-.venv/bin/python scripts/setup_demo_db.py
+uv run python scripts/setup_sqlite_demo.py --output local_data/mutation-demo.db
+# MySQL: only use a dedicated demo target
+uv run python scripts/setup_demo_db.py --config /path/server.toml --connection-id mysql_demo
+uv run python -m examples.manual_mutation_approval \
+  --config config/examples/mutation/server.toml --flow preview \
+  --skill sample-update-order-status --params-file /path/params.json
 ```
 
-The script uses the normal `.env` MySQL settings and refuses to modify an existing `orders` table unless `--drop-existing` or `--seed-existing` is passed explicitly. After changing environment variables such as `SKILLS_LIST_AVAILABLE_ONLY_DEFAULT`, restart the MCP server so the running process uses the new settings.
+SQLite setup refuses to overwrite an existing file. MySQL setup still needs explicit `--drop-existing` or `--seed-existing` to modify an existing orders table. The public [mutation template](config/examples/mutation/server.toml) disables MRTR by default.
 
-> **Security note**: `SKILLS_ALLOW_MUTATIONS` is a second-layer switch independent of `ENABLE_SKILLS`. Even with `ENABLE_SKILLS=1`, write operations remain disabled by default and must be explicitly enabled. This follows the principle of least privilege.
-
-Additional server-side protections are enabled by default: FastMCP masks unexpected exception details (`mask_error_details=True`), all MCP tools have a configurable foreground timeout (`MCP_TOOL_TIMEOUT_SECONDS`), and raw `query(sql)` input is constrained by `MAX_SQL_LENGTH`. Explicit `ToolError` messages remain intentionally visible so safe validation failures can still guide the Agent.
+Additional protections include `strict_input_validation=True`, `mask_error_details=True`, tool timeouts and raw SQL length limits. Deliberate safe validation failures remain actionable to callers.
 
 ### MCP Client Integration
-For a complete client configuration example, please refer to `mcp_config.json`.
+
+See [mcp_config.json](mcp_config.json) for the portable template. Private `config/*.toml`, `config/secrets/` and `mcp_config.local.json` are ignored by Git; do not commit real credentials. The [configuration guide](docs/guides/CONFIGURATION_ZH.md) covers field mappings, defaults, SDK imports and cutover/rollback. Check TOML, stop the old process, and start with matching new dependencies and entry points; rollback also requires matching code, dependencies and configuration.
+
 
 ## Changelog
 
+### v3.8.0 FastMCP 4, TOML and Managed MRTR (September 2026)
+
+- FastMCP 4.0.10 / MCP SDK 2.2.0 with framework-owned negotiation; modern `2026-07-28` and legacy `2025-11-25` stdio verified.
+- Installed `src/sql_safety_executor` package; instance-owned configuration, adapters, catalog, tokens and diagnostics; prompts shipped as wheel resources.
+- Three strict TOMLs, mandatory `--config`, explicit secrets and offline `config check/explain`. Reads default to deny; all write gates are required. Remove default-only grants and partial-policy `execute_sql()`.
+- Default-off `request_mutation_approval` for managed single statements: sealed state, 64 KiB review cap, strict approval, original expiry and atomic consumption; no retry of uncertain writes.
+- Migrate public Skill SDK imports, trusted external directories, clients, isolated AutoGen examples, documentation, dependency lock and CI.
+- Automated results: 744 passed, 4 skipped; type checks and installed-wheel verification passed. Subsequent live checks verified MySQL connectivity/basic reads, native Codex SQLite preview/execute with fixture restoration, and three isolated Luna six-turn routing trials. The earlier MRTR dispatch refusal remains recorded; native MRTR/human approval UI, Copilot, MySQL writes and remote CI remain unverified.
+
+See [release notes](docs/releases/RELEASE_NOTES_v3_8.md) and [validation](docs/validation/V3_8_VALIDATION_ZH.md). Historical entries below retain their original configuration, paths and conclusions; they are not v3.8 deployment instructions.
+
+
 Historical version entries retain their original Skill names. Current names
-are listed in the [v3.7.2 migration table](RELEASE_NOTES/RELEASE_NOTES_v3_7.md#sample-skill-names-and-local-files).
+are listed in the [v3.7.2 migration table](docs/releases/RELEASE_NOTES_v3_7.md#sample-skill-names-and-local-files).
 
 ### Managed Single-Statement Mutations (September 16, 2026)
 
 This follow-up is included in v3.7.3 before its first formal publication.
 The Skill-author contract changes below still require migration; see the
-[version scope and compatibility note](RELEASE_NOTES/RELEASE_NOTES_v3_7.md#managed-single-statement-mutation-contract--september-16-2026).
+[version scope and compatibility note](docs/releases/RELEASE_NOTES_v3_7.md#managed-single-statement-mutation-contract--september-16-2026).
 
 - Added immutable `ManagedMutationPlan` declarations for one parameterized
   INSERT, UPDATE, or DELETE. Discovery validates the statement, named binds,
@@ -998,12 +937,12 @@ The Skill-author contract changes below still require migration; see the
 - Single checks now use independent worker-owned connections and share the
   existing deadline, busy and cleanup-disable protection. This is a breaking
   tool/output migration; the repository version is unchanged.
-- The [current design record](RELEASE_NOTES/GUIDE/V3_7_CONNECTION_DIAGNOSTICS_DESIGN.md)
+- The [current design record](docs/guides/V3_7_CONNECTION_DIAGNOSTICS_DESIGN.md)
   covers migration, costs, staged validation and the unchanged per-request
   authorization limitation. Historical entries below describe their dated stage.
 - Review verification: **675 passed, 4 skipped**; ten changed Python files pass
   Pyright. The restarted Host exposes the unified tool and passes default MySQL,
-  named SQLite and all-connection smoke checks. [Staged Agent evidence](RELEASE_NOTES/LIVE_MCP_TSET/V3_7_3_LIVE_MCP_TEST_UNIFIED_CONNECTION_DIAGNOSTICS_2026_09_22_ZH.md)
+  named SQLite and all-connection smoke checks. [Staged Agent evidence](docs/validation/v3.7/V3_7_3_LIVE_MCP_TEST_UNIFIED_CONNECTION_DIAGNOSTICS_2026_09_22_ZH.md)
   preserves routing failures; DRR-2026-066 remains open, and the C wording trial
   was reverted to B. No universal accuracy or billed-token improvement is claimed.
 
@@ -1025,7 +964,7 @@ Repository version prepared on September 15; creating a release/tag is a separat
   Source validation: **640 passed, 4 skipped**; seven Python files pass Pyright.
   Explicit-prohibition fixture failures keep DRR-2026-066 open; latest guidance
   still needs native-Host discovery and acceptance.
-- See the [v3.7.3 notes](RELEASE_NOTES/RELEASE_NOTES_v3_7.md#v373--connection-routing-and-tool-contract-clarity)
+- See the [v3.7.3 notes](docs/releases/RELEASE_NOTES_v3_7.md#v373--connection-routing-and-tool-contract-clarity)
   for compatibility and evidence boundaries. Batch diagnostics were introduced
   in the preceding v3.7.2 work.
 
@@ -1059,7 +998,7 @@ Repository version prepared on September 15; creating a release/tag is a separat
   catalog; review those permissions when replacing `SKILLS_DIR`.
 - Full contract, compatibility impact, accepted boundaries, tests, and reviewed
   primary references are in the
-  [v3.7.2 release notes](RELEASE_NOTES/RELEASE_NOTES_v3_7.md#v372--write-transactions-and-uncertain-results).
+  [v3.7.2 release notes](docs/releases/RELEASE_NOTES_v3_7.md#v372--write-transactions-and-uncertain-results).
 
 ### v3.7.1 Opaque Preview Handles and Agent Workflow Efficiency (August 2026)
 
@@ -1166,7 +1105,7 @@ Focused on bounded metadata behavior and long-term design-risk tracking:
 - Query truncation warnings now clarify that truncation limits returned payload only; SQL `WHERE`/`LIMIT`/`ORDER BY` is still required to limit database work and stabilize ordering
 - `list_tables()` and `get_full_schema()` descriptions now use visible/truncated wording instead of implying all tables or complete schema are always returned
 - Security wording now distinguishes sqlparse statement-type allowlisting, MCP-layer checks, Skills parameter validation, and base SQL/table validators
-- Added [Design Risk Register](DESIGN_RISK_REGISTER.md) and [中文版本](DESIGN_RISK_REGISTER_ZH.md) as long-term tracking documents for accepted, deferred, rejected, and policy-required design risks
+- Added [Design Risk Register](docs/security/DESIGN_RISK_REGISTER.md) and [中文版本](docs/security/DESIGN_RISK_REGISTER_ZH.md) as long-term tracking documents for accepted, deferred, rejected, and policy-required design risks
 - Final review fixes tightened SQLite timeout classification, MCP client smoke-test assertions/result parsing, full-profile tool-count wording, and SQLite write-lock wording. Direct MCP stdio validation covered base tools, Skills tools, mutation preview, and sanitized telemetry.
 
 ### v3.4.2 Unified ToolResult, Output Schemas, and Optional Telemetry (May 2026)
@@ -1240,7 +1179,7 @@ Added the Skills extension layer — pre-defined, parameterized SQL operations f
 - **New Dependencies**: `pyyaml` for skill_def.md frontmatter parsing; `SQLAlchemy>=2.0` version constraint added
 - **Full Backward Compatibility**: `ENABLE_SKILLS=0` (default) — zero overhead, no tools registered
 
-For design details, see [MCP_AGENTS_SKILLS_DESIGN.md](MCP_AGENTS_SKILLS_DESIGN.md).
+For design details, see [MCP_AGENTS_SKILLS_DESIGN.md](docs/architecture/MCP_AGENTS_SKILLS_DESIGN.md).
 
 ### v2.2 SQLite Support (January 2026)
 
@@ -1264,7 +1203,7 @@ Added support for SQLite databases while maintaining full backward compatibility
 - **New `db_type` Field**: Tool responses include `db_type` indicating the active database type (v3.5 treats this as the target connection's DB type)
 - **Comprehensive Test Suite**: 53 tests covering both MySQL and SQLite adapters
 
-For detailed design decisions, compromises, and implementation details, see [SQLITE_ADAPTER_DESIGN.md](SQLITE_ADAPTER_DESIGN.md). For change log details, see [REFACTORING_LOG.md](REFACTORING_LOG.md).
+For detailed design decisions, compromises, and implementation details, see [SQLITE_ADAPTER_DESIGN.md](docs/architecture/SQLITE_ADAPTER_DESIGN.md). For change log details, see [REFACTORING_LOG.md](REFACTORING_LOG.md).
 
 ### v2.1 Tool Optimization (January 2026)
 
@@ -1326,7 +1265,7 @@ This project has transitioned from direct function calls to a standardized MCP s
 
 ## Exposed MCP Tools
 
-The service exposes 6–12 standardized MCP tools (depending on configuration):
+The service exposes 6–13 standardized MCP tools (depending on configuration). Response examples below show selected fields; sample table names require the corresponding read authorization:
 
 ### 0. `list_connections`
 Usage: List configured database connection ids and non-sensitive policy metadata.
@@ -1354,13 +1293,13 @@ Output:
       "connection_id": "trade_analysis_mysql",
       "db_type": "mysql",
       "is_default": true,
-      "policy": {"allow_union": false, "allowed_tables_mode": "allowlist"}
+      "policy": {"read_mode": "allowlist", "read_enabled": true, "allow_union": false, "allowed_tables_mode": "allowlist"}
     },
     {
       "connection_id": "analytics_demo_sqlite",
       "db_type": "sqlite",
       "is_default": false,
-      "policy": {"allow_union": false, "allowed_tables_mode": "allowlist"}
+      "policy": {"read_mode": "allowlist", "read_enabled": true, "allow_union": false, "allowed_tables_mode": "allowlist"}
     }
   ]
 }
@@ -1368,9 +1307,7 @@ Output:
 
 The tool does not expose DSNs, hosts, users, passwords, or SQLite file paths.
 A returned alias may be passed to read-only tools and Query Skills, subject to
-their policies and Skill scope. A Mutation Skill may use the default alias in
-compatibility mode; a non-default alias requires the strict named-write policy
-to authorize that connection and Skill. Discovery does not grant write access.
+their policies and Skill scope. A Mutation Skill requires explicit global target admission and connection-level authorization for that Skill, including on the default connection. Discovery does not grant write access.
 
 ### 1. `query` (Free-form Read Tool)
 Usage: Execute read-only SQL queries with automatic security validation.
@@ -1385,7 +1322,7 @@ discovery.
 Input:
 ```json
 {
-  "sql": "SELECT COUNT(*) as total FROM products",
+  "sql": "SELECT COUNT(*) as total FROM orders",
   "connection_id": "analytics_demo_sqlite"
 }
 ```
@@ -1396,7 +1333,7 @@ Output:
   "success": true,
   "connection_id": "analytics_demo_sqlite",
   "db_type": "sqlite",
-  "query": "SELECT COUNT(*) as total FROM products",
+  "query": "SELECT COUNT(*) as total FROM orders",
   "data": [
     {"total": 150}
   ],
@@ -1471,7 +1408,7 @@ normal diagnostic reports. Input errors, busy/stopped diagnostics and cleanup-di
 requests use the MCP tool error channel outside the report schema.
 
 All diagnostics share one process-wide runner with up to four worker threads
-and a 30-second waiting budget. For positive `MCP_TOOL_TIMEOUT_SECONDS=T`, use
+and a 30-second waiting budget. For positive `server.tool_timeout_seconds=T`, use
 `min(30, 0.8*T)`; disabling the outer timeout retains 30 seconds. A single or all
 request is busy until previous workers finish their cleanup attempts, including
 after cancellation/timeout. There is no queue, automatic retry or polling API.
@@ -1502,13 +1439,13 @@ replace it with `check_connection(scope="all")`. Existing single calls retain
 input syntax but must read `results[alias].connected` instead of top-level
 `connected`; old `message`, `database_name` and `config` fields are removed.
 Single checks now share diagnostic isolation, budget, busy and cleanup-disable
-behavior. See the [design and migration record](RELEASE_NOTES/GUIDE/V3_7_CONNECTION_DIAGNOSTICS_DESIGN.md).
+behavior. See the [design and migration record](docs/guides/V3_7_CONNECTION_DIAGNOSTICS_DESIGN.md).
 
 
 ### 3. `list_tables`
 Usage: Visible Database Overview - List returned/allowed tables and their estimated row counts.
 
-Lightweight initial exploration tool. The table list may be truncated by `MAX_OVERVIEW_TABLES`. Row counts are INFORMATION_SCHEMA estimates for MySQL (InnoDB estimates may differ significantly from the actual count) or SQLite statistics/sampling.
+Lightweight initial exploration tool. The table list may be truncated by `limits.overview_tables`. Row counts are INFORMATION_SCHEMA estimates for MySQL (InnoDB estimates may differ significantly from the actual count) or SQLite statistics/sampling.
 
 An individual `row_count` is `null` when no safe estimate is available; it does
 not mean that the table is empty. Table discovery remains available in that
@@ -1565,7 +1502,7 @@ Output:
   "table_name": "users",
   "row_count": 1500,
   "row_count_approximate": true,
-  "column_count": 5,
+  "column_count": 2,
   "columns": [
     {"column_name": "id", "data_type": "int", "nullable": "NO", "key_type": "PRI", "default_value": null},
     {"column_name": "name", "data_type": "varchar", "nullable": "YES", "key_type": "", "default_value": null}
@@ -1578,7 +1515,7 @@ Output:
 ### 5. `sample` (Optional)
 Usage: Retrieve sample data from a specified table.
 
-**Note**: This tool is controlled by `ENABLE_SCHEMA_TOOLS` environment variable (Default: Enabled)
+**Note**: This tool is controlled by `tools.schema` TOML setting (Default: Enabled)
 
 `limit` defaults to 5 and its MCP input schema accepts integers from 1 through
 20 inclusive. Out-of-range MCP calls are rejected before SQL execution rather
@@ -1612,7 +1549,7 @@ Usage: Fetch a compact or full visible database schema overview in one call.
 
 `detail_level="compact"` is the machine-visible default and is intended for broad table explanations and multi-table planning; omitting the parameter is equivalent to passing `compact`. It returns `[name, type]` column pairs, primary keys, column counts, and every table's row estimate. With `group_identical=true` (the default), tables share a group only when all column metadata currently exposed by the adapter and the column order are equal. For MySQL, that comparison covers column name, base data type, nullability, key marker, and default; it does **not** prove equality of complete DDL, indexes, foreign keys, checks, length/precision, unsigned flags, collations, or generated expressions. The response records this boundary in `grouping_basis`. Set `group_identical=false` when every compact table must remain separate; the parameter is ignored in full mode.
 
-Request `detail_level="full"` explicitly for `nullable`, `default`, and key metadata across multiple tables. A database/metadata failure returns `success=false` with `error_code="metadata_query_failed"` instead of being reported as an empty database, empty schema, missing table, or zero-row estimate. A row estimate can be `null` when unavailable; null does not mean empty. If table discovery returns a database identifier outside the schema tools' conservative identifier grammar, projection fails explicitly with `error_code="unsupported_metadata_identifier"` rather than misclassifying it as a query failure or emitting an empty table. The visible table set may be filtered by allowlist and truncated by `MAX_SCHEMA_TABLES`; use `describe_table()` for one-table drill-down.
+Request `detail_level="full"` explicitly for `nullable`, `default`, and key metadata across multiple tables. A database/metadata failure returns `success=false` with `error_code="metadata_query_failed"` instead of being reported as an empty database, empty schema, missing table, or zero-row estimate. A row estimate can be `null` when unavailable; null does not mean empty. If table discovery returns a database identifier outside the schema tools' conservative identifier grammar, projection fails explicitly with `error_code="unsupported_metadata_identifier"` rather than misclassifying it as a query failure or emitting an empty table. The visible table set may be filtered by allowlist and truncated by `limits.schema_tables`; use `describe_table()` for one-table drill-down.
 
 Compact output:
 ```json
@@ -1645,7 +1582,7 @@ Full output keeps the table-keyed `schema` mapping. Each column contains
 ### 7. `get_table_summary` (Optional)
 Usage: Get table statistics, supports optional exact row count calculation.
 
-**Note**: This tool is controlled by `ENABLE_TABLE_SUMMARY` environment variable (Default: **Disabled**). `describe_table()` tool already provides estimated row counts, so this tool is needed only when precise counting is required.
+**Note**: This tool is controlled by `tools.table_summary` TOML setting (Default: **Disabled**). `describe_table()` tool already provides estimated row counts, so this tool is needed only when precise counting is required.
 
 **Warning**: `exact_count=True` will run COUNT(*), which may be slow on large
 tables (full table scan; MySQL may also encounter metadata-lock contention).
@@ -1674,8 +1611,11 @@ Output:
   "table_name": "users",
   "row_count": 1500,
   "row_count_approximate": true,
-  "column_count": 5,
-  "columns": [...],
+  "column_count": 2,
+  "columns": [
+    {"column_name": "id", "data_type": "int", "nullable": "NO", "key_type": "PRI", "default_value": null},
+    {"column_name": "name", "data_type": "varchar", "nullable": "YES", "key_type": "", "default_value": null}
+  ],
   "is_large": true,
   "recommendation": "Large table (~1500 rows). Use LIMIT or aggregation (COUNT/GROUP BY)."
 }
@@ -1684,7 +1624,7 @@ Output:
 ### 8. `list_skills` (Skills Extension, Optional)
 Usage: List pre-defined skills (query and mutation), with optional search, category filtering, metadata projection, and availability filtering.
 
-**Note**: Requires `ENABLE_SKILLS=1`. `detail_level` is a non-null `compact|summary|full` enum. Its machine-visible default is the startup-resolved `SKILLS_LIST_DEFAULT_DETAIL` (`summary` by default); `full` already includes parameter schemas, so do not follow it with `get_skill_detail()`. `available_only` is a non-null boolean whose machine-visible default likewise equals the startup-resolved `SKILLS_LIST_AVAILABLE_ONLY_DEFAULT` (`true` by default), so Agent-facing discovery hides skills that cannot execute for the target `connection_id` because of optional Skill `connection_ids` scope, DB type compatibility, mutation switches/write policy, query connection allowlist, missing required tables, or an unavailable enabled schema-readiness check. In the last case `schema_check_available=false` distinguishes “unverified” from a known `missing_tables` result. Pass `available_only=false` to inspect the full developer catalog and failure reasons. This only changes Agent-facing metadata disclosure; execution repeats the authoritative checks and fails closed when enabled readiness cannot be verified. Query Skills accept `connection_id`; mutation Skills also accept it when strict named-write policy authorizes the target.
+**Note**: Requires `skills.enabled=true`. `detail_level` is a non-null `compact|summary|full` enum. Its machine-visible default is the startup-resolved `skills.discovery.default_detail` (`summary` by default); `full` already includes parameter schemas, so do not follow it with `get_skill_detail()`. `available_only` is a non-null boolean whose machine-visible default likewise equals the startup-resolved `skills.discovery.available_only` (`true` by default), so Agent-facing discovery hides skills that cannot execute for the target `connection_id` because of optional Skill `connection_ids` scope, DB type compatibility, mutation switches/write policy, query connection allowlist, missing required tables, or an unavailable enabled schema-readiness check. In the last case `schema_check_available=false` distinguishes “unverified” from a known `missing_tables` result. Pass `available_only=false` to inspect the full developer catalog and failure reasons. This only changes Agent-facing metadata disclosure; execution repeats the authoritative checks and fails closed when enabled readiness cannot be verified. Query Skills accept `connection_id`; mutation Skills also accept it when strict named-write policy authorizes the target.
 
 In summary/full output, `configured_connection_ids` means the subset of that
 Skill's declared `connection_ids` present in this deployment; it is not the
@@ -1755,7 +1695,7 @@ Output:
 ### 9. `get_skill_detail` (Skills Extension, Optional)
 Usage: Retrieve cached execution fields or full metadata for a single skill.
 
-**Note**: Requires `ENABLE_SKILLS=1`. `detail_level` is a non-null `execution|full` enum with machine-visible default `full`. Use `execution` when the Skill name is known but params are not; it is the recommended projection for parameter schema and the next action. Reserve `full` for explicit catalog/readiness diagnostics, and do not call this tool when `list_skills(detail_level="full")` already returned params. The execution projection contains only invocation fields, resolved connection/DB type, and the next action. This tool does not read skill files at runtime and does not expose raw SQL or mutation Python source. Only parsed YAML frontmatter values can enter these MCP responses; YAML comments and the Markdown body remain developer documentation and do not consume Agent context.
+**Note**: Requires `skills.enabled=true`. `detail_level` is a non-null `execution|full` enum with machine-visible default `full`. Use `execution` when the Skill name is known but params are not; it is the recommended projection for parameter schema and the next action. Reserve `full` for explicit catalog/readiness diagnostics, and do not call this tool when `list_skills(detail_level="full")` already returned params. The execution projection contains only invocation fields, resolved connection/DB type, and the next action. This tool does not read skill files at runtime and does not expose raw SQL or mutation Python source. Only parsed YAML frontmatter values can enter these MCP responses; YAML comments and the Markdown body remain developer documentation and do not consume Agent context.
 
 Input:
 ```json
@@ -1789,7 +1729,7 @@ Output:
 ### 10. `execute_query_skill` (Skills Extension, Optional)
 Usage: Execute a pre-defined query skill with parameterized SQL.
 
-**Note**: Requires `ENABLE_SKILLS=1`. Query Skills are reviewed SQL templates that are validated at startup for read-only/structural safety and re-checked at runtime against the resolved target connection, including per-connection table allowlists. They no longer rely on a pure startup-only trust path.
+**Note**: Requires `skills.enabled=true`. Query Skills are reviewed SQL templates that are validated at startup for read-only/structural safety and re-checked at runtime against the resolved target connection, including per-connection table allowlists. They no longer rely on a pure startup-only trust path.
 
 Input:
 ```json
@@ -1802,7 +1742,7 @@ Input:
 ### 11. `execute_mutation_skill` (Skills Extension, Optional)
 Usage: Execute a pre-defined mutation (write) skill through the two-phase preview/execute gate.
 
-**Note**: Requires `ENABLE_SKILLS=1` and `SKILLS_ALLOW_MUTATIONS=1`. Follows validate → preview → execute pattern.
+**Note**: Requires `skills.enabled=true` and `skills.mutation.enabled=true`. Follows validate → preview → execute pattern.
 
 Input:
 ```json
@@ -1862,13 +1802,34 @@ explicitly defines authoritative consistency, in-progress, retention, and
 terminal-not-found semantics. The deferred design trigger is tracked in
 DRR-2026-061 rather than a separate speculative plan.
 
-### Skills Extension Details (v3.0)
+### 12. `request_mutation_approval` (Optional MRTR Approval)
+
+Usage: prepare an immutable managed single-statement proposal, collect approval through a trusted Host, and execute once on a valid continuation.
+
+**Requirements**: `skills.mutation.mrtr.enabled=true`, Skills and writes enabled, complete target authorization, MCP `2026-07-28` and client form elicitation. The tool is absent by default. Unsupported protocols and imperative Skills are explicitly refused; existing preview/execute remains available.
+
+Input:
+```json
+{
+  "skill_name": "sample-update-order-status",
+  "params": {"order_id": 42, "new_status": "shipped"},
+  "connection_id": "analytics_demo_sqlite"
+}
+```
+
+The first round returns `InputRequiredResult` with target, Skill, normalized parameters, SQL, bindings and expiry, without executing the managed write. The Host/framework handles input responses and sealed request_state; the model need not copy raw bearer tokens. The server saves that exact review (at most 64 KiB). Missing answers resend it; a new preview cannot inherit an earlier approval.
+
+Only a valid accept with strict boolean `approve=true` reaches shared execution. Decline/cancel closes the proposal. Original expiry, binding and atomic single consumption remain authoritative. Waiting holds no transaction or row lock; repeated continuation cannot authorize another execution. Failures after consumption never restore the token, and missing state or a lost response does not prove no prior write occurred. Inspect `success` and `execution_outcome`; never automatically retry an uncertain write.
+
+This verifies the trusted Host's decision against a proposal, not an independently authenticated human. Reference Host `--flow mrtr` and protocol tests cover the flow; actual Codex/Copilot limits are recorded in [validation](docs/validation/V3_8_VALIDATION_ZH.md).
+
+### Skills Extension Details (Since v3.0)
 
 Skills are pre-defined, parameterized SQL operations that encapsulate common business queries and data mutations. Unlike the core `query()` tool where the Agent writes free-form SQL, Skills provide code-reviewed SQL templates — the Agent only needs to pass parameters.
 
 **Why Skills?**
 - **Fewer errors**: Complex multi-table JOINs and aggregations are error-prone; pre-defined templates ensure SQL correctness
-- **Safe writes**: Core tools only support read-only queries (SELECT); Skills use a server-enforced preview/token gate and best-effort audit metadata. Optional host-side approval is a separate v3.7 client flow
+- **Safe writes**: Core tools only support read-only queries (SELECT); Skills use a server-enforced preview/token gate and best-effort audit metadata. Optional host approval uses the retained preview/execute flow or managed MRTR in v3.8
 - **Efficiency**: Agent skips multi-round schema exploration and SQL authoring — one call does the job
 - **Extensible**: Developers can add custom Skills for their specific business needs
 
@@ -1919,7 +1880,7 @@ ORDER BY date ASC
 {"skill_name": "sample-monthly-sales-report", "params": {"year": 2026, "month": 1}}
 ```
 
-**How it works**: On server startup, `skill_loader.py` scans the `skills/` directory, parses the YAML frontmatter from `skill_def.md`, reads the source file declared by the `source` field, and validates it via `is_sql_safe()`. At runtime, the Agent passes `year` and `month` parameters, and the server executes the query safely using SQLAlchemy's parameterized binding (`:year`, `:month`), preventing SQL injection.
+**How it works**: On server startup, `sql_safety_executor.skills.catalog.SkillCatalog` scans the `skills/` directory, parses the YAML frontmatter from `skill_def.md`, reads the source file declared by the `source` field, and validates it via `is_sql_safe()`. At runtime, the Agent passes `year` and `month` parameters, and the server executes the query safely using SQLAlchemy's parameterized binding (`:year`, `:month`), preventing SQL injection.
 
 #### SQLite counterpart: `sample-monthly-sales-report-sqlite`
 
@@ -1955,7 +1916,7 @@ GROUP BY date(order_date)
 ORDER BY date ASC
 ```
 
-The bundled `sample-monthly-sales-report`, `sample-monthly-sales-report-sqlite`, `sample-update-order-status`, and `sample-reset-order-to-pending` skills are marked with `profiles: [demo]` because they require an `orders` demo schema. With `SKILLS_CHECK_SCHEMA_ON_LIST=1`, `available_only=true` hides them when the target connection does not contain their required tables or when database metadata is unavailable and readiness cannot be verified. Dialect-specific query SQL remains in separate Skills, while portable mutations explicitly declare both supported database types; this keeps startup validation simple and makes `available_only` filtering deterministic for Agents.
+The bundled `sample-monthly-sales-report`, `sample-monthly-sales-report-sqlite`, `sample-update-order-status`, and `sample-reset-order-to-pending` skills are marked with `profiles: [demo]` because they require an `orders` demo schema. With `skills.readiness.check_schema=true`, `available_only=true` hides them when the target connection does not contain their required tables or when database metadata is unavailable and readiness cannot be verified. Dialect-specific query SQL remains in separate Skills, while portable mutations explicitly declare both supported database types; this keeps startup validation simple and makes `available_only` filtering deterministic for Agents.
 
 #### Example 2: `sample-update-order-status` (Mutation Skill)
 
@@ -2023,7 +1984,7 @@ response failure, leaves the handle consumed. If the write result is uncertain,
 inspect current business state before deciding whether another preview/mutation
 is appropriate; do not blindly retry. Static request/policy rejection or a
 request-binding mismatch does not consume the valid record. Handles default to
-`MUTATION_PREVIEW_TOKEN_TTL_SECONDS=300`, with a valid range of `1-86400`.
+`skills.mutation.preview.ttl_seconds=300`, with a valid range of `1-86400`.
 The process-local memory store loses all outstanding handles on process restart.
 Preview and execute must reach the same process; cross-worker/cross-replica
 mutation execution is unsupported and never enables stateless token acceptance.
@@ -2089,30 +2050,28 @@ prefer a fresh stdio server process for each live-test scenario.
 Bundled examples use the reserved `sample-` prefix. Create your own Skill in a
 directory such as `skills/my-report/` without that prefix. Git ignores immediate
 subdirectories of `skills/` except the four bundled examples explicitly listed
-in `.gitignore` and the framework directory `_lib/`. New `sample-*` directories
+in `.gitignore`; the framework SDK now lives in the installed package. New `sample-*` directories
 are also ignored; adding a bundled example requires updating `.gitignore`.
 Keep the directory name and frontmatter `name` identical.
 The prefix is a repository convention, not execution permission or managed-plan
 eligibility. Metadata/path checks, mutation switches, connection allowlists,
 and managed-plan validation still apply.
 
-`skills/SKILLS.md` is generated at startup and `skills/_audit.jsonl` is the
-default audit output. Both are local, ignored files; the examples below and
-their tracked `skill_def.md` files provide the shared documentation. Existing
+`skills/SKILLS.md` can be explicitly exported; v3.8 startup does not generate it. The old `skills/_audit.jsonl` remains ignored; the current default is `../logs/skill_audit.jsonl` relative to the Skills TOML. The examples below and their tracked `skill_def.md` files provide shared documentation. Existing
 tracked custom files are not untracked automatically by `.gitignore`.
 Use `git rm --cached -r -- skills/my-report/` to stop tracking an existing
-custom directory while preserving its local files. Custom `SKILLS_DIR` and
+custom directory while preserving its local files. Custom `skills.directory` and
 audit paths need corresponding ignore rules if stored inside your repository.
-See the [name migration table](RELEASE_NOTES/RELEASE_NOTES_v3_7.md#sample-skill-names-and-local-files)
+See the [name migration table](docs/releases/RELEASE_NOTES_v3_7.md#sample-skill-names-and-local-files)
 when upgrading an existing configuration.
 
 Review all custom Skill files and their dependencies before deploying or
 restarting the server. Git ignore rules do not affect discovery or provide
 execution isolation: mutation modules are imported during discovery when
-`SKILLS_ALLOW_MUTATIONS=1`,
+`skills.mutation.enabled=true`,
 which executes their module-level Python code. Use least-privilege database
 credentials and review the actual Skill directory together with connection
-policies; see [Skills security governance](skills/SAFETY.md#11-mutationpy-execution-constraints).
+policies; see [Skills security governance](docs/security/SAFETY.md#11-mutationpy-execution-constraints).
 
 **Query skills** (read-only):
 1. Create a directory under `skills/`, e.g. `skills/my-report/`
@@ -2130,6 +2089,17 @@ policies; see [Skills security governance](skills/SAFETY.md#11-mutationpy-execut
 3. Write the corresponding `.sql` file (use `:param_name` as parameter placeholders), filename must match the `source` field
 4. Restart the server — the skill is auto-discovered and registered
 
+v3.8 extensions import the installed SDK without injecting `skills/_lib` into `sys.path`:
+
+```python
+from sql_safety_executor.skills import (
+    ManagedMutationBase, ManagedMutationPlan, ManagedMutationValue,
+    MutationBase, OperationError,
+)
+```
+
+Use `OperationError` for business failures; the MCP boundary converts it. See the [import migration table](docs/guides/CONFIGURATION_ZH.md#扩展导入与切换). External directories must be explicitly configured and trusted; resolved definitions/sources stay within the declared root. This is not a Python sandbox.
+
 **Mutation skills** (write):
 1. Create the directory and `skill_def.md` as above (`type: mutation`), must include `source` field pointing to the Python file (e.g. `source: mutation.py`)
 2. Prefer a concrete `Mutation` class inheriting from `ManagedMutationBase`.
@@ -2141,7 +2111,7 @@ policies; see [Skills security governance](skills/SAFETY.md#11-mutationpy-execut
    state explicitly. Return business context/warnings/state only from managed
    `preview()`; remove Skill-defined `preview_sql` and `bound_params`. The
    framework generates them and rejects unresolved SQL/result values before
-   issuing a token. See [the reserved result fields](skills/SAFETY.md#11-mutationpy-execution-constraints)
+   issuing a token. See [the reserved result fields](docs/security/SAFETY.md#11-mutationpy-execution-constraints)
 3. Use `MutationBase` only for a reviewed imperative workflow that cannot fit
    one statement. Implement `validate()`, `preview()`, `execute()`, and when
    needed `build_execution_binding()` / `execute_with_binding()`. The whole
@@ -2151,7 +2121,7 @@ policies; see [Skills security governance](skills/SAFETY.md#11-mutationpy-execut
 5. Remove `exact_transaction_outcome`; discovery rejects this obsolete flag.
    Managed eligibility comes from the validated plan type, not a Skill name,
    file path, boolean declaration, or returned Python object
-6. Enable `ENABLE_SKILLS=1` and `SKILLS_ALLOW_MUTATIONS=1`. Ensure the database account has the required write privileges. When `SKILLS_ALLOW_MUTATION_CONNECTIONS` enables strict mode, the target must be listed there and must set `DB_<ID>_ALLOW_MUTATIONS=1` with this Skill's name in `DB_<ID>_MUTATION_SKILLS`. Without strict mode, mutations remain limited to the default connection
+6. Enable `skills.enabled=true` and `skills.mutation.enabled=true`, list the target in `skills.mutation.allowed_connections`, and set that connection's `mutation.enabled=true` with the Skill in `mutation.skills`. Every gate also applies to the default connection; database grants remain necessary.
 7. After reviewing the Skill code and connection policies, restart the server
 
 > **About the `source` field**: `source` is a mandatory field that explicitly declares the association
@@ -2161,7 +2131,7 @@ policies; see [Skills security governance](skills/SAFETY.md#11-mutationpy-execut
 > The `source` filename is validated for security: no path traversal allowed, suffix must match
 > `type` (query→`.sql`, mutation→`.py`).
 
-For full specifications, see [MCP_AGENTS_SKILLS_DESIGN.md](MCP_AGENTS_SKILLS_DESIGN.md) and [skills/SAFETY.md](skills/SAFETY.md).
+For the design background, see [MCP_AGENTS_SKILLS_DESIGN.md](docs/architecture/MCP_AGENTS_SKILLS_DESIGN.md) and the [historical Skills security policy](docs/security/SAFETY.md). Current deployment and extension contracts are in the [v3.8 configuration guide](docs/guides/CONFIGURATION_ZH.md) and [security boundaries](docs/security/V3_8_SECURITY.md).
 
 #### Skills Design Architecture
 
@@ -2181,9 +2151,9 @@ flowchart LR
         S1["Scan skills/ directory"]
         S2["Parse YAML frontmatter"]
         S3["SQL safety check\nis_sql_safe()"]
-        S4["Import Mutation class\nimportlib.util"]
-        S5["Write to memory cache\n_skills_cache"]
-        S6["Generate SKILLS.md"]
+        S4["Import allowed Mutation classes\nimportlib.util"]
+        S5["Write to instance catalog\nSkillCatalog"]
+        S6["Optional overview export"]
     end
 
     subgraph Runtime["Phase 3: Runtime — Agent Interaction"]
@@ -2199,7 +2169,7 @@ flowchart LR
     S1 --> S2 --> S3 & S4
     S3 --> S5
     S4 --> S5
-    S5 --> S6
+    S5 -.-> S6
     S5 -.->|"Memory cache"| R1 & R2 & R3 & R4
 ```
 
@@ -2217,7 +2187,7 @@ sequenceDiagram
     participant Agent
     participant MCP as MCP Server
     participant Mutation as MutationBase
-    participant Adapter as db_adapter
+    participant Adapter as DatabaseAdapter
     participant Audit as AuditLogger
     participant DB as Database
 
@@ -2258,7 +2228,7 @@ sequenceDiagram
 
 `skill_def.md` uses a layered design of YAML frontmatter + Markdown body, serving different audiences:
 
-- **YAML frontmatter** (top section): Machine-parsed by `skill_loader.py` at server startup, extracting structured fields like `name`, `type`, `params` for registration and validation. Agents access this metadata (formatted) via `list_skills()` and `get_skill_detail()`, not by reading the file directly.
+- **YAML frontmatter** (top section): Machine-parsed by `sql_safety_executor.skills.catalog.SkillCatalog` at server startup, extracting structured fields like `name`, `type`, `params` for registration and validation. Agents access this metadata (formatted) via `list_skills()` and `get_skill_detail()`, not by reading the file directly.
 - **Markdown body** (bottom section): Natural language documentation for developers (usage instructions, workflow hints, notes, etc.). **Not sent to the Agent** — this is a key difference from standard Agent Skills: the standard SKILL.md body contains instructions for the Agent to read, while this project's body is documentation for humans.
 - **Parameter constraint declarations**: `type`/`min`/`max`/`enum` declared in YAML, enforced uniformly by `validate_params()`. Skill authors don't need to duplicate validation logic in code.
 
@@ -2305,78 +2275,74 @@ This follows Google's [Function Calling Best Practices](https://ai.google.dev/ge
 | *"Validate all inputs"* | [MCP Specification §7 — Security](https://modelcontextprotocol.io/specification/2025-03-26/basic/security) | Skills execution calls validate skill names and params; base tools use SQL/table-specific validators |
 | Parameterized queries | [OWASP — SQL Injection Prevention](https://cheatsheetseries.owasp.org/cheatsheets/SQL_Injection_Prevention_Cheat_Sheet.html) | SQLAlchemy `text()` + parameter binding, zero string concatenation |
 
-For complete design details, execution flow diagrams, and industry best practices alignment analysis, see [MCP_AGENTS_SKILLS_DESIGN.md](MCP_AGENTS_SKILLS_DESIGN.md).
+For complete design details, execution flow diagrams, and industry best practices alignment analysis, see [MCP_AGENTS_SKILLS_DESIGN.md](docs/architecture/MCP_AGENTS_SKILLS_DESIGN.md).
 
 
 ## Requirements
 
-- Python 3.12+
-- MySQL or SQLite Database
-- Dependencies: `sqlparse`, `SQLAlchemy>=2.0`, `PyMySQL`, `fastMCP`, `python-dotenv>=1.2.0`, `pyyaml`
+- Python 3.12+ and a MySQL or SQLite database.
+- FastMCP 4.0.10 / MCP SDK 2.2.0; SQLAlchemy, sqlparse, PyMySQL, Pydantic and PyYAML are managed by `pyproject.toml` and locked in `uv.lock`.
+- AutoGen examples use a separate environment. Indirect python-dotenv installation does not imply support for old environment configuration.
 
 ## Testing
 
-The default pytest suite is hermetic and limited to `tests/` by `pytest.ini`.
-`tests/conftest.py` disables `python-dotenv` loading and supplies safe SQLite,
-policy, Skills, and telemetry defaults before application imports, so a local
-`.env` cannot redirect the suite to a live database. The optional MySQL
-integration fixture also requires `RUN_MYSQL_INTEGRATION_TESTS=1` plus MySQL
-credentials exported in the process environment; `.env` remains ignored:
+Default pytest collection is limited to `tests/` by `pyproject.toml`, with isolated temporary configuration and SQLite fixtures; the private `.env` is not loaded. Optional MySQL integration checks require `RUN_MYSQL_INTEGRATION_TESTS=1` and explicitly exported test credentials. This is a test-fixture input, not a server configuration fallback.
 
 ```bash
-python -m pytest -q
+uv run pytest -q -rs
+uv run pyright
+uv build
 ```
 
-Root-level smoke scripts are manual/live checks. Run them only against a safe
-development or fixture database, because they can connect to the configured
-database and print table metadata or sampled rows.
+v3.8 results: 744 passed, 4 skipped; clean type checks; installed-wheel prompts and modern/legacy protocol queries verified outside the repository. Four live MySQL checks remain disabled. CI is configured but has not been pushed/run remotely; native Host successes and limitations are recorded separately in [validation](docs/validation/V3_8_VALIDATION_ZH.md).
+
+Later [live review and native reconnection tests](docs/validation/V3_8_LIVE_REVIEW_2026_09_26_ZH.md) verified MySQL connection/basic read probes and a native SQLite preview/execute/compensation cycle. Three isolated GPT-6 Luna agents completed six rounds each (22 calls, no observed wrong-target access); the host-directed write fixture was restored. These are separate from the four skipped MySQL integration tests and do not establish native MRTR, human approval UI or MySQL write behavior. Native subagent usage/protocol were not exposed; no cost or negotiated-version claims are inferred.
 
 ### Test Scripts
 
-The project includes two complementary test scripts:
+#### 1. `scripts/query.py` — Core Query Check
 
-#### 1. `test_mcp_functions.py` - Internal Function Test
-Tests underlying functions directly, without passing through the MCP protocol:
+Runs the complete read policy shared with MCP and actually accesses the selected database. Use an appropriate test target:
+
 ```bash
-python test_mcp_functions.py
+uv run python scripts/query.py --config config/examples/sqlite/server.toml \
+  --connection-id demo 'SELECT 1 AS value'
 ```
 
-This script verifies:
-- SQL validation logic (safe and unsafe queries)
-- Database connection
-- Query execution
-- Schema introspection (if enabled)
-- Sample data retrieval (if enabled)
+#### 2. `scripts/inspect_mcp.py` — MCP Protocol Check
 
-#### 2. `test_mcp_client.py` - MCP Protocol Test
-Tests the server via MCP protocol using FastMCP Client:
+Starts a fresh stdio subprocess and displays negotiated protocol, tool definitions, instructions and configured aliases, without actively probing a database or issuing business queries:
+
 ```bash
-python test_mcp_client.py
+uv run python scripts/inspect_mcp.py --config config/examples/sqlite/server.toml --mode auto
+uv run python scripts/inspect_mcp.py --config config/examples/sqlite/server.toml --mode legacy
 ```
 
-This script:
-- Connects to MCP Server using FastMCP `Client` API
-- Tests server info and database connection
-- Executes multiple SQL queries (list tables, SELECT, COUNT)
-- Tests optional schema tools (if enabled)
-- Verifies data serialization format
+Startup still discovers enabled trusted Skills. For offline configuration only, use `config check/explain`; `scripts/check_prompt_contract.py` checks installed prompts. See the [client guide](docs/guides/TEST_MCP_CLIENT_GUIDE.md).
 
 ## Other Documentation
 
-- [Skills Design](MCP_AGENTS_SKILLS_DESIGN.md): v3.0 Skills extension layer architecture and design decisions
-- [Skills Security Policy](skills/SAFETY.md): security governance for skill authors
-- [Release Notes v3.5](RELEASE_NOTES/RELEASE_NOTES_v3_5.md): named multi-connection release summary, compatibility notes, limits, and validation evidence
-- [Release Notes v3.6/v3.6.1](RELEASE_NOTES/RELEASE_NOTES_v3_6.md): mutation preview tokens, named-write policy, execution binding fixes, and the formalized same-process deployment boundary
-- [Release Notes v3.7/v3.7.3](RELEASE_NOTES/RELEASE_NOTES_v3_7.md): v3.7 capabilities, transaction outcomes, and current connection-routing/tool-contract corrections
-- [v3.5-v3.7 Skills Guide (Chinese)](RELEASE_NOTES/GUIDE/V3_5-V3_7_SKILLS_GUIDE_ZH.md): connection routing, write policy, preview tokens, Skill scope, and approval boundaries
-- [Design Risk Register](DESIGN_RISK_REGISTER.md): Long-term design, security, and operations risk register
-- [Feasibility Analysis](LLM_TO_MCP_FEASIBILITY_ANALYSIS.md): Detailed analysis of LLM to MCP conversion
+- [Configuration examples](config/examples/README.md): SQLite, MySQL, multiple connections and controlled mutations
+- [v3.8 configuration and migration](docs/guides/CONFIGURATION_ZH.md): TOML, permissions, SDK imports and cutover
+- [v3.8 implementation decisions](docs/architecture/V3_8_IMPLEMENTATION_ZH.md): package structure, state and reference-plan review
+- [v3.8 security boundaries](docs/security/V3_8_SECURITY.md): trusted Python/Host, MRTR, audit and unknown outcomes
+- [v3.8 release notes](docs/releases/RELEASE_NOTES_v3_8.md) and [validation](docs/validation/V3_8_VALIDATION_ZH.md)
+- [Documentation index](docs/README.md): current contracts and historical material
+
+- [Skills Design](docs/architecture/MCP_AGENTS_SKILLS_DESIGN.md): v3.0 Skills extension layer architecture and design decisions
+- [Historical Skills Security Policy](docs/security/SAFETY.md): security governance for skill authors
+- [Release Notes v3.5](docs/releases/RELEASE_NOTES_v3_5.md): named multi-connection release summary, compatibility notes, limits, and validation evidence
+- [Release Notes v3.6/v3.6.1](docs/releases/RELEASE_NOTES_v3_6.md): mutation preview tokens, named-write policy, execution binding fixes, and the formalized same-process deployment boundary
+- [Release Notes v3.7/v3.7.3](docs/releases/RELEASE_NOTES_v3_7.md): v3.7 capabilities, transaction outcomes, and connection-routing/tool-contract corrections from that release
+- [v3.5-v3.7 Skills Guide (Chinese)](docs/guides/V3_5-V3_7_SKILLS_GUIDE_ZH.md): connection routing, write policy, preview tokens, Skill scope, and approval boundaries
+- [Design Risk Register](docs/security/DESIGN_RISK_REGISTER.md): Long-term design, security, and operations risk register
+- [Feasibility Analysis](docs/architecture/LLM_TO_MCP_FEASIBILITY_ANALYSIS.md): Detailed analysis of LLM to MCP conversion
 - [Original Context](GEMINI.md): Project background and development guide
-- [Refactoring Log](REFACTORING_LOG.md): Refactoring change documentation (v2.0 — v3.7.3)
-- [MCP Client Test Guide](TEST_MCP_CLIENT_GUIDE.md): Guide for testing MCP Server via client
-- [MCP Agent Behavior Validation Method (Chinese)](RELEASE_NOTES/GUIDE/MCP_AGENT_BEHAVIOR_VALIDATION_ZH.md): Method for validating natural tool selection, redundant calls, connection routing, and progressive disclosure
-- [MCP Tool Contract and Evaluation Guide](PROMPT_ENGINEERING_BEST_PRACTICES.md): Project guidance for tool schemas, descriptions, instructions, safety boundaries, and evaluation
-- [Agent Examples Development Log (Chinese)](agent_examples/AGENT_DEVELOPMENT_ZH.md): AutoGen multi-agent example design and decisions
+- [Refactoring Log](REFACTORING_LOG.md): Maintained refactoring decisions and validation (v2.0 — v3.8)
+- [MCP Client Test Guide](docs/guides/TEST_MCP_CLIENT_GUIDE.md): Guide for testing MCP Server via client
+- [MCP Agent Behavior Validation Method (Chinese)](docs/guides/MCP_AGENT_BEHAVIOR_VALIDATION_ZH.md): Method for validating natural tool selection, redundant calls, connection routing, and progressive disclosure
+- [MCP Tool Contract and Evaluation Guide](docs/guides/PROMPT_ENGINEERING_BEST_PRACTICES.md): Project guidance for tool schemas, descriptions, instructions, safety boundaries, and evaluation
+- [Agent Examples Development Log (Chinese)](examples/autogen/AGENT_DEVELOPMENT_ZH.md): AutoGen multi-agent example design and decisions
 
 ## Contribution
 

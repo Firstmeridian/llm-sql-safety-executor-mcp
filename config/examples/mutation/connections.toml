@@ -1,0 +1,9 @@
+schema_version = 1
+[connections.demo_write]
+type = "sqlite"
+# Create a separate disposable DB with scripts/setup_sqlite_demo.py first.
+sqlite.path = "../../../local_data/mutation-demo.db"
+read.mode = "allowlist"
+read.tables = ["orders"]
+mutation.enabled = true
+mutation.skills = ["sample-update-order-status"]

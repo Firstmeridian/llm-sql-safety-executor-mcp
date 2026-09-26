@@ -1,0 +1,31 @@
+{
+  "host": "codex-cli 0.155.0-alpha.16.3",
+  "protocol": "2025-06-18",
+  "scenario": "default_cross",
+  "calls": [
+    {
+      "tool": "query",
+      "connection_id": null,
+      "status": "completed"
+    },
+    {
+      "tool": "query",
+      "connection_id": "demo",
+      "status": "completed"
+    },
+    {
+      "tool": "query",
+      "connection_id": "analytics",
+      "status": "completed"
+    }
+  ],
+  "usage": {
+    "input_tokens": 81863,
+    "cached_input_tokens": 66560,
+    "cache_write_input_tokens": 0,
+    "output_tokens": 285,
+    "reasoning_output_tokens": 0
+  },
+  "final_answer": "已通过 sql_v38_test MCP 执行只读查询：\n\n```sql\nSELECT status FROM orders WHERE id = 1;\n```\n\n| 查询目标 | 实际连接 | status |\n|---|---|---|\n| 默认连接（先查询） | demo | pending |\n| 明确指定 demo | demo | pending |\n| 明确指定 analytics | analytics | confirmed |\n\n默认连接与 demo 结果一致；analytics 的同一订单状态不同，为 `confirmed`。未执行任何写入。",
+  "misrouting": 0
+}

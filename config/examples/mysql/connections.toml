@@ -1,0 +1,10 @@
+schema_version = 1
+[connections.reporting]
+type = "mysql"
+mysql.host = "127.0.0.1"
+mysql.user = "readonly_user"
+mysql.database = "reporting"
+# Export explicitly in the Host environment. No .env files are read.
+mysql.password = { env = "REPORTING_DB_PASSWORD" }
+read.mode = "allowlist"
+read.tables = ["orders"]

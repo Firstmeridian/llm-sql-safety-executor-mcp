@@ -1,0 +1,57 @@
+{
+  "baseline": "582822b",
+  "tests": {
+    "passed": 676,
+    "skipped": 4
+  },
+  "tools": {
+    "list_connections": {
+      "arguments": "ctx: Context",
+      "description_sha256": "100a9e3e5b6b357ae8fed6816b153215cf2ee0e8327de1e4add52bfcb9851f71"
+    },
+    "query": {
+      "arguments": "sql: Annotated[str, _SQL_QUERY_FIELD], ctx: Context, connection_id: Annotated[str | None, _CONNECTION_ID_FIELD]=None",
+      "description_sha256": "5fd063305705aa37f96fbb52823c7253cbf370d343694da3c6a413a75110c051"
+    },
+    "check_connection": {
+      "arguments": "ctx: Context, connection_id: Annotated[str | None, Field(description=\"Configured alias for scope='single'; omit or use null for the default. Pass an already resolved target explicitly. Must be omitted or null for scope='all'.\", min_length=1, max_length=64)]=None, scope: Annotated[ConnectionScope, Field(description='single checks one alias or the default; all explicitly checks every configured alias.')]='single'",
+      "description_sha256": "691e0d3cbb001d4e12cae9232d9550372f3147aeb42a1b3afe1e2221332fbf0c"
+    },
+    "list_tables": {
+      "arguments": "ctx: Context, connection_id: Annotated[str | None, _CONNECTION_ID_FIELD]=None",
+      "description_sha256": "7827a2a5c8a0eb1055f172b45cd055aace615723832fe4d18aabe1c79c7053a7"
+    },
+    "describe_table": {
+      "arguments": "table_name: str, ctx: Context, connection_id: Annotated[str | None, _CONNECTION_ID_FIELD]=None",
+      "description_sha256": "9844755e30231cbde93e7ef97e7d549e900efdddc10bdb4cee2f86c2bd9cc2a8"
+    },
+    "get_full_schema": {
+      "arguments": "ctx: Context, connection_id: Annotated[str | None, _CONNECTION_ID_FIELD]=None, detail_level: Annotated[SchemaDetailLevel, Field(description='Use compact for table discovery, broad schema explanation, or multi-table planning. Use full for nullable, default, and key metadata. Defaults to compact.')]='compact', group_identical: Annotated[bool, Field(description='Compact mode only; defaults to true. Group tables when their complete current adapter-visible column metadata and column order are equal. This is not proof of full DDL, index, or constraint equivalence. Ignored in full mode.')]=True",
+      "description_sha256": "02ea1973449883da56540dafc0f52c923662b03919557d51c4d8e95347bbe8f3"
+    },
+    "get_table_summary": {
+      "arguments": "table_name: str, ctx: Context, exact_count: Annotated[bool, Field(description='When true, execute SELECT COUNT(*) for an exact row count. This may require a full scan, be slow on large tables, and encounter MySQL metadata-lock contention. Use only when precision is required. Defaults to false.')]=False, connection_id: Annotated[str | None, _CONNECTION_ID_FIELD]=None",
+      "description_sha256": "d44a5e0b9001c1b7695e55b3032caba8a03b0b005dd29e369b89d60158aaba8c"
+    },
+    "sample": {
+      "arguments": "table_name: str, ctx: Context, limit: Annotated[int, Field(ge=1, le=20, description='Number of sample rows to return, from 1 through 20. Defaults to 5; out-of-range values are rejected.')]=5, connection_id: Annotated[str | None, _CONNECTION_ID_FIELD]=None",
+      "description_sha256": "f17e00c9c04ba30a49fc30081f64c2befb3fc9dbf0b41cd9d9dc757665fd789d"
+    },
+    "list_skills": {
+      "arguments": "ctx: Context, search: Annotated[str | None, Field(description='Optional case-insensitive substring search over skill names, descriptions, triggers, category, type, risk, profiles, tables, connection_ids, and related skills.', max_length=SKILLS_SEARCH_MAX_LENGTH)]=None, category: Annotated[str | None, Field(description=\"Optional exact category filter. Skills without a category are grouped as 'uncategorized'.\", max_length=SKILLS_CATEGORY_MAX_LENGTH)]=None, detail_level: Annotated[SkillListDetailLevel, Field(description=\"Metadata projection: compact, summary, or full. Full includes params and needs no get_skill_detail() follow-up. The default is the server's SKILLS_LIST_DEFAULT_DETAIL startup setting.\")]=SKILLS_LIST_DEFAULT_DETAIL, available_only: Annotated[bool, Field(description=\"When true, return only skills executable for the target connection, including Skill connection_ids scope, DB compatibility, mutation switch, connection policy, and schema readiness. Pass false to inspect the full catalog. The default is the server's SKILLS_LIST_AVAILABLE_ONLY_DEFAULT startup setting.\")]=SKILLS_LIST_AVAILABLE_ONLY_DEFAULT, connection_id: Annotated[str | None, _CONNECTION_ID_FIELD]=None",
+      "description_sha256": "82cdbd96ccaea67e458d060429c9390f5e4d64290bca702482a7e6aee44995a0"
+    },
+    "get_skill_detail": {
+      "arguments": "skill_name: Annotated[str, Field(description='Name of the skill to inspect')], ctx: Context, connection_id: Annotated[str | None, _CONNECTION_ID_FIELD]=None, detail_level: Annotated[SkillDetailProjection, Field(description='Use execution (recommended) for params/schema and the next action. Use full only when catalog or readiness diagnostics are explicitly needed. Defaults to full.')]='full'",
+      "description_sha256": "78909be6d53860edbaae0ddc9772eb326b549d6e41f5cf423bfdbcb0fd26692c"
+    },
+    "execute_query_skill": {
+      "arguments": "skill_name: Annotated[str, Field(description='Name of the query skill to execute')], params: Annotated[dict[str, Any], Field(description='Parameters for the skill (must match skill_def.md schema)')], ctx: Context, connection_id: Annotated[str | None, _CONNECTION_ID_FIELD]=None",
+      "description_sha256": "22220175e1563987d6a6d7187eeadebf597eeaf578209f8c157f666d942f2497"
+    },
+    "execute_mutation_skill": {
+      "arguments": "skill_name: Annotated[str, Field(description='Name of the mutation skill to execute')], params: Annotated[dict[str, Any], Field(description='Parameters for the skill (must match skill_def.md schema)')], ctx: Context, confirm: Annotated[bool, Field(description='False=preview (default), True=execute')]=False, preview_token: Annotated[str | None, _MUTATION_PREVIEW_TOKEN_FIELD]=None, connection_id: Annotated[str | None, _CONNECTION_ID_FIELD]=None",
+      "description_sha256": "eb3fb19ffbb9992ad425bada353f4b99bf91edd8ea7177adb6ff34f78af549d1"
+    }
+  }
+}

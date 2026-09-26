@@ -7,10 +7,10 @@ skills; execution behavior is covered by test_query_skills.py and
 test_mutation_skills.py.
 """
 
+from tests.support import SCENARIO, make_gateway
+
 import asyncio
-import importlib
 import json
-import sys
 from pathlib import Path
 
 import pytest
@@ -18,8 +18,6 @@ import pytest
 
 PROJECT_ROOT = Path(__file__).parent.parent
 SKILLS_LIB = PROJECT_ROOT / "skills" / "_lib"
-sys.path.insert(0, str(PROJECT_ROOT))
-sys.path.insert(0, str(SKILLS_LIB))
 
 
 class DummyContext:
@@ -57,17 +55,17 @@ def create_demo_orders_table(module):
 
 def disable_optional_skill_policies(monkeypatch):
     """Keep optional profile/audit policies stable across local .env files."""
-    monkeypatch.setenv("SKILLS_EXCLUDE_PROFILES", "")
-    monkeypatch.setenv("SKILLS_AUDIT_QUERIES", "0")
-    monkeypatch.setenv("MAX_SQL_LENGTH", "20000")
-    monkeypatch.setenv("MCP_TOOL_TIMEOUT_SECONDS", "120")
+    monkeypatch.setitem(SCENARIO, "SKILLS_EXCLUDE_PROFILES", "")
+    monkeypatch.setitem(SCENARIO, "SKILLS_AUDIT_QUERIES", "0")
+    monkeypatch.setitem(SCENARIO, "MAX_SQL_LENGTH", "20000")
+    monkeypatch.setitem(SCENARIO, "MCP_TOOL_TIMEOUT_SECONDS", "120")
 
 
 def configure_demo_sqlite_connection(monkeypatch):
-    monkeypatch.setenv("DB_CONNECTIONS", "analytics_demo_sqlite")
-    monkeypatch.setenv("DEFAULT_DB_CONNECTION", "analytics_demo_sqlite")
-    monkeypatch.setenv("DB_ANALYTICS_DEMO_SQLITE_TYPE", "sqlite")
-    monkeypatch.setenv(
+    monkeypatch.setitem(SCENARIO, "DB_CONNECTIONS", "analytics_demo_sqlite")
+    monkeypatch.setitem(SCENARIO, "DEFAULT_DB_CONNECTION", "analytics_demo_sqlite")
+    monkeypatch.setitem(SCENARIO, "DB_ANALYTICS_DEMO_SQLITE_TYPE", "sqlite")
+    monkeypatch.setitem(SCENARIO,
         "DB_ANALYTICS_DEMO_SQLITE_SQLITE_DATABASE_PATH",
         ":memory:",
     )
@@ -77,28 +75,22 @@ def configure_demo_sqlite_connection(monkeypatch):
 def skills_server(monkeypatch):
     """Import mcp_sql_server with Skills enabled and stable test settings."""
     disable_optional_skill_policies(monkeypatch)
-    monkeypatch.setenv("ENABLE_SKILLS", "1")
-    monkeypatch.setenv("SKILLS_DIR", "skills/")
+    monkeypatch.setitem(SCENARIO, "ENABLE_SKILLS", "1")
+    monkeypatch.setitem(SCENARIO, "SKILLS_DIR", "skills/")
     configure_demo_sqlite_connection(monkeypatch)
-    monkeypatch.setenv("SKILLS_ALLOW_MUTATIONS", "0")
-    monkeypatch.delenv("SKILLS_LIST_DEFAULT_DETAIL", raising=False)
-    monkeypatch.delenv("SKILLS_LIST_AVAILABLE_ONLY_DEFAULT", raising=False)
-    monkeypatch.delenv("SKILLS_CHECK_SCHEMA_ON_LIST", raising=False)
+    monkeypatch.setitem(SCENARIO, "SKILLS_ALLOW_MUTATIONS", "0")
+    monkeypatch.delitem(SCENARIO, "SKILLS_LIST_DEFAULT_DETAIL", raising=False)
+    monkeypatch.delitem(SCENARIO, "SKILLS_LIST_AVAILABLE_ONLY_DEFAULT", raising=False)
+    monkeypatch.delitem(SCENARIO, "SKILLS_CHECK_SCHEMA_ON_LIST", raising=False)
 
-    import skill_loader
+    from tests import support_catalog as skill_loader
 
     # Avoid rewriting the generated human overview file during imports.
     monkeypatch.setattr(skill_loader, "generate_skills_md", lambda *_args, **_kwargs: None)
 
-    sys.modules.pop("mcp_sql_server", None)
-    sys.modules.pop("db_adapter", None)
-    sys.modules.pop("sql_safety_checker", None)
-    module = importlib.import_module("mcp_sql_server")
+    module = make_gateway()
     create_demo_orders_table(module)
     yield module
-    sys.modules.pop("mcp_sql_server", None)
-    sys.modules.pop("db_adapter", None)
-    sys.modules.pop("sql_safety_checker", None)
 
 
 def run_tool(coro):
@@ -147,28 +139,26 @@ def test_list_default_summary_uses_env_default(skills_server):
 def test_default_availability_hides_missing_required_tables(monkeypatch):
     """available_only=true hides skills whose required tables are absent."""
     disable_optional_skill_policies(monkeypatch)
-    monkeypatch.setenv("ENABLE_SKILLS", "1")
-    monkeypatch.setenv("SKILLS_DIR", "skills/")
+    monkeypatch.setitem(SCENARIO, "ENABLE_SKILLS", "1")
+    monkeypatch.setitem(SCENARIO, "SKILLS_DIR", "skills/")
     configure_demo_sqlite_connection(monkeypatch)
-    monkeypatch.setenv("SKILLS_ALLOW_MUTATIONS", "0")
-    monkeypatch.delenv("SKILLS_LIST_DEFAULT_DETAIL", raising=False)
-    monkeypatch.delenv("SKILLS_LIST_AVAILABLE_ONLY_DEFAULT", raising=False)
-    monkeypatch.delenv("SKILLS_CHECK_SCHEMA_ON_LIST", raising=False)
+    monkeypatch.setitem(SCENARIO, "SKILLS_ALLOW_MUTATIONS", "0")
+    monkeypatch.delitem(SCENARIO, "SKILLS_LIST_DEFAULT_DETAIL", raising=False)
+    monkeypatch.delitem(SCENARIO, "SKILLS_LIST_AVAILABLE_ONLY_DEFAULT", raising=False)
+    monkeypatch.delitem(SCENARIO, "SKILLS_CHECK_SCHEMA_ON_LIST", raising=False)
 
-    import skill_loader
+    from tests import support_catalog as skill_loader
 
     monkeypatch.setattr(skill_loader, "generate_skills_md", lambda *_args, **_kwargs: None)
 
-    sys.modules.pop("mcp_sql_server", None)
-    sys.modules.pop("db_adapter", None)
-    sys.modules.pop("sql_safety_checker", None)
-    module = importlib.import_module("mcp_sql_server")
+    module = make_gateway()
     try:
         result = run_tool(module.list_skills(ctx=DummyContext()))
     finally:
-        sys.modules.pop("mcp_sql_server", None)
-        sys.modules.pop("db_adapter", None)
-        sys.modules.pop("sql_safety_checker", None)
+        from tests.support import cleanup
+        cleanup()
+        from tests.support import cleanup
+        cleanup()
 
     assert result["available_only"] is True
     assert result["matched_skills"] == 0
@@ -365,29 +355,27 @@ def test_list_search_length_limit_rejects_overlong(skills_server):
 def test_env_default_detail_full_applied(monkeypatch):
     """SKILLS_LIST_DEFAULT_DETAIL controls default disclosure."""
     disable_optional_skill_policies(monkeypatch)
-    monkeypatch.setenv("ENABLE_SKILLS", "1")
-    monkeypatch.setenv("SKILLS_DIR", "skills/")
+    monkeypatch.setitem(SCENARIO, "ENABLE_SKILLS", "1")
+    monkeypatch.setitem(SCENARIO, "SKILLS_DIR", "skills/")
     configure_demo_sqlite_connection(monkeypatch)
-    monkeypatch.setenv("SKILLS_ALLOW_MUTATIONS", "0")
-    monkeypatch.setenv("SKILLS_LIST_DEFAULT_DETAIL", "full")
-    monkeypatch.delenv("SKILLS_LIST_AVAILABLE_ONLY_DEFAULT", raising=False)
-    monkeypatch.delenv("SKILLS_CHECK_SCHEMA_ON_LIST", raising=False)
+    monkeypatch.setitem(SCENARIO, "SKILLS_ALLOW_MUTATIONS", "0")
+    monkeypatch.setitem(SCENARIO, "SKILLS_LIST_DEFAULT_DETAIL", "full")
+    monkeypatch.delitem(SCENARIO, "SKILLS_LIST_AVAILABLE_ONLY_DEFAULT", raising=False)
+    monkeypatch.delitem(SCENARIO, "SKILLS_CHECK_SCHEMA_ON_LIST", raising=False)
 
-    import skill_loader
+    from tests import support_catalog as skill_loader
 
     monkeypatch.setattr(skill_loader, "generate_skills_md", lambda *_args, **_kwargs: None)
 
-    sys.modules.pop("mcp_sql_server", None)
-    sys.modules.pop("db_adapter", None)
-    sys.modules.pop("sql_safety_checker", None)
-    module = importlib.import_module("mcp_sql_server")
+    module = make_gateway()
     try:
         create_demo_orders_table(module)
         result = run_tool(module.list_skills(ctx=DummyContext()))
     finally:
-        sys.modules.pop("mcp_sql_server", None)
-        sys.modules.pop("db_adapter", None)
-        sys.modules.pop("sql_safety_checker", None)
+        from tests.support import cleanup
+        cleanup()
+        from tests.support import cleanup
+        cleanup()
 
     assert result["detail_level"] == "full"
     assert "params" in result["skills"][0]
@@ -576,36 +564,34 @@ def test_available_only_false_returns_full_catalog(skills_server):
 
     mutation = next(skill for skill in result["skills"] if skill["name"] == "sample-update-order-status")
     assert mutation["executable"] is False
-    assert "SKILLS_ALLOW_MUTATIONS=0" in mutation["disabled_reason"]
+    assert "skills.mutation.enabled=false" in mutation["disabled_reason"]
 
 
 def test_excluded_profiles_hide_demo_skills_by_default(monkeypatch):
     """SKILLS_EXCLUDE_PROFILES makes matching profiles non-executable."""
     disable_optional_skill_policies(monkeypatch)
-    monkeypatch.setenv("ENABLE_SKILLS", "1")
-    monkeypatch.setenv("SKILLS_DIR", "skills/")
+    monkeypatch.setitem(SCENARIO, "ENABLE_SKILLS", "1")
+    monkeypatch.setitem(SCENARIO, "SKILLS_DIR", "skills/")
     configure_demo_sqlite_connection(monkeypatch)
-    monkeypatch.setenv("SKILLS_ALLOW_MUTATIONS", "0")
-    monkeypatch.setenv("SKILLS_EXCLUDE_PROFILES", "demo")
-    monkeypatch.delenv("SKILLS_LIST_AVAILABLE_ONLY_DEFAULT", raising=False)
-    monkeypatch.delenv("SKILLS_CHECK_SCHEMA_ON_LIST", raising=False)
+    monkeypatch.setitem(SCENARIO, "SKILLS_ALLOW_MUTATIONS", "0")
+    monkeypatch.setitem(SCENARIO, "SKILLS_EXCLUDE_PROFILES", "demo")
+    monkeypatch.delitem(SCENARIO, "SKILLS_LIST_AVAILABLE_ONLY_DEFAULT", raising=False)
+    monkeypatch.delitem(SCENARIO, "SKILLS_CHECK_SCHEMA_ON_LIST", raising=False)
 
-    import skill_loader
+    from tests import support_catalog as skill_loader
 
     monkeypatch.setattr(skill_loader, "generate_skills_md", lambda *_args, **_kwargs: None)
 
-    sys.modules.pop("mcp_sql_server", None)
-    sys.modules.pop("db_adapter", None)
-    sys.modules.pop("sql_safety_checker", None)
-    module = importlib.import_module("mcp_sql_server")
+    module = make_gateway()
     try:
         create_demo_orders_table(module)
         result = run_tool(module.list_skills(ctx=DummyContext()))
         full_catalog = run_tool(module.list_skills(ctx=DummyContext(), available_only=False))
     finally:
-        sys.modules.pop("mcp_sql_server", None)
-        sys.modules.pop("db_adapter", None)
-        sys.modules.pop("sql_safety_checker", None)
+        from tests.support import cleanup
+        cleanup()
+        from tests.support import cleanup
+        cleanup()
 
     assert result["excluded_profiles"] == ["demo"]
     assert result["profile_excluded_skills"] == 4
@@ -619,29 +605,26 @@ def test_excluded_profiles_hide_demo_skills_by_default(monkeypatch):
     assert sqlite_report["executable"] is False
     assert sqlite_report["profile_allowed"] is False
     assert sqlite_report["excluded_profiles"] == ["demo"]
-    assert "SKILLS_EXCLUDE_PROFILES" in sqlite_report["disabled_reason"]
+    assert "skills.policy.exclude_profiles" in sqlite_report["disabled_reason"]
 
 
 def test_profile_exclusion_blocks_direct_query_skill(monkeypatch):
     """Profile policy is enforced even when callers bypass discovery."""
     disable_optional_skill_policies(monkeypatch)
-    monkeypatch.setenv("ENABLE_SKILLS", "1")
-    monkeypatch.setenv("SKILLS_DIR", "skills/")
+    monkeypatch.setitem(SCENARIO, "ENABLE_SKILLS", "1")
+    monkeypatch.setitem(SCENARIO, "SKILLS_DIR", "skills/")
     configure_demo_sqlite_connection(monkeypatch)
-    monkeypatch.setenv("SKILLS_ALLOW_MUTATIONS", "0")
-    monkeypatch.setenv("SKILLS_EXCLUDE_PROFILES", "demo")
+    monkeypatch.setitem(SCENARIO, "SKILLS_ALLOW_MUTATIONS", "0")
+    monkeypatch.setitem(SCENARIO, "SKILLS_EXCLUDE_PROFILES", "demo")
 
-    import skill_loader
+    from tests import support_catalog as skill_loader
 
     monkeypatch.setattr(skill_loader, "generate_skills_md", lambda *_args, **_kwargs: None)
 
-    sys.modules.pop("mcp_sql_server", None)
-    sys.modules.pop("db_adapter", None)
-    sys.modules.pop("sql_safety_checker", None)
-    module = importlib.import_module("mcp_sql_server")
+    module = make_gateway()
     try:
         create_demo_orders_table(module)
-        with pytest.raises(module.ToolError, match="SKILLS_EXCLUDE_PROFILES"):
+        with pytest.raises(module.ToolError, match="skills.policy.exclude_profiles"):
             run_tool(
                 module.execute_query_skill(
                     skill_name="sample-monthly-sales-report-sqlite",
@@ -650,30 +633,28 @@ def test_profile_exclusion_blocks_direct_query_skill(monkeypatch):
                 )
             )
     finally:
-        sys.modules.pop("mcp_sql_server", None)
-        sys.modules.pop("db_adapter", None)
-        sys.modules.pop("sql_safety_checker", None)
+        from tests.support import cleanup
+        cleanup()
+        from tests.support import cleanup
+        cleanup()
 
 
 def test_query_skill_audit_is_opt_in(monkeypatch, tmp_path):
     """SKILLS_AUDIT_QUERIES records query metadata without result data."""
     disable_optional_skill_policies(monkeypatch)
     audit_log = tmp_path / "query_audit.jsonl"
-    monkeypatch.setenv("ENABLE_SKILLS", "1")
-    monkeypatch.setenv("SKILLS_DIR", "skills/")
+    monkeypatch.setitem(SCENARIO, "ENABLE_SKILLS", "1")
+    monkeypatch.setitem(SCENARIO, "SKILLS_DIR", "skills/")
     configure_demo_sqlite_connection(monkeypatch)
-    monkeypatch.setenv("SKILLS_ALLOW_MUTATIONS", "0")
-    monkeypatch.setenv("SKILLS_AUDIT_QUERIES", "1")
-    monkeypatch.setenv("SKILLS_AUDIT_LOG", str(audit_log))
+    monkeypatch.setitem(SCENARIO, "SKILLS_ALLOW_MUTATIONS", "0")
+    monkeypatch.setitem(SCENARIO, "SKILLS_AUDIT_QUERIES", "1")
+    monkeypatch.setitem(SCENARIO, "SKILLS_AUDIT_LOG", str(audit_log))
 
-    import skill_loader
+    from tests import support_catalog as skill_loader
 
     monkeypatch.setattr(skill_loader, "generate_skills_md", lambda *_args, **_kwargs: None)
 
-    sys.modules.pop("mcp_sql_server", None)
-    sys.modules.pop("db_adapter", None)
-    sys.modules.pop("sql_safety_checker", None)
-    module = importlib.import_module("mcp_sql_server")
+    module = make_gateway()
     try:
         create_demo_orders_table(module)
         adapter = module.get_adapter()
@@ -700,9 +681,10 @@ def test_query_skill_audit_is_opt_in(monkeypatch, tmp_path):
         )
         result = tool_result.structured_content
     finally:
-        sys.modules.pop("mcp_sql_server", None)
-        sys.modules.pop("db_adapter", None)
-        sys.modules.pop("sql_safety_checker", None)
+        from tests.support import cleanup
+        cleanup()
+        from tests.support import cleanup
+        cleanup()
 
     assert result["success"] is True
     assert tool_result.meta["skill_name"] == "sample-monthly-sales-report-sqlite"
@@ -725,38 +707,36 @@ def test_query_skill_audit_is_opt_in(monkeypatch, tmp_path):
 def test_env_available_only_default_can_show_full_catalog(monkeypatch):
     """Startup defaults match both list_skills behavior and its MCP schema."""
     disable_optional_skill_policies(monkeypatch)
-    monkeypatch.setenv("ENABLE_SKILLS", "1")
-    monkeypatch.setenv("SKILLS_DIR", "skills/")
+    monkeypatch.setitem(SCENARIO, "ENABLE_SKILLS", "1")
+    monkeypatch.setitem(SCENARIO, "SKILLS_DIR", "skills/")
     configure_demo_sqlite_connection(monkeypatch)
-    monkeypatch.setenv("SKILLS_ALLOW_MUTATIONS", "0")
-    monkeypatch.setenv("SKILLS_LIST_DEFAULT_DETAIL", "full")
-    monkeypatch.setenv("SKILLS_LIST_AVAILABLE_ONLY_DEFAULT", "0")
-    monkeypatch.delenv("SKILLS_CHECK_SCHEMA_ON_LIST", raising=False)
+    monkeypatch.setitem(SCENARIO, "SKILLS_ALLOW_MUTATIONS", "0")
+    monkeypatch.setitem(SCENARIO, "SKILLS_LIST_DEFAULT_DETAIL", "full")
+    monkeypatch.setitem(SCENARIO, "SKILLS_LIST_AVAILABLE_ONLY_DEFAULT", "0")
+    monkeypatch.delitem(SCENARIO, "SKILLS_CHECK_SCHEMA_ON_LIST", raising=False)
 
-    import skill_loader
+    from tests import support_catalog as skill_loader
 
     monkeypatch.setattr(skill_loader, "generate_skills_md", lambda *_args, **_kwargs: None)
 
-    sys.modules.pop("mcp_sql_server", None)
-    sys.modules.pop("db_adapter", None)
-    sys.modules.pop("sql_safety_checker", None)
-    module = importlib.import_module("mcp_sql_server")
+    module = make_gateway()
 
     async def inspect_list_skills_schema():
         from fastmcp import Client
 
         async with Client(module.mcp) as client:
             tools = await client.list_tools()
-        return next(tool.inputSchema for tool in tools if tool.name == "list_skills")
+        return next(tool.input_schema for tool in tools if tool.name == "list_skills")
 
     try:
         create_demo_orders_table(module)
         result = run_tool(module.list_skills(ctx=DummyContext()))
         input_schema = run_tool(inspect_list_skills_schema())
     finally:
-        sys.modules.pop("mcp_sql_server", None)
-        sys.modules.pop("db_adapter", None)
-        sys.modules.pop("sql_safety_checker", None)
+        from tests.support import cleanup
+        cleanup()
+        from tests.support import cleanup
+        cleanup()
 
     assert result["detail_level"] == "full"
     assert result["available_only"] is False
@@ -769,21 +749,18 @@ def test_env_available_only_default_can_show_full_catalog(monkeypatch):
 def test_mysql_database_hides_sqlite_skill_by_default(monkeypatch):
     """Default availability filtering follows the current DB_TYPE."""
     disable_optional_skill_policies(monkeypatch)
-    monkeypatch.setenv("ENABLE_SKILLS", "1")
-    monkeypatch.setenv("SKILLS_DIR", "skills/")
-    monkeypatch.setenv("DB_TYPE", "mysql")
-    monkeypatch.setenv("SKILLS_ALLOW_MUTATIONS", "0")
-    monkeypatch.delenv("SKILLS_LIST_AVAILABLE_ONLY_DEFAULT", raising=False)
-    monkeypatch.delenv("SKILLS_CHECK_SCHEMA_ON_LIST", raising=False)
+    monkeypatch.setitem(SCENARIO, "ENABLE_SKILLS", "1")
+    monkeypatch.setitem(SCENARIO, "SKILLS_DIR", "skills/")
+    monkeypatch.setitem(SCENARIO, "DB_TYPE", "mysql")
+    monkeypatch.setitem(SCENARIO, "SKILLS_ALLOW_MUTATIONS", "0")
+    monkeypatch.delitem(SCENARIO, "SKILLS_LIST_AVAILABLE_ONLY_DEFAULT", raising=False)
+    monkeypatch.delitem(SCENARIO, "SKILLS_CHECK_SCHEMA_ON_LIST", raising=False)
 
-    import skill_loader
+    from tests import support_catalog as skill_loader
 
     monkeypatch.setattr(skill_loader, "generate_skills_md", lambda *_args, **_kwargs: None)
 
-    sys.modules.pop("mcp_sql_server", None)
-    sys.modules.pop("db_adapter", None)
-    sys.modules.pop("sql_safety_checker", None)
-    module = importlib.import_module("mcp_sql_server")
+    module = make_gateway()
     try:
         monkeypatch.setattr(
             module,
@@ -796,9 +773,10 @@ def test_mysql_database_hides_sqlite_skill_by_default(monkeypatch):
         )
         result = run_tool(module.list_skills(ctx=DummyContext()))
     finally:
-        sys.modules.pop("mcp_sql_server", None)
-        sys.modules.pop("db_adapter", None)
-        sys.modules.pop("sql_safety_checker", None)
+        from tests.support import cleanup
+        cleanup()
+        from tests.support import cleanup
+        cleanup()
 
     assert result["current_database_type"] == "mysql"
     assert result["available_only"] is True
@@ -808,21 +786,18 @@ def test_mysql_database_hides_sqlite_skill_by_default(monkeypatch):
 def test_fastmcp_tool_schema_exposes_skill_parameters(monkeypatch):
     """list_tools exposes Agent-callable Skills parameters in MCP schema."""
     disable_optional_skill_policies(monkeypatch)
-    monkeypatch.setenv("ENABLE_SKILLS", "1")
-    monkeypatch.setenv("SKILLS_DIR", "skills/")
+    monkeypatch.setitem(SCENARIO, "ENABLE_SKILLS", "1")
+    monkeypatch.setitem(SCENARIO, "SKILLS_DIR", "skills/")
     configure_demo_sqlite_connection(monkeypatch)
-    monkeypatch.setenv("SKILLS_ALLOW_MUTATIONS", "1")
-    monkeypatch.delenv("SKILLS_LIST_AVAILABLE_ONLY_DEFAULT", raising=False)
-    monkeypatch.delenv("SKILLS_CHECK_SCHEMA_ON_LIST", raising=False)
+    monkeypatch.setitem(SCENARIO, "SKILLS_ALLOW_MUTATIONS", "1")
+    monkeypatch.delitem(SCENARIO, "SKILLS_LIST_AVAILABLE_ONLY_DEFAULT", raising=False)
+    monkeypatch.delitem(SCENARIO, "SKILLS_CHECK_SCHEMA_ON_LIST", raising=False)
 
-    import skill_loader
+    from tests import support_catalog as skill_loader
 
     monkeypatch.setattr(skill_loader, "generate_skills_md", lambda *_args, **_kwargs: None)
 
-    sys.modules.pop("mcp_sql_server", None)
-    sys.modules.pop("db_adapter", None)
-    sys.modules.pop("sql_safety_checker", None)
-    module = importlib.import_module("mcp_sql_server")
+    module = make_gateway()
 
     async def inspect_tools():
         from fastmcp import Client
@@ -834,11 +809,12 @@ def test_fastmcp_tool_schema_exposes_skill_parameters(monkeypatch):
     try:
         tools = run_tool(inspect_tools())
     finally:
-        sys.modules.pop("mcp_sql_server", None)
-        sys.modules.pop("db_adapter", None)
-        sys.modules.pop("sql_safety_checker", None)
+        from tests.support import cleanup
+        cleanup()
+        from tests.support import cleanup
+        cleanup()
 
-    schemas = {tool.name: tool.inputSchema for tool in tools}
+    schemas = {tool.name: tool.input_schema for tool in tools}
     annotations = {tool.name: tool.annotations for tool in tools}
 
     list_props = schemas["list_skills"]["properties"]
@@ -891,7 +867,7 @@ def test_fastmcp_tool_schema_exposes_skill_parameters(monkeypatch):
 
     for tool_name, annotation in annotations.items():
         assert annotation is not None, tool_name
-        assert annotation.openWorldHint is False, tool_name
+        assert annotation.open_world_hint is False, tool_name
 
 
 def test_raw_query_rejects_over_max_sql_length(skills_server):
@@ -941,5 +917,5 @@ def test_mutation_skill_marked_non_executable_when_disabled(skills_server):
 
     assert result["skill"]["type"] == "mutation"
     assert result["skill"]["executable"] is False
-    assert "SKILLS_ALLOW_MUTATIONS=0" in result["skill"]["disabled_reason"]
+    assert "skills.mutation.enabled=false" in result["skill"]["disabled_reason"]
     assert "disabled" in result["usage_hint"].lower()

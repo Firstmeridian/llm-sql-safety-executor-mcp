@@ -1,19 +1,16 @@
 """Regression tests for the shared MCP SQL safety policy."""
 
-import importlib
-import sys
-from pathlib import Path
+from tests.support import SCENARIO, make_gateway
+
 
 import pytest
 
 
 def _reload_server(monkeypatch):
-    monkeypatch.setenv("ENABLE_SKILLS", "0")
-    monkeypatch.setenv("DB_TYPE", "sqlite")
-    monkeypatch.setenv("SQLITE_DATABASE_PATH", ":memory:")
-    for module_name in ("mcp_sql_server", "db_adapter", "sql_safety_checker"):
-        sys.modules.pop(module_name, None)
-    return importlib.import_module("mcp_sql_server")
+    monkeypatch.setitem(SCENARIO, "ENABLE_SKILLS", "0")
+    monkeypatch.setitem(SCENARIO, "DB_TYPE", "sqlite")
+    monkeypatch.setitem(SCENARIO, "SQLITE_DATABASE_PATH", ":memory:")
+    return make_gateway()
 
 
 def test_shared_sql_policy_allows_normal_read_query(monkeypatch):
@@ -470,23 +467,10 @@ def test_table_allowlist_fails_closed_on_ambiguous_table_target(monkeypatch):
     assert error == "Table allowlist could not safely determine every referenced table"
 
 
-def test_skills_dir_sibling_prefix_is_rejected(monkeypatch):
-    """SKILLS_DIR must be inside project root, not just string-prefix similar."""
-    project_root = Path(__file__).resolve().parents[1]
-    sibling = project_root.parent / f"{project_root.name}-sibling-prefix-test"
-    assert str(sibling).startswith(str(project_root))
-
-    monkeypatch.setenv("ENABLE_SKILLS", "1")
-    monkeypatch.setenv("SKILLS_DIR", str(sibling))
-    monkeypatch.setenv("DB_TYPE", "sqlite")
-    monkeypatch.setenv("SQLITE_DATABASE_PATH", ":memory:")
-    for module_name in ("mcp_sql_server", "db_adapter", "sql_safety_checker"):
-        sys.modules.pop(module_name, None)
-
-    try:
-        module = importlib.import_module("mcp_sql_server")
-        assert module._is_path_within(sibling, project_root) is False
-        assert module.SKILLS_ENABLED is False
-    finally:
-        for module_name in ("mcp_sql_server", "db_adapter", "sql_safety_checker"):
-            sys.modules.pop(module_name, None)
+def test_explicit_external_skills_directory_is_accepted(tmp_path,monkeypatch):
+    external=tmp_path/'trusted-skills';external.mkdir()
+    monkeypatch.setitem(SCENARIO,'ENABLE_SKILLS','1')
+    monkeypatch.setitem(SCENARIO,'SKILLS_DIR',str(external))
+    server=make_gateway()
+    assert server.runtime.config.skills.directory==str(external)
+    assert server.get_skills_cache()=={}

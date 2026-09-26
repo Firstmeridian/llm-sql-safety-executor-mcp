@@ -14,93 +14,26 @@ Design Decisions:
 - MySQL fixtures are optional (skip if not configured)
 """
 
+from tests.support import SCENARIO
+
 import os
-import sys
 import pytest
 import sqlite3
-from pathlib import Path
 from unittest.mock import patch
 
-# Add parent directory to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent))
+from tests.support import SCENARIO, cleanup
 
-# Keep the default pytest suite hermetic even when a developer's shell or local
-# .env configures a live database, mutation routing, Skills, or telemetry.
-# python-dotenv honors PYTHON_DOTENV_DISABLED, so module reloads cannot silently
-# restore values that a test removed to exercise configuration defaults.
-_MYSQL_INTEGRATION_REQUESTED = (
-    os.environ.get("RUN_MYSQL_INTEGRATION_TESTS", "").strip() == "1"
-)
-_NAMED_CONNECTION_SUFFIXES = (
-    "TYPE",
-    "QUERY_TIMEOUT_SECONDS",
-    "CONNECT_TIMEOUT_SECONDS",
-    "ALLOW_UNION",
-    "ALLOWED_TABLES",
-    "ALLOW_MUTATIONS",
-    "MUTATION_SKILLS",
-    "USER",
-    "PASSWORD",
-    "HOST",
-    "NAME",
-    "SQLITE_DATABASE_PATH",
-    "SQLITE_PROGRESS_HANDLER_INTERVAL",
-)
-for _env_name in tuple(os.environ):
-    if not _env_name.startswith("DB_"):
-        continue
-    _env_remainder = _env_name[3:]
-    if any(
-        _env_remainder.endswith(f"_{suffix}")
-        for suffix in _NAMED_CONNECTION_SUFFIXES
-    ):
-        os.environ.pop(_env_name, None)
+_MYSQL_INTEGRATION_REQUESTED = os.environ.get("RUN_MYSQL_INTEGRATION_TESTS") == "1"
 
-_SAFE_PYTEST_ENV = {
-    "PYTHON_DOTENV_DISABLED": "1",
-    "DB_CONNECTIONS": "",
-    "DEFAULT_DB_CONNECTION": "",
-    "DB_TYPE": "sqlite",
-    "SQLITE_DATABASE_PATH": ":memory:",
-    "QUERY_TIMEOUT_SECONDS": "30",
-    "CONNECT_TIMEOUT_SECONDS": "10",
-    "SQLITE_PROGRESS_HANDLER_INTERVAL": "100",
-    "ALLOW_UNION": "0",
-    "ALLOWED_TABLES": "",
-    "ENABLE_SCHEMA_TOOLS": "1",
-    "ENABLE_TABLE_SUMMARY": "0",
-    "LARGE_TABLE_THRESHOLD": "1000",
-    "MAX_RESULT_ROWS": "100",
-    "MAX_RESULT_CHARS": "16000",
-    "MAX_SQL_LENGTH": "20000",
-    "MAX_SCHEMA_TABLES": "50",
-    "MAX_OVERVIEW_TABLES": "100",
-    "MCP_TOOL_TIMEOUT_SECONDS": "120",
-    "ENABLE_SKILLS": "0",
-    "SKILLS_ALLOW_MUTATIONS": "0",
-    "SKILLS_ALLOW_MUTATION_CONNECTIONS": "",
-    "SKILLS_DIR": "skills/",
-    "SKILLS_LIST_DEFAULT_DETAIL": "summary",
-    "SKILLS_LIST_AVAILABLE_ONLY_DEFAULT": "1",
-    "SKILLS_CHECK_SCHEMA_ON_LIST": "1",
-    "SKILLS_EXCLUDE_PROFILES": "",
-    "SKILLS_AUDIT_QUERIES": "0",
-    "MUTATION_PREVIEW_TOKEN_TTL_SECONDS": "300",
-    "MUTATION_PREVIEW_TOKEN_STORE_MAX_ENTRIES": "10000",
-    "ENABLE_TOOL_TELEMETRY": "0",
-    "TOOL_TELEMETRY_SAMPLE_RATE": "1.0",
-}
-if not _MYSQL_INTEGRATION_REQUESTED:
-    _SAFE_PYTEST_ENV.update(
-        {
-            "DB_USER": "",
-            "DB_PASSWORD": "",
-            "DB_HOST": "",
-            "DB_NAME": "",
-        }
-    )
-os.environ.update(_SAFE_PYTEST_ENV)
-
+@pytest.fixture(autouse=True)
+def isolated_scenarios():
+    from tests import support_catalog
+    SCENARIO.clear()
+    support_catalog.reset()
+    yield
+    cleanup()
+    SCENARIO.clear()
+    support_catalog.reset()
 
 # =============================================================================
 # SQLite Test Fixtures
@@ -272,7 +205,7 @@ def sqlite_adapter(sqlite_test_db):
     Returns:
         Connected SQLiteAdapter instance
     """
-    from db_adapter import SQLiteAdapter
+    from tests.support_adapters import SQLiteAdapter
     
     adapter = SQLiteAdapter(sqlite_test_db)
     adapter.connect()
@@ -288,7 +221,7 @@ def sqlite_memory_adapter():
     Returns:
         Connected SQLiteAdapter instance
     """
-    from db_adapter import SQLiteAdapter
+    from tests.support_adapters import SQLiteAdapter
     
     adapter = SQLiteAdapter(":memory:")
     adapter.connect()
@@ -336,7 +269,7 @@ def sqlite_env(sqlite_test_db):
         "SQLITE_DATABASE_PATH": sqlite_test_db,
     }
     
-    with patch.dict(os.environ, env_vars):
+    with patch.dict(SCENARIO, env_vars):
         yield env_vars
 
 
@@ -375,7 +308,7 @@ def mysql_adapter():
             "MySQL integration tests require RUN_MYSQL_INTEGRATION_TESTS=1"
         )
 
-    from db_adapter import MySQLAdapter
+    from tests.support_adapters import MySQLAdapter
 
     required_env = {
         "DB_USER": os.getenv("DB_USER"),
@@ -387,7 +320,14 @@ def mysql_adapter():
     if missing:
         pytest.skip(f"MySQL integration tests require env vars: {', '.join(missing)}")
     
-    adapter = MySQLAdapter()
+    from pydantic import SecretStr
+    from sql_safety_executor.database.models import DatabaseConfig, ConnectionPolicy
+    adapter = MySQLAdapter(config=DatabaseConfig(
+        connection_id="mysql_integration", db_type="mysql", query_timeout_seconds=30,
+        connect_timeout_seconds=10, policy=ConnectionPolicy(),
+        mysql_host=required_env["DB_HOST"], mysql_user=required_env["DB_USER"],
+        mysql_database=required_env["DB_NAME"], mysql_password=SecretStr(required_env["DB_PASSWORD"]),
+    ))
     if not adapter.connect():
         pytest.skip("MySQL integration tests require a reachable MySQL server")
 
@@ -411,7 +351,7 @@ def reset_global_adapter():
     
     Ensures test isolation by clearing any cached adapter instance.
     """
-    from db_adapter import reset_adapter
+    from tests.support_adapters import reset_adapter
     
     reset_adapter()
     yield

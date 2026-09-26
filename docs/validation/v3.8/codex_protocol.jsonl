@@ -1,0 +1,18 @@
+{"direction": "host_to_server", "method": "initialize", "request_id": 0, "protocol_version": "2025-06-18", "elicitation": {"form": {}, "url": {}}}
+{"direction": "server_to_host", "method": null, "request_id": 0, "protocol_version": "2025-06-18"}
+{"direction": "host_to_server", "method": "notifications/initialized", "request_id": null}
+{"direction": "host_to_server", "method": "tools/list", "request_id": 1}
+{"direction": "server_to_host", "method": null, "request_id": 1, "tools": ["list_connections", "query", "check_connection", "list_tables", "describe_table", "get_full_schema", "sample", "list_skills", "get_skill_detail", "execute_query_skill", "execute_mutation_skill", "request_mutation_approval"]}
+{"direction": "host_to_server", "method": "tools/call", "request_id": 2, "tool_name": "list_connections", "connection_id": null, "continuation": false}
+{"direction": "server_to_host", "method": "notifications/message", "request_id": null}
+{"direction": "server_to_host", "method": null, "request_id": 2, "is_error": false}
+{"direction": "host_to_server", "method": "tools/call", "request_id": 3, "tool_name": "query", "connection_id": "demo", "continuation": false}
+{"direction": "server_to_host", "method": "notifications/message", "request_id": null}
+{"direction": "server_to_host", "method": "notifications/message", "request_id": null}
+{"direction": "server_to_host", "method": null, "request_id": 3, "is_error": false}
+{"direction": "host_to_server", "method": "tools/call", "request_id": 4, "tool_name": "query", "connection_id": "blocked", "continuation": false}
+{"direction": "server_to_host", "method": "notifications/message", "request_id": null}
+{"direction": "server_to_host", "method": "notifications/message", "request_id": null}
+{"direction": "server_to_host", "method": null, "request_id": 4, "is_error": false}
+{"direction": "host_to_server", "method": "tools/call", "request_id": 5, "tool_name": "query", "connection_id": "missing", "continuation": false}
+{"direction": "server_to_host", "method": null, "request_id": 5, "is_error": true}

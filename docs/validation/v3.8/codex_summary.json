@@ -1,0 +1,52 @@
+{
+  "host": "codex-cli",
+  "version": "0.155.0-alpha.16.3",
+  "negotiated_protocol": "2025-06-18",
+  "date": "2026-09-26",
+  "fixture": "disposable SQLite; order 1 remains pending",
+  "calls": [
+    {
+      "tool": "list_connections",
+      "connection_id": null,
+      "status": "completed",
+      "error": null
+    },
+    {
+      "tool": "query",
+      "connection_id": "demo",
+      "status": "completed",
+      "error": null
+    },
+    {
+      "tool": "query",
+      "connection_id": "blocked",
+      "status": "completed",
+      "error": null
+    },
+    {
+      "tool": "query",
+      "connection_id": "missing",
+      "status": "failed",
+      "error": null
+    },
+    {
+      "tool": "request_mutation_approval",
+      "connection_id": "demo",
+      "status": "failed",
+      "error": {
+        "message": "MCP tool call requires approval, but approval policy is never"
+      }
+    }
+  ],
+  "usage": {
+    "input_tokens": 153994,
+    "cached_input_tokens": 141568,
+    "cache_write_input_tokens": 0,
+    "output_tokens": 565,
+    "reasoning_output_tokens": 0
+  },
+  "mrtr": "Host denied dispatch: tool approval required under approval policy never; no server MRTR roundtrip; not passed",
+  "database_misrouting": 0,
+  "mutations": 0,
+  "task_completion": "metadata, explicit target, deny target and unknown-target rejection passed; approval blocked at Host"
+}

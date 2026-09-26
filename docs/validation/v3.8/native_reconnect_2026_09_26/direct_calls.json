@@ -1,0 +1,797 @@
+{
+  "scope": "Direct MCP calls through the currently connected Host",
+  "calls": [
+    {
+      "case": "native_discovery",
+      "tool": "list_connections",
+      "arguments": {},
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":true,\"default_connection_id\":\"trade_analysis_mysql\",\"connection_count\":3,\"connections\":[{\"connection_id\":\"trade_analysis_mysql\",\"db_type\":\"mysql\",\"is_default\":true,\"query_timeout_seconds\":30,\"connect_timeout_seconds\":10,\"policy\":{\"read_mode\":\"all\",\"read_enabled\":true,\"allow_union\":false,\"allowed_tables_mode\":\"explicit_all\",\"allowed_tables\":[\"*\"],\"allowed_tables_count\":1,\"allow_mutations\":true,\"mutation_skills_mode\":\"allowlist\",\"mutation_skills\":[\"sample-update-order-status\"],\"mutation_skills_count\":1}},{\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\",\"is_default\":false,\"query_timeout_seconds\":30,\"connect_timeout_seconds\":10,\"policy\":{\"read_mode\":\"allowlist\",\"read_enabled\":true,\"allow_union\":false,\"allowed_tables_mode\":\"allowlist\",\"allowed_tables\":[\"orders\"],\"allowed_tables_count\":1,\"allow_mutations\":true,\"mutation_skills_mode\":\"allowlist\",\"mutation_skills\":[\"sample-reset-order-to-pending\",\"sample-update-order-status\"],\"mutation_skills_count\":2}},{\"connection_id\":\"live_test_sqlite\",\"db_type\":\"sqlite\",\"is_default\":false,\"query_timeout_seconds\":30,\"connect_timeout_seconds\":10,\"policy\":{\"read_mode\":\"allowlist\",\"read_enabled\":true,\"allow_union\":false,\"allowed_tables_mode\":\"allowlist\",\"allowed_tables\":[\"orders\"],\"allowed_tables_count\":1,\"allow_mutations\":true,\"mutation_skills_mode\":\"allowlist\",\"mutation_skills\":[\"sample-reset-order-to-pending\",\"sample-update-order-status\"],\"mutation_skills_count\":2}}],\"hint\":\"Configuration only; no database was inspected. allowed_tables is an access policy, not proof of table existence or a complete table inventory. Say 'configured to allow orders', not 'the database only has orders'.\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": true,
+          "default_connection_id": "trade_analysis_mysql",
+          "connection_count": 3,
+          "connections": [
+            {
+              "connection_id": "trade_analysis_mysql",
+              "db_type": "mysql",
+              "is_default": true,
+              "query_timeout_seconds": 30,
+              "connect_timeout_seconds": 10,
+              "policy": {
+                "read_mode": "all",
+                "read_enabled": true,
+                "allow_union": false,
+                "allowed_tables_mode": "explicit_all",
+                "allowed_tables": [
+                  "*"
+                ],
+                "allowed_tables_count": 1,
+                "allow_mutations": true,
+                "mutation_skills_mode": "allowlist",
+                "mutation_skills": [
+                  "sample-update-order-status"
+                ],
+                "mutation_skills_count": 1
+              }
+            },
+            {
+              "connection_id": "analytics_demo_sqlite",
+              "db_type": "sqlite",
+              "is_default": false,
+              "query_timeout_seconds": 30,
+              "connect_timeout_seconds": 10,
+              "policy": {
+                "read_mode": "allowlist",
+                "read_enabled": true,
+                "allow_union": false,
+                "allowed_tables_mode": "allowlist",
+                "allowed_tables": [
+                  "orders"
+                ],
+                "allowed_tables_count": 1,
+                "allow_mutations": true,
+                "mutation_skills_mode": "allowlist",
+                "mutation_skills": [
+                  "sample-reset-order-to-pending",
+                  "sample-update-order-status"
+                ],
+                "mutation_skills_count": 2
+              }
+            },
+            {
+              "connection_id": "live_test_sqlite",
+              "db_type": "sqlite",
+              "is_default": false,
+              "query_timeout_seconds": 30,
+              "connect_timeout_seconds": 10,
+              "policy": {
+                "read_mode": "allowlist",
+                "read_enabled": true,
+                "allow_union": false,
+                "allowed_tables_mode": "allowlist",
+                "allowed_tables": [
+                  "orders"
+                ],
+                "allowed_tables_count": 1,
+                "allow_mutations": true,
+                "mutation_skills_mode": "allowlist",
+                "mutation_skills": [
+                  "sample-reset-order-to-pending",
+                  "sample-update-order-status"
+                ],
+                "mutation_skills_count": 2
+              }
+            }
+          ],
+          "hint": "Configuration only; no database was inspected. allowed_tables is an access policy, not proof of table existence or a complete table inventory. Say 'configured to allow orders', not 'the database only has orders'."
+        },
+        "isError": false
+      }
+    },
+    {
+      "case": "all_connectivity",
+      "tool": "check_connection",
+      "arguments": {
+        "scope": "all"
+      },
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"scope\":\"all\",\"all_connected\":true,\"complete\":true,\"connection_count\":3,\"connected_count\":3,\"cleanup_failed\":false,\"results\":{\"trade_analysis_mysql\":{\"db_type\":\"mysql\",\"cleanup_failed\":false,\"status\":\"connected\",\"connected\":true},\"analytics_demo_sqlite\":{\"db_type\":\"sqlite\",\"cleanup_failed\":false,\"status\":\"connected\",\"connected\":true},\"live_test_sqlite\":{\"db_type\":\"sqlite\",\"cleanup_failed\":false,\"status\":\"connected\",\"connected\":true}}}"
+          }
+        ],
+        "structuredContent": {
+          "scope": "all",
+          "all_connected": true,
+          "complete": true,
+          "connection_count": 3,
+          "connected_count": 3,
+          "cleanup_failed": false,
+          "results": {
+            "trade_analysis_mysql": {
+              "db_type": "mysql",
+              "cleanup_failed": false,
+              "status": "connected",
+              "connected": true
+            },
+            "analytics_demo_sqlite": {
+              "db_type": "sqlite",
+              "cleanup_failed": false,
+              "status": "connected",
+              "connected": true
+            },
+            "live_test_sqlite": {
+              "db_type": "sqlite",
+              "cleanup_failed": false,
+              "status": "connected",
+              "connected": true
+            }
+          }
+        },
+        "isError": false
+      }
+    },
+    {
+      "case": "default_read",
+      "tool": "query",
+      "arguments": {
+        "sql": "SELECT 1 AS probe"
+      },
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":true,\"data\":[{\"probe\":1}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null,\"query\":\"SELECT 1 AS probe\",\"connection_id\":\"trade_analysis_mysql\",\"db_type\":\"mysql\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": true,
+          "data": [
+            {
+              "probe": 1
+            }
+          ],
+          "row_count": 1,
+          "total_rows": 1,
+          "truncated": false,
+          "truncation_note": null,
+          "query": "SELECT 1 AS probe",
+          "connection_id": "trade_analysis_mysql",
+          "db_type": "mysql"
+        },
+        "isError": false
+      }
+    },
+    {
+      "case": "explicit_sqlite_read",
+      "tool": "query",
+      "arguments": {
+        "connection_id": "analytics_demo_sqlite",
+        "sql": "SELECT 1 AS probe"
+      },
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":true,\"data\":[{\"probe\":1}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null,\"query\":\"SELECT 1 AS probe\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": true,
+          "data": [
+            {
+              "probe": 1
+            }
+          ],
+          "row_count": 1,
+          "total_rows": 1,
+          "truncated": false,
+          "truncation_note": null,
+          "query": "SELECT 1 AS probe",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      }
+    },
+    {
+      "case": "test_status_baseline",
+      "tool": "query",
+      "arguments": {
+        "connection_id": "live_test_sqlite",
+        "sql": "SELECT status, COUNT(*) AS order_count FROM orders GROUP BY status ORDER BY status"
+      },
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":true,\"data\":[{\"status\":\"confirmed\",\"order_count\":1},{\"status\":\"pending\",\"order_count\":1},{\"status\":\"shipped\",\"order_count\":1}],\"row_count\":3,\"total_rows\":3,\"truncated\":false,\"truncation_note\":null,\"query\":\"SELECT status, COUNT(*) AS order_count FROM orders GROUP BY status ORDER BY status\",\"connection_id\":\"live_test_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": true,
+          "data": [
+            {
+              "status": "confirmed",
+              "order_count": 1
+            },
+            {
+              "status": "pending",
+              "order_count": 1
+            },
+            {
+              "status": "shipped",
+              "order_count": 1
+            }
+          ],
+          "row_count": 3,
+          "total_rows": 3,
+          "truncated": false,
+          "truncation_note": null,
+          "query": "SELECT status, COUNT(*) AS order_count FROM orders GROUP BY status ORDER BY status",
+          "connection_id": "live_test_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      }
+    },
+    {
+      "case": "unknown_target",
+      "tool": "query",
+      "arguments": {
+        "connection_id": "live_test_sqlit",
+        "sql": "SELECT 1 AS probe"
+      },
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "Unknown connection_id 'live_test_sqlit'"
+          }
+        ],
+        "isError": true
+      }
+    },
+    {
+      "case": "blocked_table",
+      "tool": "query",
+      "arguments": {
+        "connection_id": "live_test_sqlite",
+        "sql": "SELECT COUNT(*) AS count FROM users"
+      },
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":false,\"error\":\"Access denied to table(s): users. Only allowed tables: orders\",\"query\":\"SELECT COUNT(*) AS count FROM users\",\"connection_id\":\"live_test_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": false,
+          "error": "Access denied to table(s): users. Only allowed tables: orders",
+          "query": "SELECT COUNT(*) AS count FROM users",
+          "connection_id": "live_test_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      }
+    },
+    {
+      "case": "blocked_union",
+      "tool": "query",
+      "arguments": {
+        "connection_id": "live_test_sqlite",
+        "sql": "SELECT id FROM orders WHERE 1=0 UNION SELECT id FROM orders WHERE 1=0"
+      },
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":false,\"error\":\"UNION queries disabled for security. Execute separate queries for each table and combine results in your response.\",\"query\":\"SELECT id FROM orders WHERE 1=0 UNION SELECT id FROM orders WHERE 1=0\",\"connection_id\":\"live_test_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": false,
+          "error": "UNION queries disabled for security. Execute separate queries for each table and combine results in your response.",
+          "query": "SELECT id FROM orders WHERE 1=0 UNION SELECT id FROM orders WHERE 1=0",
+          "connection_id": "live_test_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      }
+    },
+    {
+      "case": "query_skill",
+      "tool": "execute_query_skill",
+      "arguments": {
+        "connection_id": "live_test_sqlite",
+        "skill_name": "sample-monthly-sales-report-sqlite",
+        "params": {
+          "year": 2026,
+          "month": 8
+        }
+      },
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":true,\"skill_name\":\"sample-monthly-sales-report-sqlite\",\"connection_id\":\"live_test_sqlite\",\"db_type\":\"sqlite\",\"data\":[{\"date\":\"2026-08-01\",\"order_count\":1,\"revenue\":100.0,\"avg_order_value\":100.0},{\"date\":\"2026-08-02\",\"order_count\":1,\"revenue\":250.0,\"avg_order_value\":250.0},{\"date\":\"2026-08-03\",\"order_count\":1,\"revenue\":75.5,\"avg_order_value\":75.5}],\"row_count\":3,\"total_rows\":3,\"truncated\":false,\"truncation_note\":null}"
+          }
+        ],
+        "structuredContent": {
+          "success": true,
+          "skill_name": "sample-monthly-sales-report-sqlite",
+          "connection_id": "live_test_sqlite",
+          "db_type": "sqlite",
+          "data": [
+            {
+              "date": "2026-08-01",
+              "order_count": 1,
+              "revenue": 100,
+              "avg_order_value": 100
+            },
+            {
+              "date": "2026-08-02",
+              "order_count": 1,
+              "revenue": 250,
+              "avg_order_value": 250
+            },
+            {
+              "date": "2026-08-03",
+              "order_count": 1,
+              "revenue": 75.5,
+              "avg_order_value": 75.5
+            }
+          ],
+          "row_count": 3,
+          "total_rows": 3,
+          "truncated": false,
+          "truncation_note": null
+        },
+        "isError": false
+      }
+    },
+    {
+      "case": "default_mutation_denied_in_discovery",
+      "tool": "get_skill_detail",
+      "arguments": {
+        "skill_name": "sample-update-order-status",
+        "detail_level": "execution"
+      },
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":true,\"skill\":{\"name\":\"sample-update-order-status\",\"type\":\"mutation\",\"params\":{\"order_id\":{\"type\":\"int\",\"required\":true,\"description\":\"Order ID to update\"},\"new_status\":{\"type\":\"str\",\"required\":true,\"enum\":[\"pending\",\"confirmed\",\"shipped\",\"delivered\",\"cancelled\",\"returned\"],\"description\":\"Target status\"}},\"executable\":false,\"requires_confirmation\":true,\"disabled_reason\":\"Target connection is not authorized by skills.mutation.allowed_connections.\"},\"connection_id\":\"trade_analysis_mysql\",\"current_database_type\":\"mysql\",\"usage_hint\":\"Target connection is not authorized by skills.mutation.allowed_connections.\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": true,
+          "skill": {
+            "name": "sample-update-order-status",
+            "type": "mutation",
+            "params": {
+              "order_id": {
+                "type": "int",
+                "required": true,
+                "description": "Order ID to update"
+              },
+              "new_status": {
+                "type": "str",
+                "required": true,
+                "enum": [
+                  "pending",
+                  "confirmed",
+                  "shipped",
+                  "delivered",
+                  "cancelled",
+                  "returned"
+                ],
+                "description": "Target status"
+              }
+            },
+            "executable": false,
+            "requires_confirmation": true,
+            "disabled_reason": "Target connection is not authorized by skills.mutation.allowed_connections."
+          },
+          "connection_id": "trade_analysis_mysql",
+          "current_database_type": "mysql",
+          "usage_hint": "Target connection is not authorized by skills.mutation.allowed_connections."
+        },
+        "isError": false
+      }
+    },
+    {
+      "case": "test_mutation_readiness",
+      "tool": "get_skill_detail",
+      "arguments": {
+        "connection_id": "live_test_sqlite",
+        "skill_name": "sample-update-order-status",
+        "detail_level": "execution"
+      },
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":true,\"skill\":{\"name\":\"sample-update-order-status\",\"type\":\"mutation\",\"params\":{\"order_id\":{\"type\":\"int\",\"required\":true,\"description\":\"Order ID to update\"},\"new_status\":{\"type\":\"str\",\"required\":true,\"enum\":[\"pending\",\"confirmed\",\"shipped\",\"delivered\",\"cancelled\",\"returned\"],\"description\":\"Target status\"}},\"executable\":true,\"requires_confirmation\":true},\"connection_id\":\"live_test_sqlite\",\"current_database_type\":\"sqlite\",\"usage_hint\":\"Call execute_mutation_skill(skill_name, params, confirm=false, connection_id=connection_id) to preview, then pass the returned preview_token with confirm=true on the same connection.\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": true,
+          "skill": {
+            "name": "sample-update-order-status",
+            "type": "mutation",
+            "params": {
+              "order_id": {
+                "type": "int",
+                "required": true,
+                "description": "Order ID to update"
+              },
+              "new_status": {
+                "type": "str",
+                "required": true,
+                "enum": [
+                  "pending",
+                  "confirmed",
+                  "shipped",
+                  "delivered",
+                  "cancelled",
+                  "returned"
+                ],
+                "description": "Target status"
+              }
+            },
+            "executable": true,
+            "requires_confirmation": true
+          },
+          "connection_id": "live_test_sqlite",
+          "current_database_type": "sqlite",
+          "usage_hint": "Call execute_mutation_skill(skill_name, params, confirm=false, connection_id=connection_id) to preview, then pass the returned preview_token with confirm=true on the same connection."
+        },
+        "isError": false
+      }
+    },
+    {
+      "case": "native_fixture_before",
+      "tool": "query",
+      "arguments": {
+        "connection_id": "live_test_sqlite",
+        "sql": "SELECT id, status, order_date, total_amount FROM orders ORDER BY id"
+      },
+      "result": {
+        "isError": false,
+        "structuredContent": {
+          "success": true,
+          "data": "[private fixture snapshot, compared in memory]",
+          "row_count": 3,
+          "total_rows": 3,
+          "truncated": false,
+          "truncation_note": null,
+          "query": "SELECT id, status, order_date, total_amount FROM orders ORDER BY id",
+          "connection_id": "live_test_sqlite",
+          "db_type": "sqlite"
+        }
+      }
+    },
+    {
+      "case": "native_preview",
+      "tool": "execute_mutation_skill",
+      "arguments": {
+        "connection_id": "live_test_sqlite",
+        "skill_name": "sample-update-order-status",
+        "params": {
+          "order_id": 1,
+          "new_status": "confirmed"
+        },
+        "confirm": false
+      },
+      "result": {
+        "isError": false,
+        "structuredContent": {
+          "success": true,
+          "skill_name": "sample-update-order-status",
+          "mode": "preview",
+          "connection_id": "live_test_sqlite",
+          "db_type": "sqlite",
+          "execution_outcome": "not_executed",
+          "preview": {
+            "current_status": "pending",
+            "affected_rows_estimate": 1,
+            "warnings": [
+              "Status will change from 'pending' to 'confirmed'"
+            ],
+            "preview_sql": "UPDATE orders SET status = :new_status WHERE id = :order_id AND status = :expected_status",
+            "bound_params": {
+              "new_status": "confirmed",
+              "order_id": 1,
+              "expected_status": "pending"
+            }
+          },
+          "preview_token": "[REDACTED]",
+          "preview_token_expires_at": "2026-09-26T15:25:29+00:00",
+          "idempotent": false
+        }
+      }
+    },
+    {
+      "case": "native_after_preview",
+      "tool": "query",
+      "arguments": {
+        "connection_id": "live_test_sqlite",
+        "sql": "SELECT id, status, order_date, total_amount FROM orders ORDER BY id"
+      },
+      "result": {
+        "isError": false,
+        "structuredContent": {
+          "success": true,
+          "data": "[private fixture snapshot, compared in memory]",
+          "row_count": 3,
+          "total_rows": 3,
+          "truncated": false,
+          "truncation_note": null,
+          "query": "SELECT id, status, order_date, total_amount FROM orders ORDER BY id",
+          "connection_id": "live_test_sqlite",
+          "db_type": "sqlite"
+        }
+      },
+      "expected_snapshot_matches": true
+    },
+    {
+      "case": "native_wrong_params",
+      "tool": "execute_mutation_skill",
+      "arguments": {
+        "connection_id": "live_test_sqlite",
+        "skill_name": "sample-update-order-status",
+        "params": {
+          "order_id": 1,
+          "new_status": "cancelled"
+        },
+        "confirm": true,
+        "preview_token": "[REDACTED]"
+      },
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "preview_token does not match this mutation request; run preview again."
+          }
+        ],
+        "isError": true
+      }
+    },
+    {
+      "case": "native_after_wrong_params",
+      "tool": "query",
+      "arguments": {
+        "connection_id": "live_test_sqlite",
+        "sql": "SELECT id, status, order_date, total_amount FROM orders ORDER BY id"
+      },
+      "result": {
+        "isError": false,
+        "structuredContent": {
+          "success": true,
+          "data": "[private fixture snapshot, compared in memory]",
+          "row_count": 3,
+          "total_rows": 3,
+          "truncated": false,
+          "truncation_note": null,
+          "query": "SELECT id, status, order_date, total_amount FROM orders ORDER BY id",
+          "connection_id": "live_test_sqlite",
+          "db_type": "sqlite"
+        }
+      },
+      "expected_snapshot_matches": true
+    },
+    {
+      "case": "native_commit",
+      "tool": "execute_mutation_skill",
+      "arguments": {
+        "connection_id": "live_test_sqlite",
+        "skill_name": "sample-update-order-status",
+        "params": {
+          "order_id": 1,
+          "new_status": "confirmed"
+        },
+        "confirm": true,
+        "preview_token": "[REDACTED]"
+      },
+      "result": {
+        "isError": false,
+        "structuredContent": {
+          "success": true,
+          "skill_name": "sample-update-order-status",
+          "mode": "execute",
+          "connection_id": "live_test_sqlite",
+          "db_type": "sqlite",
+          "execution_outcome": "committed",
+          "result": {
+            "success": true,
+            "rowcount": 1,
+            "previous_status": "pending",
+            "new_status": "confirmed"
+          },
+          "idempotent": false
+        }
+      }
+    },
+    {
+      "case": "native_after_commit",
+      "tool": "query",
+      "arguments": {
+        "connection_id": "live_test_sqlite",
+        "sql": "SELECT id, status, order_date, total_amount FROM orders ORDER BY id"
+      },
+      "result": {
+        "isError": false,
+        "structuredContent": {
+          "success": true,
+          "data": "[private fixture snapshot, compared in memory]",
+          "row_count": 3,
+          "total_rows": 3,
+          "truncated": false,
+          "truncation_note": null,
+          "query": "SELECT id, status, order_date, total_amount FROM orders ORDER BY id",
+          "connection_id": "live_test_sqlite",
+          "db_type": "sqlite"
+        }
+      },
+      "expected_snapshot_matches": true
+    },
+    {
+      "case": "native_replay",
+      "tool": "execute_mutation_skill",
+      "arguments": {
+        "connection_id": "live_test_sqlite",
+        "skill_name": "sample-update-order-status",
+        "params": {
+          "order_id": 1,
+          "new_status": "confirmed"
+        },
+        "confirm": true,
+        "preview_token": "[REDACTED]"
+      },
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "Invalid preview_token, has already been used, or was not issued by this server process; run preview again."
+          }
+        ],
+        "isError": true
+      }
+    },
+    {
+      "case": "native_after_replay",
+      "tool": "query",
+      "arguments": {
+        "connection_id": "live_test_sqlite",
+        "sql": "SELECT id, status, order_date, total_amount FROM orders ORDER BY id"
+      },
+      "result": {
+        "isError": false,
+        "structuredContent": {
+          "success": true,
+          "data": "[private fixture snapshot, compared in memory]",
+          "row_count": 3,
+          "total_rows": 3,
+          "truncated": false,
+          "truncation_note": null,
+          "query": "SELECT id, status, order_date, total_amount FROM orders ORDER BY id",
+          "connection_id": "live_test_sqlite",
+          "db_type": "sqlite"
+        }
+      },
+      "expected_snapshot_matches": true
+    },
+    {
+      "case": "native_reset_preview",
+      "tool": "execute_mutation_skill",
+      "arguments": {
+        "connection_id": "live_test_sqlite",
+        "skill_name": "sample-reset-order-to-pending",
+        "params": {
+          "order_id": 1,
+          "expected_status": "confirmed"
+        },
+        "confirm": false
+      },
+      "result": {
+        "isError": false,
+        "structuredContent": {
+          "success": true,
+          "skill_name": "sample-reset-order-to-pending",
+          "mode": "preview",
+          "connection_id": "live_test_sqlite",
+          "db_type": "sqlite",
+          "execution_outcome": "not_executed",
+          "preview": {
+            "current_status": "confirmed",
+            "new_status": "pending",
+            "affected_rows_estimate": 1,
+            "warnings": [
+              "Demo status will be reset from 'confirmed' to 'pending'"
+            ],
+            "preview_sql": "UPDATE orders SET status = :new_status WHERE id = :order_id AND status = :expected_status",
+            "bound_params": {
+              "new_status": "pending",
+              "order_id": 1,
+              "expected_status": "confirmed"
+            }
+          },
+          "preview_token": "[REDACTED]",
+          "preview_token_expires_at": "2026-09-26T15:26:18+00:00",
+          "idempotent": false
+        }
+      }
+    },
+    {
+      "case": "native_reset_commit",
+      "tool": "execute_mutation_skill",
+      "arguments": {
+        "connection_id": "live_test_sqlite",
+        "skill_name": "sample-reset-order-to-pending",
+        "params": {
+          "order_id": 1,
+          "expected_status": "confirmed"
+        },
+        "confirm": true,
+        "preview_token": "[REDACTED]"
+      },
+      "result": {
+        "isError": false,
+        "structuredContent": {
+          "success": true,
+          "skill_name": "sample-reset-order-to-pending",
+          "mode": "execute",
+          "connection_id": "live_test_sqlite",
+          "db_type": "sqlite",
+          "execution_outcome": "committed",
+          "result": {
+            "success": true,
+            "rowcount": 1,
+            "previous_status": "confirmed",
+            "new_status": "pending"
+          },
+          "idempotent": false
+        }
+      }
+    },
+    {
+      "case": "native_restored",
+      "tool": "query",
+      "arguments": {
+        "connection_id": "live_test_sqlite",
+        "sql": "SELECT id, status, order_date, total_amount FROM orders ORDER BY id"
+      },
+      "result": {
+        "isError": false,
+        "structuredContent": {
+          "success": true,
+          "data": "[private fixture snapshot, compared in memory]",
+          "row_count": 3,
+          "total_rows": 3,
+          "truncated": false,
+          "truncation_note": null,
+          "query": "SELECT id, status, order_date, total_amount FROM orders ORDER BY id",
+          "connection_id": "live_test_sqlite",
+          "db_type": "sqlite"
+        }
+      },
+      "expected_snapshot_matches": true
+    }
+  ],
+  "fixture_restored": true,
+  "committed_statements": 2,
+  "notes": [
+    "Snapshots compared in memory; full fixture rows omitted from exported records.",
+    "Raw one-time handles redacted in arguments and results.",
+    "Host request/response wire protocol and user approval UI were not recorded."
+  ]
+}

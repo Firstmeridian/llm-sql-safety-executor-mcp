@@ -1,0 +1,21 @@
+{
+  "host": "codex-cli 0.155.0-alpha.16.3",
+  "protocol": "2025-06-18",
+  "scenario": "ambiguous",
+  "calls": [
+    {
+      "tool": "list_connections",
+      "connection_id": null,
+      "status": "completed"
+    }
+  ],
+  "usage": {
+    "input_tokens": 59478,
+    "cached_input_tokens": 46592,
+    "cache_write_input_tokens": 0,
+    "output_tokens": 118,
+    "reasoning_output_tokens": 0
+  },
+  "final_answer": "发现多个 SQLite 连接：`demo`、`analytics`、`blocked`（禁止读取），无法唯一确定查询目标。请指定要查询的连接别名。",
+  "misrouting": 0
+}

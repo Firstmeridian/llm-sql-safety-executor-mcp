@@ -1,0 +1,9 @@
+schema_version = 1
+[files]
+connections = "connections.toml"
+skills = "skills.toml"
+[server]
+default_connection = "demo"
+[defaults.timeouts]
+query_seconds = 30
+connect_seconds = 10

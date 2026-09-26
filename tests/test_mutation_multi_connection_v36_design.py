@@ -2,14 +2,13 @@
 
 from __future__ import annotations
 
+from tests.support import SCENARIO, make_gateway
+
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 import hashlib
-import importlib
 import json
-import logging
 import sqlite3
-import sys
 import tempfile
 import threading
 from pathlib import Path
@@ -19,11 +18,7 @@ import pytest
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
 SKILLS_LIB = PROJECT_ROOT / "skills" / "_lib"
-if str(SKILLS_LIB) not in sys.path:
-    sys.path.insert(0, str(SKILLS_LIB))
 
 
 class DummyContext:
@@ -108,76 +103,71 @@ def _reload_server(
     skills_dir: Path | None = None,
     skills_allow_mutations: bool = True,
 ):
-    monkeypatch.setenv("DB_CONNECTIONS", "mysql,analytics")
-    monkeypatch.setenv("DEFAULT_DB_CONNECTION", "mysql")
+    monkeypatch.setitem(SCENARIO, "DB_CONNECTIONS", "mysql,analytics")
+    monkeypatch.setitem(SCENARIO, "DEFAULT_DB_CONNECTION", "mysql")
     # The mysql alias uses SQLite fixtures here to keep the design tests hermetic.
-    monkeypatch.setenv("DB_MYSQL_TYPE", "sqlite")
-    monkeypatch.setenv("DB_MYSQL_SQLITE_DATABASE_PATH", str(mysql_db))
-    monkeypatch.setenv("DB_MYSQL_ALLOWED_TABLES", "orders")
-    monkeypatch.setenv("DB_ANALYTICS_TYPE", "sqlite")
-    monkeypatch.setenv("DB_ANALYTICS_SQLITE_DATABASE_PATH", str(analytics_db))
-    monkeypatch.setenv("DB_ANALYTICS_ALLOWED_TABLES", "orders")
-    monkeypatch.setenv("ENABLE_SKILLS", "1")
-    monkeypatch.setenv(
+    monkeypatch.setitem(SCENARIO, "DB_MYSQL_TYPE", "sqlite")
+    monkeypatch.setitem(SCENARIO, "DB_MYSQL_SQLITE_DATABASE_PATH", str(mysql_db))
+    monkeypatch.setitem(SCENARIO, "DB_MYSQL_ALLOWED_TABLES", "orders")
+    monkeypatch.setitem(SCENARIO, "DB_ANALYTICS_TYPE", "sqlite")
+    monkeypatch.setitem(SCENARIO, "DB_ANALYTICS_SQLITE_DATABASE_PATH", str(analytics_db))
+    monkeypatch.setitem(SCENARIO, "DB_ANALYTICS_ALLOWED_TABLES", "orders")
+    monkeypatch.setitem(SCENARIO, "ENABLE_SKILLS", "1")
+    monkeypatch.setitem(SCENARIO,
         "SKILLS_ALLOW_MUTATIONS",
         "1" if skills_allow_mutations else "0",
     )
-    monkeypatch.setenv("SKILLS_DIR", str(skills_dir or "skills/"))
-    monkeypatch.setenv("SKILLS_EXCLUDE_PROFILES", "")
-    monkeypatch.setenv("SKILLS_AUDIT_QUERIES", "0")
-    monkeypatch.setenv(
+    monkeypatch.setitem(SCENARIO, "SKILLS_DIR", str(skills_dir or "skills/"))
+    monkeypatch.setitem(SCENARIO, "SKILLS_EXCLUDE_PROFILES", "")
+    monkeypatch.setitem(SCENARIO, "SKILLS_AUDIT_QUERIES", "0")
+    monkeypatch.setitem(SCENARIO,
         "SKILLS_AUDIT_LOG",
         str(mysql_db.parent / "mutation-audit.jsonl"),
     )
-    monkeypatch.setenv("MAX_SQL_LENGTH", "20000")
-    monkeypatch.setenv("MCP_TOOL_TIMEOUT_SECONDS", "120")
-    monkeypatch.setenv(
+    monkeypatch.setitem(SCENARIO, "MAX_SQL_LENGTH", "20000")
+    monkeypatch.setitem(SCENARIO, "MCP_TOOL_TIMEOUT_SECONDS", "120")
+    monkeypatch.setitem(SCENARIO,
         "MUTATION_PREVIEW_TOKEN_TTL_SECONDS",
         str(preview_token_ttl_seconds),
     )
-    monkeypatch.setenv(
+    monkeypatch.setitem(SCENARIO,
         "MUTATION_PREVIEW_TOKEN_STORE_MAX_ENTRIES",
         str(preview_token_store_max_entries),
     )
-    monkeypatch.setenv(
+    monkeypatch.setitem(SCENARIO,
         "SKILLS_ALLOW_MUTATION_CONNECTIONS",
         mutation_connections,
     )
-    monkeypatch.setenv("DB_MYSQL_ALLOW_MUTATIONS", "1")
-    monkeypatch.setenv("DB_MYSQL_MUTATION_SKILLS", "sample-update-order-status")
-    monkeypatch.setenv(
+    monkeypatch.setitem(SCENARIO, "DB_MYSQL_ALLOW_MUTATIONS", "1")
+    monkeypatch.setitem(SCENARIO, "DB_MYSQL_MUTATION_SKILLS", "sample-update-order-status")
+    monkeypatch.setitem(SCENARIO,
         "DB_ANALYTICS_ALLOW_MUTATIONS",
         "1" if allow_analytics_mutations else "0",
     )
-    monkeypatch.setenv(
+    monkeypatch.setitem(SCENARIO,
         "DB_ANALYTICS_MUTATION_SKILLS",
         analytics_mutation_skills,
     )
-    monkeypatch.delenv("SKILLS_LIST_DEFAULT_DETAIL", raising=False)
-    monkeypatch.delenv("SKILLS_LIST_AVAILABLE_ONLY_DEFAULT", raising=False)
+    monkeypatch.delitem(SCENARIO, "SKILLS_LIST_DEFAULT_DETAIL", raising=False)
+    monkeypatch.delitem(SCENARIO, "SKILLS_LIST_AVAILABLE_ONLY_DEFAULT", raising=False)
     if check_schema_on_list is None:
-        monkeypatch.delenv("SKILLS_CHECK_SCHEMA_ON_LIST", raising=False)
+        monkeypatch.delitem(SCENARIO, "SKILLS_CHECK_SCHEMA_ON_LIST", raising=False)
     else:
-        monkeypatch.setenv(
+        monkeypatch.setitem(SCENARIO,
             "SKILLS_CHECK_SCHEMA_ON_LIST",
             "1" if check_schema_on_list else "0",
         )
 
-    import skill_loader
+    from tests import support_catalog as skill_loader
 
     monkeypatch.setattr(skill_loader, "generate_skills_md", lambda *_a, **_k: None)
 
-    for module_name in ("mcp_sql_server", "db_adapter", "sql_safety_checker"):
-        sys.modules.pop(module_name, None)
-    return importlib.import_module("mcp_sql_server")
+    return make_gateway()
 
 
 def _cleanup_modules() -> None:
-    db_adapter = sys.modules.get("db_adapter")
-    if db_adapter is not None:
-        db_adapter.reset_adapter()
-    for module_name in ("mcp_sql_server", "db_adapter", "sql_safety_checker"):
-        sys.modules.pop(module_name, None)
+    from tests.support import cleanup
+    cleanup()
 
 
 def _params(order_id: int = 1, new_status: str = "confirmed") -> dict[str, object]:
@@ -503,55 +493,18 @@ def test_mutation_execution_detail_returns_invocation_contract(
         _cleanup_modules()
 
 
-def test_preview_token_ttl_above_max_falls_back_to_default(
-    tmp_path,
-    monkeypatch,
-):
-    mysql_db = tmp_path / "mysql.db"
-    analytics_db = tmp_path / "analytics.db"
-    _create_orders_db(mysql_db, "mysql")
-    _create_orders_db(analytics_db, "analytics")
-
-    module = _reload_server(
-        monkeypatch,
-        mysql_db,
-        analytics_db,
-        preview_token_ttl_seconds=86_401,
-    )
-    try:
-        assert module.MUTATION_PREVIEW_TOKEN_TTL_MAX_SECONDS == 86_400
-        assert module.MUTATION_PREVIEW_TOKEN_TTL_SECONDS == 300
-    finally:
-        _cleanup_modules()
+def test_preview_token_ttl_above_max_is_startup_error(tmp_path,monkeypatch):
+    from sql_safety_executor.config.loader import ConfigError
+    with pytest.raises(ConfigError, match="ttl_seconds"):
+        _reload_server(monkeypatch,tmp_path/'a.db',tmp_path/'b.db',preview_token_ttl_seconds=86401)
 
 
-def test_preview_token_store_capacity_above_max_falls_back_to_default(
-    tmp_path,
-    monkeypatch,
-    caplog,
-):
-    mysql_db = tmp_path / "mysql.db"
-    analytics_db = tmp_path / "analytics.db"
-    _create_orders_db(mysql_db, "mysql")
-    _create_orders_db(analytics_db, "analytics")
 
-    with caplog.at_level(logging.WARNING, logger="mcp_sql_server"):
-        module = _reload_server(
-            monkeypatch,
-            mysql_db,
-            analytics_db,
-            preview_token_store_max_entries=100_001,
-        )
-    try:
-        assert module.MUTATION_PREVIEW_TOKEN_STORE_MAX_ENTRIES_MAX == 100_000
-        assert module.MUTATION_PREVIEW_TOKEN_STORE_MAX_ENTRIES == 10_000
-        assert any(
-            "MUTATION_PREVIEW_TOKEN_STORE_MAX_ENTRIES" in record.getMessage()
-            and "must be <= 100000" in record.getMessage()
-            for record in caplog.records
-        )
-    finally:
-        _cleanup_modules()
+def test_preview_token_store_capacity_above_max_is_startup_error(tmp_path,monkeypatch):
+    from sql_safety_executor.config.loader import ConfigError
+    with pytest.raises(ConfigError, match="max_entries"):
+        _reload_server(monkeypatch,tmp_path/'a.db',tmp_path/'b.db',preview_token_store_max_entries=100001)
+
 
 
 def test_preview_token_store_capacity_accepts_maximum(tmp_path, monkeypatch):
@@ -572,104 +525,32 @@ def test_preview_token_store_capacity_accepts_maximum(tmp_path, monkeypatch):
         _cleanup_modules()
 
 
-def test_mutation_handle_startup_visibility_ignores_legacy_secret(
-    tmp_path,
-    monkeypatch,
-    caplog,
-):
-    mysql_db = tmp_path / "mysql.db"
-    analytics_db = tmp_path / "analytics.db"
-    _create_orders_db(mysql_db, "mysql")
-    _create_orders_db(analytics_db, "analytics")
-    legacy_secret = "obsolete-preview-token-secret"
-    monkeypatch.setenv("MUTATION_PREVIEW_TOKEN_SECRET", legacy_secret)
-
-    with caplog.at_level(logging.INFO, logger="mcp_sql_server"):
-        _reload_server(monkeypatch, mysql_db, analytics_db)
-    try:
-        all_messages = "\n".join(
-            record.getMessage() for record in caplog.records
-        )
-        assert (
-            "Mutation preview tokens: 256-bit opaque handles with "
-            "process-local one-time state"
-        ) in all_messages
-        assert "MUTATION_PREVIEW_TOKEN_SECRET is obsolete and ignored" in all_messages
-        assert legacy_secret not in all_messages
-        assert "signing secret" not in all_messages
-    finally:
-        _cleanup_modules()
+def test_preview_tokens_are_instance_local_and_ignore_ambient_secret(tmp_path,monkeypatch,caplog):
+    monkeypatch.setenv('MUTATION_PREVIEW_TOKEN_SECRET','obsolete-preview-token-secret')
+    first=_reload_server(monkeypatch,tmp_path/'a.db',tmp_path/'b.db')
+    second=_reload_server(monkeypatch,tmp_path/'a.db',tmp_path/'b.db')
+    assert first.runtime.tokens is not second.runtime.tokens
+    assert 'obsolete-preview-token-secret' not in caplog.text
 
 
-def test_mutation_authorization_startup_summary_strict_mode(
-    tmp_path,
-    monkeypatch,
-    caplog,
-):
-    mysql_db = tmp_path / "mysql.db"
-    analytics_db = tmp_path / "analytics.db"
-    _create_orders_db(mysql_db, "mysql")
-    _create_orders_db(analytics_db, "analytics")
 
-    with caplog.at_level(logging.INFO, logger="mcp_sql_server"):
-        _reload_server(
-            monkeypatch,
-            mysql_db,
-            analytics_db,
-            allow_analytics_mutations=False,
-        )
-    try:
-        messages = [
-            record.getMessage()
-            for record in caplog.records
-            if record.getMessage().startswith("Mutation routing policy:")
-        ]
-        assert len(messages) == 1
-        message = messages[0]
-        assert "mode=strict" in message
-        assert "candidate_targets=analytics,mysql" in message
-        assert "policy_enabled_targets=mysql" in message
-        assert "analytics=disabled" in message
-        assert "mysql=allowlist(sample-update-order-status)" in message
-        assert str(mysql_db) not in message
-        assert str(analytics_db) not in message
-    finally:
-        _cleanup_modules()
+def test_mutation_configuration_explains_disabled_target(tmp_path,monkeypatch):
+    from sql_safety_executor.config.loader import explain_config
+    server=_reload_server(monkeypatch,tmp_path/'a.db',tmp_path/'b.db',allow_analytics_mutations=False)
+    explanation=explain_config(server.runtime.config)['effective.mutations']
+    assert explanation['mysql']['enabled']
+    assert not explanation['analytics']['enabled']
 
 
-def test_mutation_authorization_startup_summary_default_only_mode(
-    tmp_path,
-    monkeypatch,
-    caplog,
-):
-    mysql_db = tmp_path / "mysql.db"
-    analytics_db = tmp_path / "analytics.db"
-    _create_orders_db(mysql_db, "mysql")
-    _create_orders_db(analytics_db, "analytics")
 
-    with caplog.at_level(logging.INFO, logger="mcp_sql_server"):
-        _reload_server(
-            monkeypatch,
-            mysql_db,
-            analytics_db,
-            mutation_connections="",
-        )
-    try:
-        messages = [
-            record.getMessage()
-            for record in caplog.records
-            if record.getMessage().startswith("Mutation routing policy:")
-        ]
-        assert len(messages) == 1
-        message = messages[0]
-        assert "mode=default-only" in message
-        assert "candidate_targets=mysql" in message
-        assert "policy_enabled_targets=mysql" in message
-        assert "target_policy=mysql=compatibility-default" in message
-        assert str(mysql_db) not in message
-        assert str(analytics_db) not in message
-    finally:
-        _cleanup_modules()
+def test_no_implicit_default_write_authorization(tmp_path,monkeypatch):
+    server=_reload_server(monkeypatch,tmp_path/'a.db',tmp_path/'b.db',mutation_connections='')
+    for alias in ('mysql','analytics'):
+        with pytest.raises(server.ToolError,match='skills.mutation.allowed_connections'):
+            run_tool(server.execute_mutation_skill(skill_name='sample-update-order-status',params=_params(),ctx=DummyContext(),connection_id=alias))
+    assert not (tmp_path/'a.db').exists()
+    assert not (tmp_path/'b.db').exists()
+
 
 
 def test_preview_returns_token_and_default_target_metadata(tmp_path, monkeypatch):
@@ -1705,7 +1586,7 @@ def test_commit_ack_failure_returns_structured_unknown(tmp_path, monkeypatch):
             )
         )
         adapter = module.get_adapter("mysql")
-        import db_adapter
+        from tests import support_adapters as db_adapter
 
         def fail_commit(*_args, **_kwargs):
             raise db_adapter.WriteExecutionError(
@@ -1858,7 +1739,7 @@ def custom_managed_server(tmp_path, monkeypatch):
             encoding="utf-8",
         )
         (skill_dir / "mutation.py").write_text(
-            "from mutation_base import ManagedMutationBase, ManagedMutationPlan, ManagedMutationValue as V\n"
+            "from sql_safety_executor.skills.mutation import ManagedMutationBase, ManagedMutationPlan, ManagedMutationValue as V\n"
             "class Mutation(ManagedMutationBase):\n"
             "    managed_plan = ManagedMutationPlan(\n"
             "        sql='UPDATE orders SET status = :new_status WHERE id = :order_id AND status = :expected_status',\n"
@@ -2039,7 +1920,7 @@ def test_same_named_custom_two_statement_failure_via_fastmcp(
         )
         mutation_path = skill_dir / "mutation.py"
         mutation_path.write_text(
-            "from mutation_base import MutationBase\n"
+            "from sql_safety_executor.skills.mutation import MutationBase\n"
             "class Mutation(MutationBase):\n"
             "    def validate(self, params): return {'valid': True}\n"
             "    def preview(self, params): return {'preview_sql': 'two updates'}\n"
@@ -3107,7 +2988,7 @@ def test_policy_denies_connection_missing_from_global_allowlist(tmp_path, monkey
     try:
         with pytest.raises(
             module.ToolError,
-            match="SKILLS_ALLOW_MUTATION_CONNECTIONS",
+            match="skills.mutation.allowed_connections",
         ):
             run_tool(
                 module.execute_mutation_skill(

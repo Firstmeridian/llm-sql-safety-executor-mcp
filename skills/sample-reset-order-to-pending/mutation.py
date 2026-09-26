@@ -1,7 +1,7 @@
 """Portable demo mutation that resets an expected order state to pending."""
 
-from fastmcp.exceptions import ToolError
-from mutation_base import (  # type: ignore[import-not-found]
+from sql_safety_executor.core.types import OperationError as ToolError
+from sql_safety_executor.skills.mutation import (  # type: ignore[import-not-found]
     ManagedMutationBase,
     ManagedMutationPlan,
     ManagedMutationValue,

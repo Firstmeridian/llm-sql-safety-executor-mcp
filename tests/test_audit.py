@@ -12,15 +12,12 @@ Usage:
     pytest tests/test_audit.py -v
 """
 
+from tests.support import SCENARIO
+
 import json
 import logging
-import sys
-import pytest
-from pathlib import Path
 
 # Add project root and _lib to path
-sys.path.insert(0, str(Path(__file__).parent.parent))
-sys.path.insert(0, str(Path(__file__).parent.parent / "skills" / "_lib"))
 
 
 # =============================================================================
@@ -32,7 +29,7 @@ class TestAuditLogger:
 
     def test_audit_log_recorded(self, tmp_path):
         """#13: Mutation operation records expected fields to JSONL."""
-        from audit import AuditLogger
+        from sql_safety_executor.observability.audit import AuditLogger
 
         log_path = tmp_path / "audit.jsonl"
         logger = AuditLogger(log_path=log_path)
@@ -66,7 +63,7 @@ class TestAuditLogger:
 
     def test_audit_log_preview_mode(self, tmp_path):
         """Preview mode is recorded with mode='preview'."""
-        from audit import AuditLogger
+        from sql_safety_executor.observability.audit import AuditLogger
 
         log_path = tmp_path / "audit.jsonl"
         logger = AuditLogger(log_path=log_path)
@@ -84,7 +81,7 @@ class TestAuditLogger:
 
     def test_audit_log_records_optional_connection_metadata(self, tmp_path):
         """v3.5: audit can include safe connection alias and actual DB type."""
-        from audit import AuditLogger
+        from sql_safety_executor.observability.audit import AuditLogger
 
         log_path = tmp_path / "audit.jsonl"
         logger = AuditLogger(log_path=log_path)
@@ -104,7 +101,7 @@ class TestAuditLogger:
 
     def test_audit_log_multiple_entries(self, tmp_path):
         """Multiple log entries produce valid JSONL (one per line)."""
-        from audit import AuditLogger
+        from sql_safety_executor.observability.audit import AuditLogger
 
         log_path = tmp_path / "audit.jsonl"
         logger = AuditLogger(log_path=log_path)
@@ -126,7 +123,7 @@ class TestAuditLogger:
 
     def test_audit_log_failure(self, tmp_path):
         """Failed operations are logged with error field."""
-        from audit import AuditLogger
+        from sql_safety_executor.observability.audit import AuditLogger
 
         log_path = tmp_path / "audit.jsonl"
         logger = AuditLogger(log_path=log_path)
@@ -152,7 +149,7 @@ class TestAuditLogger:
 
     def test_audit_log_creates_directory(self, tmp_path):
         """AuditLogger creates parent directory if it doesn't exist."""
-        from audit import AuditLogger
+        from sql_safety_executor.observability.audit import AuditLogger
 
         log_path = tmp_path / "subdir" / "nested" / "audit.jsonl"
         logger = AuditLogger(log_path=log_path)
@@ -167,15 +164,14 @@ class TestAuditLogger:
         assert log_path.exists()
 
     def test_audit_fallback_agent_id(self, tmp_path):
-        """Without client_id, falls back to AGENT_ID env var or 'unknown'."""
-        from audit import AuditLogger
+        """Without client_id, uses the configured agent_id or 'unknown'."""
+        from sql_safety_executor.observability.audit import AuditLogger
         from unittest.mock import patch
-        import os
 
         log_path = tmp_path / "audit.jsonl"
 
-        with patch.dict(os.environ, {"AGENT_ID": "test-env-agent"}, clear=False):
-            logger = AuditLogger(log_path=log_path)
+        with patch.dict(SCENARIO, {"AGENT_ID": "test-env-agent"}, clear=False):
+            logger = AuditLogger(log_path=log_path, agent_id="test-env-agent")
             logger.log(
                 skill_name="test",
                 params={},
@@ -189,7 +185,7 @@ class TestAuditLogger:
 
     def test_audit_param_sanitization(self, tmp_path):
         """Long string parameters are truncated in the log."""
-        from audit import AuditLogger
+        from sql_safety_executor.observability.audit import AuditLogger
 
         log_path = tmp_path / "audit.jsonl"
         logger = AuditLogger(log_path=log_path)
@@ -209,7 +205,7 @@ class TestAuditLogger:
 
     def test_audit_mkdir_permission_error_warns(self, tmp_path):
         """P3#6: mkdir failure logs warning but doesn't crash."""
-        from audit import AuditLogger
+        from sql_safety_executor.observability.audit import AuditLogger
         from unittest.mock import patch
 
         bad_path = tmp_path / "no-perms" / "audit.jsonl"
@@ -221,7 +217,7 @@ class TestAuditLogger:
 
     def test_audit_write_failure_is_best_effort(self, tmp_path, caplog):
         """Write failure returns False and does not raise."""
-        from audit import AuditLogger
+        from sql_safety_executor.observability.audit import AuditLogger
         from unittest.mock import patch
 
         log_path = tmp_path / "audit.jsonl"

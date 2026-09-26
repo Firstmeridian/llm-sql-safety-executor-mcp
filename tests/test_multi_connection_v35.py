@@ -2,21 +2,17 @@
 
 from __future__ import annotations
 
+from tests.support import SCENARIO, make_gateway
+
 import asyncio
-import importlib
 import sqlite3
-import sys
 from pathlib import Path
 from typing import Any, Coroutine
 
 import pytest
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
 SKILLS_LIB = PROJECT_ROOT / "skills" / "_lib"
-if str(SKILLS_LIB) not in sys.path:
-    sys.path.insert(0, str(SKILLS_LIB))
 
 
 class DummyContext:
@@ -93,60 +89,55 @@ def _reload_server(
     connection_ids = ["default", "analytics"]
     if with_mysql_target:
         connection_ids.append("mysql_target")
-    monkeypatch.setenv("DB_CONNECTIONS", ",".join(connection_ids))
-    monkeypatch.setenv("DEFAULT_DB_CONNECTION", "default")
-    monkeypatch.setenv("DB_DEFAULT_TYPE", "sqlite")
-    monkeypatch.setenv("DB_DEFAULT_SQLITE_DATABASE_PATH", str(default_db))
-    monkeypatch.setenv("DB_ANALYTICS_TYPE", "sqlite")
-    monkeypatch.setenv("DB_ANALYTICS_SQLITE_DATABASE_PATH", str(analytics_db))
-    monkeypatch.setenv("DB_DEFAULT_ALLOWED_TABLES", default_allowed_tables)
-    monkeypatch.setenv("DB_ANALYTICS_ALLOWED_TABLES", analytics_allowed_tables)
+    monkeypatch.setitem(SCENARIO, "DB_CONNECTIONS", ",".join(connection_ids))
+    monkeypatch.setitem(SCENARIO, "DEFAULT_DB_CONNECTION", "default")
+    monkeypatch.setitem(SCENARIO, "DB_DEFAULT_TYPE", "sqlite")
+    monkeypatch.setitem(SCENARIO, "DB_DEFAULT_SQLITE_DATABASE_PATH", str(default_db))
+    monkeypatch.setitem(SCENARIO, "DB_ANALYTICS_TYPE", "sqlite")
+    monkeypatch.setitem(SCENARIO, "DB_ANALYTICS_SQLITE_DATABASE_PATH", str(analytics_db))
+    monkeypatch.setitem(SCENARIO, "DB_DEFAULT_ALLOWED_TABLES", default_allowed_tables)
+    monkeypatch.setitem(SCENARIO, "DB_ANALYTICS_ALLOWED_TABLES", analytics_allowed_tables)
     if with_mysql_target:
-        monkeypatch.setenv("DB_MYSQL_TARGET_TYPE", "mysql")
-        monkeypatch.setenv("DB_MYSQL_TARGET_USER", "fixture")
-        monkeypatch.setenv("DB_MYSQL_TARGET_PASSWORD", "fixture")
-        monkeypatch.setenv("DB_MYSQL_TARGET_HOST", "127.0.0.1")
-        monkeypatch.setenv("DB_MYSQL_TARGET_NAME", "fixture")
-        monkeypatch.setenv("DB_MYSQL_TARGET_ALLOWED_TABLES", "items")
-    monkeypatch.setenv("ENABLE_SCHEMA_TOOLS", "1")
-    monkeypatch.setenv("ENABLE_TABLE_SUMMARY", "1")
-    monkeypatch.setenv("ENABLE_SKILLS", "1" if skills else "0")
-    monkeypatch.setenv("SKILLS_ALLOW_MUTATIONS", "1" if mutations else "0")
+        monkeypatch.setitem(SCENARIO, "DB_MYSQL_TARGET_TYPE", "mysql")
+        monkeypatch.setitem(SCENARIO, "DB_MYSQL_TARGET_USER", "fixture")
+        monkeypatch.setitem(SCENARIO, "DB_MYSQL_TARGET_PASSWORD", "fixture")
+        monkeypatch.setitem(SCENARIO, "DB_MYSQL_TARGET_HOST", "127.0.0.1")
+        monkeypatch.setitem(SCENARIO, "DB_MYSQL_TARGET_NAME", "fixture")
+        monkeypatch.setitem(SCENARIO, "DB_MYSQL_TARGET_ALLOWED_TABLES", "items")
+    monkeypatch.setitem(SCENARIO, "ENABLE_SCHEMA_TOOLS", "1")
+    monkeypatch.setitem(SCENARIO, "ENABLE_TABLE_SUMMARY", "1")
+    monkeypatch.setitem(SCENARIO, "ENABLE_SKILLS", "1" if skills else "0")
+    monkeypatch.setitem(SCENARIO, "SKILLS_ALLOW_MUTATIONS", "1" if mutations else "0")
     # Keep the v3.5 fixture independent of a local v3.6 named-write policy.
     # An empty value prevents db_adapter.load_dotenv() from restoring a live
     # SKILLS_ALLOW_MUTATION_CONNECTIONS value during the module re-import.
-    monkeypatch.setenv("SKILLS_ALLOW_MUTATION_CONNECTIONS", "")
-    monkeypatch.setenv("SKILLS_DIR", skills_dir)
-    monkeypatch.setenv("SKILLS_EXCLUDE_PROFILES", "")
-    monkeypatch.setenv("SKILLS_AUDIT_QUERIES", "0")
-    monkeypatch.setenv("MAX_SQL_LENGTH", "20000")
-    monkeypatch.setenv("MCP_TOOL_TIMEOUT_SECONDS", "120")
-    monkeypatch.delenv("SKILLS_LIST_DEFAULT_DETAIL", raising=False)
-    monkeypatch.delenv("SKILLS_LIST_AVAILABLE_ONLY_DEFAULT", raising=False)
+    monkeypatch.setitem(SCENARIO, "SKILLS_ALLOW_MUTATION_CONNECTIONS", "")
+    monkeypatch.setitem(SCENARIO, "SKILLS_DIR", skills_dir)
+    monkeypatch.setitem(SCENARIO, "SKILLS_EXCLUDE_PROFILES", "")
+    monkeypatch.setitem(SCENARIO, "SKILLS_AUDIT_QUERIES", "0")
+    monkeypatch.setitem(SCENARIO, "MAX_SQL_LENGTH", "20000")
+    monkeypatch.setitem(SCENARIO, "MCP_TOOL_TIMEOUT_SECONDS", "120")
+    monkeypatch.delitem(SCENARIO, "SKILLS_LIST_DEFAULT_DETAIL", raising=False)
+    monkeypatch.delitem(SCENARIO, "SKILLS_LIST_AVAILABLE_ONLY_DEFAULT", raising=False)
     if schema_check_on_list is None:
-        monkeypatch.delenv("SKILLS_CHECK_SCHEMA_ON_LIST", raising=False)
+        monkeypatch.delitem(SCENARIO, "SKILLS_CHECK_SCHEMA_ON_LIST", raising=False)
     else:
-        monkeypatch.setenv(
+        monkeypatch.setitem(SCENARIO,
             "SKILLS_CHECK_SCHEMA_ON_LIST",
             "1" if schema_check_on_list else "0",
         )
 
     if skills:
-        import skill_loader
+        from tests import support_catalog as skill_loader
 
         monkeypatch.setattr(skill_loader, "generate_skills_md", lambda *_a, **_k: None)
 
-    for module_name in ("mcp_sql_server", "db_adapter", "sql_safety_checker"):
-        sys.modules.pop(module_name, None)
-    return importlib.import_module("mcp_sql_server")
+    return make_gateway()
 
 
 def _cleanup_modules():
-    db_adapter = sys.modules.get("db_adapter")
-    if db_adapter is not None:
-        db_adapter.reset_adapter()
-    for module_name in ("mcp_sql_server", "db_adapter", "sql_safety_checker"):
-        sys.modules.pop(module_name, None)
+    from tests.support import cleanup
+    cleanup()
 
 
 @pytest.mark.parametrize("database_exists", [False, True])
@@ -284,11 +275,11 @@ def test_union_policy_and_disclosure_follow_selected_connection(
     analytics_db = tmp_path / "analytics.db"
     _create_rows_db(default_db, "items", "default-row")
     _create_rows_db(analytics_db, "items", "analytics-row")
-    monkeypatch.setenv(
+    monkeypatch.setitem(SCENARIO,
         "DB_DEFAULT_ALLOW_UNION",
         "1" if default_allow_union else "0",
     )
-    monkeypatch.setenv(
+    monkeypatch.setitem(SCENARIO,
         "DB_ANALYTICS_ALLOW_UNION",
         "1" if analytics_allow_union else "0",
     )
@@ -359,11 +350,11 @@ def test_query_skill_union_policy_follows_selected_connection(
     analytics_db = tmp_path / "analytics.db"
     _create_rows_db(default_db, "items", "default-row")
     _create_rows_db(analytics_db, "items", "analytics-row")
-    monkeypatch.setenv(
+    monkeypatch.setitem(SCENARIO,
         "DB_DEFAULT_ALLOW_UNION",
         "1" if default_allow_union else "0",
     )
-    monkeypatch.setenv(
+    monkeypatch.setitem(SCENARIO,
         "DB_ANALYTICS_ALLOW_UNION",
         "1" if analytics_allow_union else "0",
     )
@@ -413,38 +404,14 @@ def test_query_skill_union_policy_follows_selected_connection(
         _cleanup_modules()
 
 
-def test_union_missing_allowlist_error_is_target_connection_specific(
-    tmp_path,
-    monkeypatch,
-):
-    default_db = tmp_path / "default.db"
-    analytics_db = tmp_path / "analytics.db"
-    _create_rows_db(default_db, "items", "default-row")
-    _create_rows_db(analytics_db, "items", "analytics-row")
-    monkeypatch.setenv("DB_DEFAULT_ALLOW_UNION", "0")
-    monkeypatch.setenv("DB_ANALYTICS_ALLOW_UNION", "1")
+def test_explicit_all_read_scope_can_authorize_union(tmp_path, monkeypatch):
+    default_db=tmp_path/'default.db'; analytics_db=tmp_path/'analytics.db'
+    _create_rows_db(default_db,'items','default-row');_create_rows_db(analytics_db,'items','analytics-row')
+    monkeypatch.setitem(SCENARIO,'DB_ANALYTICS_ALLOW_UNION','1')
+    module=_reload_server(monkeypatch,default_db,analytics_db,analytics_allowed_tables='*')
+    result,_=run_tool(module.query(sql='SELECT label FROM items UNION SELECT label FROM items',ctx=DummyContext(),connection_id='analytics'))
+    assert result['success'] and result['data']==[{'label':'analytics-row'}]
 
-    module = _reload_server(
-        monkeypatch,
-        default_db,
-        analytics_db,
-        analytics_allowed_tables="",
-    )
-    try:
-        payload, meta = run_tool(
-            module.query(
-                sql="SELECT label FROM items UNION SELECT label FROM items",
-                ctx=DummyContext(),
-                connection_id="analytics",
-            )
-        )
-        assert payload["success"] is False
-        assert "selected connection" in payload["error"]
-        assert "Configure that connection's ALLOWED_TABLES policy" in payload["error"]
-        assert payload["connection_id"] == "analytics"
-        assert meta["connection_id"] == "analytics"
-    finally:
-        _cleanup_modules()
 
 
 def test_unknown_connection_id_does_not_fall_back(tmp_path, monkeypatch):
@@ -467,22 +434,13 @@ def test_unknown_connection_id_does_not_fall_back(tmp_path, monkeypatch):
         _cleanup_modules()
 
 
-def test_execute_sql_resolves_unknown_connection_before_sql_policy(tmp_path, monkeypatch):
-    default_db = tmp_path / "default.db"
-    analytics_db = tmp_path / "analytics.db"
-    _create_rows_db(default_db, "items", "default-row")
-    _create_rows_db(analytics_db, "items", "analytics-row")
+def test_query_resolves_unknown_connection_before_sql_policy(tmp_path,monkeypatch):
+    module=_reload_server(monkeypatch,tmp_path/'a.db',tmp_path/'b.db')
+    with pytest.raises(module.ToolError,match='Unknown connection_id'):
+        run_tool(module.query(sql='DROP TABLE items',ctx=DummyContext(),connection_id='missing'))
+    assert not (tmp_path/'a.db').exists()
+    assert not (tmp_path/'b.db').exists()
 
-    _reload_server(monkeypatch, default_db, analytics_db)
-    try:
-        from sql_safety_checker import execute_sql
-
-        result = execute_sql("DROP TABLE items", connection_id="missing")
-
-        assert isinstance(result, str)
-        assert result.startswith("Error: Unknown connection_id")
-    finally:
-        _cleanup_modules()
 
 
 def test_sqlite_database_path_is_not_exposed_in_tool_payload(tmp_path, monkeypatch):
@@ -776,7 +734,7 @@ def test_frontmatter_scope_conflict_isolated_per_target_end_to_end(
         _cleanup_modules()
 
 
-def test_mutation_skills_remain_default_connection_only_when_enabled(tmp_path, monkeypatch):
+def test_mutations_require_explicit_global_connection_admission(tmp_path, monkeypatch):
     default_db = tmp_path / "default.db"
     analytics_db = tmp_path / "analytics.db"
     _create_rows_db(default_db, "items", "default-row")
@@ -805,8 +763,7 @@ def test_mutation_skills_remain_default_connection_only_when_enabled(tmp_path, m
         )
         assert mutation_skill["executable"] is False
         assert mutation_skill["disabled_reason"] == (
-            "Mutation skills are limited to the default connection unless "
-            "v3.6 mutation connection policy is configured."
+            "Target connection is not authorized by skills.mutation.allowed_connections."
         )
     finally:
         _cleanup_modules()

@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+from tests.support import SCENARIO, make_gateway
+
 import asyncio
 from argparse import Namespace
 from datetime import datetime, timedelta, timezone
-import importlib
 import io
 import json
 from pathlib import Path
@@ -503,22 +504,12 @@ def test_invalid_timeouts_are_rejected(timeout: float) -> None:
         )
 
 
-def test_stdio_transport_inherits_complete_operator_environment(
-    monkeypatch,
-) -> None:
-    monkeypatch.setenv("DB_TYPE", "sentinel-db-type")
-    monkeypatch.setenv("PYTHON_DOTENV_DISABLED", "1")
-    monkeypatch.setenv("UNRELATED_CLOUD_SECRET", "sentinel-forwarded-secret")
+def test_stdio_transport_uses_explicit_config_and_secret_environment(monkeypatch,tmp_path):
+    monkeypatch.setenv('SQL_TEST_SECRET','sentinel')
+    transport=_build_stdio_transport(tmp_path/'server.toml')
+    assert transport.env['SQL_TEST_SECRET']=='sentinel'
+    assert transport.args==['-m','sql_safety_executor','serve','--config',str(tmp_path/'server.toml')]
 
-    transport = _build_stdio_transport()
-
-    assert transport.env["DB_TYPE"] == "sentinel-db-type"
-    assert transport.env["PYTHON_DOTENV_DISABLED"] == "1"
-    # Complete inheritance is an explicit trusted-local-host compromise.
-    assert transport.env["UNRELATED_CLOUD_SECRET"] == "sentinel-forwarded-secret"
-    assert transport.args == [
-        str(Path(__file__).resolve().parent.parent / "start_server.py")
-    ]
 
 
 def test_cli_rejects_invalid_timeout_before_reading_params() -> None:
@@ -540,6 +531,7 @@ def test_main_maps_keyboard_interrupt_to_safe_exit(monkeypatch, capsys) -> None:
     monkeypatch.setattr(approval_host, "_run_cli", interrupted)
     exit_code = approval_host.main(
         [
+            "--config", "/test/server.toml",
             "--skill",
             "sample-update-order-status",
             "--params-file",
@@ -596,26 +588,23 @@ def test_workflow_contract_via_in_memory_fastmcp_client(
     connection.commit()
     connection.close()
 
-    monkeypatch.setenv("PYTHON_DOTENV_DISABLED", "1")
-    monkeypatch.setenv("DB_CONNECTIONS", "")
-    monkeypatch.delenv("DEFAULT_DB_CONNECTION", raising=False)
-    monkeypatch.setenv("DB_TYPE", "sqlite")
-    monkeypatch.setenv("SQLITE_DATABASE_PATH", str(database))
-    monkeypatch.setenv("ALLOWED_TABLES", "orders")
-    monkeypatch.setenv("ENABLE_SKILLS", "1")
-    monkeypatch.setenv("SKILLS_ALLOW_MUTATIONS", "1")
-    monkeypatch.setenv("SKILLS_EXCLUDE_PROFILES", "")
-    monkeypatch.setenv("SKILLS_CHECK_SCHEMA_ON_LIST", "0")
-    monkeypatch.setenv("SKILLS_DIR", "skills/")
-    monkeypatch.setenv("SKILLS_AUDIT_LOG", str(tmp_path / "audit.jsonl"))
+    monkeypatch.setitem(SCENARIO, "PYTHON_DOTENV_DISABLED", "1")
+    monkeypatch.setitem(SCENARIO, "DB_CONNECTIONS", "")
+    monkeypatch.delitem(SCENARIO, "DEFAULT_DB_CONNECTION", raising=False)
+    monkeypatch.setitem(SCENARIO, "DB_TYPE", "sqlite")
+    monkeypatch.setitem(SCENARIO, "SQLITE_DATABASE_PATH", str(database))
+    monkeypatch.setitem(SCENARIO, "ALLOWED_TABLES", "orders")
+    monkeypatch.setitem(SCENARIO, "ENABLE_SKILLS", "1")
+    monkeypatch.setitem(SCENARIO, "SKILLS_ALLOW_MUTATIONS", "1")
+    monkeypatch.setitem(SCENARIO, "SKILLS_EXCLUDE_PROFILES", "")
+    monkeypatch.setitem(SCENARIO, "SKILLS_CHECK_SCHEMA_ON_LIST", "0")
+    monkeypatch.setitem(SCENARIO, "SKILLS_DIR", "skills/")
+    monkeypatch.setitem(SCENARIO, "SKILLS_AUDIT_LOG", str(tmp_path / "audit.jsonl"))
 
     project_root = Path(__file__).resolve().parent.parent
     skills_lib = project_root / "skills" / "_lib"
-    monkeypatch.syspath_prepend(str(skills_lib))
-    for name in ("mcp_sql_server", "db_adapter", "sql_safety_checker"):
-        sys.modules.pop(name, None)
 
-    module = importlib.import_module("mcp_sql_server")
+    module = make_gateway()
     try:
         from fastmcp import Client
 
@@ -645,5 +634,3 @@ def test_workflow_contract_via_in_memory_fastmcp_client(
         db_adapter = sys.modules.get("db_adapter")
         if db_adapter is not None:
             db_adapter.reset_adapter()
-        for name in ("mcp_sql_server", "db_adapter", "sql_safety_checker"):
-            sys.modules.pop(name, None)

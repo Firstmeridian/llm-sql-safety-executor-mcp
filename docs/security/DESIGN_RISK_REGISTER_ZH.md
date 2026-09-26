@@ -1,0 +1,385 @@
+> **v3.8 更新（2026-09-26）：** 当前边界见 [安全说明](V3_8_SECURITY.md)。下方历史条目保留原版本语境。
+> 已移除旧 `.env` 配置加载和 default-only 隐式写入授权；用户现有私有 `.env` 文件保留。
+> 新增接受的限制：可信 Host 审批（不独立认证人类）、仅托管写入且默认关闭的 MRTR、重启失效的进程内提案、无持久完成记录、按条数限制的审阅内存。
+> Python Skill 仍是受信任代码，审计仍为 best-effort；未知写入结果不得自动重试。
+> FastMCP 密封续接状态，精确提案绑定和原子令牌消费仍由服务端验证。
+> 真实 Host 按实际版本和协议记录兼容性，不能以参考 Client 通过代替。
+> DRR-2026-056 在 v3.8 中通过删除仅部分校验的 `execute_sql()` 入口解决；直接查询集成使用共享完整策略服务。见 [迁移指南](../guides/CONFIGURATION_ZH.md) 和 [验收记录](../validation/V3_8_VALIDATION_ZH.md)。
+
+# 设计风险登记表
+
+[English](DESIGN_RISK_REGISTER.md) | 中文
+
+创建日期：2026-05-24
+最近评审：2026-09-26（v3.8 补充；历史条目保留各自原评审日期）
+
+文档状态：长期维护的设计与运维风险登记表。  
+初始评审批次：v3.4.3。
+
+本文档记录本 MCP SQL 安全网关中的设计风险、取舍、拒绝方案和后续决策。它不是单一版本文档：历史 ID 会保留以便追踪，未来条目可以继续使用版本前缀，也可以使用 `DRR-YYYY-NNN` 格式。
+
+## 范围
+
+以下主题适合进入本登记表：工具行为、模型可见界面、数据库负载、安全声明、日志、缓存、遥测、资源、Schema、运维可靠性等相关风险和设计取舍。
+
+本文档不能替代测试、发布日志或漏洞公告。任何条目如果改变运行时行为，都应补充测试，并在“当前结果”字段记录对应测试文件。
+
+## 状态说明
+
+| 状态 | 含义 |
+|---|---|
+| 待修复 | 已观察到问题；修复或行为/部署验收仍有未完成项。 |
+| 已实现 | 代码或文档修改已完成并记录。 |
+| 已接受 | 当前行为是有意识的取舍，暂不计划修改。 |
+| 需要策略决策 | 修改前需要先决定兼容性、隐私或审计策略。 |
+| 运维决策 | 当前更适合通过部署/运维说明处理，而不是加入服务器逻辑。 |
+| 暂缓 | 方向有效，但当前版本没有足够需求或设计清晰度。 |
+| 不计划 | 在当前架构下明确不做，除非需求发生变化。 |
+
+## 风险等级说明
+
+| 风险等级 | 含义 |
+|---|---|
+| 高 | 安全边界、敏感日志/审计、live database 或写入路径风险，可能影响生产安全、隐私或合规。 |
+| 中 | 可靠性、运维、治理、可维护性或误导性声明风险，影响明确但范围相对可控。 |
+| 低 | 兼容性、命名、文档精度或低影响清理风险，对运行时和安全边界影响有限。 |
+
+`首次登记日期` 记录该行首次进入本登记表或对应评审批次的最早已知日期。
+
+## 评审节奏
+
+- 每个小版本发布前、任何工具界面变化后，复查未关闭条目。
+- 涉及日志、缓存、遥测、原始 SQL、模型可见资源的条目，在安全评审后重新检查。
+- 只要登记表发生实质修改，就更新“最近评审”。
+
+## 外部最佳实践锚点
+
+| 来源 | 本文档采用的相关指导 |
+|---|---|
+| [FastMCP Tools 文档](https://gofastmcp.com/servers/tools) | `ToolResult.meta` 是运行期元数据；`output_schema` 必须匹配结构化输出；tool annotations 是提示而非安全边界；清晰的 schema 和描述有助于客户端选择工具。 |
+| [FastMCP Middleware 文档](https://gofastmcp.com/servers/middleware) | Middleware 可通过 `on_call_tool` 记录或转换工具调用；响应限制可能破坏结构化输出一致性；缓存 key 默认不包含用户/session 身份，除非显式设计。 |
+| [Model Context Protocol 文档](https://modelcontextprotocol.io/docs) / [Claude Code MCP 文档](https://docs.anthropic.com/en/docs/claude-code/mcp) | MCP 工具输出可能挤占上下文；resources 和 tools 都是模型可见界面；更小、更清晰的界面能降低上下文和工具选择风险。 |
+| [Python importlib 文档](https://docs.python.org/3/library/importlib.html) / [abc 文档](https://docs.python.org/3/library/abc.html) | `exec_module()` 会在动态导入时执行模块代码；ABC 与 `issubclass()` 适合作为 mutation plugin 具体子类契约的结构性检查。 |
+| [Google Gemini Function Calling 文档](https://ai.google.dev/gemini-api/docs/function-calling) | 使用清晰的函数/参数描述、强类型/枚举、相关且有限的工具集、稳健错误处理，并避免通过函数调用暴露敏感数据。 |
+| [Microsoft Azure OpenAI Structured Outputs 文档](https://learn.microsoft.com/en-us/azure/ai-services/openai/how-to/structured-outputs) | 严格 schema 很有用但受约束；任意 SQL 行结构不适合强行声明严格输出 schema。 |
+| [OWASP Logging Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Logging_Cheat_Sheet.html) | 不应直接记录 secret、access token、密码、连接串或敏感个人数据；日志需要访问控制、保留/轮转策略和磁盘耗尽防护。 |
+| [OWASP SQL Injection Prevention](https://cheatsheetseries.owasp.org/cheatsheets/SQL_Injection_Prevention_Cheat_Sheet.html) | 应用校验需要配合参数绑定和最小权限数据库账号；table/view/object grant 仍是权威边界。 |
+| [MySQL stored program restrictions](https://dev.mysql.com/doc/refman/8.4/en/stored-program-restrictions.html) / [locking functions](https://dev.mysql.com/doc/refman/8.4/en/locking-functions.html) | SELECT 形状的 stored-function 与 named-lock 调用可能产生外层 statement type 看不出的效果；语法过滤不能替代账号权限。 |
+
+## 当前快照
+
+项目当前没有实现通用 SQL 分页工具或 cursor-token 机制，也没有实现进程内遥测百分位聚合、模型可见 stats 工具/资源、session schema cache 或 `db://schema` resource。
+
+v3.4.3 的运行时修复已让 SQLite 行数估算保持有界：当没有 `sqlite_stat1` 且 10,000 行采样达到上限时，`SQLiteAdapter.get_row_estimate()` 返回该上限作为下界估算，而不是继续执行完整 `COUNT(*)`。精确计数仍需通过用户 SQL 或 `get_table_summary(exact_count=True)` 显式触发。
+
+V343-006 至 V343-008 已在 2026-05-26 再次评审。当前策略是文档声明和部署约束，而不是新增运行时控制：原始 SQL echo 为了兼容性和排障透明度继续保留；Skill audit params 被视为业务审计数据而不是 secret 存储；JSONL 轮转/保留交由部署环境处理。
+
+2026-05-26 的实现层过度设计复审没有发现已落地的通用分页、stats tool/resource、session schema cache、`db://schema` resource、raw SQL echo 开关、audit 脱敏策略引擎或进程内日志管理器。主要实现清理候选是启动期生成面向人工审阅的 `skills/SKILLS.md`；其它低优先级清理候选记录在下表。以下条目目前只记录风险和后续决策点，尚未修改运行时代码。
+
+随后对非 AutoGen 模块的复审发现，导入期副作用、导入期配置冻结、adapter metadata 标识符处理，以及 manual smoke 脚本被普通 pytest 收集，是更值得持续跟踪的维护/安全边界风险。这些先作为设计风险记录；除非有明确清理计划，不应贸然引入大 settings object 或大规模测试目录重排。
+
+后续安全边界复审又发现 MCP 扩展 SQL 检查和本地错误日志中存在窄范围 hardening gap。以下条目仅记录风险；当前改动不修改运行时行为。
+
+2026-05-27 又做了一次只读、怀疑式复核：重新运行直接安全判断探针，但没有把危险 SQL 发往 live database 执行。复核确认 DRR-2026-011、DRR-2026-012 和 DRR-2026-015 基本准确；将 DRR-2026-013 收窄为方言/检查范围声明过宽，而不是已经证实的 MySQL/SQLite 写入路径；并补充下方 workflow/SQLAlchemy hygiene 方面遗漏的风险。
+
+随后在 2026-05-27 继续只读复查了 Skills loader/audit 层、配置/启动界面、adapter 写入语义和默认测试收集边界。结果显示，部分此前风险被低估：本地 Skills 代码和元数据仍需要自己的边界校验；query skills 尚未共享自由 `query(sql)` 工具的扩展 SQL 检查；默认 pytest 可通过根目录 smoke test 触达 live database；依赖安装不可复现；MySQL mutation timeout 文档/注释当前依赖的是偏 SELECT 的机制，缺少写入路径证明。
+
+2026-05-28 的聚焦加固批次先实现最高优先级 SQL policy 和日志卫生修复，尚未启动多数据库实现。自由查询与 query skills 已共享同一读查询策略；MySQL 文件操作和 quoted/comment-separated 系统元数据绕过形式被拒绝；Skills 目录 containment 改用路径边界判断；adapter 日志和 SQLAlchemy engine 配置避免暴露 SQL 参数值。
+
+同一 2026-05-28 加固批次也关闭了 DRR-2026-008 和 DRR-2026-014 记录的 adapter metadata 标识符边界。Adapter metadata 方法现在只接受简单未限定表名；能作为数据值处理的 table-name 谓词使用参数绑定；SQLite 中必须作为 identifier 的位置会先校验再引用。
+
+随后在 2026-05-28，DRR-2026-023 也通过明确默认 pytest 契约关闭：`pytest.ini` 将默认收集范围限定为 `tests/`；根目录 MCP smoke 脚本继续作为 manual/live 检查，通过脚本入口在安全的开发库或 fixture 库上显式运行。
+
+2026-05-29，DRR-2026-020 通过收紧轻量 Skills 参数 schema 关闭，而不是替换成完整 JSON Schema。未知参数类型现在会在 discovery 和 validation 阶段 fail closed；bool 参数只接受 JSON boolean 以及显式 `true`/`false` 字符串字面量。
+
+同样在 2026-05-29，一次多数据库就绪度复核认为，之前“先修再做设计”的前置计划已经足够支撑设计阶段：DRR-2026-011、DRR-2026-012、DRR-2026-015、DRR-2026-017、DRR-2026-018、DRR-2026-019、DRR-2026-023、DRR-2026-025 已实现，adapter 边界相关的 DRR-2026-008 与 DRR-2026-014 也已落地。DRR-2026-024 仍保持暂缓，但不视为阻断项，因为当前观察到的冲突面位于 optional AutoGen 示例依赖，而不是核心 server runtime。由此，多数据库工作可以进入 design-only 阶段，但还不适合直接在当前 process-global adapter 与 `DB_TYPE` 地基上进入运行时实现。
+
+2026-05-30，v3.5 已实现第一段运行时多数据库能力：配置化命名连接、connection-aware 只读核心工具、connection-scoped 查询 Skills，以及安全的 `connection_id` 元数据/审计/遥测。实现有意把 mutation Skills 保持为仅默认连接。先解析连接的不变量现在成为运行时设计的一部分：工具必须先解析 `ConnectionContext`，再做 SQL policy、schema readiness、内部辅助 SQL、执行、metadata、audit 和 telemetry。未知连接 id fail closed，不会回退到默认连接。
+
+同日结合官方文档和最佳实践做的 follow-up review 又关闭了几个边界缺口：table allowlist 现在会规范化 quoted 与 schema-qualified identifiers；公开 SQLite payload 使用 `sqlite:<connection_id>` 而不是文件路径；legacy 模式只有在显式设置 `DB_CONNECTIONS` 后才会启用 `DB_<ID>_*` 与 `DEFAULT_DB_CONNECTION`；独立兼容 helper `execute_sql()` 也会先解析目标连接，再做 SQL policy。
+
+同一次复核也收窄了 v3.6 mutation 多连接设计方向：写操作应采用一致的高影响操作协议。目前 preview-token core 和严格 per-connection mutation policy 均已实现。只读 policy 与写授权保持分离；未设置新的全局 mutation 目标 allowlist 时，仍保持仅默认连接路由。
+
+2026-08-04，对合并后的 v3.5/v3.6 改动集做了一次提交前复审：运行默认测试套件（259 passed、3 skipped），在不执行破坏性 SQL 的前提下重新探测 SQL policy，并对照 FastMCP 3.0.2 与 MCP 2025-06-18 tools 规范核对实现。复审确认了已实现的边界，同时新增下表十条记录。其中当时影响最大的三条是：真实 mutation 联调在被跟踪的示例数据库中留下的数据漂移（DRR-2026-035）、server 级 `instructions` 仍宣称只读但 mutation 工具可写（DRR-2026-036），以及默认 pytest 环境隔离不完整、部分重新打开 DRR-2026-023（DRR-2026-039）。复审同时确认没有运行时行为与已实现的 v3.5/v3.6 条目矛盾，文档漂移仅限于 DRR-2026-042 记录的 v3.5 时期遗留措辞。
+
+2026-08-06，v3.6.1 维护更新关闭了 DRR-2026-037、DRR-2026-038 与
+DRR-2026-041，并扩展了 DRR-2026-034 记录的 replay 防护。该版本仍属于
+v3.6 release family。
+
+2026-08-08 的范围评审以有界进程内 memory store 和 stdio-first 部署关闭了
+DRR-2026-045。条件性 HTTP mutation 仅限受信任私有边界中的单进程；多用户认证
+HTTP 和跨主机副本不是 v3.6.1 基线。只读容量只能通过独立 endpoint/profile/pool
+扩展。
+
+2026-08-10 的 follow-up 关闭了 DRR-2026-036、DRR-2026-040 与 DRR-2026-042，
+记录 DRR-2026-043 的已接受不对称默认值，将 preview TTL 限制为最多 86400 秒，
+收紧 preview 失败契约，并用完整工具层并发 replay 回归替换重复的 store 并发测试。
+
+2026-08-20 的 v3.7 对抗复核发现，只读 statement shape 不足以实施 table scope：
+comma join、comment-separated keyword、qualified name、过宽 SHOW 与多 statement
+都可能绕过或误导 regex 时代的 extractor。因此 v3.7 选择收窄可接受 raw grammar，
+而不是引入一个声称完整的跨方言 AST policy。同一轮复核还补齐了严格 Skill
+metadata value 校验，并增加明确仅供测试的跨数据库 reset mutation。数据库
+最小权限和 schema 强制的订单 id 唯一性仍是权威边界，因为 SELECT 形状的
+stored function 与
+locking function 可能产生 outer-statement checker 无法证明不存在的副作用。
+
+## 登记表
+
+| ID | 状态 | 风险等级 | 首次登记日期 | 领域 | 风险或关注点 | 是否计划修改 | 修改逻辑 | 当前结果 | 下一步 |
+|---|---|---|---|---|---|---|---|---|---|
+| V343-001 | 已实现 | 中 | 2026-05-24 | SQLite 行数估算 | 元数据发现此前会从 10,000 行采样升级为大表完整 `COUNT(*)`。 | 是 | 优先使用 `sqlite_stat1`；采样达到上限时返回下界估算；精确计数保持显式触发。 | 2026-05-24 已完成：修改 `db_adapter.py`，在 `tests/test_db_adapter.py` 增加测试，并更新文档。 | 观察用户是否误解下界估算；需要精确值时建议运行 `ANALYZE` 或显式计数。 |
+| V343-002 | 已实现 | 中 | 2026-05-24 | 查询结果截断 | `query()` 和 `execute_query_skill()` 在截断返回 payload 前仍会获取完整 adapter 结果。 | v3.4.3 仅改文档 | 澄清截断只限制返回 payload；用户应使用 `WHERE`/`LIMIT`/`ORDER BY` 限制数据库工作量并稳定顺序。 | 工具消息和文档已更新；adapter 级流式/分批获取仍暂缓。 | 只有在兼容性测试充分时再评估 `fetchmany()` 或 streaming。 |
+| V343-003 | 已实现 | 低 | 2026-05-24 | 工具描述 | `list_tables()` 和 `get_full_schema()` 的 all/complete 表述会忽略 allowlist 和截断。 | 是 | 改为 visible/truncated 语义，并澄清 returned/visible counts。 | 面向工具和文档的描述已更新。 | 后续新增工具描述继续保持精确和保守。 |
+| V343-004 | 已实现 | 中 | 2026-05-24 | 安全文档措辞 | 部分文档过度声明 comprehensive SQL analysis 或所有调用都经 `validate_name()`/`validate_params()`。 | 是 | 将 sqlparse 描述为语句类型 allowlist 加 MCP 层扩展检查；区分 Skills 参数校验和基础 SQL/table 校验。 | README 和设计文档已更新。 | 不在缺少对应 enforcement 的情况下扩展安全声明。 |
+| V343-005 | 已实现 | 低 | 2026-05-24 | Prompt 指南 | `get_table_summary()` 曾被当成默认规划步骤，但该工具默认禁用，精确计数也是显式 opt-in。 | 是 | 默认优先 `describe_table()` 估算；只有需要精确计数时才使用显式 `COUNT(*)` 或 `get_table_summary(exact_count=True)`。 | Prompt guide 已更新；无需运行时测试。 | Prompt 示例要和默认启用工具保持一致。 |
+| V343-006 | 已接受 | 高 | 2026-05-26 | 原始 SQL echo/log 可见性 | `query(sql)` 会把完整 SQL 记录到上下文并返回在结构化 payload 中；SQL literal 可能包含敏感值。 | 仅文档声明 | 为兼容性和排障透明度保留当前 echo 行为。不要在原始 SQL literal 中放 secret、token 或敏感个人数据；重复且敏感的工作流优先用低敏谓词、视图或经过 review 的 Skill。 | 2026-05-26 已在 README 和本登记表中声明；不新增运行时开关，避免过早造成兼容性 churn。 | 只有隐私敏感部署明确需要时，再评估 echo/log opt-out 开关。 |
+| V343-007 | 已接受 | 高 | 2026-05-26 | Skills audit 参数日志 | Audit 仅截断长参数，不按 key/value 脱敏。 | 仅文档声明 | 将 skill params 视为业务审计数据，而不是 secret 存储。`SKILLS_AUDIT_QUERIES=0` 继续作为默认；mutation audit 为了可追踪性保持自动尝试记录，完整性边界见 DRR-2026-022。 | 2026-05-26 已在 README、`skills/SAFETY.md`、`.env.example` 和本登记表中声明；不新增运行时脱敏层。 | 如果未来 Skill 确实需要敏感参数，再评估 key-based redaction 或 per-skill redaction metadata。 |
+| V343-008 | 运维决策 | 中 | 2026-05-26 | Append-only JSONL 日志 | Audit、telemetry 和 server logs 是本地文件，没有内置轮转或保留策略。 | 文档/部署指导 | 优先使用外部日志轮转、保留、访问控制和磁盘监控，而不是进程内日志管理。Audit/telemetry 每次写入都会重新打开文件，适合 rename/create 式外部轮转。 | 2026-05-26 已在 README、`skills/SAFETY.md`、`.env.example` 和本登记表中声明。 | 生产环境使用 `logrotate`、平台日志、cron cleanup 或托管日志 sink；只有受限单文件部署明确需要时再改代码。 |
+| V343-009 | 已接受 | 低 | 2026-05-24 | `ToolResult.meta` 可见性 | `_meta` 包含运行期统计，某些客户端可能展示。 | 不改行为 | 保持 metadata 非敏感；不加入 SQL、params、rows、凭据或用户身份。 | 接受当前取舍。 | 新增 meta 字段时重新审查。 |
+| V343-010 | 暂缓 | 低 | 2026-05-24 | 基础工具 output schema | 任意 SQL 行结构不适合统一声明严格 schema，容易误导。 | 不做 blanket 修改 | 只给稳定 envelope 的工具考虑 schema。 | 有意暂缓。 | 如有需要，逐个稳定工具评估。 |
+| V343-011 | 不计划 | 低 | 2026-05-24 | 通用 SQL 分页参数 | 对任意 SQL 添加 `limit`、`offset`、`page` 或 cursor token 会重复 SQL 语义，且无稳定排序时结果不可靠。 | 否 | 分页留给用户 SQL；如需封装，使用有明确排序键的领域 skill。 | 未实现。 | 未经新设计评审，不添加通用 `query(limit, offset)`。 |
+| V343-012 | 暂缓 | 中 | 2026-05-24 | 遥测 stats 工具 | 进程内 p50/p95 聚合或模型可见 stats 工具可能暴露操作模式，并需要有界状态设计。 | v3.4.3 之后继续暂缓 | 保持 opt-in JSONL；聚合交给外部日志处理。 | 有意暂缓。 | 只有出现有界且非模型可见的设计时再评估。 |
+| V343-013 | 暂缓 | 中 | 2026-05-24 | Session schema cache | Schema cache 在 DDL 后可能过期，并影响安全/可执行性判断。 | v3.4.3 之后继续暂缓 | 继续以执行时检查为准。 | 有意暂缓。 | 只有存在明确失效策略时再评估。 |
+| V343-014 | 暂缓 | 中 | 2026-05-24 | `db://schema` resource | Schema resource 会增加第二条 schema 访问路径，也会扩大模型可见上下文界面。 | v3.4.3 之后继续暂缓 | 继续使用显式 `get_full_schema()`。 | 有意暂缓。 | 只有客户端 resource 支持成为明确需求时再评估。 |
+| DRR-2026-001 | 暂缓 | 中 | 2026-05-26 | 启动期副作用 | 启用 Skills 时，server import/startup 当前会 discover skills 并写入面向人工审阅的 `skills/SKILLS.md`。除日志/审计文件外，运行时启动路径理想上应保持只读。 | 候选代码清理，尚未实现 | 保留启动期 eager discovery/cache 作为 TOCTOU 防护；如果修改，应把人工总览生成移到显式维护命令或脚本。 | 2026-05-26 已记录到本登记表；尚未改运行时代码。 | 修改代码前先决定 `skills/SKILLS.md` 是否继续作为 tracked generated artifact，并为显式生成路径补测试/文档。 |
+| DRR-2026-002 | 已接受 | 低 | 2026-05-26 | 展示型环境默认值 | `SKILLS_LIST_DEFAULT_DETAIL` 和 `SKILLS_LIST_AVAILABLE_ONLY_DEFAULT` 是展示默认值，而 `list_skills()` 已支持单次调用传入 `detail_level` 和 `available_only`。额外 env 默认值会扩大配置矩阵和测试重新 import 成本。 | 保留启动配置，但把解析后的值作为 MCP 输入 schema 中具体、非空的 enum/boolean 默认值暴露。 | 将这些变量视为展示默认值，而不是安全控制；单次调用参数仍是主接口，同时保证省略参数的行为与机器可见默认值一致。 | 已接受；默认配置与非默认启动配置的 schema/运行时一致性均有测试覆盖。 | 只有确认没有具体客户端需要环境级列表默认值，或进入破坏性版本时，再评估移除/收敛。 |
+| DRR-2026-003 | 已实现 | 低 | 2026-05-26 | Skills 可用性 helper | `_skill_executable_state()` 和 `_skill_is_executable()` 只包装 `_skill_availability_state()`，且没有真实调用者。这些额外名称会让 availability policy 看起来不像集中在一个入口。 | 是 | 删除两个 wrapper，保留 `_skill_availability_state()` 作为唯一判断来源。 | 2026-08-10 已在 `mcp_sql_server.py` 实现；Skills disclosure 与多连接回归在删除后通过。 | Availability 决策继续集中到 `_skill_availability_state()`；不要为没有消费者的 convenience wrapper 增加入口。 |
+| DRR-2026-004 | 已接受 | 低 | 2026-05-26 | 旧 feature switch 命名 | `ENABLE_SCHEMA_TOOLS` 是历史名称，但当前实际只 gate `sample()`，不是全部 schema tools。重命名更清晰，但会带来兼容性 churn。 | 仅文档/兼容处理 | 不把该开关扩展成控制无关 schema tools。如果将来确实需要澄清，可增加兼容别名如 `ENABLE_SAMPLE_TOOL`，不要改变旧变量语义。 | 作为历史命名妥协接受。 | 文档继续精确说明当前该开关只控制 `sample()`。 |
+| DRR-2026-005 | 已接受 | 低 | 2026-05-26 | 低层 SQLite 调优面 | `SQLITE_PROGRESS_HANDLER_INTERVAL` 暴露 SQLite VM progress handler 频率。timeout 机制本身合理，但 interval 比多数部署需要的控制面更底层。 | 暂不改行为 | 把 `QUERY_TIMEOUT_SECONDS` 作为用户主要 timeout 控制；没有实测部署需求时，不再新增类似低层 DB 调优 env var。 | 为兼容性接受当前取舍。 | 只有该 interval 导致实测 CPU/延迟问题，或进入可破坏兼容的清理版本时，再评估移除低频调优旋钮。 |
+| DRR-2026-006 | 暂缓 | 中 | 2026-05-26 | import/startup 副作用 | `start_server.py` 在模块 import 时就导入 server、加载 `.env`、创建 `logs/` 并安装带时间戳的 `FileHandler`，而这些发生在环境校验之前。单纯 import 或工具探测也可能创建文件并提前冻结 server 配置。 | 候选代码清理，尚未实现 | import 路径理想上保持只读。只有在做聚焦的启动流程清理时，才把 logging setup 和 `mcp_sql_server` import 移入 `main()` 或显式 startup factory。 | 2026-05-26 已记录到本登记表；尚未改运行时代码。 | 重新评估时补测试：import `start_server.py` 不创建日志文件，同时保持 FastMCP `Client(str(start_server.py))` 可启动。 |
+| DRR-2026-007 | 暂缓 | 中 | 2026-05-26 | 导入期配置冻结 | `db_adapter.py` 在 import 时把 DB 配置读成模块常量，`sql_safety_checker.py` 直接 import `QUERY_TIMEOUT_SECONDS`，adapter 又全局缓存。测试为了切换配置必须 reload module 或清 `sys.modules`。 | 暂不做大 settings 重构 | 没有具体需求时，不引入大 settings object。若清理，应优先选择窄 factory/config injection 路径，并保留现有公开 API。 | 2026-05-26 已记录到本登记表；尚未改运行时代码。2026-05-29 结合多数据库前置修复计划复核后确认：前面的安全/加固项已基本完成，因此该项已成为运行时多数据库支持前最主要的地基风险。 | 多数据库工作现在可以进入 design-only 阶段，但真正实现前应先选定窄范围的 connection-aware adapter/config 方案（例如按调用选择 `connection_id` registry），而不是继续扩展当前 process-global `DB_TYPE` 与 singleton adapter 路径。若之后需要清理启动/import 路径，再与 DRR-2026-006 一并评估。 |
+| DRR-2026-008 | 已实现 | 高 | 2026-05-26 | Adapter metadata 标识符处理 | MySQL 和 SQLite 的 adapter metadata 方法曾把 `table_name` 拼进 SQL/PRAGMA。MCP tools 调用前多数会校验标识符，但 adapter 也是测试和脚本会直接使用的公共内部边界。 | 是 | 在 adapter metadata 边界集中校验简单未限定标识符。MySQL `INFORMATION_SCHEMA` table-name 谓词改用参数绑定；SQLite metadata 路径在 `PRAGMA` 或 bounded sample SQL 前先校验并引用 identifier。 | 2026-05-28 已在 `db_adapter.py` 实现；`tests/test_db_adapter.py` 覆盖非法表名、schema-qualified 名称、quoted identifiers、MySQL 绑定和 SQLite bounded-sample 引用。 | 如果未来 DB 支持需要 schema-qualified 名称，新增结构化 `(schema, table)` API，而不是接受 dotted 或预先 quoted 的字符串。 |
+| DRR-2026-009 | 暂缓 | 中 | 2026-05-26 | Smoke/manual 测试边界 | 根目录 `test_mcp_client.py`、`test_mcp_functions.py`、源码读取型 `test_bug_fixes.py` 混合了手动集成检查和 pytest 自动收集；部分依赖真实 DB/server 或检查源码字符串而非行为。 | 候选测试清理 | 行为回归测试应放在 `tests/`；manual smoke flow 应移动到显式脚本或标记为 integration/manual。替换成行为测试前，不删除仍有价值的覆盖。 | v3.7 部分清理：等价行为覆盖落入 `tests/test_sql_policy.py` 后，已从 `test_bug_fixes.py` 删除过时 table-regex 源码字符串断言。其它 legacy source/manual smoke 仍保留，因此本条继续暂缓。 | 只有已有等价行为覆盖时才继续替换源码形状断言。决定 CI/manual integration 边界后，再整理剩余脚本归属。 |
+| DRR-2026-010 | 已接受 | 低 | 2026-05-26 | 运行模块中的 demo 写入 | `sql_safety_checker.py` 的 `__main__` demo 会创建并 seed `test_users` 表。它不是导入期副作用，但把写入型 demo setup 放在 safety module 中会增加心智负担。 | 暂不改行为 | 写入示例优先放在显式 demo/setup 脚本中；不要继续向 runtime library module 添加写入 demo。 | 作为历史 demo 代码接受。 | 清理示例时，将该 demo 移到 `scripts/` 或文档，让 `sql_safety_checker.py` 聚焦 validation/execution helper。 |
+| DRR-2026-011 | 已实现 | 高 | 2026-05-26 | MySQL SELECT 文件操作 | 基础和扩展 SQL 安全检查曾把 MySQL `SELECT ... INTO OUTFILE`、`SELECT ... INTO DUMPFILE`、`LOAD_FILE(...)` 当作安全 SELECT 形式。如果 DB 账号有 `FILE` 权限，这些语法可读写 server-side 文件；`DUMPFILE`/`LOAD_FILE` 还可能不包含表名，因此 table allowlist 无法覆盖该风险。 | 是 | 在 MCP 层、注释规范化后显式拒绝 MySQL server-side 文件操作。保持窄 denylist，不引入大 SQL parser 重写。 | 2026-05-28 已在 `mcp_sql_server.py` 实现；`tests/test_sql_policy.py` 覆盖 OUTFILE、DUMPFILE、LOAD_FILE 和 comment-separated 形式。 | 继续依赖无 `FILE` 权限的最小权限 DB 账号；新增 SQL backend 时补方言相关测试。 |
+| DRR-2026-012 | 已实现 | 高 | 2026-05-26 | SHOW/system schema 绕过形式 | 扩展检查曾阻断普通 `SHOW VARIABLES` 和 `information_schema.tables`，但 regex 不拦截 comment-separated SHOW 形式，以及 `` `information_schema`.`tables` ``、`` `mysql`.`user` `` 这类反引号引用系统 schema。 | 是 | 在 denylist 检查前做注释剥离/空白规范化，并扩展系统 schema 匹配以覆盖 quoted schema identifier。table allowlist 仍只是纵深防御，不是唯一系统 schema 屏障。 | 2026-05-28 已在 `mcp_sql_server.py` 实现；`tests/test_sql_policy.py` 覆盖 comment-separated SHOW 和 quoted `mysql`/`performance_schema`/`information_schema` 引用。 | 后续元数据访问变更继续走共享 policy；避免新增分叉且更弱的 SQL 检查。 |
+| DRR-2026-013 | 已实现 | 高 | 2026-05-26 | SQL 方言/parser 语义与会执行的形式 | `is_sql_safe()` 曾主要依赖 `sqlparse` 顶层类型，接受会执行的 `EXPLAIN ANALYZE`、SELECT 形状的嵌套写 DML，并在 policy 检查前使用通用注释剥离。MySQL 会执行 `/*! ... */` 内容，且仅把后接空白/控制字符的 `--` 视为注释；optimizer hint 与 MariaDB executable comment 也是服务端 directive，不是普通注释。错误剥离会隐藏或改变服务器实际执行的内容。 | 是 | 把声明的 runtime 契约限于 Oracle MySQL/SQLite 行为。普通注释规范化前拒绝 ANALYZE explain、嵌套写 DML、`/*! ... */`、`/*+ ... */`、`/*M! ... */` 与非空白 `--`；保留普通注释、注释样字符串和非 ANALYZE plan。不得声称全面 SQL 语义分析或独立 MariaDB 方言支持。 | v3.7.0 于 2026-08-20 在 `sql_safety_checker.py` 与共享 MCP policy 实现。测试覆盖 ANALYZE/CTE、executable/optimizer/MariaDB comment、dash-comment 方言差异、被隐藏的 OUTFILE/system-schema、普通注释/字符串和普通 `EXPLAIN`。依据 [MySQL EXPLAIN](https://dev.mysql.com/doc/refman/8.4/en/explain.html)、[MySQL comments](https://dev.mysql.com/doc/refman/8.4/en/comments.html)、[MySQL 双横线规则](https://dev.mysql.com/doc/refman/8.4/en/ansi-diff-comments.html)与 [SQLite EXPLAIN](https://www.sqlite.org/lang_explain.html)。 | 新方言在声明支持前必须评审 EXPLAIN、CTE 与注释语义。保持窄而 fail closed；没有明确语法需求和方言测试时不引入通用 parser。 |
+| DRR-2026-014 | 已实现 | 中 | 2026-05-26 | Adapter metadata 语义注入 | 直接调用 SQLite adapter 时，`get_row_estimate("users) --")` 这类 table name 曾可改变 metadata SQL 语义，包括注释掉 bounded sample 的 `LIMIT` 并退化为完整 count。MCP tools 会拒绝这些标识符，但 adapter 方法仍是公共内部边界。 | 是 | 与 DRR-2026-008 相同：adapter metadata 方法现在先校验，并在 SQLite bounded sampling 中引用 identifier。MCP 上游校验仍只是纵深防御，不是唯一防线。 | 2026-05-28 已在 `db_adapter.py` 实现；`tests/test_db_adapter.py` 证明非法 identifier 不会进入 `execute()`，且有效 sampling 使用 quoted SQLite identifier。 | exact-count 路径和未来 metadata helper 继续沿用同一 adapter identifier policy。 |
+| DRR-2026-015 | 已实现 | 高 | 2026-05-26 | 错误日志参数暴露 | Adapter `_handle_error()` 曾记录 `str(e)[:200]`。SQLAlchemy 异常字符串可能包含 SQL 文本和 bound parameter values，然后才返回 sanitized client error。这是本地日志暴露，不是客户端响应暴露。 | 是 | 保持客户端错误 sanitized，同时把 adapter 本地异常日志收敛为 exception class，并在 engine 创建处配置 SQLAlchemy `hide_parameters=True`。 | 2026-05-28 已在 `db_adapter.py` 实现；`tests/test_db_adapter.py` 验证 adapter 日志不包含 SQL 文本或参数值。 | Audit payload 和 tool telemetry 继续按各自文档策略处理；adapter 路径不要重新引入 raw exception logging。 |
+| DRR-2026-016 | 已实现 | 中 | 2026-05-27 | CI guardrail 声明过强 | README/REFACTORING_LOG 中曾有 annotation consistency regression 会在 CI 中失败的表述，但仓库当前只有 pytest guardrail，没有配套 CI workflow/config。这会让 reviewer 误以为仓库已经有自动化 CI enforcement。 | 文档清理 | 在真正加入 CI 前，把文档改为 pytest/local/default test guardrail，避免安全/流程声明超过实际 enforcement。 | 2026-05-30 已更新 README、README_ZH、MCP_AGENTS_SKILLS_DESIGN、REFACTORING_LOG 和本登记表；未新增 workflow。 | 如果后续新增 CI，再回头更新这些文档并记录 workflow 文件。 |
+| DRR-2026-017 | 已实现 | 中 | 2026-05-27 | SQLAlchemy URL 构造 hygiene | MySQL 连接初始化曾用 f-string 拼接包含用户名、密码、host、database 的 URL。凭据中若包含 `@`、`:`、`/` 等特殊字符，可能导致解析错误或难排查的连接失败；该问题也靠近已有参数日志风险。 | 是 | 改用 SQLAlchemy `URL.create` 结构化构造连接 URL，并在创建 engine 时配合 `hide_parameters=True` 和明确 logging name。范围比大 settings 重构更窄。 | 2026-05-28 已在 `db_adapter.py` 实现；`tests/test_db_adapter.py` 覆盖包含 `@`、`:`、`/` 的凭据构造。 | 未来加入多数据库 registry 时，再评估多 URL builder 和每连接 logging identifier。 |
+| DRR-2026-018 | 已实现 | 高 | 2026-05-27 | Skills 目录 containment | Skills 启动时曾对绝对 `SKILLS_DIR` 使用字符串前缀与项目根目录比较。路径字符串以项目根目录开头的 sibling 路径可能通过该检查，而 mutation skills 会在 discovery 阶段通过 `exec_module()` 导入执行。本地可信 repo 内 Skill 执行是预期行为，但 containment check 不应弱于后续 loader 层的路径检查。 | 是 | 在 discovery/import 前，用 `Path.resolve().relative_to()` 替换字符串前缀判断。继续明确 mutation skill code 是可信本地代码，不把 `SKILLS_DIR` 宣称为 sandbox。 | 2026-05-28 已在 `mcp_sql_server.py` 实现；`tests/test_sql_policy.py` 覆盖 sibling-prefix 路径拒绝。 | 如果未来再次调整 Skills 路径策略，补 symlink-specific containment 测试。 |
+| DRR-2026-019 | 已实现 | 高 | 2026-05-27 | Query skill 安全一致性 | Query skill discovery 曾只用基础 `is_sql_safe()` 预审 SQL 模板，没有应用自由 `query(sql)` 工具的 MCP 扩展检查或 table allowlist。因此 query skills 可在启动时接受 DRR-2026-011 和 DRR-2026-012 中的同类 SQL 形状，而 `execute_query_skill()` 后续又跳过运行时 SQL safety check，依赖 discovery-time trust。 | 是 | 增加共享 read-query policy 函数并注入 query skill discovery；`execute_query_skill()` 在执行前也会重新检查缓存的 SQL 模板。 | 2026-05-28 已在 `mcp_sql_server.py` 和 `skills/_lib/skill_loader.py` 实现；测试覆盖 policy 注入和共享 deny checks。 | 后续新增多数据库 `connection_id` 支持时，保持 raw query 与 query skill 使用同一 validation helper。 |
+| DRR-2026-020 | 已实现 | 中 | 2026-05-27 | Skills metadata 与参数 schema 声明 | `validate_params()` 使用小型自定义 schema 语言，而不是 JSON Schema。它已拒绝额外调用参数，但未知 type 曾直接通过，bool coercion 曾把 `"false"` 当真值。v3.7 复核又发现，拼错的嵌套 constraint、标量 `enum`、字符串数值边界和字符串形式的顶层 boolean 可能通过 discovery，随后削弱校验或披露准确性。 | 是 | 保留轻量 DSL，但严格校验已声明 vocabulary 与值。顶层 boolean 必须是 YAML boolean，列表/字符串 metadata 必须符合文档形状。每个参数只接受 `type`、`required`、`min`、`max`、`enum`、`description`；constraint 必须与类型兼容，enum 必须是非空列表，边界必须有序。运行时 bool 仍只解析原生布尔值和显式 `"true"`/`"false"` 字符串。它仍不是完整 JSON Schema。 | 第一阶段 type/bool 加固于 2026-05-29 落地。v3.7.0 在 `skills/_lib/skill_loader.py` 补齐 discovery-time metadata 值和嵌套 constraint 校验；`tests/test_skill_loader.py` 覆盖畸形 metadata、constraint 形状/类型、边界、enum、未知 key 和既有 runtime coercion。 | 未来新增字段、constraint 或参数类型前，必须显式加入 vocabulary 并测试。没有定义 namespace 与兼容规则时，不得静默接受扩展 metadata。 |
+| DRR-2026-021 | 已实现 | 中 | 2026-05-27 | Mutation skill 类型完整性 | Mutation discovery 过去只检查模块中有 `Mutation` 属性；frontmatter `name` 也可能与目录身份不一致。由于 `mutation.py` 会在 discovery 阶段通过 `exec_module()` 动态导入执行，畸形的可信本地插件应在运行时 tool 路径缓存或实例化前 fail closed。 | 是 | Discovery 现在要求 frontmatter `name` 必填、符合命名规则，并与 skill 目录名完全一致。Mutation source 必须导出名为 `Mutation` 的 class，且必须是具体的 `MutationBase` 子类。mutation 代码体安全仍依赖人工 review；这不是面向不可信插件的 sandbox。 | 2026-05-29 已在 `skills/_lib/skill_loader.py`、`README.md`、`README_ZH.md`、`MCP_AGENTS_SKILLS_DESIGN.md` 和 `skills/SAFETY.md` 实现；`tests/test_skill_loader.py` 覆盖缺失/不匹配/非法 name，以及缺少、非 class、非 subclass、抽象 `Mutation` 导出。 | 如果未来需要支持不可信第三方插件，应单独设计进程隔离或 sandbox，而不是继续扩展该 loader invariant。 |
+| DRR-2026-022 | 已实现 | 高 | 2026-05-27 | Skills audit 完整性声明过强 | `AuditLogger.log()` 仍是 best-effort；审计写入失败以及 token 前的参数/validation 拒绝仍可能没有 JSONL 记录。旧文档/config 曾过度暗示完整记录和 fail-closed audit 行为。 | 是 | 保持 audit 为 best-effort observability，而不是事务控制；正常结果 metadata 报告实际审计状态。v3.6.1 follow-up 让 post-consume 动态 validation 拒绝尝试 execute 失败审计；已提交写入后的响应阶段失败则保留既有 success audit，不追加矛盾的 failure。 | 已在 `skills/_lib/audit.py`、`skills/_lib/mutation_base.py`、`mcp_sql_server.py`、文档和回归中实现。2026-08-10 follow-up 覆盖动态 validation 返回 invalid 或抛 `ToolError`、诚实 `audit_logged`、无写入/replay 行为，以及 post-write response failure 只有一条成功 execute audit。 | 如果合规要求 guaranteed audit，应设计 transactional outbox 或数据库审计机制。不要把 JSONL 文件当成 fail-closed 证据，审计失败也不得弱化 mutation 拒绝。 |
+| DRR-2026-023 | 已实现 | 高 | 2026-05-27 | 默认 pytest live database 边界 | `test_mcp_client.py::test_mcp_server` 曾被默认 pytest 收集。只要当前配置的数据库可连接，它会用当前 `.env` 启动 MCP server、list tables、count 第一张表、describe 第一张表、sample rows，并可能执行 query skill。这可能触达 live/类生产数据库，并把 sample data 打印到 pytest captured output 或失败日志中。 | 是 | 将默认收集限定到 `tests/`，保留根目录 MCP smoke 检查为显式脚本，并说明其 live-data 边界。DRR-2026-039 follow-up 还在 pytest 中禁用 `.env`、设置安全 SQLite/process 默认值，并把 MySQL 集成测试改为显式 opt-in。 | 已在 `pytest.ini`、`tests/conftest.py`、`README.md`、`README_ZH.md` 和 `TEST_MCP_CLIENT_GUIDE.md` 实现；默认 pytest 不收集根目录 smoke 脚本，也不能继承开发者 `.env`。 | 后续 live DB smoke 检查继续留在默认收集之外，除非具备显式 opt-in gate 和非敏感输出策略。 |
+| DRR-2026-024 | 暂缓 | 中 | 2026-05-27 | 依赖可复现性 | `requirements.txt` 大多是不固定版本或只有下限的依赖，其中 FastMCP 和 SQLAlchemy API 被项目直接使用。没有 lockfile、constraints file 或 CI matrix 时，未来安装可能静默选择行为/兼容性变化的版本，从而削弱“本地/default tests 代表 release 行为”的声明。dry-run 证据也显示，当前冲突面主要来自 optional AutoGen 依赖链，而不是核心 server runtime 路径。 | Packaging/workflow 清理候选，尚未实现。AutoGen 示例不是本程序主线 runtime。 | 后续若修复，优先拆分 runtime/dev/optional AutoGen dependencies，再为实际支持的安装路径增加 constraints 或 documented tested version set。不要把无约束安装描述成可复现 release input。 | 2026-05-27 配置/依赖复审后记录。2026-05-29 验证：当前 `.venv` 的 `pip check` 报告 `autogen-core 0.7.5` 要求 `protobuf~=5.29.3`，但已安装 `protobuf 6.33.5`；干净 requirements dry-run 会解析到 `protobuf 5.29.6`，仅核心 runtime 解析不会引入 `protobuf`。v3.6.1 只增加 `PYTHON_DOTENV_DISABLED` 所需的窄约束 `python-dotenv>=1.2.0`；这不会让更广泛的依赖集合变得可复现。 | 更广泛的问题继续暂缓。不要让 optional AutoGen 示例依赖定义核心 runtime 的可复现性声明，也不要把当前未锁定集合描述为可复现 release input。 |
+| DRR-2026-025 | 已实现 | 高 | 2026-05-27 | MySQL mutation timeout 语义 | `MySQLAdapter.execute_write()` 曾使用 `MAX_EXECUTION_TIME`，但 MySQL 文档将该机制描述为偏 SELECT/read-query。受控 MySQL 验证确认了缺口：`timeout=1` 下 `SELECT SLEEP(2)` 约 1.079s 停止，而 `UPDATE ... SLEEP(2)` 仍在约 2.171s 后提交成功。 | 是 | 移除写入路径的 `MAX_EXECUTION_TIME`。MySQL `execute_write()` 现在会在 mutation 前设置 session `innodb_lock_wait_timeout = max(1, timeout_seconds)`，若该防护无法配置则 fail closed。文档已区分只读查询 timeout、InnoDB 行锁等待 timeout、PyMySQL socket timeout 和部署侧 DML 控制。 | 2026-05-29 已在 `db_adapter.py`、`tests/test_db_adapter.py`、README/docs 和 Skills safety 文档中实现。受控证明使用数据库 `trade_data_analysis`：旧写入路径忽略 `timeout=1`；另一个 lock-wait 场景在 `innodb_lock_wait_timeout=2` 下约 3.236s 抛出 OperationalError 1205。 | 剩余边界：这不是覆盖所有 MySQL DML CPU/IO 工作的完整 wall-clock statement timeout。如果生产需要硬性的 mutation 执行上限，仍需把 driver read/write timeout 和部署侧 statement controls 纳入方案。 |
+| DRR-2026-026 | 已实现 | 高 | 2026-05-30 | 多连接 policy/execution 串线 | 运行时多数据库支持如果让 policy、identifier quoting/schema helper、adapter execution、metadata、audit 或 telemetry 从不同连接读取，就可能出现“展示/校验针对数据库 A，执行却打到数据库 B”的串线风险。 | 是 | 引入 `ConnectionContext`，并在 policy、schema readiness、方言相关 helper SQL、执行、metadata、audit 和 telemetry 之前解析目标连接。`sample()` 和精确表计数中的内部 helper SQL 直接在选中的 adapter 上执行，不再绕回 legacy 默认执行包装。 | 2026-05-30 已在 `db_adapter.py`、`sql_safety_checker.py` 和 `mcp_sql_server.py` 实现；`tests/test_multi_connection_v35.py` 覆盖同连接 policy/execution 和未知 id fail-closed。 | 后续新增工具继续沿用 resolve-first 模式；任何会 quote identifier 或执行内部 SQL 的 helper 路径都要补回归测试。 |
+| DRR-2026-027 | 已实现 | 高 | 2026-05-30 | Skills 展示与执行不一致 | 命名连接和 per-connection allowlist 出现后，Skills discovery 可能把某个 skill 展示为在一个数据库类型/schema 下可执行，但实际执行使用另一 adapter。 | 是 | 让 `list_skills`、`get_skill_detail`、`execute_query_skill` 接受可选 `connection_id`，并在同一个目标连接上评估 DB 兼容性、schema readiness、allowlist、metadata、可选 audit 和 telemetry。`SkillMetadata.databases` 仍是 DB 类型兼容字段，不是 connection-id allowlist。 | 2026-05-30 已在 `mcp_sql_server.py` 实现；`tests/test_multi_connection_v35.py`、`tests/test_skills_disclosure.py` 和文档覆盖目标连接的 availability/execution 一致性。 | 继续把 `available_only` 说明为发现层过滤，不是授权边界；执行期检查仍必须保留。 |
+| DRR-2026-028 | 已实现 | 中 | 2026-05-30 | Adapter registry 生命周期与资源边界 | 多个命名连接意味着多个长期存在的 SQLAlchemy Engine。如果 registry/reset/lifecycle 不清楚，会泄漏资源，也会让需要切换环境的测试更复杂。 | 是 | 新增按配置化 `connection_id` 懒加载的进程内 adapter cache，并提供 `reset_adapter(connection_id=None)` 关闭单个或全部 adapter，用于测试/重配置。连接定义仍由服务器端配置并在 import 时解析，不引入动态 per-request DSN。 | 2026-05-30 已在 `db_adapter.py` 实现；`tests/test_db_adapter.py` 和 `tests/test_multi_connection_v35.py` 覆盖 registry 行为。 | 暂缓 LRU/上限/凭据刷新。若部署配置大量连接或需要运行时配置 reload，再重新设计。 |
+| DRR-2026-029 | 已实现 | 中 | 2026-05-30 | 日志和元数据中的连接身份 | 运维需要知道一次 tool call 打到了哪个配置化连接，但如果在 `ToolResult.meta`、telemetry、audit 或结构化 payload 展示字段中暴露连接内部信息，会泄漏敏感 DB 细节。 | 是 | 在结果 metadata、可选 telemetry 和 Skills audit 中加入安全别名 `connection_id` 与实际 `db_type`；`list_connections()` 只返回别名和 policy 摘要。公开 SQLite `database_name` 展示字段使用 `sqlite:<connection_id>`，不暴露文件路径。仍排除 DSN、host、用户名、密码、SQLite 路径、SQL params 和返回行。 | 2026-05-30 已在 `mcp_sql_server.py`、`skills/_lib/audit.py`、`skills/_lib/mutation_base.py`、文档和测试中实现；follow-up 测试覆盖 `check_connection()` / `list_tables()` 不暴露 SQLite 路径。 | 新增 metadata/audit/payload 字段时重新审查；未经隐私评审不要加入连接内部信息。 |
+| DRR-2026-030 | 已实现 | 高 | 2026-05-30 | 多连接 mutation 写入 | 允许 mutation Skills 选择任意配置化连接，需要 per-connection 写权限、preview/execute 目标绑定、audit 语义，以及针对 SQLite 文件锁和 MySQL 写超时的更强运维说明。 | 是 | 要求全局 mutation 目标 allowlist、per-connection 写开关、per-connection Skill allowlist，以及绑定 skill/version/params/connection/DB type/expiry 的一次性 preview 值。v3.6 使用 HMAC envelope + Store 实现；省略全局路由策略时保持仅默认连接。 | v3.6 已在 `db_adapter.py` 和 `mcp_sql_server.py` 实现，discovery 与 execution 共享 policy 检查。v3.7.1 只把客户端可见 envelope 换成 opaque handle，目标/请求绑定继续保存在 Store（DRR-2026-054）。当前测试覆盖路由、目标隔离、拒绝层、精确过期、未知/变更 handle、版本变化、重启和不暴露。 | Replay 与 preview-state hardening 已在 DRR-2026-034 实现。每个授权写目标仍需持续说明 SQLite lock 和 MySQL DML timeout 边界。 |
+| DRR-2026-031 | 已实现 | 高 | 2026-05-30 | Quoted identifier allowlist 绕过 | MCP table extractor 曾没有一致处理常见 quoted identifiers。`FROM "forbidden"`、`FROM [forbidden]` 或 `FROM main."forbidden"` 这类形式可能绕过或误导 table allowlist 比较，即使实际引用的是不允许访问的表。 | 是 | 在和目标连接 allowlist 比较前，规范化反引号、双引号、方括号和 schema-qualified 引用。保持为聚焦的 extractor 加固，不引入完整 SQL parser。 | 2026-05-30 已在 `mcp_sql_server.py` 实现；`tests/test_sql_policy.py` 覆盖 quoted/schema-qualified deny case 和允许的 quoted 表。 | 后续 table-reference 解析继续走共享 policy 路径；扩展语法支持前先补方言示例测试。 |
+| DRR-2026-032 | 已实现 | 中 | 2026-05-30 | Legacy named-env 泄漏 | 本地多连接 `.env` 中的 `DB_DEFAULT_*` 和 `DEFAULT_DB_CONNECTION` 可能在 `DB_CONNECTIONS` 未设置或为空时影响 legacy 单连接模式，破坏向后兼容，或因为 named default 不存在导致 legacy 启动失败。 | 是 | 将 `DB_CONNECTIONS` 作为命名连接唯一 feature gate。legacy 模式忽略 `DB_<ID>_*` 和 `DEFAULT_DB_CONNECTION`；`DB_TYPE` / `SQLITE_DATABASE_PATH` 继续作为权威配置。 | 2026-05-30 已在 `db_adapter.py`、`.env.example`、README/docs 和测试中实现；`tests/test_db_adapter.py` 覆盖 legacy 模式忽略 `DB_DEFAULT_*` 和默认连接选择。 | 后续新增 per-connection setting 时保留该 gate；未经显式迁移决策，不让 named 变量影响 legacy 模式。 |
+| DRR-2026-033 | 已实现 | 中 | 2026-05-30 | 兼容 helper 解析顺序 | 独立 helper `sql_safety_checker.execute_sql(..., connection_id=...)` 曾可能先做 SQL safety，再解析目标连接。未知 id 应先 fail closed，再考虑任何目标相关 policy 或执行路径。 | 是 | 在 `is_sql_safe()` 和 adapter execution 前先用 `get_connection_config()` 解析 `connection_id`，保持和 MCP 工具的 resolve-first 不变量一致。 | 2026-05-30 已在 `sql_safety_checker.py` 实现；`tests/test_multi_connection_v35.py` 覆盖未知 `connection_id` 会先返回连接错误而不是 SQL policy 错误。 | 后续扩展 connection-aware policy 时，保持兼容 helper 与 MCP tool 顺序一致。 |
+| DRR-2026-034 | 已实现 | 高 | 2026-05-30 | Preview-token replay 与审阅状态漂移 | 有效 HMAC token 曾可在过期前 replay；内置 mutation 还会在 execute 时重新读取当前状态，而不是锁定 preview 展示的状态。单靠乐观锁不是通用 replay 或“所见即所写”边界。 | 是 | v3.6 新增随机 `jti`、有界 execution-state hash 和加锁的进程内 Store，在动态 validation/write 前消费；后续结果保持 terminal，并禁止 stateless HMAC acceptance。 | v3.6/v3.6.1 已在 `mcp_sql_server.py`、`preview_token_store.py`、`MutationBase` 和 `sample-update-order-status` 实现。v3.7.1 将 Store 操作改为 opaque handle 的精确 request-binding 比较与原子消费，保留 mismatch record 和原有 replay/state 边界。测试覆盖唯一签发、mismatch preservation、顺序/并发 replay、容量、过期、重启、terminal 结果、状态漂移和无绑定执行拒绝。 | Preview 与 execute 必须进入同一进程。推荐客户端自有 stdio。条件性 HTTP mutation 仅限受信任私有边界中的单进程；多用户认证 HTTP 不属于当前设计。重启或跨进程请求会使未消费值失效。禁止 stateless fallback。 |
+| DRR-2026-035 | 已实现 | 低 | 2026-08-04 | 示例数据库 fixture 漂移已解决 | Mutation live smoke 曾让被跟踪的示例数据库看起来包含未提交的状态变化；当前已经不存在该工作树漂移。 | 是 | 让 `sample_data/demo.db` 保持 tracked baseline；任何会执行写入的测试都使用一次性数据库。 | 2026-08-10 复核：`git diff -- sample_data/demo.db` 为空，`HEAD` 和工作区中的订单 `id=4` 都是 `confirmed`。 | 后续 live write 检查不得把 tracked sample database 当作 mutation fixture；应创建临时副本或临时数据库。 |
+| DRR-2026-036 | 已实现 | 中 | 2026-08-04 | Server instructions 曾错误声称全局只读 | FastMCP server 级 `instructions` 曾写成 “Database query assistant with READ-ONLY access”，但可选 Mutation Skill 能执行受控写入；模型可见能力说明与实际界面不一致。 | 是 | 简洁说明只读核心 SQL 工具、配置化连接路由、可选 Skills，以及由 preview 和一次性 token 保护的受控 mutation。 | 2026-08-10 已在 `mcp_sql_server.py` 实现。回归测试断言 instructions 不再声称全局只读，并明确提到受控 mutation 和一次性 token。 | 后续工具面变化时同步 instructions；不得暗示 `confirm=true` 能证明人类批准。 |
+| DRR-2026-037 | 已实现 | 中 | 2026-08-04 | Mutation 双执行路径 | `MutationBase` 要求实现具体的 `execute()`，因此 `sample-update-order-status` 曾同时保留 `execute()` 和 `execute_with_binding()`；公开的 `execute()` 会重新读状态并在没有 preview binding 时写入，若在 MCP 外调用会重新引入 DRR-2026-034 的 TOCTOU。 | 是 | 保留满足抽象接口的 `execute()`，但让它直接抛出 `ToolError`。唯一权威写路径为 `_execute_with_expected_status()`，只能通过携带服务端 preview state 的 `execute_with_binding()` 到达。 | 2026-08-06 已在 `skills/sample-update-order-status/mutation.py` 实现；`test_update_order_status_rejects_direct_unbound_execute` 验证直调失败且数据不变。 | 只有一个 binding-only Skill 时保留 ABC，使畸形 Skill 继续在 discovery 阶段失败。若多个 binding-only Skills 证明需要重构，移除 abstract method 前必须增加 loader invariant，要求至少覆写 `execute()` 或 `execute_with_binding()` 之一。 |
+| DRR-2026-038 | 已实现 | 中 | 2026-08-04 | Preview 绑定来源与预览失败仍签发 token | `sample-update-order-status` 的 binding 曾来自 validation 第一次读取，而展示内容来自 preview 的第二次读取；两次读取之间的变化会导致展示与绑定不一致，第二次读取失败时仍可能报告成功并签发 token。 | 是 | Preview 返回自身读取的 `current_status`，binding 只从该字段构建。任何包含 `error`、声明 `success=false`，或提供非布尔/非 true `success` 值的 preview 都失败、不签发 token。 | 已在 `mcp_sql_server.py` 和 `skills/sample-update-order-status/mutation.py` 实现。回归覆盖状态插入变化、非空/空/null `error`、布尔 false 与 malformed non-true success 值；所有失败 preview 后 store 都为空。 | 自定义 mutation Skill 成功时应省略 `success` 或把它设为布尔 true；失败时应返回 `error`、返回布尔 `success=false` 或抛出 `ToolError`。只有 Skills 增多且字典契约难以维护时才引入 typed result。 |
+| DRR-2026-039 | 已实现 | 高 | 2026-08-04 | 默认 pytest 环境隔离缺口 | `tests/conftest.py` 此前只清空两个路由变量，而 `db_adapter.py` 会加载开发者 `.env`。legacy 数据库凭据、读 policy、Skills 和 telemetry 配置因此可能改变默认测试；可选 MySQL fixture 甚至可能连接 live database。 | 是 | 在应用导入前设置 `PYTHON_DOTENV_DISABLED=1`，为默认 pytest 建立明确的安全 SQLite/config 基线；除非显式请求 live integration，否则清空 legacy MySQL 凭据，并要求 `RUN_MYSQL_INTEGRATION_TESTS=1` 后 MySQL fixture 才能连接。 | 2026-08-10 已在 `tests/conftest.py` 实现；README/testing guidance 明确 `.env` 会被忽略，live MySQL 需要 shell 显式 opt-in 与导出的凭据。完整 pytest 仍以三个 MySQL integration skip 通过。 | 默认 pytest 必须继续禁用 `.env`。未来任何 live service/database fixture 都必须有自己的显式 opt-in gate，且不得意外进入默认收集。 |
+| DRR-2026-040 | 已实现 | 低 | 2026-08-04 | 不可达的配置 helper | `mcp_sql_server.py` 中的 `_parse_table_allowlist()` 从未调用；实时 allowlist 解析已经归属 `db_adapter.py`，保留两条路径会诱导后续改错函数。 | 是 | 删除死 helper 及其分歧日志，使 allowlist 解析只有一个归属；补上 `pytest.ini` 文件末尾换行。 | 2026-08-10 已实现。运行时 `ALLOWED_TABLES` 继续来自已解析的连接 policy。 | 保持 allowlist 解析集中在 `db_adapter.py`。 |
+| DRR-2026-041 | 已实现 | 中 | 2026-08-04 | Mutation 回归断言偏弱 | v3.6 signing-secret 轮换测试曾在轮换/断言前结束，一处脱敏断言恒真，也没有端到端覆盖 `adapter.execute_write()` 抛错后的 terminal token 消费。这些弱点降低了 replay 边界的可信度。 | 仅测试加固 | v3.6.1 完成 secret rotation、直接 non-disclosure 和数据库失败断言；v3.7.1 移除 envelope 后，用 opaque-handle 契约和 legacy-secret 无效断言替代过时的 secret 行为测试，同时保留 terminal failure/concurrency 证据。 | 已在 `tests/test_mutation_multi_connection_v36_design.py` 与 `tests/test_mutation_skills.py` 实现。当前证据包括 256-bit opaque 签发、legacy secret 不影响行为、non-disclosure、数据库失败后的 terminal consumption、Store 原子条件消费，以及两个并发完整 execute 只产生一次数据库写入。 | 后续 preview-token Store 或执行路径变更必须保留这些回归；替换过时机制测试时仍需保留发布历史。 |
+| DRR-2026-042 | 已实现 | 低 | 2026-08-04 | v3.6 之后遗留的 v3.5 时期措辞 | 多份文档在 v3.6 已引入命名写 policy 后，仍把 v3.5 的仅默认连接妥协描述为当前状态。 | 是 | 为 default-only 行为补上“省略 `SKILLS_ALLOW_MUTATION_CONNECTIONS` 时”的限定，并分开记录 v3.5→v3.6 与 v3.6→v3.6.1。 | 2026-08-10 已在客户端指南、README、Skills 指南、Agent 指南、设计文档和发布说明中完成；最后一处无条件 “limited to the default connection in v3.5” 已修正。 | 后续维护版本继续把基线能力与补丁修复分开记录。 |
+| DRR-2026-043 | 已接受 | 中 | 2026-08-04 | 读 allowlist fail-open 与写 allowlist fail-closed 不对称 | `DB_<ID>_ALLOWED_TABLES` 为空或省略表示所有可见表都可读，而 `DB_<ID>_MUTATION_SKILLS` 为空或省略表示拒绝所有写入。两个默认值有意不同。 | 仅文档声明 | 保留读侧兼容默认值和写侧 deny-by-default；集中说明不对称并建议生产环境配置具体读表 allowlist。 | 2026-08-10 已在中英文 env example 与 README 配置/安全说明中记录；行为本身仍是已接受的兼容取舍。 | 保持警告靠近两类 policy 示例；仅在破坏性版本中重新考虑读侧默认值。 |
+| DRR-2026-044 | 已接受 | 低 | 2026-08-04 | Preview-token store 容量自我拒绝 | `MUTATION_PREVIEW_TOKEN_STORE_MAX_ENTRIES` 限制每进程未过期 token，容量满时 fail closed。反复 preview 不 execute 会在过期前填满 store；惰性清理会在锁内扫描有界字典。 | 部分加固 | 保留 fail-closed 容量和惰性清理；把 TTL 限制为 `1-86400` 秒、容量限制为 `1-100000`；无效值分别回退到 `300` 和 `10000`。没有实测负载前不增加 heap/后台清理服务。 | 默认 TTL 300、容量 10000 不变；测试覆盖不驱逐、过期释放和两类配置上限。容量上限只是防误配置护栏，不是经验证的吞吐声明；仍无 per-client 限流。 | v3.6.1 不支持不可信或多用户 HTTP mutation。只有明确远程/高吞吐需求时才重新评估 quota、限流和索引化 expiry。 |
+| DRR-2026-045 | 已实现 | 中 | 2026-08-08 | 共享 token backend 与实际部署范围 | 共享 backend 能协调 worker/副本，但生产级远程服务还需要认证、传输安全、可观测性、副本配置一致性和数据库治理；只增加 token store 会夸大部署成熟度。 | 是 | 保留有界进程内 Store，并推荐客户端自有 stdio。条件性 HTTP mutation 仅限受信任私有边界中的单进程；多用户认证 HTTP 和共享 mutation 副本不属于当前设计。读扩展只能使用独立 read-only endpoint/profile/pool。 | 已实现：活动文档说明同进程边界、连续性损失、程序不强制 worker 数，以及当前没有多用户 HTTP 安全设计。 | 只有出现明确远程 mutation 需求时，才连同完整部署 profile 重新设计共享状态。禁止 stateless token 校验。 |
+| DRR-2026-046 | 已接受 | 低 | 2026-08-10 | 仅比较 status 的乐观锁与 ABA 变化 | `sample-update-order-status` 和 v3.7 `sample-reset-order-to-pending` 示例都会绑定并比较展示的 `status`。外部写入者或 demo reset 自身可在另一个 token 有效期内形成 `pending -> X -> pending`，导致 execute 时 status 相同而中间变化未被发现。 | 不新增通用 schema | reset 明确仅供 demo/test，且调用方必须声明准确的非 pending 来源状态。加入 revision/`updated_at` 条件需要真实业务 schema 契约和 migration；在 portable framework demo 中虚构一列属于过度设计。建议使用专用 fixture、不为同一订单保留重叠 preview，并为每个 live-test 场景启动新的 stdio 进程。 | 接受为有界的 demo/外部写入者局限。只要 execute 时状态与 preview 展示值不同，现有保护仍会拒绝；但仅绑定 status 无法发现已经循环回原值的变化。 | 真实目标表提供稳定 revision/version，或生产流程可恢复旧状态时，再把版本字段加入 binding 与 `WHERE`。不得把 demo reset 作为生产订单重开 API，也不要在框架中虚构通用 timestamp 契约。 |
+| DRR-2026-047 | 已实现 | 低 | 2026-08-10 | 不可达的命名 SQLite 路径别名 | 命名 SQLite 分支含有未文档化 `DB_<ID>_DATABASE_PATH` fallback，但前面的 canonical `DB_<ID>_SQLITE_DATABASE_PATH` lookup 总会提供字符串默认值，因此 `None` guard 与别名读取不可达。把它转为支持配置只会新增重复配置面和优先级规则，没有兼容收益。 | 是 | 删除死 fallback。继续把 `DB_<ID>_SQLITE_DATABASE_PATH` 作为唯一命名 SQLite 路径配置；不为不可达别名补文档、激活逻辑或测试 fixture 清理。 | 2026-08-10 已在 `db_adapter.py` 实现。现有命名 SQLite 与 legacy 隔离测试通过，运行时行为不变。 | 保持命名连接配置显式且唯一。若测试环境 suffix 漂移成为真实问题，应隔离项目自有 `DB_*` 命名空间，而不是让死别名转正。 |
+| DRR-2026-048 | 已接受 | 低 | 2026-08-13 | Preview-token 交付记账边缘 | Preview 成功后会先登记 handle，再执行 best-effort audit、`ctx.info()` 和 `ToolResult` 构造。若服务器能观察到的异常发生在登记之后、结果返回之前，客户端拿不到可用 handle，但对应 record 会占用一个有界 Store 槽位直到过期/惰性清理；audit 可能已经记录 preview success，通用 adapter sanitizer 还可能把响应或日志失败误报为数据库查询失败。由于执行仍要求未交付的高熵 handle，这不会允许 mutation 或 replay。 | 部分加固 | 保持 fail-closed、短 TTL、有界容量和同进程原子消费。v3.7.1 `consume_if_matches()` 通过同一锁内比较/消费消除了旧的 request-binding mismatch pop 后边缘；它不会让 handle 交付或之后的结果信号原子化。服务端生成的 execution-binding JSON 仍在消费后解析，这是签发路径内部不变量，不是独立的攻击者可控授权检查。若有运维证据，再增加按 digest 的 best-effort `discard()` 并区分响应与 DB 错误。 | 剩余交付/记账局限影响低：不引入未授权写、replay 或乐观锁绕过；孤儿 record 受容量和过期约束。Store 测试覆盖 mismatch preservation 和原子 one-winner consumption。 | 若观察到 preview 响应失败、HTTP 成为主要 transport，或 token storage 出现第二个 producer，则重评。清理不得暗示服务端能判断 transport handoff 后丢失的响应是否到达客户端。 |
+| DRR-2026-049 | 已实现 | 中 | 2026-08-19 | 可选 Skill 连接范围与授权/路由歧义 | 可复用 Skill 需要表达预期连接；复用 `databases`、接受自动路由 metadata、把 metadata 当权限，或静默忽略范围字段拼写错误，都可能打错数据库或取消预期限制。多值还需定义别名缺失/DB 不兼容行为。 | 是 | 新增严格限制性的复数 `connection_ids`。省略保持旧行为；运行时省略仍用全局默认。拒绝未知 frontmatter 字段和重复 YAML key，使安全相关 typo 在 discovery fail closed。adapter 前校验 scope/type，其余 policy 在查询执行或写入前继续生效；冲突按目标拒绝，其它有效成员可复用。 | 已在 loader/server 实现；测试覆盖语法、未知/重复字段、grammar 对齐、规范化、不自动路由、policy 交集、目标隔离和 token 前拒绝。真实 fixture 独立覆盖有效、未配置与 DB 冲突 alias。 | Metadata 只收窄；直接 Python 调用绕过 MCP 路由。严格未知字段意味着自定义 metadata 以后需要显式扩展 namespace。建议语义别名；只有具体全成员需求才重审全局禁用。 |
+| DRR-2026-050 | 已接受 | 中 | 2026-08-19 | 人工批准 host 不是服务端可验证的人类授权 | preview token 能证明匹配 preview 并阻止 replay，但客户端可自动回传。console host 增加批准体验，服务端仍不认证批准人，其他客户端可绕过，deny 不上报，外部 payload 日志也可能泄漏 token。 | 实现示例并明确局限 | 在同一 stdio Client/server 中运行；规范化有限 JSON 参数，拒绝 provider 修改批准视图，由 workflow 强制截止时间，固定 preview 目标，不重试不确定执行。完整环境继承避免可信本地 host 静默换用另一 `.env`，但也把全部导出 secret/control variable 纳入子进程信任边界。没有产品需求时不增加 Elicitation/HTTP auth/cancel/持久服务。 | 测试覆盖各决定状态、迟到批准、畸形/过期 preview、请求快照、批准视图修改拒绝、目标固定、环境传递、token 脱敏和不重试。文档明确它不是身份/合规证明，并说明 params/preview/execute 输出可能敏感。 | deny token 占容量至 TTL；Python 不能保证内存擦除；恶意 provider 需进程隔离。产品化 host 应选择性转发项目配置。若要求身份、职责分离、持久 deny 或远程多用户 mutation，应设计认证批准/审计服务。 |
+| DRR-2026-051 | 已实现 | 高 | 2026-08-20 | Raw read grammar 与 table allowlist 完整性 | regex 时代的表提取器会漏掉 comma join 或 comment-separated 表、丢弃 schema qualifier，并把 EXPLAIN 关键字误当表。过宽 SHOW、跨 session EXPLAIN 和允许多条 statement 也使 metadata/system scope 校验不完整，并让行为依赖未来 driver。 | 是 | 保持 raw query/Query Skill 共用一个保守 policy。只接受单条 statement；规范化普通注释但不剥离 executable directive；拒绝 raw SHOW 与跨 session EXPLAIN/DESCRIBE；把 `sys` 纳入 system schema；保留 qualifier；限制性 allowlist 下无法完整提取 table scope 时 fail closed。非 ANALYZE 的 EXPLAIN-family DML 仍有用途，但其写 target 与全部 read/USING source 都必须在 scope 内。不得声称完整跨方言 parser。 | v3.7.0 已在 `mcp_sql_server.py`/`sql_safety_checker.py` 实现；`tests/test_sql_policy.py` 覆盖 comma join、comment separator、qualified name、nested/CTE table、EXPLAIN 误报/跨 session 形式、EXPLAIN/DESCRIBE/DESC `UPDATE`/`INSERT`/`REPLACE`/`DELETE` target、CTE alias、multi-table `DELETE ... USING` source、SHOW 变体、无字符串字面量误报的 system schema、ambiguous target 与多 statement。Query Skill 依据 DRR-2026-019 复用相同 runtime helper。低层 `is_sql_safe()` 为兼容仍识别 SHOW，但完整 MCP policy 从不执行。 | 只有出现具体受支持方言需求并补正反测试时才扩展 grammar。schema discovery 使用 `list_tables`/`describe_table`，数据库 grant 继续作为权威边界。 |
+| DRR-2026-052 | 运维决策 | 高 | 2026-08-20 | SELECT 形状的副作用与数据库授权 | Statement-shape gate 无法证明所有外层 `SELECT` 没有副作用。MySQL stored function 可能修改数据或以 definer 权限运行，`GET_LOCK()` 会创建 session state，metadata 可见性也取决于权限。命名连接还可能复用比 raw-query 角色更宽的凭据。 | 部署指导，不做函数 denylist | 把 SQL checker 与 `ALLOWED_TABLES` 定位为应用层 guard。生产只读 alias 只授予对象级 `SELECT`，撤销不需要的 `EXECUTE`、`FILE`、`PROCESS`、管理与跨 schema 权限；可行时分离读写凭据。不断扩大的函数 denylist 很脆弱，不能替代 grant。 | v3.7 已在 README、env example、Skills 安全指南、release/guide 与本登记表记录。代码继续执行保守 shape/table policy，但不声称语义证明。 | 若 mutation alias 必须使用更宽凭据，可在未来由真实需求驱动的版本考虑禁止该 alias 的 raw query。把 stored routine 与账号 grant 作为部署工件评审。 |
+| DRR-2026-053 | 已接受 | 中 | 2026-08-20 | 跨数据库 demo reset 的行唯一性 | MySQL/SQLite reset 使用按 `orders.id` 和 status 匹配的可移植乐观锁 UPDATE。若数据库没有强制 id 唯一，畸形 schema 或并发插入可能匹配多行；应用层预读无法跨两种方言提供原子唯一性保证。 | Schema 契约加诊断 guard | 要求 `orders.id` 是 `PRIMARY KEY` 或 `UNIQUE`，与内置 demo schema 和一般关系数据库设计一致。保留可移植的 read-side 精确基数检查，在 preview 前拒绝已经损坏的 fixture；但不声称它替代 constraint，也不为 demo Skill 增加方言分支或 framework transaction API。 | Skill 会验证只读到一行、要求显式 expected source state，并采用与 `sample-update-order-status` 相同的可移植乐观锁形状。单元回归覆盖重复行诊断拒绝；受支持执行依赖数据库唯一约束。 | 真实目标无法实施唯一约束时不得启用该 Skill。只有出现确切的跨方言 mutation，需要应用层实施多语句不变量时，才增加 adapter transaction primitive。 |
+| DRR-2026-054 | 已实现 | 中 | 2026-08-27 | HMAC preview envelope 冗余与 opaque-handle 迁移 | 进程内 Store 已经权威负责签发、过期、replay 和 execution binding；长 self-describing HMAC envelope 重复暴露状态，增加模型上下文与复制错误面，还保留无法在重启后恢复 Store 的签名 secret 配置。替换时不能削弱 mismatch preservation 或一次性消费，移除响应字段也有客户端兼容成本。 | 是，明确兼容说明 | 保留公共 `preview_token` 字段和两次调用协议。生成 256-bit 随机 bearer handle，只存 digest；canonical request/execution binding 留在有界 Store，同一锁内比较/消费。废弃 secret 被忽略并只输出不含值 warning。保留绝对过期时间，移除三个重复 convenience 字段，并说明依赖它们的客户端需迁移。 | v3.7.1 已在 `mcp_sql_server.py` 与 `preview_token_store.py` 实现。代表性 handle 从 508 缩短为 43 字符（约 91.5%，不是固定 wire-size 保证）。测试直接覆盖 32 字节 CSPRNG 请求和只登记 digest 的 Store 接线，并覆盖 handle 唯一性、未知/变更值、mismatch preservation、replay、并发、重启、terminal failure 和 non-disclosure。Bearer 泄漏、同进程部署、preview 交付歧义和 commit/响应不确定性仍存在。 | 不要在未独立评审授权 UX 和服务端执行材料前增加 token-only confirm。可判定重试需与业务写同事务的 operation record 和重连状态 API；不得把 memory handle 当作该 ledger。 |
+| DRR-2026-055 | 已实现 | 中 | 2026-08-27 | 默认连接 UNION policy 泄漏到无目标 prompt | `sql_assistant()` 没有 `connection_id` 参数，却描述 module-level `ALLOW_UNION`/`ALLOWED_TABLES`；二者是默认连接的兼容别名。多连接部署中，它可能为拒绝 UNION 的目标建议 UNION，或阻止允许它的目标。启动日志也像全局声明。Raw/query-Skill runtime 原本已正确使用目标 policy。 | 是 | Prompt 改为 target-neutral：通过 `list_connections()` 查看目标 alias，并依赖 runtime 权威校验；module-load 日志明确是默认 alias 摘要。保留 per-alias policy 披露且不暴露凭据或路径。 | v3.7.1 已实现。回归覆盖默认拒绝/目标允许和反向两种矩阵，检查 per-alias summary、raw-query 实际执行、prompt 不含默认派生的能力声明，以及缺少 allowlist 时的目标连接化指引。 | 无参数 prompt 只做描述，不做权威判断。未来若 prompt 接受目标参数，可渲染该目标 policy，但不能代替工具执行时检查。 |
+| DRR-2026-056 | 已接受 | 中 | 2026-08-27 | 独立 `execute_sql()` 未实施完整连接 policy | Compatibility helper 会先解析目标连接并运行 `is_sql_safe()`，但不执行 MCP 层的 `ALLOW_UNION`、`ALLOWED_TABLES`、raw SHOW、system-schema 或扩展 table-scope policy。MCP raw query 与 Query Skill 会先应用完整目标 policy，所以这不是 MCP 绕过；Python 直调方仍可能高估 helper 契约。 | 记录边界，暂缓抽取共享 policy | 在 helper docstring、release/design 文档和登记表明确它只是保守 statement-shape compatibility gate；不要让 helper 导入 `mcp_sql_server`，也不要复制持续增长的 policy。 | 当前 MCP 工具仍正确按目标执行。Helper 仍在 shape check 前拒绝未知 alias，并通过目标 adapter 执行，保留 DRR-2026-033 的较窄不变量。 | 若 direct helper 使用者需要完整 policy，抽取无循环依赖的共享 policy 模块，并补 raw/query-Skill/helper parity 回归。在此之前，安全敏感集成应使用 MCP 工具或自行实施等价应用 policy。 |
+| DRR-2026-057 | 已实现 | 中 | 2026-08-29 | Metadata 失败或不可用估计被压成不存在或 ready 状态 | MySQL/SQLite adapter 元数据方法曾对合法不存在和脱敏后的执行失败都返回 `[]` 或 `0`，导致核心发现工具把数据库错误报告为空数据库/schema、表不存在或 0 行估计。另有两种不可用估计也可能被误报成 0：SQLite 已发现的表名超出生成 metadata SQL 所用的保守 identifier 语法，以及 MySQL `TABLE_ROWS` 为 NULL。引入 `MetadataQueryError` 后，Skills readiness 调用方又把该失败转换成与“主动关闭检查”相同的 `None` sentinel，可能让依赖表的 Skill 在 readiness 未知时仍显示 `schema_ready=true` 且可执行。 | 是 | 对 table、column、statistics 和有界 sampling 查询失败抛出专用且脱敏的 `MetadataQueryError`；核心 MCP metadata 工具返回 `success=false`、稳定的 `error_code="metadata_query_failed"`，且不返回部分 schema。发现阶段和单表工具的逐表估计不可用时保留为 `row_count=null`，不虚构 0；估计不可用时 `row_count_approximate` 和 `is_large` 也为 null。详细 schema 检查对不支持的 identifier 仍明确失败。Skills readiness 使用明确的 disabled/available/unavailable snapshot：检查已启用但不可用时设置 `schema_check_available=false`、`schema_ready=false`，不伪造 `missing_tables`，由 `available_only=true` 过滤，并在 query SQL、mutation preview、token 签发或写入前 fail closed。只捕获 `MetadataQueryError`，不吞掉编程异常。 | 核心失败处理于 2026-08-29 在 `db_adapter.py` 与 `mcp_sql_server.py` 实现；Skills 调用方补漏于 2026-09-01 实现；不可用估计/null 语义于 2026-09-03 完成。`tests/test_db_adapter.py` 与 `tests/test_v342_meta_and_schema.py` 覆盖 adapter/核心工具失败区分，以及 discovery、`describe_table()` 和 approximate `get_table_summary()` 中的 SQLite 不支持名称和 MySQL NULL estimate 行为；`tests/test_skills_disclosure.py` 覆盖不可用 discovery/detail、完整目录诊断、关闭检查与编程异常；`tests/test_mutation_multi_connection_v36_design.py` 证明 query/mutation 会在 SQL、token 和写入前停止。错误保持脱敏，不暴露 SQL、绑定值或连接细节。 | 后续 metadata 调用方必须区分“不存在”“零”“估计不可用”“检查关闭”和“运行失败”。若将来确有部分 schema 产品需求，应设计显式的逐表错误 envelope，而不是静默省略失败表。 |
+| DRR-2026-058 | 已实现 | 高 | 2026-09-10 | 影响行数检查发生在 adapter COMMIT 之后 | 两个内置 Skill 仅在 `execute_write()` 返回后检查 `rowcount`，因此零行乐观锁冲突或多行基数异常可能在数据库已经提交后才报告拒绝。 | 是 | 两个 adapter 新增仅限关键字的 `expected_rowcount`，拒绝负数、非整数和 bool；语句执行后、COMMIT 前检查，不匹配时回滚。省略时保留合法批量写兼容性。 | v3.7.2 增加类型化结果/异常和 `ExpectedRowcountMismatchError`；两个内置 Skill 均要求一行并移除提交后检查。SQLite 实数据测试证明零/多行回滚与未约束批量写。2026-09-12 另在真实 MySQL InnoDB 上以两条独立旧状态预览验证竞态：恰有一次 COMMIT 和一次影响行数不匹配回滚。 | 精确的整个 Skill 结论只覆盖两个内置单语句 Skill；自定义 Skill 保持接口，不得用单条语句的 rollback 推断整个 Skill。MySQL 竞态测试不模拟断网或 COMMIT 回执不明。 |
+| DRR-2026-059 | 已实现并接受剩余风险 | 严重 | 2026-09-10 | COMMIT 异常无法区分回滚与已提交，可能诱发危险重试 | 服务端可能已提交，但连接在成功回执到达客户端前断开；若把随后 rollback 正常返回当成提交失败证据，自动重试可能产生重复副作用。 | 是，但本版不做持久化消歧 | 显式追踪 setup/execute/rowcount/commit。提交前失败只有确认 rollback 后才是 `rolled_back`；rollback 调用抛异常使用 `rollback_failed`，调用正常返回但事务/连接证据不足使用 `rollback_unconfirmed`，两者均为 `unknown`。任何 COMMIT 异常也是 `unknown`。确认 COMMIT 后 cleanup/audit/response 失败仍是 `committed`。Adapter 不重试 SQL，host 不重做 execute。 | 故障测试覆盖 execute+rollback 成功、rollback 抛异常、无法确认的本地 rollback、COMMIT 回执丢失、cleanup、取消、audit 与 response 失败；MCP 结构化结果和宿主 terminal 状态已实现。 | MySQL 结论只覆盖事务性 InnoDB DML，不覆盖非事务表、隐式提交或外部副作用。没有 operation ledger/status API 时，unknown 需要人工核查业务状态。诊断错误码只细化 unknown 原因，绝不授权重试。 |
+| DRR-2026-060 | 已实现的兼容变化 | 高 | 2026-09-10 | Mutation 客户端以“未抛异常”或未校验身份的响应推断数据库成功 | 可处理执行失败过去以文本异常返回；宿主仅接受身份匹配的 `success=true`，其它响应笼统失败。缺失、畸形或外来响应可能诱发不安全后续调用。 | 是 | 结构化 mutation 结果要求 `execution_outcome`，失败带稳定 `error_code`，metadata/audit 同步。先校验 Skill/连接/DB 类型身份；timeout、异常、畸形、未知或矛盾响应全部 terminal unknown；旧服务只兼容严格成功。 | v3.7.2 server 与批准 host 已实现四类结论；宿主回归断言最多一次 execute 且之后没有写调用；`idempotentHint` 仍为 false。 | 客户端必须同时检查 `success` 和 `execution_outcome`。项目无法强制第三方宿主遵守“不确定不重试”，只能通过 schema 与文档约束。 |
+| DRR-2026-061 | 暂缓 | 高 | 2026-09-10 | Mutation 未知结果的持久化恢复 | 进程内 token 无法在断连/重启后回答不确定 COMMIT 是否成功。当前业务状态符合请求预期，不等于证明该状态由本次请求造成。通用请求去重、回执和结果查询需要持久 operation identity 与生命周期语义。 | 不属于 v3.7.2 | 保留未来方向：由调用方持有稳定 operation ID，并绑定身份与已批准意图；operation record 与业务写同事务原子提交，再提供鉴权的回执/status 查询。本维护版不加入不完整的表、Redis、后台任务或状态机。 | 未新增 schema、依赖或后台能力；接受人工核查成本，重启后不恢复未知操作。在未来协议明确权威一致性、处理中状态、保留期和 terminal-not-found 语义之前，查询不到回执不能作为已回滚证据，也不授权重试。 | 出现重启后结果查询、无人值守恢复，或可量化的人工核查成本成为具体需求时，再作为独立版本公共协议重评。设计必须覆盖 retention、authorization、请求/意图绑定、idempotency、事务耦合、migration 和多副本部署。此风险条目是暂缓事项的权威记录；只有触发条件带来明确 owner 与实施范围后，才创建版本化设计文档/ADR。 |
+| DRR-2026-062 | 已实现 | 严重 | 2026-09-10 | 自定义 Mutation 成功被无条件升级为 `committed` | MCP 成功分支曾在任何 `run_execute()` 返回后硬编码 `committed`。自定义 Skill 即使没有写、吞掉写异常、返回畸形/自报失败结果，或混合多条写和外部副作用，也会得到错误 COMMIT 声明；此前整个 Skill 的限制只覆盖失败路径。 | 是，修正公共结果 | 用内部 dict 子类型携带 adapter COMMIT 证据，并同时要求框架登记的 exact Skill、它的 exact 声明和保留下来的成功 `WriteExecutionResult`。框架拥有的 `MutationBase.run_execute()` 在 MCP 消费类型化结论前校验结果和权威 MCP Skill 名。普通自定义成功为 `success=true, unknown`；自定义 exact 声明在 discovery 失败；非法/false 结果为 `invalid_skill_result`；已登记 exact Skill 缺证据为 `missing_commit_evidence`；缺少框架 bookkeeping 时服务端真实尝试 best-effort 审计，不默认 true。 | 两个已登记内置 Skill 在保持公共 dict 兼容的同时保留类型化 adapter 结果。单元/MCP/host/audit 回归覆盖真实 custom-style 写、自定义 self-declaration 拒绝与基类防御、缺失证据、畸形结果、子类/基类篡改边界、响应 fallback 和 `success=true, unknown`；wrapper 所有权见 DRR-2026-064。 | Python Skill 属于可信代码，仍可故意伪造对象、修改框架登记、monkeypatch runtime 或执行不可观察的外部行为；运行时证据防止意外过度声明，不能防御同进程恶意代码。按明确兼容要求保留的旧服务端 `success=true` 识别不能追溯证明 COMMIT；依赖新保证前必须升级。自定义 Skill 若要声明 committed，需要未来单独评审的整个操作协议。 |
+| DRR-2026-063 | 已实现并保留传输边界 | 高 | 2026-09-10 | COMMIT 取消丢失结构化 unknown 证据 | Adapter 的 COMMIT handler 会在 `asyncio.CancelledError` 后清理，但因它属于 `BaseException` 而原样抛出，MCP 无法像普通 COMMIT 异常一样返回结构化 `unknown`；宿主只是因为没有结果才保守判 unknown。 | 是 | rollback/连接清理后，把 COMMIT 抛出的普通 `Exception` 与 `asyncio.CancelledError` 都转换为 `WriteExecutionError(commit_outcome_unknown, unknown)`；其它进程控制异常继续传播。COMMIT 前取消在清理后仍传播，以免静默阻止 shutdown/timeout cancellation。 | MySQL/SQLite 故障测试均注入 COMMIT 取消并断言类型化 unknown、资源清理且没有虚假 rollback 结论；既有 MCP 路径消费该类型化异常并返回结构化 unknown。 | 框架或 transport 可能已经无法投递响应，客户端对缺失响应仍只能判 unknown。`KeyboardInterrupt`、`SystemExit`、`GeneratorExit` 和 COMMIT 前取消可能在清理后传播，而不产生结构化 payload。 |
+| DRR-2026-064 | 已实现的兼容变化 | 高 | 2026-09-12 | 框架执行包装器可被覆盖 | 自定义 Mutation 可以直接覆盖 `MutationBase.run_execute()`，或通过中间父类继承替代实现，从而绕过集中式结果校验、整个 Skill 结论、错误脱敏和执行审计。MCP 为此重复了大量基类策略，形成两个可能漂移的实现。 | 是，在正式发布前修正 | 用 `@final` 标记 `run_execute()`，并在 discovery 时把静态解析到的方法与框架方法做身份比较；直接和继承覆盖均拒绝，并给出迁移提示。MCP 直接调用基类 wrapper，不通过自定义实例虚分派。业务扩展继续使用 `execute()` 与 `execute_with_binding()`。删除 MCP 重复的业务分类，只保留面向基类篡改或框架故障的窄型 fail-closed 类型结果检查。 | Loader 回归覆盖直接覆盖、继承覆盖和 `@final` 标记；MCP 回归证明加载后子类 lookalike 会被忽略、非法框架返回会 fail closed，普通自定义和 exact 内置路径继续经过基类包装器。此前覆盖 wrapper 的发布前自定义 Skill 必须迁移后才能加载；版本仍为 v3.7.2。 | 这是可强制的扩展契约，不是不可信代码 sandbox。可信代码仍能 monkeypatch 基类或其它运行时对象，也能执行隐藏副作用。MCP guard 对检测到的非法框架结果报告 `unknown`，但无法观察所有同进程恶意行为。正式发布或出现已知第三方采用后，应重新评估兼容与废弃策略。 |
+
+| DRR-2026-065 | 已实现 | 严重 | 2026-09-12 | 仅用内置 Skill 名称判断精确结论资格 | DRR-2026-062 首次修复仅按公开名称允许 `exact_transaction_outcome=True`。另一个 `SKILLS_DIR` 可加载同名双语句自定义 Mutation：第一条已提交、第二条回滚，却对整个 Skill 返回 `rolled_back`。这属于正常配置路径，不只是恶意 monkeypatch。 | 是，纳入 v3.7.2 | 核对 mutation 源码解析后的路径是否为对应的仓库内置文件，只有此前提成立才允许 exact 声明并为本次 discovery 登记实际加载的类身份。执行期同时校验身份、权威名称、声明及 adapter 证据。同名自定义 exact 声明拒绝加载；默认 flag 的同名自定义 Skill 可加载，但整个操作结论保持 `unknown`。每次 discovery 替换进程内登记。 | 单元回归覆盖两个保留名称、真正内置类登记及重新发现后清空登记；真实 FastMCP Client 使用项目内临时 `SKILLS_DIR` 证明同名双写自定义 Skill 第一条 COMMIT 后第二条行数不匹配回滚，返回 `success=false, unknown` 且数据库中第一条变更仍存在。没有新增 schema、公共字段或依赖。 | 可信 Python Skill 仍能故意修改框架/登记或内置源码，不是不可信插件沙箱。精确结论仅覆盖经过源码评审的两个内置单语句 Skill；解析至同一内置文件的符号链接使用同一已评审源码，同时受既有路径包含检查约束。全局重新 discovery 可能保守撤销旧类身份，但不得把自定义类升级为精确资格。连接级 `MUTATION_SKILLS` 仍有意按当前 catalog 名称授权，不校验源码身份；更换 `SKILLS_DIR` 必须同时复核源码和写入授权策略。 |
+| DRR-2026-069 | 已实现的兼容强化 | 高 | 2026-09-16 | 关闭 Mutation 后仍会导入自定义 mutation 模块 | 自最初的 v3.0 Skills 提交 `04603e4` 起，只要启用 Skills，discovery 即使在 `SKILLS_ALLOW_MUTATIONS=0` 时也会执行各 `mutation.py`。后来的示例目录与忽略规则提交 `8753f30`/`dba3a29` 只是让这个既有边界更显眼，并非问题来源。因此，禁写部署启动时仍会运行可信扩展代码。 | 是，在正式发布前修正 | 增加由 `SKILLS_ALLOW_MUTATIONS` 控制的显式 discovery 模式。禁写时只校验元数据、声明文件和路径包含关系，不导入 mutation 模块，也不构造 mutation 类；Query Skill 加载不变。 | Loader 与 FastMCP 集成哨兵使用“导入即产生可观察状态”的 mutation 模块：禁写时状态不存在、mutation 工具不注册，同时元数据仍可发现；启用路径的既有测试继续覆盖类和 plan 校验。 | 这会减少无必要的启动期代码执行，但不会把已启用的 Python Skill 变成不可信或沙箱代码。启用 Mutation 后仍必须审核模块。Git 忽略规则既不是执行授权，也不是安全边界。 |
+| DRR-2026-070 | 已实现的发布前契约调整 | 高 | 2026-09-16 | Python 回调可能过度声明整个 Skill 的精确结论 | v3.7.2 的源码/类登记能阻止普通自定义代码自行升级，但 Python Skill 返回 adapter 证据仍不能证明它此前没有执行数据库写、文件/网络操作或隐藏回调副作用；同时，精确结论被限制在两个内置实现，缺少安全的自定义扩展契约。 | 是，在正式发布前修正 | 用冻结的 `ManagedMutationPlan` 取代 exact flag 与源码/类登记。Discovery 校验一条直接 `INSERT`、`UPDATE` 或 `DELETE`、完整绑定、显式参数/preview binding/常量来源、预期行数和结果映射，并缓存不可变 plan。消费 token 后由框架解析值并仅直接调用 adapter 一次，确认阶段不执行 Skill 回调。命令式 `MutationBase` 仍可扩展，但整个操作始终报告 `unknown`。 | 两个内置 Mutation 已迁移为受管 plan。测试覆盖 plan 校验、缺失/非标量值在访问 adapter 前失败、精确成功/失败证据、缺少 COMMIT 证据、取消和确认期无回调；旧 `exact_transaction_outcome` 声明在 discovery 时给出迁移提示并拒绝。 | “精确”刻意只描述框架管理的那一条数据库语句的事务结论，不证明导入期或 preview 期 Python 副作用，也不覆盖数据库 trigger/UDF 的外部副作用、MySQL 非事务表、隐式提交或 COMMIT 回执丢失。可变业务约束必须保留在语句谓词中；启用的 Skill 模块仍是可信应用代码。 |
+
+**v3.7.2 复查补充（2026-09-10），DRR-2026-059/060/062：** 回滚确认新增
+事务活跃状态、回滚前后连接有效性检查；SQLAlchemy 在连接失效或关闭后仅完成本地
+清理时保持 unknown，不通过重连推断原事务。加载后 wrapper 篡改与意外框架异常统一
+返回脱敏 unknown 并尝试失败审计；宿主非字符串 outcome 不再因集合查找抛异常。
+兜底审计异常不覆盖执行证据；序列化失败的备用响应丢弃不可序列化的原始结果。
+回归覆盖真实 SQLAlchemy 事务、写后自定义异常、审计失败、畸形 JSON outcome 和
+不可序列化的成功结果；这些测试不等于真实 MySQL 网络故障验证，也不提供持久恢复。
+
+**v3.7.2 诊断与文档补充（2026-09-11），DRR-2026-059/061：**
+`rollback_failed` 现在只表示 rollback 抛异常；本地清理正常返回但缺少数据库证据时
+使用 `rollback_unconfirmed`。两者的执行结论仍均为 `unknown`。未来可选回执方向继续
+以 DRR-2026-061 作为权威记录，不另建可能漂移的推测性计划文档。只有已记录的触发
+条件形成明确 owner、范围、兼容方案和实施决策后，才值得创建版本化设计文档/ADR。
+
+**v3.7.2 扩展契约补充（2026-09-12），DRR-2026-062/064：**
+`MutationBase.run_execute()` 现由框架拥有，加载的自定义类不能直接替换，也不能通过
+中间父类继承替代实现。自定义逻辑迁移到 `execute()` 或
+`execute_with_binding()`。这项有意的发布前契约调整删除了 MCP 重复的业务分类，
+同时保留窄型 fail-closed 边界 guard。`@final` 本身只提示类型检查器，loader 才负责
+运行时强制。MCP 直接调用基类 wrapper，加载后子类替换会被忽略；可信同进程代码
+仍不属于不可信插件 sandbox。同一复查还把 `exact_transaction_outcome=True` 限定给
+两个已登记内置 Skill，并由基类复核权威 Skill 名。但首次仅核对名称的方案
+无法识别同名自定义源码；DRR-2026-065 记录了追加的内置源码路径与加载类身份
+复核，才关闭普通配置路径下的 self-upgrade 漏洞。
+自定义 Skill 的行数不匹配说明也不再宣称整个 Skill 未提交：即使本条语句已回滚，
+此前的自定义语句仍可能已提交。
+
+**v3.7.3 受管契约补充（2026-09-16），DRR-2026-069/070：** 上述 v3.7.2 文字作为
+历史记录保留。现行契约已删除 exact flag 与源码/类登记：受管确认不实例化或调用
+Skill Python，只执行缓存的单条语句；命令式回调保持 `unknown`。关闭 Mutation 后
+也不再导入自定义 mutation 模块。精确证据只覆盖该框架受管语句，不证明 import、
+preview 或数据库之外的副作用。
+
+**同轮补充：preview 权威来源与审计一致性。** 初版受管实现仍接受 Skill 自行展示
+SQL/绑定值，确认时却执行独立的缓存计划。现改由框架从计划与最终序列化 binding
+生成预览字段，并在 token 签发前解析 SQL 值及结果映射；Skill 提供保留字段会被
+拒绝。结果映射同时保留 `error`/`error_code`。临时 `SKILLS_DIR` 下的非内置 Skill
+经 FastMCP Client 验证精确提交、状态变化回滚、展示/执行 SQL 与值一致、拒绝时
+不签 token，以及确认阶段无 Skill 回调。业务文字及预览期 Python 仍属可信内容/
+代码，不在该保证之内。
+
+**DRR-2026-057 补充（2026-09-03）：** SQLite 表若在 discovery 与有界采样之间
+消失，现在会得到不可用估计（`row_count=null`），不再误报为零行；MySQL 单表
+metadata row 缺失时也采用相同 unknown 语义。FastMCP 已启用
+strict input validation，使协议输入必须匹配发布的 JSON Schema；关键 boolean 的
+Python 直调仍保留显式 handler 校验。Server 重启无法清除 Host 自有的工具缓存，
+因此重新连接或重载 Host，并重新获取 `tools/list`，仍是独立的发布验收步骤。
+
+### Agent 路由复查（2026-09-13）
+
+| ID | 状态 | 风险等级 | 首次登记日期 | 领域 | 风险或关注点 | 是否计划修改 | 修改逻辑 | 当前结果 | 下一步 |
+|---|---|---|---|---|---|---|---|---|---|
+| DRR-2026-066 | 待修复 | 中 | 2026-09-13 | 诊断范围选择及用户当次限制 | 最初三个独立 Luna 样本有两个把未明确范围的诊断扩大到全部；后续发现用途猜库、未请求先诊断和冲突处理差异。最新 fixture 还出现检查明确禁止目标，属于违反用户当次意图，未证明配置中的 SQL/写策略被绕过。 | 路由指引已实现；明确禁止目标的行为仍未解决 | 9 月 22 日起统一 check_connection：默认／指定单查及显式 scope=all，共用独立诊断与报告契约；合并接口不等于补齐当次意图授权。普通无目标诊断仅默认；确定目标来自用户选择、可信请求绑定或唯一结构化 db_type 匹配。用途/指代/类型未明确时至多列配置后等待。对于已请求诊断，明确只允许一个确定目标或默认时限制宽泛范围；禁止包含连接诊断，拒绝部分或无法协调限制时等待。不增加服务器推断式会话路由或模型填写的确认字段。 | [9 月 15 日原生记录](../validation/v3.7/V3_7_3_LIVE_MCP_TEST_CONNECTION_ROUTING_2026_09_15_ZH.md)保留旧契约的 12 个上下文/36 次调用：用途、默认和全部工作流通过，三个冲突未澄清。后续[fixture 记录](../validation/v3.7/V3_7_3_LIVE_MCP_TEST_CONNECTION_BOUNDARIES_2026_09_15_ZH.md)两阶段共 15 个上下文/13 次调用；最终明确允许收窄的样本 2/2 通过、拒绝部分的样本停止，但明确禁止组仍有 2/3 上下文发起禁止目标检查，共三次调用。 | 保持开放；不改旧评分、不混合不同阶段错误率。9 月 22 日已连接 Host 暴露统一契约，各范围原生诊断通过；完整任务仍作为 fixture 证据独立评分。自然语言指引不能强制执行每次请求范围。要求硬性目标限制的部署，必须在上线前提供可信应用/Host 上下文及调用前校验，覆盖显式别名、实际隐式默认及批量的全部配置目标，见[严格部署验收条件](../guides/MCP_AGENT_BEHAVIOR_VALIDATION_ZH.md#18-限制优先级与配置解读的可复用验收)。受信任本地使用可保留该已知限制，不因此否定整次维护修复；不能用只读淡化禁止目标检查，也不无限堆叠同义提示。绑定/类型/其它模型等仍待验收，结果解读另记 068。 |
+| DRR-2026-067 | 已实现 | 低 | 2026-09-13 | 参数示例与工具 schema 不一致 | 三个完整 Luna 任务首次都向 `describe_table` 传了 `name`，而 schema 要求 `table_name`。公开 `list_tables` 描述和结果提示含 `describe_table(name)`；三次均被拒绝后纠正，增加延迟与失败点。已观察到关联，尚未证明因果，也无法确定校验发生在 Host 还是服务端具体组件。 | 示例修复完成；原生 Host 初步验收通过 | 以 table_name 和 skill_name 为唯一 schema 参数名，对齐工具 hint、实际获取的 sql_assistant 及当前 README 示例，保留历史轨迹。不新增别名或自动改参。 | 2026-09-15 三个原生完整任务再次首次正确传 table_name。完整 review 发现 Skill 工具还存在历史遗留的 name 示例，已统一当前示例为 skill_name。新增 mutation 注册开/关两种配置的 prompts/get 与 tools/list 对照，旧示例先失败、修复后通过；未执行 Skill 或 preview。元数据测试 49 passed；全量 637 passed、4 skipped；六个 Python 文件 Pyright 通过。 | 保留协议/schema 对照回归。Skill 参数补充修复的证据来自本地协议测试，本轮未做原生 Skill 行为实测。小样本不保证未来零误填，也不能关闭路由和结果解读风险。 |
+| DRR-2026-068 | 已实现 | 低 | 2026-09-15 | 把配置白名单说成数据库事实 | 三个原生 Luna 完整任务中，两次首轮仅 list_connections 就声称 SQLite 只有 orders 表。allowed_tables 是策略，不证明表存在或物理库完整清单；后续查询不能追认先前无依据的表述。 | 工具/结果说明及初步本地验收已实现 | list_connections 描述及新增 hint 明确配置允许范围；同步双语 README。发现配置仍不访问数据库，不为证明表述而自动探测结构。 | 三项协议用例证明列配置不连接、创建或修改存在/缺失的数据库，并区分配置、可见和物理表集合。全量 640 passed、4 skipped；七个 Python 文件 Pyright 通过。最终三个隔离 Luna fixture 样本均正确限定配置事实，见[补充实测](../validation/v3.7/V3_7_3_LIVE_MCP_TEST_CONNECTION_BOUNDARIES_2026_09_15_ZH.md)。 | 已实现表示代码/文档及初步本地验收，不保证未来零误述；9 月 22 日已连接 Host 已返回配置性质 hint；仅诊断冒烟不证明原生 Agent 已正确理解该 hint。保留原无依据表述，范围与解读分开评分；未新增运行时 gate 或自动结构探测。 |
+
+同日未修改版本复测：3 个新的相同含糊请求均选择批量工具，3 个新的完整会话
+也均先误传 `name` 后纠正。这些是追加基线证据，不是修改后验证；
+该次复测时 DRR-2026-066/067 均为待修复；上表证据保留 9 月 15 日的观察，066 当前方案于 9 月 22 日更新为统一接口。不同措辞或约束的样本不合并成总体错误率。
+
+可复用步骤见[Agent 行为验证方法](../guides/MCP_AGENT_BEHAVIOR_VALIDATION_ZH.md)。
+9 月 13–15 日的登记及提示／示例修正属于当时的文档和说明更新：该阶段输入契约、校验约束及既有输出字段保持不变，list_connections 的输出新增说明性 hint 字段。通常这是兼容的返回扩展，但自行使用封闭响应模型的客户端可能拒绝额外字段，需要同步更新模型，不能保证所有此类客户端都兼容。上表记录当前状态，未完成的行为和部署验收不标记关闭。
+方案参考 [Anthropic 的任务与轨迹评估建议](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents)
+及 [Google 的函数/参数说明建议](https://ai.google.dev/gemini-api/docs/function-calling)。
+
+### 统一诊断补充评审（2026-09-22）
+
+合并工具后 DRR-2026-066 仍保持开放。显式 `scope="all"` 是模型输入，不是许可；
+可信 Host／应用必须在每次动作前覆盖已解析别名、实际默认及全查的全部配置目标。
+历史失败仍是失败，源码／fixture 验证不能证明刷新后的原生 Host 验收通过。
+
+本次有意删除复数工具及旧单查输出。两种范围共用工作线程持有的新建连接和必填
+scope 的报告。客户端需要迁移解析，单查也承受现有忙／清理禁用的可用性代价。
+连通性与资源清理仍分开，不引入新的恢复或授权子系统。
+
+9 月 22 日的 C 文案试验又出现用途目标未确定却检查默认连接的样本。即使只读
+连接成功，它仍属于路由失败。最终源码按冻结规则恢复 B 文案，保留 C 失败轨迹；
+恢复 B 后的全新样本也出现同类默认探测，因此并非 C 独有。回退既不补齐当次
+授权缺口，也不证明 Agent 以后不会误用。
+
+后续已连接 Host 评审确认统一签名、默认／指定／全部诊断成功，以及冲突参数的
+工具错误。这消除了该 Host 的元数据刷新疑问，不代表补齐当次授权。用户授权
+补齐的完整任务独立于此前阻断记录，使用合成 SQLite 数据库，不能冒充原生
+业务工作流验收；历史禁止访问失败仍保留。
+新 cohort 已完成九个六轮任务、63 次 MCP 调用，未观察到新的范围违规；九次
+用户故意拼错的别名均拒绝且未回退。答复语言与百分比正文措辞偏差独立评分，
+这些新观察不抵销此前用途未定／明确禁止场景的失败。
+
+回归覆盖位于 `tests/test_connection_diagnostics.py` 及多连接／元数据协议测试。
+本轮验证与分阶段 Agent 结果见[9 月 22 日记录](../validation/v3.7/V3_7_3_LIVE_MCP_TEST_UNIFIED_CONNECTION_DIAGNOSTICS_2026_09_22_ZH.md)，上文数量均属于历史阶段。详见
+[设计与迁移记录](../guides/V3_7_CONNECTION_DIAGNOSTICS_DESIGN_ZH.md)。
+
+
+## 初始 v3.4.3 评审批次状态
+
+1. V343-001 是本组唯一运行时行为修改，已实现。
+2. V343-002 仅作为措辞/消息清理实现；adapter 级查询 streaming 暂缓。
+3. V343-003 至 V343-005 作为文档和工具描述清理实现。
+4. V343-006 至 V343-008 已明确作为文档和运维约束收口，而不是新增运行时控制。
+
+## 当前明确不做的事项
+
+- 面向任意 SQL 的通用 `query(limit, offset)` 或 cursor-token 分页。
+- 进程内 p50/p95 聚合或模型可见 stats 工具/资源。
+- 对所有基础工具统一添加严格 output schema。
+- 没有失效策略的 session schema cache。
+- 在出现明确客户端需求前新增 `db://schema` resource。
+- 在部署要求明确前加入进程内日志轮转/保留逻辑。
+- 没有隐私敏感部署需求时新增 raw SQL echo 开关或 audit 脱敏策略引擎。
+- 在启动期新增运行时生成的人工文档/维护产物；现有 `skills/SKILLS.md` 启动期生成已由 DRR-2026-001 跟踪。
+- 没有明确客户端/部署需求时新增展示型环境默认值或低层调优开关。
+- 没有明确启动需求时新增 import-time 文件系统副作用或配置读取，让测试必须靠 reload module 才能切换配置。
+- 对可以通过公开 helper 或 MCP tool 行为测试覆盖的逻辑新增源码字符串回归测试。
+- 在自由 `query(sql)` 工具中允许 MySQL `SELECT` 文件读写特性（`OUTFILE`、`DUMPFILE`、`LOAD_FILE`）。
+- SQL 方言把注释/引号当作语法时，仅依赖匹配普通空白或未引用形式的 regex 来阻断 system schema 与 SHOW 命令。
+- 本地 DB error logs 记录 SQLAlchemy 参数值。
+- 在仓库没有 CI workflow 时，声明测试会在 CI 中失败或由 CI 自动拦截。
+- 有结构化 URL API 可用时，仍用原始凭据字符串手写 SQLAlchemy database URL。
+- 将字符串前缀路径检查视为可信本地 Skills 代码的充分 containment。
+- 在 validation 尚未共享前，声明 query skill SQL 与自由 `query(sql)` 工具获得相同扩展 safety checks。
+- 将轻量 Skills params schema 描述成完整 JSON Schema，或在没有显式验证测试时新增参数类型。
+- 将 best-effort audit 写入描述成完整、fail-closed 的 mutation audit。
+- 没有显式 integration-test opt-in 时，让默认 pytest 连接 live database 或打印 sampled row data。
+- 将只有下限或未固定版本的依赖安装视为可复现 release input。
+- 没有版本特定证明时，把偏 SELECT 的 MySQL timeout 设置当作 mutation/lock-wait 保护。
+- 接受模型传入任意 DSN，或在 `connection_id` 未知时静默回退到默认连接。
+- 用一个目标连接计算 Skills 可用性，却用另一个目标连接执行。
+- 在 per-connection 写策略、preview/execute 目标绑定和 audit 语义设计完成前启用多连接 mutation 写入。
+- 将真实写入联调对被跟踪示例 fixture 数据库造成的副作用一并提交。
+- 在模型可见的 server instructions 或工具描述中，声称比当前配置下实际注册的工具界面更窄的能力。
+- 在已要求 preview-state binding 后，仍为状态敏感的 mutation Skill 保留第二条无绑定写入路径。
+- 编写无法触发失败的回归断言，或只搭建场景而不断言结果的测试。
+- 在默认 pytest 仍会从开发者 `.env` 读取 live database 配置时，声称它是 hermetic 的。
+
+## 更新流程
+
+当某个条目被实现、拒绝或重新定范围时：
+
+1. 更新 `状态`、必要时更新 `风险等级`、`是否计划修改`、`修改逻辑`、`当前结果` 和 `最近评审`。
+2. 行为修改必须补充或更新测试，并在条目中记录测试文件。
+3. 纯文档修改要记录修改过的文档，以及为什么不需要运行时测试。
+4. 策略条目在修改运行时行为前，先记录兼容性/安全取舍。
+5. 新增条目时，`首次登记日期` 填该风险首次进入本登记表的日期，而不是最近复审日期。
+6. 除非条目创建有误，不要删除历史条目；将旧条目标记为已接受、暂缓或不计划。
+
+## 评审清单
+
+- 是否新增了模型可见 tool、resource、prompt、schema 或 meta 字段？
+- 是否记录了 SQL、params、rows、用户标识、凭据或操作模式？
+- 是否引入可能无界增长或过期的进程内/session 状态？
+- 启动/import 路径是否写入生成式人工文档或维护产物？
+- 启动/import 路径是否在环境校验前创建文件、安装 handler 或冻结配置？
+- 公共内部边界是否依赖上游校验，而不是自己做最小 identifier validation/quoting？
+- 顶层 read-only SQL 类型是否仍能在当前方言中执行文件 I/O、读取 server 文件或包含嵌套 DML？
+- 在返回 sanitized client error 前，日志里是否已经包含 raw SQL、bound params、secret 或 SQLAlchemy 参数 dump？
+- 文档是否声明了 CI、生产或自动化 enforcement，而仓库实际上没有提供？
+- database URL 和 DB error log 的构造方式是否可能暴露或误解析 credentials/parameters？
+- Skills path、frontmatter 字段、mutation class 和自定义参数 schema 是否在 loader 边界 fail closed？
+- Query skills 与自由 query tool 是否共享同一 SQL safety policy？如果没有，文档是否分别说明？
+- 默认 pytest 是否保持 hermetic，还是在未显式 opt-in 时也会连接 live database 并打印数据？
+- 依赖版本是否能复现当前声明的行为和 API？
+- Timeout 表述是否由实际执行的数据库语句类型支持，尤其是 writes 和 lock waits？
+- 是否让昂贵数据库操作看起来像轻量元数据？
+- 是否先解析 `ConnectionContext`，再做 policy、readiness、helper SQL、执行、metadata、audit 和 telemetry？
+- Skills 的列表/详情/执行是否使用同一目标连接，并在未知 connection id 时 fail closed？
+- 新增日志/meta/audit 字段是否暴露了连接串、host、用户、密码、SQLite 路径、SQL params 或返回行？
+- 是否声明了代码无法保证的校验、完整性、精确性或排序？
+- 测试是否覆盖了预期路径和被拒绝的失败模式？
+- 本次 diff 是否把真实联调对被跟踪二进制或示例 fixture 的副作用，当成了有意变更？
+- server `instructions` 和工具描述是否与当前 feature switch 下实际注册的工具界面一致？
+- 默认测试套件是否隔离了代码在 import 时读取的全部配置变量，而不只是之前弄坏过 fixture 的那几个？
+- 新增的每条断言是否真的可能失败，新增测试是否断言了其名称声称覆盖的行为？

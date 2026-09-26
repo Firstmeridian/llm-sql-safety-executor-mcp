@@ -31,12 +31,12 @@ def test_local_skills_are_ignored_except_explicit_bundled_directories(tmp_path: 
         "skills/sample-monthly-sales-report-sqlite/skill_def.md": False,
         "skills/sample-update-order-status/mutation.py": False,
         "skills/sample-reset-order-to-pending/mutation.py": False,
-        "skills/_lib/skill_loader.py": False,
+        "skills/_lib/skill_loader.py": True,
         "skills/_lib/__pycache__/skill_loader.cpython-312.pyc": True,
         "skills/sample-update-order-status/__pycache__/mutation.cpython-312.pyc": True,
         "skills/SKILLS.md": True,
         "skills/_audit.jsonl": True,
-        "skills/SAFETY.md": False,
+        "docs/security/SAFETY.md": False,
         "tests/fixtures/skills/my-report/skill_def.md": False,
     }
     for relative_path in cases:
