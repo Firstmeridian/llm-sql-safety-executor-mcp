@@ -33,6 +33,8 @@ Guides stay under `docs/guides/` even when their titles identify an earlier vers
 
 ## Releases and validation
 
+- [v3.8 independent review fixes (Chinese)](validation/V3_8_REVIEW_FIXES_2026_09_27_ZH.md): confirmed findings, CI failure, production-path regressions and remaining acceptance limits.
+
 - [v3.8 local live review (Chinese)](validation/V3_8_LIVE_REVIEW_2026_09_26_ZH.md): Host launch repair, database checks, nine Luna CLI trials, subsequent native reconnection and three six-turn agent trials, with failures and acceptance limits preserved.
 - [v3.8 release notes](releases/RELEASE_NOTES_v3_8.md) and [validation / actual Host limitations (Chinese)](validation/V3_8_VALIDATION_ZH.md).
 - [v3.7 releases](releases/RELEASE_NOTES_v3_7.md), [v3.6](releases/RELEASE_NOTES_v3_6.md), [v3.5](releases/RELEASE_NOTES_v3_5.md).

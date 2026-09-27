@@ -49,8 +49,15 @@ def _require_capabilities(ctx):
         )
 
 
-def _ask(record, state):
+def _ask(record, state, connection):
     return InputRequiredResult(
+        _meta={
+            "tool_name": "request_mutation_approval",
+            "connection_id": connection.connection_id,
+            "db_type": connection.db_type,
+            "phase": "awaiting_approval",
+            "success": None,
+        },
         result_type="input_required",
         input_requests={
             "approval": ElicitRequest(
@@ -160,7 +167,7 @@ async def request_approval(runtime, skill_name, params, ctx, connection_id=None)
             "Mutation proposal unavailable, expired, consumed, or mismatched. Do not infer a previous write outcome or automatically retry."
         )
     if responses is None or "approval" not in responses:
-        return _ask(record, state)
+        return _ask(record, state, connection)
     answer = responses["approval"]
     if not isinstance(answer, ElicitResult):
         raise OperationError("Invalid approval response type")
@@ -203,7 +210,7 @@ async def request_approval(runtime, skill_name, params, ctx, connection_id=None)
         or answer.content.get("approve") is not True
     ):
         # Re-ask the same proposal; never turn strings or numbers into approval.
-        return _ask(record, state)
+        return _ask(record, state, connection)
     result = await service.execute(
         skill_name, normalized, operation_context, token, connection.connection_id
     )

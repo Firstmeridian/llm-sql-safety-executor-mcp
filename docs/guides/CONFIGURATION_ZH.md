@@ -10,6 +10,8 @@ sql-safety-executor config explain --config /path/server.toml
 
 `check` 和 `explain` 使用与启动相同的加载器，解析所有显式密钥引用，但不连接数据库、不导入 Skill、不创建日志。检查成功不代表数据库可达或 Skill 可执行。`explain` 展示生效值、声明文件/内置来源、超时继承来源及权限条件；密码始终脱敏。异常仅输出文件、字段与错误类别，不输出原始配置片段。
 
+语义错误保留程序定义的安全错误码，例如 `exactly_one_secret_source_required`（密钥必须恰选一种来源）、`tables_require_allowlist_mode`（填写 tables 时必须使用 allowlist）、`union_requires_explicit_table_scope`（UNION 缺少有效读取范围）、`mrtr_requires_skills_and_mutations`（MRTR 依赖开关未开启）。不会直接输出 Pydantic 原始消息、输入或异常上下文；密钥读取失败仍使用统一错误类别，不泄露内容。
+
 ## 文件与路径
 
 三文件各有顶层 `schema_version = 1`，由 `tomllib` 解析、严格 Pydantic 模型校验。禁止未知字段、字符串布尔值、字符串数字、负数限额和越界令牌配置；不再静默回落。TOML 重复键/重复连接声明直接报错。别名必须符合 `[a-z][a-z0-9_]{0,63}`，不接受声明重复大小写别名。
@@ -37,7 +39,7 @@ sql-safety-executor config explain --config /path/server.toml
 | `skills.enabled` / `directory` | false / `../skills` |
 | `skills.discovery.default_detail` / `available_only` | summary / true；detail 为 compact、summary、full |
 | `skills.readiness.check_schema` | true；同时影响发现与执行前就绪检查 |
-| `skills.policy.exclude_profiles` | []；执行限制，不只是隐藏列表 |
+| `skills.policy.exclude_profiles` | []；严格字符串数组，去首尾空白、转小写并去重；空白项报错。执行限制，不只是隐藏列表 |
 | `skills.mutation.enabled` / `allowed_connections` | false / [] |
 | `skills.mutation.preview.ttl_seconds` | 300，范围 1…86400 |
 | `skills.mutation.preview.max_entries` | 10000，范围 1…100000 |
@@ -65,6 +67,10 @@ mysql.password = { value = "literal" }        # 三选一
 ## 读取和写入
 
 `read.mode = "deny"` 阻止读取。`allowlist` 只授权列出的表，空表集合不授权；`all` 必须显式设置且不能同时填写 `tables`。表名不允许 `*`，需要全部权限时用 `all`。查询继续通过完整的只读语法、系统 schema、文件操作、UNION 和表范围检查；旧的部分检查 `execute_sql()` 已移除。
+
+Query Skill 的发现、详情和执行共享无数据库 I/O 的读取准入判断；即使 SQL 为 `SELECT 1`、没有声明表，deny 或空 allowlist 下也不可执行，并从 `available_only=true` 的发现中隐藏。已配置的 schema readiness 是另一项检查，仍可能访问数据库元数据。
+
+`exclude_profiles = ["DEMO", " demo "]` 的快照等同于 `["demo"]`；`[]` 不排除任何 profile，`[""]` 或纯空白项以 `nonempty_profile_name_required` 报错，数字/布尔值不会转为字符串。该规范化只用于 profile 标签，不适用于密钥内容。此项修复会让之前误写大小写或空白的排除配置真正生效，重启前应运行 `config check/explain` 核对。
 
 `allow_union = true` 还要求有效表范围。特别注意：旧空白名单读取本来较宽松，但 `ALLOW_UNION=1` 与旧空名单组合仍禁止 UNION。迁移成 `mode="all"` 时必须保留 `allow_union=false`，除非另行明确扩大权限。不能将旧配置字段机械逐项转换。
 

@@ -1,5 +1,7 @@
 # v3.8 验收记录 · 2026-09-26
 
+> **2026-09-27 更正验收范围：** 下文的 744 passed 是提交前的历史本地运行，未覆盖最后一次工具说明修改。提交 `1be44b4` 的 [GitHub Actions](https://github.com/Firstmeridian/llm-sql-safety-executor-mcp/actions/runs/36252844733) 实际为 1 failed、743 passed、4 skipped，类型检查、构建与 wheel 验证被跳过。“未推送触发”仅描述当时状态。后续修复和新验证见[外部评审处理记录](V3_8_REVIEW_FIXES_2026_09_27_ZH.md)，不回改下方历史结果。
+
 后续本地实测见[本地 live Review](V3_8_LIVE_REVIEW_2026_09_26_ZH.md)：补充 Host 旧入口修复、真实 MySQL 连通、测试 SQLite 写入闭环和 9 次 Luna 原生 CLI 观察；用户重启后的[原生补测](V3_8_LIVE_REVIEW_2026_09_26_ZH.md#服务重连后的原生补测)另有当前会话直接调用及三组 Luna 六轮任务。以下历史运行结果保留各自范围，后续试验不覆盖或改写其失败与限制。
 
 基线 `582822b`：Python 3.12.3 / FastMCP 3.0.2 / MCP SDK 1.26.0，676 passed、4 skipped。原工具参数与描述摘要已保存为 [baseline_contract.json](v3.8/baseline_contract.json)。原实测资料完整保存在 [v3.7](v3.7/)，本次不重写其失败与结论。

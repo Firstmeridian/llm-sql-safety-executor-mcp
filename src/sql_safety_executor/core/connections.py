@@ -81,7 +81,7 @@ def _policy_summary(policy: ConnectionPolicy) -> dict[str, Any]:
 
     return {
         "read_mode": policy.read_mode,
-        "read_enabled": policy.read_mode != "deny" and bool(allowed_tables),
+        "read_enabled": read_access_enabled(policy),
         "allow_union": policy.allow_union,
         "allowed_tables_mode": mode,
         "allowed_tables": values,
@@ -102,9 +102,13 @@ def _public_database_name(connection: ConnectionContext) -> str | None:
     return connection.adapter.get_database_name()
 
 
+def read_access_enabled(policy: ConnectionPolicy) -> bool:
+    """Check the read grant without I/O, independently of referenced tables."""
+    return policy.read_mode == "all" or (
+        policy.read_mode == "allowlist" and bool(policy.allowed_tables)
+    )
+
+
 def require_read_access(connection: ConnectionContext) -> None:
-    policy = connection.policy
-    if policy.read_mode == "deny" or (
-        policy.read_mode == "allowlist" and not policy.allowed_tables
-    ):
+    if not read_access_enabled(connection.policy):
         raise ToolError("Reading is disabled by the target connection read policy.")

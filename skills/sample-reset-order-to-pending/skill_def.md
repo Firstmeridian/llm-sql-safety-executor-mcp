@@ -28,7 +28,7 @@ databases: [mysql, sqlite]
 # Optional deployment scope. Prefer dedicated demo/test connection aliases;
 # omission preserves portability but does not grant access to any connection.
 # connection_ids: [orders_demo_mysql, orders_demo_sqlite]
-# Operational tags used by SKILLS_EXCLUDE_PROFILES and catalog filtering.
+# Operational tags used by skills.policy.exclude_profiles and catalog filtering.
 profiles: [demo]
 # Tables required for readiness checks and documentation; database grants and
 # server allowlists remain authoritative. orders.id must be PRIMARY KEY/UNIQUE.

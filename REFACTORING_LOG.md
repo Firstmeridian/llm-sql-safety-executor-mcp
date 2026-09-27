@@ -2,7 +2,7 @@
 
 English | [中文](REFACTORING_LOG_ZH.md)
 
-**Date:** December 2, 2025 (Updated: September 26, 2026)
+**Date:** December 2, 2025 (Updated: September 27, 2026)
 **Author:** Code Refactoring Session
 
 ## Overview
@@ -10,6 +10,33 @@ English | [中文](REFACTORING_LOG_ZH.md)
 This actively maintained log records the project’s refactoring, design decisions, compatibility changes, trade-offs and validation. It began with `mcp_sql_server.py` and now also covers the installed `sql_safety_executor` package.
 
 Dated entries preserve the interfaces, configuration and evidence from their own version. Old filenames, environment variables, test counts and failures remain historical; use the newest entry and linked current guides for deployment. Future implementation changes should update both language editions without rewriting earlier outcomes.
+
+## v3.8.0 independent review fixes (September 27, 2026)
+
+- Verified both external reviews against `1be44b4` and the failed Actions run.
+  Its outdated tool-description assertion caused 1 failed / 743 passed / 4
+  skipped; later CI steps were skipped. The earlier 744-pass local result
+  preceded the final prompt edit. Updated the test to enforce all five write
+  gates and equal treatment of the default target, preserving the prompt.
+- Normalize excluded profiles after strict type validation; reject blank
+  entries. Share read admission across discovery and execution, including
+  tableless Query Skills. Preserve safe semantic configuration error codes
+  without printing raw values or exception context.
+- Attribute MRTR waiting/repeated rounds to the validated target and preserve
+  decline/cancel phases. Unknown result identity remains null, never a guessed
+  default. SDK rejection before middleware may produce no telemetry event.
+- Share approval deadlines, displayed-review fingerprints and expiry rechecks
+  between preview and MRTR reference Hosts. Late or altered approval fails
+  closed; this is not isolation of malicious in-process providers.
+- Added 42 production-loader/real-FastMCP/temporary-SQLite regressions. Full
+  CI-equivalent checks and the pending remote rerun are recorded separately in
+  [review validation](docs/validation/V3_8_REVIEW_FIXES_2026_09_27_ZH.md).
+  Clarified deferred trusted task-scope grants, catalog/readiness separation
+  and cross-round tracing. No new native UI or live MySQL acceptance is claimed.
+- Final documentation review clarified the profile array type and checked
+  local links. After the user's restart, four native calls verified connection
+  discovery, a constant SQLite query, Query Skill detail and unknown-target
+  rejection. No mutation was invoked; native MRTR remains unverified.
 
 ## v3.8.0 native reconnection verification (September 26, 2026)
 

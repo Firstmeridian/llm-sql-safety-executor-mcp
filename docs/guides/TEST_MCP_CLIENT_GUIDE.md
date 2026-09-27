@@ -99,6 +99,14 @@ reference Host accepts only literal `APPROVE`; its default approval deadline is
 60 seconds and its default tool timeout is 120 seconds. The server's original
 proposal expiry also remains authoritative.
 
+Both flows share an outer deadline, a fingerprint of the displayed review
+(including nested values), and an expiry recheck after approval. A custom
+provider returning late or modifying the view cannot approve execution. The
+deadline is separate from server token TTL. These checks guard buggy trusted
+providers; they cannot forcibly stop hostile or permanently blocking Python.
+MRTR cancels the proposal for detected failures, while a lost connection or
+external cancellation may leave it pending until expiry.
+
 MRTR requires the modern protocol and form elicitation, and supports only
 managed single-statement mutations. The Host displays the review and collects
 the decision; the server validates bindings and consumes a proposal once. A

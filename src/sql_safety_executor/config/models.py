@@ -1,6 +1,6 @@
 """Strict file schemas. No environment sources or implicit configuration search."""
 
-from typing import Literal, get_origin
+from typing import Literal, LiteralString, get_origin
 
 from pydantic import (
     BaseModel,
@@ -10,6 +10,16 @@ from pydantic import (
     field_validator,
     model_validator,
 )
+from pydantic_core import PydanticCustomError
+
+
+def _config_error(code: LiteralString) -> PydanticCustomError:
+    """Use only static, program-defined codes; never interpolate config values.
+
+    The loader reports error types instead of validation messages/inputs, so
+    semantic failures must carry their safe reason in the type as well.
+    """
+    return PydanticCustomError(code, code)
 
 
 class Model(BaseModel):
@@ -35,7 +45,7 @@ class SecretSource(Model):
     @model_validator(mode="after")
     def one_source(self):
         if sum(v is not None for v in (self.value, self.env, self.file)) != 1:
-            raise ValueError("exactly_one_secret_source_required")
+            raise _config_error("exactly_one_secret_source_required")
         return self
 
 
@@ -111,13 +121,13 @@ class ReadPolicy(Model):
     @model_validator(mode="after")
     def table_scope(self):
         if self.tables and self.mode != "allowlist":
-            raise ValueError("tables_require_allowlist_mode")
+            raise _config_error("tables_require_allowlist_mode")
         if any(not t.strip() or "*" in t for t in self.tables):
-            raise ValueError("explicit_table_names_required")
+            raise _config_error("explicit_table_names_required")
         if self.allow_union and (
             self.mode == "deny" or self.mode == "allowlist" and not self.tables
         ):
-            raise ValueError("union_requires_explicit_table_scope")
+            raise _config_error("union_requires_explicit_table_scope")
         return self
 
 
@@ -133,7 +143,7 @@ class ConnectionMutation(Model):
         if any(
             v != "*" and not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,63}", v) for v in value
         ):
-            raise ValueError("invalid_skill_name")
+            raise _config_error("invalid_skill_name")
         return value
 
 
@@ -160,9 +170,9 @@ class Connection(Model):
     @model_validator(mode="after")
     def backend(self):
         if self.type == "mysql" and (self.mysql is None or self.sqlite is not None):
-            raise ValueError("mysql_settings_required_sqlite_forbidden")
+            raise _config_error("mysql_settings_required_sqlite_forbidden")
         if self.type == "sqlite" and (self.sqlite is None or self.mysql is not None):
-            raise ValueError("sqlite_settings_required_mysql_forbidden")
+            raise _config_error("sqlite_settings_required_mysql_forbidden")
         return self
 
 
@@ -178,7 +188,7 @@ class ConnectionsFile(Model):
         if not value or any(
             not re.fullmatch(r"[a-z][a-z0-9_]{0,63}", k) for k in value
         ):
-            raise ValueError("nonempty_canonical_connection_aliases_required")
+            raise _config_error("nonempty_canonical_connection_aliases_required")
         return value
 
 
@@ -193,6 +203,16 @@ class Readiness(Model):
 
 class SkillPolicy(Model):
     exclude_profiles: tuple[str, ...] = ()
+
+    @field_validator("exclude_profiles")
+    @classmethod
+    def normalize_profiles(cls, value: tuple[str, ...]) -> tuple[str, ...]:
+        # Run after strict string validation. Empty policy is allowed; empty
+        # entries are configuration mistakes, not a silent exclusion bypass.
+        normalized = tuple(profile.strip().lower() for profile in value)
+        if any(not profile for profile in normalized):
+            raise _config_error("nonempty_profile_name_required")
+        return tuple(dict.fromkeys(normalized))
 
 
 class Preview(Model):
@@ -229,7 +249,7 @@ class Skills(Model):
     @model_validator(mode="after")
     def switches(self):
         if self.mutation.mrtr.enabled and not (self.enabled and self.mutation.enabled):
-            raise ValueError("mrtr_requires_skills_and_mutations")
+            raise _config_error("mrtr_requires_skills_and_mutations")
         return self
 
 

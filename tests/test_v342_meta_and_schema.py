@@ -747,10 +747,16 @@ def test_schema_tool_descriptions_guide_minimal_discovery_path(base_server):
     assert "not complete DDL" in descriptions["describe_table"]
     assert "primary tool for free-form read-only SQL" in descriptions["query"]
     assert "metadata tools for schema discovery" in descriptions["query"]
-    assert "strict named-write policy" in descriptions["list_connections"]
-    assert "default alias in compatibility mode" in descriptions[
-        "list_connections"
-    ]
+    connection_description = descriptions["list_connections"]
+    for requirement in (
+        "Skills and global writes to be enabled",
+        "connection to be globally admitted",
+        "connection writes to be enabled",
+        "Skill to be allowlisted for that connection",
+        "requirements also apply to the default connection",
+        "no default-only compatibility grant",
+    ):
+        assert requirement in connection_description
     assert "Discovery itself never authorizes writes" in descriptions[
         "list_connections"
     ]

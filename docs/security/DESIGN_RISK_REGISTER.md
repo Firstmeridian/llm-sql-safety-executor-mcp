@@ -7,12 +7,23 @@
 > Native Host compatibility must be reported per observed version/protocol, separately from reference Client success.
 > DRR-2026-056 is resolved for v3.8 by removing the partial-policy `execute_sql()` entry point; direct query integrations now use the shared full-policy service. See [migration](../guides/CONFIGURATION_ZH.md) and [validation](../validation/V3_8_VALIDATION_ZH.md).
 
+> **Review follow-up (2026-09-27):** Profile normalization, tableless Query Skill
+> availability, MRTR telemetry attribution and reference Host deadline/review
+> checks are fixed; semantic configuration errors retain safe reason codes.
+> See the [findings and validation](../validation/V3_8_REVIEW_FIXES_2026_09_27_ZH.md).
+> Accepted limits remain explicit: deployment grants are not authenticated
+> per-request task grants (D01); catalog/readiness separation (D04) and complete
+> cross-round tracing (D07) remain deferred. Unknown telemetry identity is null;
+> SDK rejection before middleware may leave no event. Shared Host safeguards
+> do not isolate malicious Python. The original CI failure remains recorded;
+> local validation does not establish a successful remote run or native MRTR UI.
+
 # Design Risk Register
 
 English | [中文](DESIGN_RISK_REGISTER_ZH.md)
 
 Date opened: 2026-05-24
-Last reviewed: 2026-09-26 (v3.8 addendum; historical rows retain their original review dates)
+Last reviewed: 2026-09-27 (v3.8 review fixes; historical rows retain their original review dates)
 
 Document status: Living design and operations risk register.  
 Initial review batch: v3.4.3.

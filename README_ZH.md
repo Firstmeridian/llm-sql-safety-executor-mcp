@@ -784,7 +784,7 @@ agent_id = "unknown"
 | `discovery.default_detail` | summary | compact / summary / full；可被单次调用覆盖 |
 | `discovery.available_only` | true | 隐藏当前目标不可执行的 Skill；false 用于目录诊断，不授予权限 |
 | `readiness.check_schema` | true | 影响发现与执行；缺表或元数据不可用时 fail closed，禁用不等于已证实就绪 |
-| `policy.exclude_profiles` | [] | 匹配 profile 不可执行，并从默认发现面隐藏 |
+| `policy.exclude_profiles` | [] | 字符串去首尾空白、转小写并去重；空白项报错。匹配 profile 不可执行，并从默认发现面隐藏 |
 | `mutation.enabled` | false | 写入总开关，还需其它四层配置条件 |
 | `mutation.allowed_connections` | [] | 精确连接准入，空名单不授权；还需连接 Skill 名单 |
 | `mutation.preview.ttl_seconds` | 300 | 1～86400 秒；非法值启动报错，不静默回落 |
@@ -805,6 +805,8 @@ agent_id = "unknown"
 `examples/manual_mutation_approval.py` 用当前 Python 启动安装后的包，要求 `--config`；`--flow preview` 为默认。它在同一 stdio Client/子进程中保留精确参数和提案，只接受截止时间内的字面值 `APPROVE`。`--flow mrtr` 需要在 Skills TOML 显式启用 MRTR、托管单语句 Skill、MCP `2026-07-28` 及 Host 表单能力。
 
 MRTR 保存最多 64 KiB 的同一审阅快照，用框架密封状态续接；缺回答重发，不重新 preview，不延长原期限。只有有效 accept 且布尔 approve=true 才执行。拒绝/取消关闭提案；既有 preview 示例的本地拒绝不主动撤销服务端令牌，令牌仍按 TTL 过期。两条流程都不自动重试未知写入。
+
+参考 Host 的两条流程都强制执行外层审批期限、校验展示内容未被修改，并在接受批准前复核有效期。MRTR 等待/重发遥测使用已验证的目标，拒绝/取消分别记录 `approval_declined` / `approval_cancelled`；未取得可信目标的调用保留空目标字段。SDK 在中间件前拒绝的请求可能没有遥测事件。详见[评审修复与验收](docs/validation/V3_8_REVIEW_FIXES_2026_09_27_ZH.md)。
 
 批准仍信任 Host，并非独立的人类身份认证。审阅及终端结果可能含业务数据；密封状态也应视为敏感。子进程仍继承调用者导出的环境，生产 Host 应按自身需要收窄环境。此行为不恢复旧 `.env` 配置通道。
 
@@ -870,7 +872,7 @@ SQLite 初始化拒绝覆盖已有文件；MySQL 初始化遇到现存 orders �
 - 三文件 TOML、显式 `--config`、严格模型、密钥来源、离线 `config check/explain`；读取默认 deny，写入要求全部准入条件，移除 default-only 兼容授权和弱 `execute_sql()` 入口。
 - 默认关闭的 `request_mutation_approval` 仅支持托管单语句；密封续接、64 KiB 审阅上限、严格批准值、原期限校验及单次消费，不自动重试未知写入。
 - 公开 Skill SDK 导入迁移，允许显式外部可信目录；更新客户端、AutoGen 隔离环境、迁移文档、依赖锁与 CI。
-- 自动化 744 passed、4 skipped，类型检查和仓库外 wheel 验证通过。后续实测已验证 MySQL 连通/基础读取、原生 Codex 的 SQLite preview/execute 及数据恢复，以及三组隔离 Luna 六轮路由任务。早期 MRTR 调用拦截仍保留记录；原生 MRTR/人工审批 UI、Copilot、MySQL 写入与远端 CI 仍未验收。
+- 早期本地自动化记录为 744 passed、4 skipped；提交 `1be44b4` 后 CI 因旧工具说明断言失败，详见[评审修复与当前验收](docs/validation/V3_8_REVIEW_FIXES_2026_09_27_ZH.md)。实测已验证 MySQL 连通/基础读取、原生 Codex 的 SQLite preview/execute 及数据恢复，以及三组隔离 Luna 六轮路由任务。原生 MRTR/人工审批 UI、Copilot 与 MySQL 写入仍未验收；保留早期 MRTR 调用拦截记录。
 
 参见 [v3.8 发布说明](docs/releases/RELEASE_NOTES_v3_8.md) 和 [验收记录](docs/validation/V3_8_VALIDATION_ZH.md)。以下历史条目保留当时版本的配置、路径与结论，不作为 v3.8 部署指令。
 
@@ -2157,7 +2159,7 @@ uv run pyright
 uv build
 ```
 
-v3.8 实测：744 passed、4 skipped；类型检查无错误，wheel 在独立环境、仓库外 cwd 加载提示词并完成新旧协议查询。四项 MySQL 实库检查未启用。CI 已配置这些步骤，尚未推送触发；实际 Host 的通过/限制分别记入[验收文档](docs/validation/V3_8_VALIDATION_ZH.md)。
+早期本地 v3.8 实测为 744 passed、4 skipped，类型检查及安装后 wheel 验证通过。提交后，[`1be44b4` 的 CI](https://github.com/Firstmeridian/llm-sql-safety-executor-mcp/actions/runs/36252844733) 因旧提示词断言失败，后续步骤被跳过。[9 月 27 日评审修复记录](docs/validation/V3_8_REVIEW_FIXES_2026_09_27_ZH.md) 分别记录修复、本地 CI 等价检查和待触发的远端运行。四项 MySQL 实库测试仍未启用；实际 Host 证据继续保持[验收文档](docs/validation/V3_8_VALIDATION_ZH.md)中的范围。
 
 后续[本地实测与原生重连测试](docs/validation/V3_8_LIVE_REVIEW_2026_09_26_ZH.md)验证了 MySQL 连通/基础读取及原生 SQLite 预览、执行和补偿。三个隔离上下文 GPT-6 Luna 各完成六轮任务（共 22 次调用，未观察到误访问）；主持者写入试验的夹具已恢复。这与四项跳过的 MySQL 集成测试分别记录，不代表原生 MRTR、人工审批 UI 或 MySQL 写入已通过。原生子代理未暴露 usage/协商协议，不据此推算费用或协议版本。
 

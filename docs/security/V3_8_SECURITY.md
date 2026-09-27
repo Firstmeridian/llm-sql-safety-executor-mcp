@@ -10,6 +10,10 @@ Read access defaults to deny. An explicit allowlist (nonempty) or `all` grants r
 
 Writes require all five configuration gates: Skills, global mutation enablement, admitted target, target mutation enablement, and target Skill allowlist. Skill connection/type/profile restrictions and execution checks remain conjunctive. Read allowlists are not universal mutation allowlists. Authorized previews/readiness checks may inspect mutation business tables even if general reads are denied.
 
+Profile exclusions are normalized once in the TOML loader (trim, lowercase, deduplicate); blank entries fail startup. Query Skill availability uses the same read-admission predicate as execution, including tableless SQL. These checks do not grant mutation access.
+
+Explicit target binding and deployment permissions do not authenticate the user's natural-language task scope. `OperationContext` carries operational callbacks, not a trusted per-request authorization grant. A Host-authenticated task-scope boundary remains deferred; an Agent can request any operation that the deployment otherwise authorizes.
+
 ## Proposals and MRTR
 
 - `execute_mutation_skill` retains preview/execute and its opaque 256-bit random bearer handle. Only a digest is used as the token-store key; possession still represents a capability.
@@ -25,11 +29,15 @@ Writes require all five configuration gates: Skills, global mutation enablement,
 
 Token state, diagnostics, connections and catalog are instance-owned and in-memory. Shutdown clears pending proposals. Restart cannot recover approvals. There is no distributed or durable completion ledger. Capacity is count-based; with the configured review/binding maxima, administrators should size `max_entries` for memory use rather than blindly choosing the maximum.
 
+The reference Host's preview and MRTR flows share an outer approval deadline, a fingerprint of the displayed review (including nested values), and a post-decision expiry check. Late approval, altered review, invalid decisions or provider errors fail closed. Host approval timeout is independent of server token TTL. Cooperative providers are cancelled; a blocking provider or one suppressing cancellation is rejected when it returns, but this is not a hard termination or isolation guarantee against hostile Python. MRTR sends cancellation for these failures; external task/transport cancellation can leave a proposal pending until TTL. No automatic write retry is introduced.
+
 ## Outcome and observability
 
 `success` reports handler completion. `execution_outcome` reports transaction evidence: `not_executed`, `rolled_back`, `committed`, `unknown`. A committed write can have `success=false` when notification/serialization fails. Core result construction validates serializability inside the outcome boundary. Later network loss remains uncertain to the caller. Never automatically retry an uncertain write.
 
 Audit remains **best-effort**. It may fail after a write and is not an authorization ledger. Audit may contain business parameters (bounded strings, not universal content redaction); restrict access. Metadata-only tool telemetry omits SQL, params, rows, credentials and token identifiers. An MRTR input-required round has `phase=awaiting_approval` and `success=null`, not business success. Diagnostic busy/draining/cleanup-failed protection is retained. No application result cache is enabled for previews, executes or MRTR.
+
+Waiting and missing-answer MRTR rounds carry the validated target in result metadata; FastMCP stores it under `InputRequiredToolResult.input_required.meta`. Decline/cancel phases are `approval_declined` / `approval_cancelled`. Ordinary results use validated result metadata too; without it, `connection_id` and `db_type` remain null, including early rejections. Telemetry never guesses the default or echoes an unvalidated target. Diagnostics retain their separately validated scope behavior. Sealed-state rejection may occur before middleware and produce no tool telemetry event. These records are not a complete request ledger or a cross-round operation trace.
 
 Database least privilege remains necessary. SQL parsing is a conservative safety filter, not a complete proof of all DB-specific side effects. Read-shaped functions and database-specific behavior retain the existing risk scope. Response truncation is not a database work or peak-memory limit. Synchronous backend work can outlast an outer timeout; reconcile state before retrying.
 

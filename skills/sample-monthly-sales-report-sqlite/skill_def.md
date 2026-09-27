@@ -27,7 +27,7 @@ databases: [sqlite]
 # Optional deployment scope (connection aliases, not DB types or schema checks).
 # Uncomment and adapt only when this deployment must restrict the Skill.
 # connection_ids: [analytics_demo_sqlite, live_test_sqlite]
-# Operational tags used by SKILLS_EXCLUDE_PROFILES and catalog filtering.
+# Operational tags used by skills.policy.exclude_profiles and catalog filtering.
 profiles: [demo]
 # Strict input schema; undeclared params and invalid values are rejected.
 params:

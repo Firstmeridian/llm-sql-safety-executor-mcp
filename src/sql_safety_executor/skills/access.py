@@ -8,6 +8,7 @@ from sql_safety_executor.core.types import (
 )
 from sql_safety_executor.database.models import DatabaseConfig
 from sql_safety_executor.database.outcomes import MetadataQueryError
+from sql_safety_executor.core.connections import read_access_enabled
 from sql_safety_executor.skills.catalog import SkillMetadata
 
 logger = logging.getLogger(__name__)
@@ -321,6 +322,10 @@ def _skill_availability_state(
     if mutation_policy_reason:
         reasons.append(mutation_policy_reason)
         policy_allowed = False
+
+    if meta.type == "query" and not read_access_enabled(connection.policy):
+        policy_allowed = False
+        reasons.append("Reading is disabled by the target connection read policy.")
 
     blocked_tables = _query_skill_blocked_tables(meta, connection)
     if blocked_tables:

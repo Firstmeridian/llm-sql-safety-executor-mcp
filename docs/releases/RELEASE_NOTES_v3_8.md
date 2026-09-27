@@ -23,10 +23,21 @@ Update the Host's actual saved command/args as well as the repository template, 
 
 ## Validation limits
 
-See [the validation record](../validation/V3_8_VALIDATION_ZH.md) and [subsequent live review](../validation/V3_8_LIVE_REVIEW_2026_09_26_ZH.md). The full suite recorded 744 passed / 4 skipped; a later focused suite recorded 66 passed. Reference FastMCP modern MRTR and legacy preview/execute are automated.
+See [the validation record](../validation/V3_8_VALIDATION_ZH.md) and [subsequent live review](../validation/V3_8_LIVE_REVIEW_2026_09_26_ZH.md). Earlier local runs recorded 744 passed / 4 skipped and a later focused 66 passed. The submitted `1be44b4` then failed CI on a stale description assertion; later steps were skipped. [September 27 review fixes](../validation/V3_8_REVIEW_FIXES_2026_09_27_ZH.md) record the corrective tests and complete local CI-equivalent checks separately from the pending remote rerun. Reference FastMCP modern MRTR and legacy preview/execute are automated.
 
 After fixing the saved Codex launch entry and reconnecting, the current IDE Host completed 23 native calls, including a controlled SQLite preview/execute/compensation cycle with the fixture restored. Three isolated GPT-6 Luna agents completed 18 routing rounds with 22 native calls and no observed wrong-target access. Real MySQL connectivity/basic reads passed; the four optional MySQL integration tests remain skipped, and MySQL writes/failure recovery remain unverified.
 
-The earlier native MRTR dispatch was blocked by Host policy; subsequent local tests kept MRTR disabled. Neither native MRTR nor a human approval UI is claimed as passed. Copilot interactive behavior and remote CI remain unverified. Native subagent token usage and negotiated protocol were not exposed; reference Client versions are not substituted for them. Historical failures, including one rejected-and-corrected UNION in the earlier CLI trials, remain in the evidence.
+The earlier native MRTR dispatch was blocked by Host policy; subsequent local tests kept MRTR disabled. Neither native MRTR nor a human approval UI is claimed as passed. Copilot interactive behavior remains unverified, and a successful remote CI rerun remains pending. Native subagent token usage and negotiated protocol were not exposed; reference Client versions are not substituted for them. Historical failures, including one rejected-and-corrected UNION in the earlier CLI trials, remain in the evidence.
+
+## Independent review corrections (September 27)
+
+Profile exclusions now trim, lowercase and deduplicate strictly typed strings;
+blank entries fail startup. Tableless Query Skill availability follows read
+admission. Configuration errors preserve safe semantic codes. MRTR waiting and
+repeat requests retain their validated target in telemetry; absent identity
+remains null and decline/cancel phases are preserved. Both reference Host flows
+share approval deadlines, review fingerprints and expiry rechecks. The server's
+token consumption and trusted-Host boundary remain unchanged. See the linked
+review record for regressions and deferred task-scope/catalog/tracing work.
 
 Historical releases and failed trials retain their original versions and conclusions under `docs/`.

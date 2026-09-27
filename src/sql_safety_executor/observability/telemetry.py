@@ -50,8 +50,10 @@ class ToolTelemetryMiddleware(Middleware):
         success: bool | None = True
         phase = "complete"
         diagnostic = tool_name == "check_connection"
-        result_db_type = None if diagnostic else runtime.registry.get_config().db_type
-        result_connection_id = None if diagnostic else runtime.default_connection_id()
+        # Only validated result metadata (or validated diagnostic selection)
+        # establishes identity. A rejected request must not inherit the default.
+        result_db_type = None
+        result_connection_id = None
         diagnostic_scope: ConnectionScope | None = None
         if diagnostic:
             arguments = getattr(context.message, "arguments", None) or {}
@@ -71,14 +73,23 @@ class ToolTelemetryMiddleware(Middleware):
         cleanup_failed = diagnostic and runtime.diagnostics.cleanup_failed
         try:
             result = await call_next(context)
-            if isinstance(result, InputRequiredToolResult):
+            waiting = isinstance(result, InputRequiredToolResult)
+            if waiting:
                 success = None
                 phase = "awaiting_approval"
-            meta = getattr(result, "meta", None) or {}
+                # FastMCP 4 keeps the MRTR result in this wrapper; its own
+                # ToolResult.meta is empty. Never read the sealed state.
+                meta = result.input_required.meta or {}
+            else:
+                meta = getattr(result, "meta", None) or {}
             meta_success = meta.get("success") if isinstance(meta, dict) else None
-            if isinstance(meta_success, bool):
+            if not waiting and isinstance(meta_success, bool):
                 success = meta_success
             if isinstance(meta, dict):
+                if not waiting and meta.get("phase") in (
+                    "approval_declined", "approval_cancelled"
+                ):
+                    phase = meta["phase"]
                 aggregate = aggregate or meta.get("connection_scope") == "all"
                 if diagnostic or aggregate:
                     cleanup_failed = meta.get("cleanup_failed") is True

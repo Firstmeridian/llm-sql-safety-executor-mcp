@@ -473,6 +473,86 @@ def _interpret_execute_payload(
     )
 
 
+async def _approve_view(
+    view: ApprovalView,
+    approver: ApprovalProvider,
+    timeout_seconds: float,
+    now: Callable[[], datetime],
+) -> MutationOutcome | None:
+    """Share deadline, review integrity and expiry checks across both flows.
+
+    None means explicit approval passed every check; any outcome fails closed.
+    This guards buggy in-process providers, not hostile Host code.
+    """
+    current_time = now()
+    if current_time.tzinfo is None:
+        raise ValueError("now() must return a timezone-aware datetime")
+    remaining = (view.expires_at - current_time.astimezone(timezone.utc)).total_seconds()
+    effective_timeout = min(timeout_seconds, remaining - _EXPIRY_SAFETY_MARGIN_SECONDS)
+    if effective_timeout <= 0:
+        return MutationOutcome(
+            status="preview_expired",
+            message="Preview token expired or is too close to expiry; preview again.",
+        )
+
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + effective_timeout
+    fingerprint = _approval_view_fingerprint(view)
+    try:
+        decision = await asyncio.wait_for(
+            approver.decide(view, effective_timeout), timeout=effective_timeout
+        )
+    except TimeoutError:
+        decision = ApprovalDecision.TIMEOUT
+    except EOFError:
+        decision = ApprovalDecision.EOF
+    except KeyboardInterrupt:
+        decision = ApprovalDecision.CANCEL
+    except Exception as exc:
+        return MutationOutcome(
+            status="approval_failed",
+            message=f"Approval UI failed closed ({type(exc).__name__}).",
+        )
+
+    try:
+        unchanged = _approval_view_fingerprint(view) == fingerprint
+    except Exception:
+        unchanged = False
+    if not unchanged:
+        return MutationOutcome(
+            status="approval_failed",
+            message="Approval UI changed the displayed request; failed closed.",
+        )
+
+    # wait_for cancels cooperative providers. Also reject late approval from a
+    # provider that suppresses cancellation or blocks the event loop. Hard
+    # termination of hostile code requires process isolation.
+    if loop.time() >= deadline:
+        decision = ApprovalDecision.TIMEOUT
+    if not isinstance(decision, ApprovalDecision):
+        return MutationOutcome(
+            status="approval_failed",
+            message="Approval UI returned an unsupported decision; failed closed.",
+        )
+    if decision is not ApprovalDecision.APPROVE:
+        return MutationOutcome(
+            status=decision.value,
+            message="Mutation was not approved; execute was not called.",
+        )
+
+    approved_at = now()
+    if approved_at.tzinfo is None:
+        raise ValueError("now() must return a timezone-aware datetime")
+    if (
+        view.expires_at - approved_at.astimezone(timezone.utc)
+    ).total_seconds() <= _EXPIRY_SAFETY_MARGIN_SECONDS:
+        return MutationOutcome(
+            status="preview_expired",
+            message="Preview expired before execute; execute was not called.",
+        )
+    return None
+
+
 async def run_approved_mutation(
     client: MutationClient,
     request: MutationRequest,
@@ -526,81 +606,9 @@ async def run_approved_mutation(
 
     now_fn = now or (lambda: datetime.now(timezone.utc))
     try:
-        current_time = now_fn()
-        if current_time.tzinfo is None:
-            raise ValueError("now() must return a timezone-aware datetime")
-        remaining = (
-            view.expires_at - current_time.astimezone(timezone.utc)
-        ).total_seconds()
-        effective_timeout = min(
-            approval_timeout_seconds,
-            remaining - _EXPIRY_SAFETY_MARGIN_SECONDS,
-        )
-        if effective_timeout <= 0:
-            return MutationOutcome(
-                status="preview_expired",
-                message=(
-                    "Preview token expired or is too close to expiry; preview again."
-                ),
-            )
-
-        approval_loop = asyncio.get_running_loop()
-        approval_deadline = approval_loop.time() + effective_timeout
-        approval_fingerprint = _approval_view_fingerprint(view)
-        try:
-            decision = await asyncio.wait_for(
-                approver.decide(view, effective_timeout),
-                timeout=effective_timeout,
-            )
-        except TimeoutError:
-            decision = ApprovalDecision.TIMEOUT
-        except EOFError:
-            decision = ApprovalDecision.EOF
-        except KeyboardInterrupt:
-            decision = ApprovalDecision.CANCEL
-        except Exception as exc:
-            return MutationOutcome(
-                status="approval_failed",
-                message=f"Approval UI failed closed ({type(exc).__name__}).",
-            )
-
-        try:
-            view_unchanged = _approval_view_fingerprint(view) == approval_fingerprint
-        except Exception:
-            view_unchanged = False
-        if not view_unchanged:
-            return MutationOutcome(
-                status="approval_failed",
-                message="Approval UI changed the displayed request; failed closed.",
-            )
-
-        # A cooperative provider is cancelled by wait_for(). The deadline
-        # check also rejects a provider that catches cancellation and returns
-        # a late APPROVE; an actively hostile provider still needs process
-        # isolation to guarantee termination.
-        if approval_loop.time() >= approval_deadline:
-            decision = ApprovalDecision.TIMEOUT
-        if not isinstance(decision, ApprovalDecision):
-            return MutationOutcome(
-                status="approval_failed",
-                message="Approval UI returned an unsupported decision; failed closed.",
-            )
-        if decision is not ApprovalDecision.APPROVE:
-            return MutationOutcome(
-                status=decision.value,
-                message="Mutation was not approved; execute was not called.",
-            )
-
-        approved_at = now_fn()
-        if approved_at.tzinfo is None:
-            raise ValueError("now() must return a timezone-aware datetime")
-        if (
-            view.expires_at - approved_at.astimezone(timezone.utc)
-        ).total_seconds() <= _EXPIRY_SAFETY_MARGIN_SECONDS:
-            return MutationOutcome(
-                status="preview_expired",
-                message="Preview expired before execute; execute was not called.",
-            )
+        rejection = await _approve_view(view, approver, approval_timeout_seconds, now_fn)
+        if rejection is not None:
+            return rejection
 
         execute_arguments = {
             "skill_name": normalized_request.skill_name,
@@ -684,6 +692,7 @@ class MRTRApprovalProvider:
     """Trusted Host UI: one exact immutable review, no automatic write retry."""
 
     def __init__(self, request, timeout, provider=None):
+        _validate_timeouts(timeout, timeout)
         self.request = request
         self.timeout = timeout
         self.provider = provider or ConsoleApprovalProvider()
@@ -718,15 +727,13 @@ class MRTRApprovalProvider:
                 expires_at=_parse_expiry(review["expires_at"]),
                 idempotent=False,
             )
-            remaining = (
-                self.view.expires_at - datetime.now(timezone.utc)
-            ).total_seconds() - _EXPIRY_SAFETY_MARGIN_SECONDS
-            if remaining <= 0:
-                return ElicitResult(action="cancel")
-            decision = await self.provider.decide(
-                self.view, min(self.timeout, remaining)
+            rejection = await _approve_view(
+                self.view, self.provider, self.timeout,
+                lambda: datetime.now(timezone.utc),
             )
-            self.approved = decision is ApprovalDecision.APPROVE
+            self.approved = rejection is None
+            if rejection is not None and rejection.status != ApprovalDecision.DENY.value:
+                return ElicitResult(action="cancel")
             return ElicitResult(action="accept", content={"approve": self.approved})
         except (ValueError, TypeError, KeyError, IndexError):
             return ElicitResult(action="cancel")

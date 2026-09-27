@@ -804,7 +804,7 @@ agent_id = "unknown"
 | `discovery.default_detail` | summary | compact / summary / full; individual calls can override |
 | `discovery.available_only` | true | Hide unavailable Skills for the target; false is diagnostic, not permission |
 | `readiness.check_schema` | true | Discovery and execution fail closed on missing tables/unavailable metadata; disabling is not proof of readiness |
-| `policy.exclude_profiles` | [] | Matching profiles cannot execute and disappear from default discovery |
+| `policy.exclude_profiles` | [] | Trimmed, lowercased and deduplicated strings; blank entries fail. Matching profiles cannot execute and disappear from default discovery |
 | `mutation.enabled` | false | Global write switch, subject to four further configuration gates |
 | `mutation.allowed_connections` | [] | Exact target admission; empty grants nothing; connection Skill allowlist still applies |
 | `mutation.preview.ttl_seconds` | 300 | 1–86400 seconds; invalid values fail startup rather than falling back |
@@ -825,6 +825,8 @@ agent_id = "unknown"
 `examples/manual_mutation_approval.py` starts the installed package with the active Python and requires `--config`; `--flow preview` is the default. It keeps exact parameters and proposals in one stdio Client/subprocess and accepts only literal `APPROVE` before its deadline. `--flow mrtr` additionally needs explicit MRTR enablement, a managed single-statement Skill, MCP `2026-07-28` and Host form support.
 
 MRTR holds the same review snapshot (at most 64 KiB) and uses framework-sealed continuation state. Missing answers resend the review without rerunning preview or extending the original expiry. Only accept plus strict boolean approve=true executes. Decline/cancel closes the proposal; a local denial in the retained preview Host does not revoke its server token before TTL. Neither flow automatically retries uncertain writes.
+
+Both reference Host flows enforce an outer approval deadline, check that the displayed review was not altered, and recheck expiry before accepting approval. Telemetry uses the validated target for MRTR waiting/repeated rounds and records `approval_declined` / `approval_cancelled`; calls without validated identity leave target fields null. SDK rejections before middleware may have no telemetry event. See the [review fixes and validation](docs/validation/V3_8_REVIEW_FIXES_2026_09_27_ZH.md).
 
 Approval trusts the Host rather than independently authenticating a human. Review/terminal output can contain business data, and sealed state is sensitive. The child inherits exported process variables; a productized Host should restrict that environment as appropriate. This does not restore dotenv configuration.
 
@@ -890,7 +892,7 @@ See [mcp_config.json](mcp_config.json) for the portable template. Private `confi
 - Three strict TOMLs, mandatory `--config`, explicit secrets and offline `config check/explain`. Reads default to deny; all write gates are required. Remove default-only grants and partial-policy `execute_sql()`.
 - Default-off `request_mutation_approval` for managed single statements: sealed state, 64 KiB review cap, strict approval, original expiry and atomic consumption; no retry of uncertain writes.
 - Migrate public Skill SDK imports, trusted external directories, clients, isolated AutoGen examples, documentation, dependency lock and CI.
-- Automated results: 744 passed, 4 skipped; type checks and installed-wheel verification passed. Subsequent live checks verified MySQL connectivity/basic reads, native Codex SQLite preview/execute with fixture restoration, and three isolated Luna six-turn routing trials. The earlier MRTR dispatch refusal remains recorded; native MRTR/human approval UI, Copilot, MySQL writes and remote CI remain unverified.
+- Earlier local automation recorded 744 passed, 4 skipped. The submitted `1be44b4` later failed CI on a stale description assertion; see [review fixes and current validation](docs/validation/V3_8_REVIEW_FIXES_2026_09_27_ZH.md). Live checks verified MySQL connectivity/basic reads, native Codex SQLite preview/execute with fixture restoration, and three isolated Luna six-turn routing trials. Native MRTR/human approval UI, Copilot and MySQL writes remain unverified; the earlier MRTR dispatch refusal is preserved.
 
 See [release notes](docs/releases/RELEASE_NOTES_v3_8.md) and [validation](docs/validation/V3_8_VALIDATION_ZH.md). Historical entries below retain their original configuration, paths and conclusions; they are not v3.8 deployment instructions.
 
@@ -2294,7 +2296,7 @@ uv run pyright
 uv build
 ```
 
-v3.8 results: 744 passed, 4 skipped; clean type checks; installed-wheel prompts and modern/legacy protocol queries verified outside the repository. Four live MySQL checks remain disabled. CI is configured but has not been pushed/run remotely; native Host successes and limitations are recorded separately in [validation](docs/validation/V3_8_VALIDATION_ZH.md).
+Earlier local v3.8 results were 744 passed, 4 skipped, with clean type checks and installed-wheel verification. After submission, [CI for `1be44b4`](https://github.com/Firstmeridian/llm-sql-safety-executor-mcp/actions/runs/36252844733) failed on an outdated prompt assertion; later steps were skipped. The [September 27 review record](docs/validation/V3_8_REVIEW_FIXES_2026_09_27_ZH.md) separates the fixes and local CI-equivalent checks from a future remote run. Four live MySQL tests remain disabled; native Host evidence retains its scope in [validation](docs/validation/V3_8_VALIDATION_ZH.md).
 
 Later [live review and native reconnection tests](docs/validation/V3_8_LIVE_REVIEW_2026_09_26_ZH.md) verified MySQL connection/basic read probes and a native SQLite preview/execute/compensation cycle. Three isolated GPT-6 Luna agents completed six rounds each (22 calls, no observed wrong-target access); the host-directed write fixture was restored. These are separate from the four skipped MySQL integration tests and do not establish native MRTR, human approval UI or MySQL write behavior. Native subagent usage/protocol were not exposed; no cost or negotiated-version claims are inferred.
 

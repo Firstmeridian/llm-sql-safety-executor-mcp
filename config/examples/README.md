@@ -25,6 +25,8 @@ Every referenced TOML declares `schema_version = 1`.
 
 The server requires `--config`; it does not discover `.env` or accept implicit `DB_*` / `SKILLS_*` overrides. Unknown fields and invalid types fail validation. File paths resolve relative to the TOML that declares them. Configuration, secrets and loaded Skill definitions remain snapshots until restart.
 
+`skills.policy.exclude_profiles` accepts an array of strings, trims surrounding whitespace, lowercases and deduplicates them: `["DEMO", " demo "]` excludes `demo`. Empty/whitespace entries are errors; `[]` excludes nothing. Both discovery and execution enforce this policy. With reads denied or an empty read allowlist, even a tableless Query Skill is unavailable. `config check/explain` report safe semantic error codes without exposing configuration values; see the [configuration contract](../../docs/guides/CONFIGURATION_ZH.md).
+
 ## SQLite: check and start
 
 The SQLite template uses the bundled `sample_data/demo.db` and requires no credentials:

@@ -12,7 +12,7 @@
 
 验证记录将在各阶段完成后追加，未运行的 Host 或数据库场景不会记为通过。
 
-完成后的自动化与实测分别记录在[阶段验收](../validation/V3_8_VALIDATION_ZH.md)和[本地 live Review](../validation/V3_8_LIVE_REVIEW_2026_09_26_ZH.md)：包含 Host 入口迁移/重连、真实 MySQL 连通与基础读取、原生 SQLite preview/execute 恢复，以及三组 Luna 六轮路由任务。原生 MRTR/人工审批 UI、Copilot、MySQL 写入及远端 CI 仍未验收；新旧参考协议的结果不替代原生 Host 协商证据。
+完成后的自动化与实测分别记录在[阶段验收](../validation/V3_8_VALIDATION_ZH.md)和[本地 live Review](../validation/V3_8_LIVE_REVIEW_2026_09_26_ZH.md)：包含 Host 入口迁移/重连、真实 MySQL 连通与基础读取、原生 SQLite preview/execute 恢复，以及三组 Luna 六轮路由任务。原生 MRTR/人工审批 UI、Copilot、MySQL 写入仍未验收；新旧参考协议的结果不替代原生 Host 协商证据。提交 `1be44b4` 的远端 CI 因旧提示词断言失败，修复与重新验证见[9 月 27 日记录](../validation/V3_8_REVIEW_FIXES_2026_09_27_ZH.md)。
 
 ## 结构与生命周期
 
@@ -52,4 +52,12 @@ MCP 普通工具绑定到协议无关核心函数。核心使用 `OperationConte
 
 现代协议已废弃 legacy logging capability；`mcp.context.ToolContext` 在现代请求下使用服务日志，旧协议仍保留原客户端日志通知。CLI 显式传入配置日志级别。逐实例审计锁不提供跨进程/跨实例共用日志文件的全局顺序保证，部署建议使用不同审计路径。
 
-CI 使用只读仓库权限、禁用 checkout 凭据持久化，并将 Actions 固定到核验的 commit SHA；uv 固定为本次实测的 0.12.19。接口依据 [actions/checkout 官方说明](https://github.com/actions/checkout) 与 [setup-uv 官方说明](https://github.com/astral-sh/setup-uv) 核对。远端 CI 尚未推送触发；本地已执行对应测试、类型与 wheel 验证步骤。
+CI 使用只读仓库权限、禁用 checkout 凭据持久化，并将 Actions 固定到核验的 commit SHA；uv 固定为本次实测的 0.12.19。接口依据 [actions/checkout 官方说明](https://github.com/actions/checkout) 与 [setup-uv 官方说明](https://github.com/astral-sh/setup-uv) 核对。提交后的失败与修复后本地 CI 等价验证分别记录，不再用提交前的通过结果代表远端运行。
+
+## 2026-09-27 外部评审后的约定
+
+配置端 profile 经严格字符串校验后统一去空白、转小写并去重，空项报错；语义错误使用静态类型码保留原因且不泄露输入。Query Skill 可用性与执行共享纯读取准入谓词，动态 readiness 仍独立执行，Mutation 授权边界不变。
+
+MRTR 等待结果附带已验证的目标元数据，中间件从 FastMCP 包装对象中的原始 `InputRequiredResult.meta` 读取。普通结果缺少身份时记录 null，诊断继续按独立校验的 scope 归属。参考 Host 两条流程共享审批期限、展示内容指纹和有效期复核；服务端原子消费边界不变。
+
+概要设计 D01 仅部分完成：显式连接/部署权限不等于可信请求级任务授权，`OperationContext` 不是 grant。D04 的稳定定义与动态 readiness 仍在列表/详情中组合，独立接口与优化暂缓。D07 本次修正归属与阶段，但跨轮关联、完整追踪及 OTel 仍暂缓。扩大这些边界需单独设计和测试，不将报告建议自动视为本次新增功能范围。

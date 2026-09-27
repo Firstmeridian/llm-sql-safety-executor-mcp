@@ -31,7 +31,7 @@ databases: [mysql, sqlite]
 # but easy to confuse with database types. Multiple aliases support reuse, but
 # their order has no routing or failover meaning.
 # connection_ids: [orders_us, orders_eu]
-# Operational tags used by SKILLS_EXCLUDE_PROFILES and catalog filtering.
+# Operational tags used by skills.policy.exclude_profiles and catalog filtering.
 profiles: [demo]
 # Tables required for readiness checks and documentation; database grants and
 # server allowlists remain authoritative.

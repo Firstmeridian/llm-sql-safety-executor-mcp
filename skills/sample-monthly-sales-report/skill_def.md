@@ -26,7 +26,7 @@ databases: [mysql]
 # Optional deployment scope (aliases, not DB types or permissions). Omit it to
 # let callers choose any otherwise-authorized compatible connection.
 # connection_ids: [trade_analysis_mysql, sales_reporting_mysql]
-# Operational tags used by SKILLS_EXCLUDE_PROFILES and catalog filtering.
+# Operational tags used by skills.policy.exclude_profiles and catalog filtering.
 profiles: [demo]
 # Strict input schema; undeclared params and invalid values are rejected.
 params:
