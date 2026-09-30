@@ -5,6 +5,14 @@ English | [中文](REFACTORING_LOG_ZH.md)
 **Date:** December 2, 2025 (Updated: October 1, 2026)
 **Author:** Code Refactoring Session
 
+## v3.8.1 Skill rejection recovery clue and subagent behavior tests (October 1, 2026)
+
+- Version is **3.8.1** (pyproject, package, MCP server and lockfile project entry). Without uv available locally, only the project's lockfile version line was synchronized; dependency resolution is unchanged. Backward compatible; configuration, authorization, token and execution semantics are unchanged.
+- `validation_failed` responses may include `related_available_skills`: names of declared related mutation Skills currently executable on the same connection, without parameters, advice, authorization or approval. Lookup failure omits the field and preserves the original failure.
+- The update Skill now states its lifecycle and backward-transition rejection and links the reset Skill; the status rules add a demo restoration example with separate approval for each non-atomic step. The mutation tool description requires checking related Skills after rejection and leaves token validity to execute.
+- `preview_token_expires_in_seconds` was briefly reintroduced to address subagent misreports, then withdrawn with maintainer agreement: v3.7.1 removed it as duplicate, and a relative value becomes stale in conversation. Only the absolute expiry is returned.
+- Full suite **796 passed, 4 skipped**; Pyright 0 errors. After a Host restart, three GPT-5.6 Luna runs per case gave: purpose-only target 3/3, recovery discovery after rejection 3/3, preview-only without approval 3/3; directly asking whether a token is still usable gave 0/3, then 1/3 after wording changes, with conservative misreports. No writes; orders 1–3 remain shipped. The local MCP Runner definition is ignored by Git. See the [acceptance record](docs/validation/V3_8_MRTR_NATIVE_2026_10_01_ZH.md).
+
 ## v3.8.0 pre-commit verification (October 1, 2026)
 
 - Highlight the maintainer's approval-round explanation in both READMEs and this log, retaining the permission/execution checks, trusted-Host and legacy-entry-point qualifications. No version bump: package metadata, lockfile and runtime remain **3.8.0**.

@@ -884,6 +884,9 @@ def test_skill_tools_declare_output_schema(monkeypatch):
             "unknown",
         ]
         assert "execution_outcome" in mut_schema["required"]
+        related_schema = mut_schema["properties"]["related_available_skills"]
+        assert related_schema["items"] == {"type": "string"}
+        assert "not an authorization" in related_schema["description"]
     finally:
         for mod in ("mcp_sql_server", "db_adapter", "sql_safety_checker"):
             pass  # Explicit instance fixtures need no import-time reset.

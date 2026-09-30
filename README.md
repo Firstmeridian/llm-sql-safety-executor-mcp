@@ -1,6 +1,6 @@
 # LLM Database Safety Gateway - MCP Service
 
-![Version](https://img.shields.io/badge/version-3.8.0-blue)
+![Version](https://img.shields.io/badge/version-3.8.1-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Python](https://img.shields.io/badge/python-3.12+-blue?logo=python)
 ![MCP](https://img.shields.io/badge/MCP-Protocol-orange)
@@ -889,6 +889,13 @@ See [mcp_config.json](mcp_config.json) for the portable template. Private `confi
 
 
 ## Changelog
+
+### v3.8.1 Skill Rejection Recovery Clue (October 1, 2026)
+
+- On `validation_failed`, `execute_mutation_skill` may return `related_available_skills`: declared related mutation Skills currently executable on the same connection. Names only; not advice, authorization or approval, and every alternative write still needs its own preview and approval. Lookup failure omits the field without changing the original failure.
+- The update Skill now states its forward lifecycle and links the reset Skill; demo restoration is documented as separate, non-atomic approved steps. Tool guidance forbids bypassing rejections and leaves token validity to execute.
+- The response keeps only the absolute `preview_token_expires_at`; a trial reintroduction of `preview_token_expires_in_seconds` was withdrawn. Subagents asked whether a token remained usable still misjudged it from their own date (conservative, since execute enforces expiry).
+- 796 passed, 4 skipped; Pyright 0 errors; Host and subagent checks with no writes. See [release notes](docs/releases/RELEASE_NOTES_v3_8.md#v381--skill-rejection-recovery-clue-october-1-2026).
 
 ### v3.8.0 FastMCP 4, TOML and Managed MRTR (September 2026)
 
@@ -1808,6 +1815,10 @@ clients must tolerate new codes and rely on identity validation, `success` and
 `execution_outcome`. An unknown code never permits automatic retry.
 `managed_plan_resolution_failed` means confirmation-time resolution failed
 before the adapter write call, with `execution_outcome=not_executed`.
+Since v3.8.1, a `validation_failed` result may add `related_available_skills`:
+names from the rejected Skill's own `related_skills` that are mutation Skills
+currently executable on the same connection. It is a discovery clue, not advice,
+authorization or approval; lookup failure omits it without changing the result.
 This release has no durable operation ID or receipt lookup. A later business
 state that matches the request does not prove request-level attribution, and an
 absent future receipt would not by itself prove rollback unless that protocol
@@ -2312,6 +2323,8 @@ Remote [CI for `139d53a`](https://github.com/Firstmeridian/llm-sql-safety-execut
 Later [live review and native reconnection tests](docs/validation/V3_8_LIVE_REVIEW_2026_09_26_ZH.md) verified MySQL connection/basic read probes and a native SQLite preview/execute/compensation cycle. Three isolated GPT-6 Luna agents completed six rounds each (22 calls, no observed wrong-target access); the host-directed write fixture was restored. These are separate from the four skipped MySQL integration tests and do not establish native MRTR, human approval UI or MySQL write behavior. Native subagent usage/protocol were not exposed; no cost or negotiated-version claims are inferred.
 
 **October 1 pre-commit check:** the complete pending v3.8.0 change passed clean-copy, frozen-dependency validation: **793 passed, 4 skipped**, with three existing legacy logging warnings. Pyright, sdist/wheel build and installed-wheel checks outside the repository passed. Version stays **3.8.0**; remote CI for the new commit and the remaining native UI cases are separate. See the [final local verification](docs/validation/V3_8_MRTR_NATIVE_2026_10_01_ZH.md).
+
+**v3.8.1 check (October 1):** after adding the rejection recovery clue, the full local suite recorded **796 passed, 4 skipped** and Pyright 0 errors. This was run in the existing development environment, not a clean copy, and no build or remote CI result is claimed. See the [v3.8.1 notes](docs/releases/RELEASE_NOTES_v3_8.md#v381--skill-rejection-recovery-clue-october-1-2026).
 
 ### Test Scripts
 

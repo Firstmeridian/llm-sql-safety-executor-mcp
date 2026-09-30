@@ -81,3 +81,11 @@ Tasks, remote multi-user auth, independently authenticated approvals, durable/di
 ### Review presentation
 
 MRTR formats the saved review snapshot as indented Unicode JSON without removing fields or truncating SQL/bindings. The first-line question plus JSON contract remains compatible with the reference Host. Canonical stored bindings and strict approval checks are unchanged. The 64 KiB limit covers the stored review, not the expanded display message. Actual whitespace rendering is Host-controlled and needs native verification; readability changes do not authenticate a human or expand approval authority.
+
+### Rejection recovery clue (v3.8.1)
+
+On `validation_failed` (preview, execute, and MRTR's shared first round), the server may return `related_available_skills`. The list is limited to names in the rejected Skill's own `related_skills` that are mutation Skills executable on the same resolved connection under the same availability checks as `list_skills`: profile, connection scope, database type, every mutation grant and schema readiness. It is computed only after validation fails, issues no token and never changes `success`, `error_code` or `execution_outcome`; lookup failure omits it and logs only the exception class.
+
+The field is advisory. It grants nothing, carries no parameters or sequencing advice, and cannot bypass the rejected rule. Every alternative write keeps its own preview, approval, binding and single-use token, and a multi-step restoration is a series of independent commits, not an atomic rollback. It discloses only names already visible through `list_skills` on that connection, and adds one readiness metadata lookup on qualifying rejections. Author-declared links can be incomplete or unsuitable; Agents may still ignore or misuse them (DRR-2026-071).
+
+Previews return only absolute `preview_token_expires_at`; execute alone enforces expiry. Agents judging validity from their own date can misreport a live token as expired. This is conservative and accepted (DRR-2026-072); a relative-expiry field was not restored.

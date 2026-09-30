@@ -629,6 +629,100 @@ def test_preview_validation_failure_reports_explicit_token_metadata(
         _cleanup_modules()
 
 
+def test_validation_failure_lists_only_executable_related_skills(
+    tmp_path,
+    monkeypatch,
+):
+    mysql_db = tmp_path / "mysql.db"
+    analytics_db = tmp_path / "analytics.db"
+    _create_orders_db(mysql_db, "mysql")
+    _create_orders_db(analytics_db, "analytics")
+
+    module = _reload_server(
+        monkeypatch,
+        mysql_db,
+        analytics_db,
+        analytics_mutation_skills=(
+            "sample-update-order-status,sample-reset-order-to-pending"
+        ),
+    )
+    try:
+        rejected = {"order_id": 1, "new_status": "shipped"}
+        allowed, _ = run_tool(
+            module.execute_mutation_skill(
+                skill_name="sample-update-order-status",
+                params=rejected,
+                connection_id="analytics",
+                ctx=DummyContext(),
+                confirm=False,
+            )
+        )
+        assert allowed["error_code"] == "validation_failed"
+        assert allowed["related_available_skills"] == [
+            "sample-reset-order-to-pending"
+        ]
+
+        # The mysql alias authorizes only the update Skill.
+        unauthorized, _ = run_tool(
+            module.execute_mutation_skill(
+                skill_name="sample-update-order-status",
+                params=rejected,
+                ctx=DummyContext(),
+                confirm=False,
+            )
+        )
+        assert unauthorized["error_code"] == "validation_failed"
+        assert "related_available_skills" not in unauthorized
+        assert len(module._MUTATION_PREVIEW_TOKEN_STORE) == 0
+        assert _order_status(analytics_db, 1) == "pending"
+        assert _order_status(mysql_db, 1) == "pending"
+    finally:
+        _cleanup_modules()
+
+
+def test_related_skill_lookup_failure_preserves_validation_result(
+    tmp_path,
+    monkeypatch,
+):
+    mysql_db = tmp_path / "mysql.db"
+    analytics_db = tmp_path / "analytics.db"
+    _create_orders_db(mysql_db, "mysql")
+    _create_orders_db(analytics_db, "analytics")
+
+    module = _reload_server(
+        monkeypatch,
+        mysql_db,
+        analytics_db,
+        analytics_mutation_skills=(
+            "sample-update-order-status,sample-reset-order-to-pending"
+        ),
+    )
+
+    def fail_lookup(*_args):
+        raise RuntimeError("metadata unavailable")
+
+    monkeypatch.setattr(
+        "sql_safety_executor.core.mutations._related_available_skill_names",
+        fail_lookup,
+    )
+    try:
+        payload, _ = run_tool(
+            module.execute_mutation_skill(
+                skill_name="sample-update-order-status",
+                params={"order_id": 1, "new_status": "shipped"},
+                connection_id="analytics",
+                ctx=DummyContext(),
+                confirm=False,
+            )
+        )
+        assert payload["success"] is False
+        assert payload["error_code"] == "validation_failed"
+        assert payload["execution_outcome"] == "not_executed"
+        assert "related_available_skills" not in payload
+    finally:
+        _cleanup_modules()
+
+
 def test_preview_rejects_non_object_execution_binding(tmp_path, monkeypatch):
     mysql_db = tmp_path / "mysql.db"
     analytics_db = tmp_path / "analytics.db"

@@ -5,8 +5,9 @@ name: sample-update-order-status
 version: "1.0"
 # Short catalog description shown to Agents and operators.
 description: >
-  Safely update an order's status with state machine constraints
-  to prevent illegal transitions.
+  Update order status through the forward lifecycle pending to confirmed to
+  shipped to delivered; cancelled and returned are terminal branches.
+  Backward transitions such as delivered to shipped are rejected.
 # Natural-language discovery hints; they do not grant execution permission.
 triggers:
   - update order status
@@ -61,6 +62,7 @@ params:
 category: order-management
 # Related catalog entries for navigation; this does not invoke them.
 related_skills:
+  - sample-reset-order-to-pending
   - sample-monthly-sales-report
   - sample-monthly-sales-report-sqlite
 ---
@@ -77,7 +79,10 @@ are rejected; writes must use the preview-token binding path.
 
 ## Status Transition Rules
 
-See [status-transitions.md](references/status-transitions.md)
+See [status-transitions.md](references/status-transitions.md). A rejected
+transition must not be bypassed. For approved demo-fixture restoration, use the
+related `sample-reset-order-to-pending` Skill on the same connection, then
+follow allowed transitions; this is not a production reopen or rollback.
 
 ## Safety Mechanisms
 

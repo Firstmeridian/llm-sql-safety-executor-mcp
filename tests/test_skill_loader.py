@@ -1136,6 +1136,18 @@ class TestLoadMutation:
         custom_skills.mkdir()
         assert discover(custom_skills) == {}
 
+    def test_bundled_order_skills_link_demo_restoration(self):
+        from tests.support_catalog import discover
+
+        skills = discover(Path(__file__).resolve().parent.parent / "skills")
+        update = skills["sample-update-order-status"]
+        reset = skills["sample-reset-order-to-pending"]
+
+        assert "sample-reset-order-to-pending" in update.related_skills
+        assert "sample-update-order-status" in reset.related_skills
+        assert "pending to confirmed to shipped" in update.description
+        assert "backward transitions" in update.description.lower()
+
     @pytest.mark.parametrize(
         ("extra_source", "expected_error"),
         [

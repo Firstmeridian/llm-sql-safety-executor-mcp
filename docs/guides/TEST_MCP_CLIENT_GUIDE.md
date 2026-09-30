@@ -257,3 +257,20 @@ capabilities and backend remain unverified. For 2026-07-28, inspect per-request
 protocol/capability metadata as well as any legacy initialization; Agent Host
 Protocol versions are not MCP versions. This follow-up added no database or UI
 test. Full evidence and remaining uncertainty are in the dated acceptance record.
+
+## Skill rejection recovery and subagent delegation (v3.8.1, October 1, 2026)
+
+A `validation_failed` mutation response may include
+`related_available_skills`: names of declared related mutation Skills that are
+currently executable on the same connection. It is a discovery clue only, not a
+recommendation, authorization or approval. Preview and approve every write in
+any alternative path separately, and do not bypass the rejected rule or change
+targets.
+
+When delegating to a database subagent, state the user's goal and what to report
+if a Skill rejects it, for example: "If it is rejected, explain how the goal
+could still be achieved, but do not execute anything." Do not ask a subagent
+whether a preview token is still usable. Report `preview_token_expires_at` as
+returned; execute alone decides validity, and any Host-side countdown should be
+computed from the current clock. See the [acceptance record](../validation/V3_8_MRTR_NATIVE_2026_10_01_ZH.md)
+for the 3-run behavior matrix and remaining limits.

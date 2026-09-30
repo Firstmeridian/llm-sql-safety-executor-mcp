@@ -1,6 +1,6 @@
 # 面向 AI Agent 的数据库安全访问入口 - MCP 服务
 
-![Version](https://img.shields.io/badge/version-3.8.0-blue)
+![Version](https://img.shields.io/badge/version-3.8.1-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Python](https://img.shields.io/badge/python-3.12+-blue?logo=python)
 ![MCP](https://img.shields.io/badge/MCP-Protocol-orange)
@@ -870,6 +870,13 @@ SQLite 初始化拒绝覆盖已有文件；MySQL 初始化遇到现存 orders �
 
 ## 更新日志
 
+### v3.8.1 Skill 拒绝后的恢复线索（2026年10月1日）
+
+- `execute_mutation_skill` 遇到 `validation_failed` 时，可返回 `related_available_skills`：在同一连接上当前可执行、且被声明为关联的写入 Skill 名称。它只是线索，不含建议、授权或批准；替代路径中的每次写入仍需单独预览和批准。查找失败时省略该字段，不改变原失败结果。
+- 更新 Skill 写明正向生命周期并关联重置 Skill；演示数据恢复按独立批准、非原子的步骤记录。工具说明禁止绕过拒绝，并将令牌有效性交由 execute 判定。
+- 响应仍只返回绝对期限 `preview_token_expires_at`；试验性恢复的 `preview_token_expires_in_seconds` 已撤回。子代理被问及令牌是否仍可用时仍会按自身日期误判（偏保守，过期始终由 execute 校验）。
+- 796 passed、4 skipped；Pyright 0 errors；Host 与子代理测试均未写入。详见[发布说明](docs/releases/RELEASE_NOTES_v3_8.md#v381--skill-rejection-recovery-clue-october-1-2026)。
+
 ### v3.8.0 FastMCP 4、TOML 与托管 MRTR（2026年9月）
 
 - FastMCP 4.0.10 / MCP SDK 2.2.0；由框架负责协议协商，验证现代 `2026-07-28` 和旧 `2025-11-25` stdio。
@@ -1700,6 +1707,9 @@ sandbox。MCP 会直接调用基类 wrapper，因此 discovery 后替换子类�
 应以身份校验、`success` 和 `execution_outcome` 为主；未知码绝不构成自动重试许可。
 `managed_plan_resolution_failed` 表示确认期值解析在 adapter 写调用之前失败，
 对应 `execution_outcome=not_executed`。
+自 v3.8.1 起，`validation_failed` 结果可附加 `related_available_skills`：
+被拒 Skill 自己的 `related_skills` 中、在同一连接当前可执行的写入 Skill 名称。
+它是发现线索，不是建议、授权或批准；查找失败时省略，不改变原结果。
 本版没有持久 operation ID 或回执查询。后来观察到业务状态符合请求预期，不能证明
 请求级归因；未来查询不到回执，也不能单独证明已回滚，除非该协议已明确权威一致性、
 处理中状态、保留期和 terminal-not-found 语义。暂缓设计的触发条件统一登记在
@@ -2173,6 +2183,8 @@ uv build
 后续[本地实测与原生重连测试](docs/validation/V3_8_LIVE_REVIEW_2026_09_26_ZH.md)验证了 MySQL 连通/基础读取及原生 SQLite 预览、执行和补偿。三个隔离上下文 GPT-6 Luna 各完成六轮任务（共 22 次调用，未观察到误访问）；主持者写入试验的夹具已恢复。这与四项跳过的 MySQL 集成测试分别记录，不代表原生 MRTR、人工审批 UI 或 MySQL 写入已通过。原生子代理未暴露 usage/协商协议，不据此推算费用或协议版本。
 
 **10 月 1 日提交前检查：** 完整待提交 v3.8.0 改动经干净副本、锁定依赖验证，结果为 **793 passed、4 skipped**，三项警告均为已有旧协议日志弃用。Pyright、sdist/wheel 构建及仓库外安装后验证通过。版本仍为 **3.8.0**；新提交的远端 CI 和剩余原生 UI 项目分别管理，详见[最终本地验证](docs/validation/V3_8_MRTR_NATIVE_2026_10_01_ZH.md)。
+
+**v3.8.1 检查（10 月 1 日）：** 加入拒绝恢复线索后，本地全量测试为 **796 passed、4 skipped**，Pyright 0 errors。该结果来自现有开发环境，不是干净副本，未宣称构建或远端 CI 结果。见 [v3.8.1 说明](docs/releases/RELEASE_NOTES_v3_8.md#v381--skill-rejection-recovery-clue-october-1-2026)。
 
 ### 测试脚本
 

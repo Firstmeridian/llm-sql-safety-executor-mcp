@@ -1,5 +1,7 @@
 # v3.8.0 — FastMCP 4, explicit TOML, instance state and managed MRTR
 
+> **v3.8.1 maintenance (October 1, 2026):** see [Skill rejection recovery clue](#v381--skill-rejection-recovery-clue-october-1-2026). Configuration, authorization, token and execution semantics are unchanged.
+
 This is a deliberate pre-release breaking refactor from baseline `582822b`.
 
 ## Delivered behavior
@@ -90,3 +92,61 @@ passed, including packaged prompts and both protocol generations. The four
 MySQL integration tests remain skipped. This local result does not claim a
 new remote CI pass or close the documented native UI gaps. See the
 [pre-commit record](../validation/V3_8_MRTR_NATIVE_2026_10_01_ZH.md).
+
+## v3.8.1 — Skill rejection recovery clue (October 1, 2026)
+
+A backward-compatible maintenance release. Package, lockfile project entry and
+MCP server version are **3.8.1**. No configuration, migration, authorization,
+token or execution change is required.
+
+**Why.** After a rejected `delivered → shipped` transition, a Copilot Agent
+concluded that an administrator was needed, although the executable
+`sample-reset-order-to-pending` already provided an approved demo restoration
+path. The metadata was discoverable; the Agent skipped discovery. Subagent
+trials also showed prompt rules alone were unreliable.
+
+**Contract additions**
+
+- `execute_mutation_skill` may add `related_available_skills` (string array) to
+  `validation_failed` payloads in preview or execute mode. It lists names from
+  the rejected Skill's own `related_skills` that are mutation Skills and are
+  currently executable on the same resolved connection, using the same
+  availability predicate as `list_skills` (profile, connection scope, database
+  type, all mutation grants and schema readiness).
+- Names only: no parameters, ordering advice, authorization, approval or token.
+  Each alternative still needs its own preview, approval and execute. The field
+  is omitted when nothing qualifies or the lookup fails; the lookup never changes
+  `success`, `error_code` or `execution_outcome`. Other failure codes do not
+  include it. MRTR's first round shares this preview path.
+- The output schema declares the optional field. Clients must continue to accept
+  unknown additive fields.
+- The update Skill describes its forward lifecycle and backward-transition
+  rejection and links the reset Skill. Its status rules document a non-atomic,
+  separately approved demo restoration. The mutation tool description forbids
+  bypassing a rejection or changing targets, asks callers to inspect related
+  Skills before declaring no path, and states that only execute decides token
+  validity.
+
+**Compromises and limits**
+
+- The clue is advisory. It depends on author-declared relationships; an
+  undeclared alternative is not found, and a declared one may not suit the
+  user's goal. An Agent can still ignore or misuse it.
+- Computing it adds one schema-readiness metadata lookup on rejected requests
+  that declare related mutation Skills. It exposes only names already visible
+  through `list_skills` for that connection.
+- `preview_token_expires_in_seconds` was briefly reintroduced during testing
+  and withdrawn: v3.7.1 removed it as a duplicate, and a relative value becomes
+  stale in conversation. Only `preview_token_expires_at` is returned. Agents
+  asked whether a token was still usable often misjudged it from their own
+  date; this is conservative (a new preview), because execute alone enforces
+  expiry. Hosts should compute any countdown from their current clock.
+
+**Validation.** Full suite **796 passed, 4 skipped** (optional MySQL tests),
+Pyright 0 errors. A fresh stdio server and the restarted Host returned the
+field without issuing a token. Three GPT-5.6 Luna runs per case: purpose-only
+target 3/3, recovery discovery after rejection 3/3, preview-only without
+approval 3/3; asking whether a token remained usable 0/3, then 1/3. No writes
+were made; orders 1–3 remain shipped. No new remote CI result is claimed. See
+the [acceptance record](../validation/V3_8_MRTR_NATIVE_2026_10_01_ZH.md) and
+[DRR-2026-071/072](../security/DESIGN_RISK_REGISTER.md#v381-rejection-recovery-and-token-expiry-reporting-october-1-2026).

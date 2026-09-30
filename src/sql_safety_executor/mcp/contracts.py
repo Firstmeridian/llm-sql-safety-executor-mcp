@@ -263,6 +263,14 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
                     "and "
                     "'errors').",
                 },
+                "related_available_skills": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "On validation_failed only: "
+                    "declared related mutation Skills currently "
+                    "executable on the same connection. Names only; "
+                    "not an authorization, recommendation, or approval.",
+                },
                 "idempotent": {"type": "boolean"},
             },
             "required": ["success", "skill_name", "mode", "execution_outcome"],

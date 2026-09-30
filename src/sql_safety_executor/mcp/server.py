@@ -82,7 +82,7 @@ def create_server(config: AppConfig) -> FastMCP:
     try:
         server = FastMCP(
             name="sql-safety-executor",
-            version="3.8.0",
+            version="3.8.1",
             instructions=render.instructions(config),
             lifespan=lifespan,
             mask_error_details=True,

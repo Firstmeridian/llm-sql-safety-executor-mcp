@@ -7,7 +7,7 @@ if TYPE_CHECKING:
     from fastmcp import FastMCP
     from .config import AppConfig
 
-__version__ = "3.8.0"
+__version__ = "3.8.1"
 
 
 def create_server(config: "AppConfig") -> "FastMCP":

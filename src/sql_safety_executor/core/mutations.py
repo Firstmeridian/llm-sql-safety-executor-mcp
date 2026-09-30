@@ -43,8 +43,23 @@ from sql_safety_executor.skills.access import (
     _ensure_skill_profile_allowed,
     _ensure_skill_schema_ready,
     _mutation_connection_policy_state,
+    _related_available_skill_names,
     _resolve_skill_connection,
 )
+
+
+def _add_related_available_skills(runtime, meta, connection, payload) -> None:
+    try:
+        names = _related_available_skill_names(runtime, meta, connection)
+    except Exception as exc:
+        # Advisory discovery must not change the validation failure outcome.
+        logger.warning(
+            "Related Skill availability lookup failed: %s",
+            exc.__class__.__name__,
+        )
+        return
+    if names:
+        payload["related_available_skills"] = names
 
 
 async def execute_mutation_skill(
@@ -165,6 +180,7 @@ async def execute_mutation_skill(
                     "error": "Validation failed for mutation.",
                     "validation": validation,
                 }
+                _add_related_available_skills(runtime, meta, connection, payload)
                 return _skill_tool_result(
                     payload,
                     meta,
@@ -413,6 +429,7 @@ async def execute_mutation_skill(
                 "error": "Validation failed for mutation.",
                 "validation": validation,
             }
+            _add_related_available_skills(runtime, meta, connection, payload)
             return _skill_tool_result(
                 payload,
                 meta,

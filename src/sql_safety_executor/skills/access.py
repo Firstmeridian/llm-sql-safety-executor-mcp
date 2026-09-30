@@ -392,6 +392,32 @@ def _skill_availability_state(
     }
 
 
+def _related_available_skill_names(
+    runtime,
+    meta: SkillMetadata,
+    connection: ConnectionContext,
+) -> list[str]:
+    """Return declared related mutation Skills executable on this connection."""
+    skills = runtime.catalog.get_skills_cache()
+    related = [
+        skills[name]
+        for name in meta.related_skills
+        if name != meta.name
+        and name in skills
+        and skills[name].type == "mutation"
+    ]
+    if not related:
+        return []
+    schema_snapshot = _get_skill_schema_snapshot(runtime, connection)
+    return [
+        related_meta.name
+        for related_meta in related
+        if _skill_availability_state(
+            runtime, related_meta, schema_snapshot, connection
+        )["executable"]
+    ]
+
+
 def _ensure_skill_schema_ready(
     runtime, meta: SkillMetadata, connection: ConnectionContext
 ) -> None:

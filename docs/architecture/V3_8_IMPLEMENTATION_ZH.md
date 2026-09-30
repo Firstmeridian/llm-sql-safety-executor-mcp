@@ -22,6 +22,14 @@
 
 MRTR 开关只控制额外工具注册，不移除旧 execute_mutation_skill，因此不是全局写入审批门禁。两条流程当前均采用可信 Host 模式 A。独立认证批准、Agent 无法取得批准凭据、所有写入路径不可绕过的授权检查尚未实现；沿用 [DRR-2026-050](../security/DESIGN_RISK_REGISTER.md#drr-2026-050-approval-boundary-follow-up-october-1-2026) 记录接受边界及重评条件。
 
+## v3.8.1 拒绝恢复线索（2026-10-01）
+
+版本升至 3.8.1（pyproject、包版本、MCP server 版本和锁文件项目条目）。本机无 uv，锁文件仅手工同步本项目 editable 条目的版本号，依赖解析未变；CI 仍用 `--frozen`。配置、授权、令牌与执行语义不变，无需迁移。
+
+实现：`skills/access.py` 新增 `_related_available_skill_names()`，只读取被拒 Skill 自己的 `related_skills`，排除自身、未知名称及 Query Skill，并复用 `_get_skill_schema_snapshot()` 与 `_skill_availability_state()`，保证与 `list_skills` 的可用性判断一致。`core/mutations.py` 在 preview 与 execute 两个 `validation_failed` 分支调用它；异常只记录异常类名并省略字段，不改变审计、令牌或结果。MRTR 首轮经 `MutationService.prepare` 复用同一 preview 路径。`mcp/contracts.py` 声明可选字符串数组。
+
+决策：服务端只给名称，不生成步骤或参数，避免把业务补偿逻辑或授权含义放进框架；仅列写入 Skill，因为报表类 Query Skill 不能达成写入目标。曾试验恢复 `preview_token_expires_in_seconds`，因 v3.7.1 已删除且相对秒数在对话中会过时而撤回。权衡与残余风险见 [DRR-2026-071/072](../security/DESIGN_RISK_REGISTER_ZH.md)、[安全说明](../security/V3_8_SECURITY.md#rejection-recovery-clue-v381)及[验收记录](../validation/V3_8_MRTR_NATIVE_2026_10_01_ZH.md)。
+
 ## 结构与生命周期
 
 `src/sql_safety_executor/` 是唯一运行包：`config` 处理严格模型、来源与密钥；`core` 提供完整读取策略、查询/schema/诊断服务及 Mutation 提案/执行；`database` 保留适配器与事务证据；`skills` 提供可信扩展 SDK、目录快照和发现服务；`mcp` 负责注册、上下文、结果编码和 MRTR；`prompts` 保存 UTF-8 资源；`observability` 处理审计与脱敏工具遥测；`cli` 提供显式启动和离线检查。

@@ -27,6 +27,8 @@
 
 > **Acceptance update (2026-10-01):** Native approval/refusal/cancellation and delayed framework rejection have evidence; real-process restart is covered separately. The tested Codex IDE now has post-restart screenshot evidence for multiline rendering and a no-write close-button cancellation. Native business-TTL/restart UI and other Hosts remain pending. Formatting preserves all snapshot values and adds display whitespace beyond the stored-review size cap. See the [current acceptance matrix](../validation/V3_8_MRTR_NATIVE_2026_10_01_ZH.md).
 
+> **v3.8.1 (2026-10-01):** DRR-2026-071 adds an advisory rejection recovery clue; DRR-2026-072 accepts conservative Agent misjudgment of token expiry without restoring a relative-expiry field. See [v3.8.1 entries](#v381-rejection-recovery-and-token-expiry-reporting-october-1-2026).
+
 # Design Risk Register
 
 English | [中文](DESIGN_RISK_REGISTER_ZH.md)
@@ -464,6 +466,15 @@ Targeted coverage belongs to `tests/test_connection_diagnostics.py` and the
 multi-connection/metadata protocol regressions. New verification and staged Agent
 results are in the [September 22 staged record](../validation/v3.7/V3_7_3_LIVE_MCP_TEST_UNIFIED_CONNECTION_DIAGNOSTICS_2026_09_22_ZH.md); the counts above are historical. See the
 [design and migration record](../guides/V3_7_CONNECTION_DIAGNOSTICS_DESIGN.md).
+
+### v3.8.1 rejection recovery and token-expiry reporting (October 1, 2026)
+
+| ID | Status | Risk level | Date first registered | Area | Risk or concern | Plan? | Modification logic | Current result | Next action |
+|---|---|---|---|---|---|---|---|---|---|
+| DRR-2026-071 | Implemented (advisory) | Low | 2026-10-01 | Premature "no path" after a Skill rejection | After a rejected `delivered → shipped` preview, a Copilot Agent claimed an administrator was required instead of discovering the executable reset Skill; the Skill metadata was already discoverable. Subagents relayed a rejection without any discovery calls even after an Agent rule was added. | Yes | On `validation_failed`, return optional `related_available_skills`: the rejected Skill's own `related_skills` that are mutation Skills executable on the same connection by the `list_skills` availability predicate. Names only; no parameters, advice, authorization, approval or token. Lookup failure omits it without changing `success`, `error_code` or `execution_outcome`. Also add backward links, lifecycle description, non-atomic restoration notes and tool guidance against bypassing rules or changing targets. | 796 passed, 4 skipped. After Host restart, bare rejection prompts found the reset path 3/3 without previewing it. The clue depends on author-declared links, adds one readiness metadata lookup on qualifying rejections, and exposes only names already visible through `list_skills`. Agents can still ignore or misuse it; each alternative write still needs its own preview and approval. | Reassess if Skills need graph-level alternatives or if Agents treat the clue as authorization. Do not add execution advice to the server payload without a separate design. |
+| DRR-2026-072 | Accepted | Low | 2026-10-01 | Agent misjudgment of preview-token expiry | Given only absolute `preview_token_expires_at`, subagents asked whether a token was usable often called it expired by their own date, although about four minutes remained by server UTC. | No new field | Keep v3.7.1's single absolute expiry. A trial reintroduction of `preview_token_expires_in_seconds` was withdrawn: it duplicates the absolute value, becomes stale in conversation, and adds no safety because execute enforces expiry. Guidance now says to report the expiry as returned and let execute decide validity. | Trials: 0/3, then 1/3 after wording changes. Misreports are conservative (fresh preview), not unsafe writes. | Parent Agents should not ask subagents to judge token validity; Hosts should compute any countdown from their current clock. Reopen if a client acts on a stale relative value. |
+
+Evidence and the three-run matrix are in the [acceptance record](../validation/V3_8_MRTR_NATIVE_2026_10_01_ZH.md).
 
 ## Initial v3.4.3 Review Batch Status
 

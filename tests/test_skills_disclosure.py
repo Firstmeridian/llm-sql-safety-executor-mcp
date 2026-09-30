@@ -860,6 +860,20 @@ def test_fastmcp_tool_schema_exposes_skill_parameters(monkeypatch):
     assert detail_level_schema["default"] == "full"
     assert "anyOf" not in detail_level_schema
 
+    mutation_description = " ".join(
+        next(
+            tool.description or ""
+            for tool in tools
+            if tool.name == "execute_mutation_skill"
+        ).split()
+    )
+    assert "do not bypass the rule or change targets" in mutation_description
+    assert "list_skills on the same connection" in mutation_description
+    assert "preview and approve every write separately" in mutation_description
+    assert "only execute decides whether a token is still valid" in (
+        mutation_description
+    )
+
     mutation_schema = schemas["execute_mutation_skill"]
     assert "params" in mutation_schema["properties"]
     assert "confirm" in mutation_schema["properties"]

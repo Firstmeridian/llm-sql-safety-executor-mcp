@@ -20,3 +20,17 @@
    has already changed (possibly by another agent or user).
 4. **Cancelled** can be reached from `pending` or `confirmed` only.
 5. **Returned** requires the order to have been `shipped` or `delivered`.
+
+## Demo Fixture Restoration
+
+Use this only when the user asks to restore dedicated demo/test data. For
+example, restore `delivered` to `shipped` on the same connection:
+
+1. `sample-reset-order-to-pending`: `delivered` → `pending`
+2. `sample-update-order-status`: `pending` → `confirmed`
+3. `sample-update-order-status`: `confirmed` → `shipped`
+
+Each step is a separately committed mutation with its own preview and approval.
+The sequence is not atomic: cancellation or failure leaves earlier commits in
+place. Stop on failure or unknown outcome, reconcile the current state, and do
+not retry automatically. This is not a production reopen or rollback.
