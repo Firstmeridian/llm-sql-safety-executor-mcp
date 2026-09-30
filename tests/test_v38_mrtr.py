@@ -302,4 +302,18 @@ async def test_waiting_telemetry_is_not_business_success(mrtr_server, tmp_path):
             & record.keys()
         )
 
+
+@pytest.mark.asyncio
+async def test_mrtr_description_defers_to_shared_result_rules(mrtr_server):
+    async with Client(mrtr_server) as client:
+        tools = {tool.name: tool for tool in await client.list_tools()}
+    mrtr = " ".join((tools["request_mutation_approval"].description or "").split())
+    shared = " ".join((tools["execute_mutation_skill"].description or "").split())
+    assert "Waiting for or giving approval is not a write result" in mrtr
+    assert "execute_mutation_skill result rules" in mrtr
+    assert "carries no execution_outcome" in mrtr
+    # MRTR registers only with mutations enabled, so the shared rules are present.
+    assert "execution_outcome, not success, states the write" in shared
+    assert len(mrtr) < 500
+
 from tests.test_v38_config import bundle as bundle

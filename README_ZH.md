@@ -875,6 +875,7 @@ SQLite 初始化拒绝覆盖已有文件；MySQL 初始化遇到现存 orders �
 - `execute_mutation_skill` 遇到 `validation_failed` 时，可返回 `related_available_skills`：在同一连接上当前可执行、且被声明为关联的写入 Skill 名称。它只是线索，不含建议、授权或批准；替代路径中的每次写入仍需单独预览和批准。查找失败时省略该字段，不改变原失败结果。
 - 更新 Skill 写明正向生命周期并关联重置 Skill；演示数据恢复按独立批准、非原子的步骤记录。工具说明禁止绕过拒绝，并将令牌有效性交由 execute 判定。
 - 响应仍只返回绝对期限 `preview_token_expires_at`；试验性恢复的 `preview_token_expires_in_seconds` 已撤回。子代理被问及令牌是否仍可用时仍会按自身日期误判（偏保守，过期始终由 execute 校验）。
+- 写入工具说明新增结果解读规则：以 `execution_outcome` 而非 `success` 判断写入；`success=false` 但 `committed` 不得重做；`unknown` 可能已写入也可能未写入；不带 `execution_outcome` 的错误不证明任何结论；不得自行重试或改走其他入口。回放试验从 12/18 提升到 16/18（MRTR 协议错误 0/3 → 3/3），每次请求输入约增加 159 token；引导不替代服务端控制。
 - 796 passed、4 skipped；Pyright 0 errors；Host 与子代理测试均未写入。详见[发布说明](docs/releases/RELEASE_NOTES_v3_8.md#v381--skill-rejection-recovery-clue-october-1-2026)。
 
 ### v3.8.0 FastMCP 4、TOML 与托管 MRTR（2026年9月）
@@ -1710,6 +1711,7 @@ sandbox。MCP 会直接调用基类 wrapper，因此 discovery 后替换子类�
 自 v3.8.1 起，`validation_failed` 结果可附加 `related_available_skills`：
 被拒 Skill 自己的 `related_skills` 中、在同一连接当前可执行的写入 Skill 名称。
 它是发现线索，不是建议、授权或批准；查找失败时省略，不改变原结果。
+Copilot 等 Host 不会把 `outputSchema` 的字段说明交给模型，因此写入工具说明也写明了结果解读规则。
 本版没有持久 operation ID 或回执查询。后来观察到业务状态符合请求预期，不能证明
 请求级归因；未来查询不到回执，也不能单独证明已回滚，除非该协议已明确权威一致性、
 处理中状态、保留期和 terminal-not-found 语义。暂缓设计的触发条件统一登记在
@@ -2184,7 +2186,7 @@ uv build
 
 **10 月 1 日提交前检查：** 完整待提交 v3.8.0 改动经干净副本、锁定依赖验证，结果为 **793 passed、4 skipped**，三项警告均为已有旧协议日志弃用。Pyright、sdist/wheel 构建及仓库外安装后验证通过。版本仍为 **3.8.0**；新提交的远端 CI 和剩余原生 UI 项目分别管理，详见[最终本地验证](docs/validation/V3_8_MRTR_NATIVE_2026_10_01_ZH.md)。
 
-**v3.8.1 检查（10 月 1 日）：** 加入拒绝恢复线索后，本地全量测试为 **796 passed、4 skipped**，Pyright 0 errors。该结果来自现有开发环境，不是干净副本，未宣称构建或远端 CI 结果。见 [v3.8.1 说明](docs/releases/RELEASE_NOTES_v3_8.md#v381--skill-rejection-recovery-clue-october-1-2026)。
+**v3.8.1 检查（10 月 1 日）：** 加入拒绝恢复线索后，本地全量测试为 **796 passed、4 skipped**，Pyright 0 errors；随后加入结果解读引导后为 **797 passed、4 skipped**。这些结果来自现有开发环境，不是干净副本，未宣称构建或远端 CI 结果。见 [v3.8.1 说明](docs/releases/RELEASE_NOTES_v3_8.md#v381--skill-rejection-recovery-clue-october-1-2026)。
 
 ### 测试脚本
 

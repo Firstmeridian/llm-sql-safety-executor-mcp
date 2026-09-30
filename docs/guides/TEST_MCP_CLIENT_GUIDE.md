@@ -274,3 +274,18 @@ whether a preview token is still usable. Report `preview_token_expires_at` as
 returned; execute alone decides validity, and any Host-side countdown should be
 computed from the current clock. See the [acceptance record](../validation/V3_8_MRTR_NATIVE_2026_10_01_ZH.md)
 for the 3-run behavior matrix and remaining limits.
+
+### Reading mutation results and refreshing Host tool definitions (v3.8.1)
+
+The `execute_mutation_skill` description now carries the result rules because
+some Hosts, including Copilot, do not pass `outputSchema` descriptions to the
+model. Read `execution_outcome`, not `success`; treat an error without
+`execution_outcome` as unknown; never retry or switch entry points without a
+new user decision. Replay checks can give recorded results to an Agent in the
+prompt, but that is not the same as the tool channel and should be reported as
+such.
+
+After changing tool descriptions, restarting the server was not enough in the
+tested VS Code build. Run **MCP: Reset Cached Tools**, then make one tool call so
+the Host lists tools again, and confirm the new text reached the model (for
+example, ask a subagent to quote it) before behavior testing.

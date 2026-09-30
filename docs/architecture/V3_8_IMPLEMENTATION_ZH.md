@@ -30,6 +30,8 @@ MRTR 开关只控制额外工具注册，不移除旧 execute_mutation_skill，�
 
 决策：服务端只给名称，不生成步骤或参数，避免把业务补偿逻辑或授权含义放进框架；仅列写入 Skill，因为报表类 Query Skill 不能达成写入目标。曾试验恢复 `preview_token_expires_in_seconds`，因 v3.7.1 已删除且相对秒数在对话中会过时而撤回。权衡与残余风险见 [DRR-2026-071/072](../security/DESIGN_RISK_REGISTER_ZH.md)、[安全说明](../security/V3_8_SECURITY.md#rejection-recovery-clue-v381)及[验收记录](../validation/V3_8_MRTR_NATIVE_2026_10_01_ZH.md)。
 
+结果解读引导（同属 3.8.1）：实测确认 Copilot 只把工具名、说明和输入参数交给模型，`outputSchema` 中对 `execution_outcome` 的说明对模型不可见。因此将规则写入 `prompts/tools/execute_mutation_skill.md` 的 “Reading results” 段，并替换原 Returns 段中两句泛化警告；MRTR 工具说明（`mcp/mrtr.py` 注册处）只补充等待／批准不是写入结果、续接协议错误不带结论，并引用共享规则。未写入服务端 instructions 或 `sql_assistant`：前者与工具说明同处上下文会重复计费，后者不会被 Host 自动注入。没有修改执行、令牌、审批、输出结构或配置。测试将两段说明分别限制在 2800 和 500 字符以内，防止持续膨胀。设计稿中的多处共享资源、服务说明接入和 20 个验收场景被精简为以上两处和 6 个回放场景。残余风险见 DRR-2026-073。
+
 ## 结构与生命周期
 
 `src/sql_safety_executor/` 是唯一运行包：`config` 处理严格模型、来源与密钥；`core` 提供完整读取策略、查询/schema/诊断服务及 Mutation 提案/执行；`database` 保留适配器与事务证据；`skills` 提供可信扩展 SDK、目录快照和发现服务；`mcp` 负责注册、上下文、结果编码和 MRTR；`prompts` 保存 UTF-8 资源；`observability` 处理审计与脱敏工具遥测；`cli` 提供显式启动和离线检查。
