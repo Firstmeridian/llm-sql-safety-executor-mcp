@@ -74,6 +74,15 @@ Only trusted operators should edit TOML or Skill directories. Source and definit
 
 Configuration check does not load business code. Service initialization discovers Skills and can reject individual invalid definitions while leaving valid Skills available. Readiness is an availability observation, never an authorization grant. `agent_id` / Host-provided client labels are not authenticated identities.
 
+## MCP Apps result viewer / MCP Apps 结果视图
+
+`apps.enabled` defaults to false. When enabled, the server registers one static `ui://sql-safety-executor/result-viewer.html` resource and binds only `query` and `execute_query_skill` to it. The View is a presentation layer for the result the Host already received; it adds no execution path, and read policy, truncation and write gates are unchanged. `structuredContent` is the same payload that is serialized into the text `content`, so no extra data is exposed to the View and non-Apps Hosts keep the text fallback.
+
+- Every gateway tool (including `execute_mutation_skill` and `request_mutation_approval`) declares `_meta.ui.visibility=["model"]`. Per MCP Apps, the Host must reject View-initiated `tools/call` for these tools. The View also never sends `tools/call`, `resources/read`, `ui/message`, `ui/open-link` or `ui/update-model-context`. It cannot approve, preview or execute a write and is not an approval surface.
+- Row values are untrusted database content. The View renders them only through `textContent`; it has no remote scripts, styles, fonts or images. The resource declares an explicit empty `_meta.ui.csp` and the document adds its own restrictive CSP (`default-src 'none'`, `connect-src 'none'`, `frame-src 'none'`, `base-uri 'none'`, `form-action 'none'`). Host CSS variables are applied only as custom properties.
+- Iframe sandboxing, CSP enforcement and visibility filtering are Host obligations. A non-conforming Host can ignore visibility; the server cannot verify Host sandboxing. Existing server-side gates still apply to every tool call regardless of its origin.
+- FastMCP 4.0.10 advertises `capabilities.extensions["io.modelcontextprotocol/ui"]` on MCP 2026-07-28 for every server, including when `apps.enabled=false` (the SDK strips it on 2025-11-25). With the switch off there are no UI resources or UI metadata to act on; the advertisement is not a grant.
+
 ## Accepted limits / 暂缓项
 
 Tasks, remote multi-user auth, independently authenticated approvals, durable/distributed recovery, providers, CodeMode, generic result caching and OTel export are outside this release. Native Host version and observed protocol must be recorded separately from reference Client tests. A legacy client rejection is a compatibility result, not an MRTR approval pass.

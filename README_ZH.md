@@ -751,6 +751,8 @@ sample_rate = 1.0
 
 服务日志始终到 stderr，设置 `logging.path` 后同时写文件；stdout 专用于 MCP。遥测只记录脱敏调用元数据，`sample_rate` 范围为 0～1。配置、已解析密钥和 Skill 定义使用启动快照，修改后需重启。
 
+`[apps] enabled = false`（默认）控制可选的只读 MCP Apps 结果视图。开启后，支持 MCP Apps（`io.modelcontextprotocol/ui`）的 Host 会在沙箱表格中显示 `query` / `execute_query_skill` 的行；其他 Host 仍使用文本结果。它不改变任何读写授权，且全部工具声明 `visibility=["model"]`，View 无法调用工具。见 [MCP Apps 设计](docs/architecture/V3_8_MCP_APPS_ZH.md) 与 [安全边界](docs/security/V3_8_SECURITY.md)。
+
 **Skills 配置说明**：
 
 Skills 层允许你将常用的 SQL 查询和数据变更操作封装为可复用的“技能”。默认关闭；启用后仍受目标策略约束。完整 `config/skills.toml` 示例：

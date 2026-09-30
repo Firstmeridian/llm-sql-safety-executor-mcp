@@ -771,6 +771,8 @@ sample_rate = 1.0
 
 Service logs go to stderr, with an optional additional file; stdout is reserved for MCP. Telemetry contains sanitized call metadata; sample_rate is in [0,1]. Configuration, resolved secrets and Skill definitions are snapshots; changes require restart.
 
+`[apps] enabled = false` (default) controls the optional, display-only MCP Apps result viewer. When enabled, Hosts that support MCP Apps (`io.modelcontextprotocol/ui`) render `query` / `execute_query_skill` rows in a sandboxed table; other Hosts keep the text result. It changes no read/write authorization, and every tool is declared `visibility=["model"]` so the View cannot call tools. See [MCP Apps design](docs/architecture/V3_8_MCP_APPS_ZH.md) and the [security boundary](docs/security/V3_8_SECURITY.md).
+
 **Skills configuration**:
 
 Skills package common SQL queries and mutations as reusable operations. They are disabled by default and remain subject to target authorization when enabled. Complete `config/skills.toml` example:

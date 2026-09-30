@@ -15,6 +15,7 @@
 
 - [重构日志](../REFACTORING_LOG_ZH.md) / [English](../REFACTORING_LOG.md)：持续维护变更、决策、取舍和验证记录，包含 v3.8。
 - [v3.8 实施决策](architecture/V3_8_IMPLEMENTATION_ZH.md)：包结构、实例状态与参考稿评审。
+- [v3.8 MCP Apps 结果视图](architecture/V3_8_MCP_APPS_ZH.md)：默认关闭的只读 UI、来源评审与验证状态。
 - [工具契约与评估方法](guides/PROMPT_ENGINEERING_BEST_PRACTICES.md)：参数 schema、工具说明、提示词与行为检查。
 - [Agent 编排行为验证方法](guides/MCP_AGENT_BEHAVIOR_VALIDATION_ZH.md)：可复用的路由、渐进披露和成本评估方法。
 - [命名连接、Skills 与批准流程（v3.5–v3.7）](guides/V3_5-V3_7_SKILLS_GUIDE_ZH.md)。
