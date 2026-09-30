@@ -26,6 +26,7 @@ from sql_safety_executor.core.types import OperationError
 from sql_safety_executor.database.diagnostics import ConnectionReport
 from sql_safety_executor.prompts import render
 from sql_safety_executor.skills import tools as skill_tools
+from .apps import register_apps, tool_app
 
 
 def _handler(function, runtime):
@@ -94,6 +95,7 @@ def create_server(config: AppConfig) -> FastMCP:
             ),
         )
         definitions = TOOL_DEFINITIONS
+        apps_enabled = config.server.apps.enabled
         functions = [
             diagnostics.list_connections,
             queries.query,
@@ -128,12 +130,15 @@ def create_server(config: AppConfig) -> FastMCP:
                 description=render.text(f"tools/{function.__name__}.md"),
                 annotations=annotations,
                 output_schema=output_schema,
+                app=tool_app(function.__name__, apps_enabled),
                 timeout=runtime.tool_timeout,
             )
         if config.skills.mutation.mrtr.enabled:
             from .mrtr import register_mrtr
 
             register_mrtr(server, runtime)
+        if apps_enabled:
+            register_apps(server)
         if config.server.observability.telemetry.enabled:
             from sql_safety_executor.observability.telemetry import (
                 ToolTelemetryMiddleware,

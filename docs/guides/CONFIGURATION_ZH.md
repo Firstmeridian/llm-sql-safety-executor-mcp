@@ -33,6 +33,7 @@ sql-safety-executor config explain --config /path/server.toml
 | `defaults.timeouts.query_seconds` / `connect_seconds` | 30 / 10；正整数 |
 | `observability.logging.level` / `path` | INFO / 不写日志文件，服务日志到 stderr |
 | `observability.telemetry.enabled` / `path` / `sample_rate` | false / `../logs/tool_calls.jsonl` / 1.0，范围 [0,1] |
+| `apps.enabled` | false；严格布尔。开启后注册只读 MCP Apps 结果视图 `ui://sql-safety-executor/result-viewer.html`，`query` / `execute_query_skill` 声明 `_meta.ui.resourceUri`，全部工具声明 `visibility=["model"]`。不改变任何读写授权，见 [MCP Apps 设计](../architecture/V3_8_MCP_APPS_ZH.md) |
 | `connections.<id>.sqlite.progress_handler_interval` | 100，正整数 |
 | `connections.<id>.read.mode` / `tables` / `allow_union` | deny / [] / false |
 | `connections.<id>.mutation.enabled` / `skills` | false / [] |

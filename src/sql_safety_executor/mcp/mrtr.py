@@ -4,6 +4,7 @@ import json
 import time
 from typing import Annotated, Any
 
+from .apps import tool_app
 from .context import ToolContext
 from fastmcp import Context
 from fastmcp.exceptions import ToolError
@@ -230,6 +231,7 @@ def register_mrtr(server, runtime):
     @server.tool(
         name="request_mutation_approval",
         timeout=runtime.tool_timeout,
+        app=tool_app("request_mutation_approval", runtime.config.server.apps.enabled),
         description="Prepare a managed single-statement mutation and ask the trusted Host for human approval. Requires MCP 2026-07-28 form elicitation. Keep the target and parameters unchanged; never automatically retry an uncertain write.",
         annotations=ToolAnnotations(
             read_only_hint=False,
