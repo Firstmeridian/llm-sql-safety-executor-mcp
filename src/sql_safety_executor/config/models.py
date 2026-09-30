@@ -103,6 +103,10 @@ class Observability(Model):
     logging: Logging = Logging()
 
 
+class Apps(Model):
+    enabled: bool = False
+
+
 class ServerFile(Model):
     schema_version: Literal[1]
     files: Files
@@ -111,6 +115,7 @@ class ServerFile(Model):
     limits: Limits = Limits()
     defaults: Defaults = Defaults()
     observability: Observability = Observability()
+    apps: Apps = Apps()
 
 
 class ReadPolicy(Model):

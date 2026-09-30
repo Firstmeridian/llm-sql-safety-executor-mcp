@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SQL Result Viewer</title>
+<style>
+:root {
+  color-scheme: light dark;
+  --color-background-primary: light-dark(#ffffff, #171717);
+  --color-background-secondary: light-dark(#f5f5f5, #262626);
+  --color-text-primary: light-dark(#171717, #fafafa);
+  --color-text-secondary: light-dark(#525252, #a3a3a3);
+  --color-text-danger: light-dark(#b91c1c, #f87171);
+  --color-text-warning: light-dark(#a16207, #facc15);
+  --color-border-primary: light-dark(#d4d4d4, #404040);
+  --font-sans: system-ui, sans-serif;
+  --font-mono: ui-monospace, monospace;
+  --font-text-sm-size: 13px;
+}
+html, body { margin: 0; background: var(--color-background-primary); color: var(--color-text-primary); font: var(--font-text-sm-size) var(--font-sans); }
+main { padding: 8px 12px; }
+#summary { color: var(--color-text-secondary); margin: 0 0 6px; }
+#source { font-family: var(--font-mono); white-space: pre-wrap; word-break: break-word; margin: 0 0 6px; }
+.note { color: var(--color-text-warning); margin: 0 0 6px; }
+.error { color: var(--color-text-danger); white-space: pre-wrap; margin: 0 0 6px; }
+.wrap { overflow: auto; max-height: 480px; border: 1px solid var(--color-border-primary); }
+table { border-collapse: collapse; width: max-content; min-width: 100%; }
+th, td { padding: 3px 8px; border-bottom: 1px solid var(--color-border-primary); text-align: left; vertical-align: top; white-space: pre-wrap; font-family: var(--font-mono); }
+th { position: sticky; top: 0; background: var(--color-background-secondary); }
+td.null { color: var(--color-text-secondary); font-style: italic; }
+pre { white-space: pre-wrap; word-break: break-word; font-family: var(--font-mono); margin: 0; }
+</style>
+</head>
+<body>
+<main>
+  <p id="summary">Waiting for tool result…</p>
+  <p id="source" hidden></p>
+  <div id="output"></div>
+</main>
+<script>
+(function () {
+  "use strict";
+  // Display-only View. Tool results are untrusted database content: render via
+  // textContent only; never call tools, open links, send messages or update
+  // model context.
+  var PROTOCOL_VERSION = "2026-01-26";
+  var MAX_RENDERED_ROWS = 1000;
+  var nextId = 1;
+  var pending = {};
+  var summary = document.getElementById("summary");
+  var source = document.getElementById("source");
+  var output = document.getElementById("output");
+
+  function post(message) {
+    window.parent.postMessage(Object.assign({ jsonrpc: "2.0" }, message), "*");
+  }
+
+  function request(method, params) {
+    var id = nextId++;
+    post({ id: id, method: method, params: params });
+    return new Promise(function (resolve, reject) {
+      pending[id] = { resolve: resolve, reject: reject };
+    });
+  }
+
+  function element(tag, text, className) {
+    var node = document.createElement(tag);
+    if (text !== undefined) node.textContent = text;
+    if (className) node.className = className;
+    return node;
+  }
+
+  function cellText(value) {
+    if (value === null || value === undefined) return null;
+    if (typeof value === "object") {
+      try { return JSON.stringify(value); } catch (e) { return String(value); }
+    }
+    return String(value);
+  }
+
+  function applyHostContext(context) {
+    if (!context || typeof context !== "object") return;
+    if (context.theme === "light" || context.theme === "dark") {
+      document.documentElement.style.colorScheme = context.theme;
+    }
+    var variables = context.styles && context.styles.variables;
+    if (variables && typeof variables === "object") {
+      Object.keys(variables).forEach(function (key) {
+        var value = variables[key];
+        if (/^--[a-z0-9-]+$/.test(key) && typeof value === "string") {
+          document.documentElement.style.setProperty(key, value);
+        }
+      });
+    }
+  }
+
+  function renderTable(rows) {
+    var columns = [];
+    var seen = {};
+    rows.forEach(function (row) {
+      if (row && typeof row === "object" && !Array.isArray(row)) {
+        Object.keys(row).forEach(function (key) {
+          if (!Object.prototype.hasOwnProperty.call(seen, key)) {
+            seen[key] = true;
+            columns.push(key);
+          }
+        });
+      }
+    });
+    var table = element("table");
+    var head = table.createTHead().insertRow();
+    columns.forEach(function (column) { head.appendChild(element("th", column)); });
+    var body = table.createTBody();
+    rows.slice(0, MAX_RENDERED_ROWS).forEach(function (row) {
+      var tr = body.insertRow();
+      columns.forEach(function (column) {
+        var has = row && typeof row === "object" && Object.prototype.hasOwnProperty.call(row, column);
+        var text = has ? cellText(row[column]) : null;
+        tr.appendChild(text === null ? element("td", "NULL", "null") : element("td", text));
+      });
+    });
+    var wrap = element("div", undefined, "wrap");
+    wrap.appendChild(table);
+    output.appendChild(wrap);
+    if (rows.length > MAX_RENDERED_ROWS) {
+      output.appendChild(element("p", "Viewer shows the first " + MAX_RENDERED_ROWS + " returned rows.", "note"));
+    }
+  }
+
+  function renderResult(result) {
+    output.replaceChildren();
+    var data = result && result.structuredContent;
+    if (!data || typeof data !== "object") {
+      var texts = ((result && result.content) || [])
+        .filter(function (block) { return block && block.type === "text"; })
+        .map(function (block) { return String(block.text); });
+      summary.textContent = result && result.isError ? "Tool error" : "Result";
+      output.appendChild(element("pre", texts.join("\n"), result && result.isError ? "error" : undefined));
+      return;
+    }
+    var parts = [];
+    if (data.skill_name) parts.push("Skill " + data.skill_name);
+    if (data.connection_id) parts.push("connection " + data.connection_id);
+    if (data.db_type) parts.push(data.db_type);
+    if (data.success === false || result.isError) {
+      summary.textContent = ["Query rejected or failed"].concat(parts).join(" · ");
+      output.appendChild(element("p", cellText(data.error) || "Unknown error", "error"));
+      return;
+    }
+    var rows = Array.isArray(data.data) ? data.data : [];
+    var shown = typeof data.row_count === "number" ? data.row_count : rows.length;
+    var total = typeof data.total_rows === "number" ? data.total_rows : shown;
+    parts.push(shown === total ? shown + " rows" : shown + " of " + total + " rows");
+    summary.textContent = parts.join(" · ");
+    if (data.truncated && data.truncation_note) {
+      output.appendChild(element("p", String(data.truncation_note), "note"));
+    }
+    if (rows.length) renderTable(rows);
+    else output.appendChild(element("p", "No rows returned."));
+  }
+
+  function renderInput(args) {
+    if (!args || typeof args !== "object") return;
+    var text = typeof args.sql === "string" ? args.sql
+      : typeof args.skill_name === "string" ? "Skill: " + args.skill_name : "";
+    source.textContent = text;
+    source.hidden = !text;
+  }
+
+  window.addEventListener("message", function (event) {
+    if (event.source !== window.parent) return;
+    var message = event.data;
+    if (!message || message.jsonrpc !== "2.0") return;
+    if (message.id !== undefined && !message.method) {
+      var waiter = pending[message.id];
+      if (!waiter) return;
+      delete pending[message.id];
+      if (message.error) waiter.reject(message.error);
+      else waiter.resolve(message.result);
+      return;
+    }
+    var params = message.params || {};
+    switch (message.method) {
+      case "ui/notifications/tool-input":
+        renderInput(params.arguments);
+        break;
+      case "ui/notifications/tool-result":
+        renderResult(params);
+        break;
+      case "ui/notifications/tool-cancelled":
+        summary.textContent = "Tool call cancelled";
+        output.replaceChildren();
+        break;
+      case "ui/notifications/host-context-changed":
+        applyHostContext(params);
+        break;
+      case "ui/resource-teardown":
+      case "ping":
+        if (message.id !== undefined) post({ id: message.id, result: {} });
+        break;
+      default:
+        if (message.id !== undefined) {
+          post({ id: message.id, error: { code: -32601, message: "Method not found" } });
+        }
+    }
+  });
+
+  var lastSize = "";
+  function reportSize() {
+    var width = Math.ceil(document.documentElement.scrollWidth);
+    var height = Math.ceil(document.documentElement.scrollHeight);
+    var key = width + "x" + height;
+    if (key === lastSize) return;
+    lastSize = key;
+    post({ method: "ui/notifications/size-changed", params: { width: width, height: height } });
+  }
+
+  request("ui/initialize", {
+    appInfo: { name: "sql-safety-executor-result-viewer", version: "1.0.0" },
+    appCapabilities: { availableDisplayModes: ["inline"] },
+    protocolVersion: PROTOCOL_VERSION
+  }).then(function (result) {
+    applyHostContext(result && result.hostContext);
+  }, function () {
+    // Keep defaults; the Host still owns rendering and may send context later.
+  }).then(function () {
+    post({ method: "ui/notifications/initialized", params: {} });
+    if (typeof ResizeObserver === "function") {
+      new ResizeObserver(reportSize).observe(document.documentElement);
+    }
+    reportSize();
+  });
+})();
+</script>
+</body>
+</html>
