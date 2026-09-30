@@ -12,8 +12,6 @@ from fastmcp.apps import UI_MIME_TYPE, AppConfig, ResourceCSP
 RESULT_VIEWER_URI = "ui://sql-safety-executor/result-viewer.html"
 # Tools whose tabular `data` payload the viewer renders.
 VIEWER_TOOLS = frozenset({"query", "execute_query_skill"})
-# The View is passive, so no gateway tool is callable from it.
-MODEL_ONLY: list = ["model"]
 
 
 def result_viewer_html() -> str:
@@ -29,7 +27,8 @@ def tool_app(name: str, enabled: bool) -> AppConfig | None:
         return None
     return AppConfig(
         resource_uri=RESULT_VIEWER_URI if name in VIEWER_TOOLS else None,
-        visibility=MODEL_ONLY,
+        # The View is passive, so no gateway tool is callable from it.
+        visibility=["model"],
     )
 
 
