@@ -4,13 +4,35 @@ The supported deployment is a trusted local Host and a single server process. MC
 
 本轮沿用可信 Host 审批模式 A。Host 负责可靠呈现审阅内容并收集人的决定；服务端负责目标、Skill、参数、提案绑定及单次消费。恶意或被攻陷的 Host 能伪造批准，不能宣称 MRTR 提供了独立人类认证。
 
+## Where approval is enforced
+
+MRTR is a protocol pattern for requesting more input, not inherently a human-approval system. This project's `request_mutation_approval` uses it to require a bound approving response before executing that proposal; the Host remains responsible for obtaining the person's decision.
+
+**MRTR 给 `request_mutation_approval` 这个入口增加了服务端强制的“批准轮次”；而 preview/execute 的“人工批准”属于 Host 工作流，Server 强制 preview-token 协议、权限与执行检查，但并不知道是否真的有人批准。** 此处“批准轮次”指服务端必须收到有效绑定的 `accept` 与严格布尔 `approve=true`，不证明真人在场或点击，也不改变旧入口仍可用的事实。
+
+| Boundary | Legacy preview/execute | MRTR |
+|---|---|---|
+| Human interaction | The Host implements it; the server does not request an approval form. An Agent may ask in conversation, or the reference Host may require literal `APPROVE`. | The server returns a protocol input request; the Host renders it and supplies a decision. Window rendering and human interaction depend on that Host. |
+| Server execution gate | `confirm=true`, a valid matching one-time preview token, configuration grants and execution checks. | A valid bound continuation, `accept` with strict boolean `approve=true`, and the shared proposal/grant/execution checks. |
+| Independent evidence of a human | None: a client with both tool access and the token can submit execute without asking a person. | None: an automated or compromised Host can supply an accepting response. Sealing binds continuation state; it does not authenticate the approver. |
+
+`skills.mutation.mrtr.enabled` controls registration of the optional MRTR tool. Enabling it does **not** disable `execute_mutation_skill` or require every mutation to use MRTR; disabling it does **not** disable otherwise authorized legacy mutations. Client tool-call permissions are another Host control, not a server-verifiable approval of the exact SQL.
+
+Trusted-Host mode A is the accepted boundary (DRR-2026-050). A conversation-only instruction to ask permission is an Agent behavior rule, not a server authorization gate. The reference Host enforces its own decision/deadline checks in code, so legacy approval need not rely solely on an Agent following instructions; other authorized clients can still call the service directly. Both flows continue enforcing target, parameter, expiry, replay and database policies even though they do not prove human approval.
+
+If the requirement changes to preventing an Agent/client from approving its own writes, a separate authenticated approval authority must issue authorization unavailable to that Agent and bound to the exact proposal, with every write entry point enforcing it. An unbypassable trusted gateway is another possible deployment boundary. These are future designs, not properties of current tokens, MRTR, tool annotations or UI prompts; hiding a tool only from the model is not sufficient server-side enforcement. See the [DRR follow-up](DESIGN_RISK_REGISTER.md#drr-2026-050-approval-boundary-follow-up-october-1-2026).
+
 ## Authorization
+
+The October 1 deployment decision retains preview/execute as the default, with MRTR disabled unless explicitly enabled for a verified Host. Native Codex IDE evidence and the tested Copilot protocol rejection justify this compatibility choice only for the observed scope; see the [acceptance audit](../validation/V3_8_MRTR_NATIVE_2026_10_01_ZH.md). This does not strengthen either flow's human-identity guarantee. A client must not automatically switch write entry points after an approval refusal, cancellation, timeout or uncertain outcome. This is a Host workflow requirement, not a cross-entry-point server lock; reconcile uncertain writes first.
 
 Read access defaults to deny. An explicit allowlist (nonempty) or `all` grants read scope; structural checks still block writes, unsupported syntax, system schemas, file operations, unsafe comments and unauthorized UNION. Raw SQL and Query Skills share the complete policy. Metadata tools obey read scope. Unknown targets never fall back.
 
 Writes require all five configuration gates: Skills, global mutation enablement, admitted target, target mutation enablement, and target Skill allowlist. Skill connection/type/profile restrictions and execution checks remain conjunctive. Read allowlists are not universal mutation allowlists. Authorized previews/readiness checks may inspect mutation business tables even if general reads are denied.
 
 Profile exclusions are normalized once in the TOML loader (trim, lowercase, deduplicate); blank entries fail startup. Query Skill availability uses the same read-admission predicate as execution, including tableless SQL. These checks do not grant mutation access.
+
+Query Skill discovery also preflights the cached SQL with the execution path's full static policy for the resolved connection, including UNION and parsed table scope. A denied template remains in the catalog for other authorized targets; verdicts are not shared across connections. This adds parsing work to discovery, not database SQL execution. Enabled schema readiness can still perform metadata I/O, and execution repeats the authoritative checks. Availability does not guarantee valid parameters, dialect compatibility, database availability or successful execution.
 
 Explicit target binding and deployment permissions do not authenticate the user's natural-language task scope. `OperationContext` carries operational callbacks, not a trusted per-request authorization grant. A Host-authenticated task-scope boundary remains deferred; an Agent can request any operation that the deployment otherwise authorizes.
 
@@ -22,12 +44,15 @@ Explicit target binding and deployment permissions do not authenticate the user'
 - Review includes resolved target, Skill, normalized parameters, SQL/bound values and expiry. One server-side review is capped at 64 KiB UTF-8; over-limit proposals are revoked and rejected, never truncated for approval. The existing execution binding cap remains 4096 bytes.
 - FastMCP/SDK seals request state. The sealed reference is not a replacement for server-side proposal validation. The raw bearer token is omitted from displayed MRTR review and telemetry. Sealed state should also be treated as sensitive.
 - Missing answers resend the same review without extending TTL. Only `accept` plus strict boolean `approve=true` executes. False, decline and cancel consume the pending proposal without executing. Invalid responses never approve.
+- The required boolean `approve` field advertises `default=false` as a form initialization hint. It does not supply missing response data or authorize execution. Explicit false uses the refusal path. On October 1, the tested Codex IDE accepted an unchecked submission after this hint was added; the user confirmed the UI action and the server returned `approval_declined` without a database change. This is standard MCP schema metadata, not a Host-specific bypass. Other Host/version combinations still require UI verification; see the [dated acceptance and scope audit](../../REFACTORING_LOG.md#v380-mrtr-approval-form-default-october-1-2026).
 - The SDK's sealed-state TTL explicitly follows the configured preview TTL, using an ephemeral key per service instance. Resealing a missing-answer continuation never extends the original server-side proposal expiry.
 - Continuations must match the same target, Skill/version and normalized parameters. Execution uses the cached plan and preview binding; it does not rerun preview under an old approval.
 - Consumption remains atomic at the execution boundary. Any failure after consumption leaves the token spent. Missing records, concurrent continuations and replay are not evidence that an earlier write did not happen.
 - Waiting holds no transaction or row lock. An optimistic precondition may fail between review and execution; row-count mismatch rolls back the managed transaction.
 
 Token state, diagnostics, connections and catalog are instance-owned and in-memory. Shutdown clears pending proposals. Restart cannot recover approvals. There is no distributed or durable completion ledger. Capacity is count-based; with the configured review/binding maxima, administrators should size `max_entries` for memory use rather than blindly choosing the maximum.
+
+Native October 1 testing observed a user-approved continuation after a long wait rejected with `invalid_request_state`; independent reads showed no change. This framework protocol error carries no business `execution_outcome` and does not independently exercise the business TTL branch. A separate real-process stdio regression now verifies old-state rejection before expiry and successful fresh approval after restart; native restart UI behavior remains unverified; see the [acceptance record](../validation/V3_8_MRTR_NATIVE_2026_10_01_ZH.md). No cross-client guarantee follows from this one Host's result.
 
 The reference Host's preview and MRTR flows share an outer approval deadline, a fingerprint of the displayed review (including nested values), and a post-decision expiry check. Late approval, altered review, invalid decisions or provider errors fail closed. Host approval timeout is independent of server token TTL. Cooperative providers are cancelled; a blocking provider or one suppressing cancellation is rejected when it returns, but this is not a hard termination or isolation guarantee against hostile Python. MRTR sends cancellation for these failures; external task/transport cancellation can leave a proposal pending until TTL. No automatic write retry is introduced.
 
@@ -52,3 +77,7 @@ Configuration check does not load business code. Service initialization discover
 ## Accepted limits / 暂缓项
 
 Tasks, remote multi-user auth, independently authenticated approvals, durable/distributed recovery, providers, CodeMode, generic result caching and OTel export are outside this release. Native Host version and observed protocol must be recorded separately from reference Client tests. A legacy client rejection is a compatibility result, not an MRTR approval pass.
+
+### Review presentation
+
+MRTR formats the saved review snapshot as indented Unicode JSON without removing fields or truncating SQL/bindings. The first-line question plus JSON contract remains compatible with the reference Host. Canonical stored bindings and strict approval checks are unchanged. The 64 KiB limit covers the stored review, not the expanded display message. Actual whitespace rendering is Host-controlled and needs native verification; readability changes do not authenticate a human or expand approval authority.

@@ -184,8 +184,11 @@ Skills Scenario: unknown Skill → list_skills(search=..., detail_level="compact
   | L2 | Mutations enabled | `true` | `true` | + execute_mutation_skill | + Controlled writes after target authorization (two-phase preview/execute gate) |
 
 - **MRTR (optional)**: The full configuration exposes up to 13 tools. Approval waiting returns `InputRequiredResult`; telemetry records `phase=awaiting_approval`, `success=null`. Continuations share the same proposal/execution service; waiting is not business success.
+- **Default approval workflow**: Keep preview/execute as the default and `skills.mutation.mrtr.enabled=false`. October 1 tests verified the main native Codex IDE interactions, while the tested Copilot session failed the protocol gate; this is evidence of uneven support among tested clients, not a survey of all Hosts. Enable MRTR per deployment after verifying its actual Host. Neither flow independently authenticates a human, and enabling MRTR leaves the legacy write entry point available. See [acceptance and remaining gaps](docs/validation/V3_8_MRTR_NATIVE_2026_10_01_ZH.md) and [approval boundaries](docs/security/V3_8_SECURITY.md#where-approval-is-enforced).
 - **Skills Two-Phase Preview/Execute Gate**: Write operations require a matching server-issued preview token; this prevents replay and drift but is not proof of human approval without a trusted client workflow
 - **Skills Audit Logging**: Mutation preview/execute paths attempt best-effort JSONL audit logging; normal tool results report `audit_logged`
+
+> **Approval boundary:** MRTR adds a server-enforced approval round to the `request_mutation_approval` entry point. Human approval in preview/execute belongs to the Host workflow: the server enforces the preview-token protocol, permissions and execution checks, but cannot tell whether a person actually approved. MRTR also trusts the Host's response and does not independently authenticate a human; enabling it does not disable the legacy write entry point. A dedicated Host can enforce interaction in code, so legacy approval need not rely solely on Agent instructions. See the [flow comparison](docs/security/V3_8_SECURITY.md#where-approval-is-enforced).
 
 ### Key Components
 
@@ -492,7 +495,7 @@ By configuring `mcp.json` in VS Code for quick integration, you can directly cal
 
 #### 1. Preparation
 *   Use a VS Code version with MCP support, Python ≥3.12, and uv.
-*   Install the **GitHub Copilot Chat** extension.
+*   Use the built-in **GitHub Copilot Chat** in VS Code 1.116 or later; older supported VS Code versions may require a compatible standalone extension. See the [official change](https://code.visualstudio.com/updates/v1_116#_github-copilot-is-now-builtin).
 *   Ensure project dependencies are installed (run `uv sync --frozen --group dev` in the project path).
 *   Check the SQLite example with `uv run sql-safety-executor config check --config config/examples/sqlite/server.toml`; create your own TOMLs using [Configuration](#configuration) for real targets.
 
@@ -549,7 +552,7 @@ The guided flow lets you choose workspace or user scope; verify the saved locati
 
     ![answer](readme_pic/answer_en.png)
 
-Note: start with a disposable database and choose a model within your current account allowance. Copilot interactive approval has not been tested for v3.8; tool visibility does not prove MRTR support. See [validation](docs/validation/V3_8_VALIDATION_ZH.md).
+Note: start with a disposable database and choose a model within your current account allowance. A user-supplied Copilot trial was rejected by the MCP 2026-07-28 requirement before any form appeared; interactive MRTR remains unverified, and tool visibility does not prove support. See [validation](docs/validation/V3_8_VALIDATION_ZH.md).
 
 #### Common Issues
 *   **Cannot find tools?** Check the `Output` panel, switch to "GitHub Copilot" to see if there are errors.
@@ -830,6 +833,8 @@ Both reference Host flows enforce an outer approval deadline, check that the dis
 
 Approval trusts the Host rather than independently authenticating a human. Review/terminal output can contain business data, and sealed state is sensitive. The child inherits exported process variables; a productized Host should restrict that environment as appropriate. This does not restore dotenv configuration.
 
+Legacy preview/execute does not itself open an approval form: a Host must collect the decision, and an Agent with tool access can otherwise submit `confirm=true` with its preview token. MRTR requests a protocol form and checks an accepting response, but an automated Host can also supply that response. Enabling MRTR leaves the legacy mutation tool available; it is not a global human-approval requirement. See the [approval boundary comparison](docs/security/V3_8_SECURITY.md#where-approval-is-enforced) and DRR-2026-050 before relying on either flow to prevent an Agent from approving its own writes.
+
 **Privacy and log operations notes**:
 
 - Skill audit params are truncated for log size, not key/value redacted. Treat skill parameters as business audit data and do not pass secrets, tokens, credentials, or sensitive personal data as skill params.
@@ -892,7 +897,7 @@ See [mcp_config.json](mcp_config.json) for the portable template. Private `confi
 - Three strict TOMLs, mandatory `--config`, explicit secrets and offline `config check/explain`. Reads default to deny; all write gates are required. Remove default-only grants and partial-policy `execute_sql()`.
 - Default-off `request_mutation_approval` for managed single statements: sealed state, 64 KiB review cap, strict approval, original expiry and atomic consumption; no retry of uncertain writes.
 - Migrate public Skill SDK imports, trusted external directories, clients, isolated AutoGen examples, documentation, dependency lock and CI.
-- Earlier local automation recorded 744 passed, 4 skipped. The submitted `1be44b4` later failed CI on a stale description assertion; see [review fixes and current validation](docs/validation/V3_8_REVIEW_FIXES_2026_09_27_ZH.md). Live checks verified MySQL connectivity/basic reads, native Codex SQLite preview/execute with fixture restoration, and three isolated Luna six-turn routing trials. Native MRTR/human approval UI, Copilot and MySQL writes remain unverified; the earlier MRTR dispatch refusal is preserved.
+- Earlier local automation recorded 744 passed, 4 skipped. The submitted `1be44b4` later failed CI on a stale description assertion; see [review fixes and current validation](docs/validation/V3_8_REVIEW_FIXES_2026_09_27_ZH.md). Live checks verified MySQL connectivity/basic reads, native Codex SQLite preview/execute with fixture restoration, and three isolated Luna six-turn routing trials. The subsequent [October 1 MRTR update](REFACTORING_LOG.md#v380-mrtr-approval-form-default-october-1-2026) records native Codex IDE approval, cancellation and unchecked refusal; [later native testing](docs/validation/V3_8_MRTR_NATIVE_2026_10_01_ZH.md) verified framework rejection after delayed approval with no database change. Separate real-process restart acceptance passed with a fresh-approval control; business-TTL checks have simulated-clock coverage. Native business-TTL/restart UI cases and MySQL writes remain unverified. A user-supplied Copilot trial hit the protocol gate before a form appeared; its MRTR UI remains unverified. The earlier MRTR dispatch refusal is preserved.
 
 See [release notes](docs/releases/RELEASE_NOTES_v3_8.md) and [validation](docs/validation/V3_8_VALIDATION_ZH.md). Historical entries below retain their original configuration, paths and conclusions; they are not v3.8 deployment instructions.
 
@@ -1628,6 +1633,12 @@ Usage: List pre-defined skills (query and mutation), with optional search, categ
 
 **Note**: Requires `skills.enabled=true`. `detail_level` is a non-null `compact|summary|full` enum. Its machine-visible default is the startup-resolved `skills.discovery.default_detail` (`summary` by default); `full` already includes parameter schemas, so do not follow it with `get_skill_detail()`. `available_only` is a non-null boolean whose machine-visible default likewise equals the startup-resolved `skills.discovery.available_only` (`true` by default), so Agent-facing discovery hides skills that cannot execute for the target `connection_id` because of optional Skill `connection_ids` scope, DB type compatibility, mutation switches/write policy, query connection allowlist, missing required tables, or an unavailable enabled schema-readiness check. In the last case `schema_check_available=false` distinguishes “unverified” from a known `missing_tables` result. Pass `available_only=false` to inspect the full developer catalog and failure reasons. This only changes Agent-facing metadata disclosure; execution repeats the authoritative checks and fails closed when enabled readiness cannot be verified. Query Skills accept `connection_id`; mutation Skills also accept it when strict named-write policy authorizes the target.
 
+Query Skill availability also preflights the cached SQL against the resolved
+connection's full static execution policy, including UNION and parsed table
+scope. A template denied on one connection remains discoverable on another
+authorized connection. Static preflight performs no database I/O; enabled
+schema readiness may still do so, and execution repeats the checks.
+
 In summary/full output, `configured_connection_ids` means the subset of that
 Skill's declared `connection_ids` present in this deployment; it is not the
 server's complete connection registry. `unconfigured_connection_ids` is the
@@ -2296,9 +2307,11 @@ uv run pyright
 uv build
 ```
 
-Earlier local v3.8 results were 744 passed, 4 skipped, with clean type checks and installed-wheel verification. After submission, [CI for `1be44b4`](https://github.com/Firstmeridian/llm-sql-safety-executor-mcp/actions/runs/36252844733) failed on an outdated prompt assertion; later steps were skipped. The [September 27 review record](docs/validation/V3_8_REVIEW_FIXES_2026_09_27_ZH.md) separates the fixes and local CI-equivalent checks from a future remote run. Four live MySQL tests remain disabled; native Host evidence retains its scope in [validation](docs/validation/V3_8_VALIDATION_ZH.md).
+Remote [CI for `139d53a`](https://github.com/Firstmeridian/llm-sql-safety-executor-mcp/actions/runs/36330541822) passed completely: **786 passed, 4 skipped**, clean type checks, build and installed-wheel verification. The earlier `1be44b4` failure and local results remain in the [September 27 record](docs/validation/V3_8_REVIEW_FIXES_2026_09_27_ZH.md). The [September 28 follow-up](docs/validation/V3_8_REREVIEW_2026_09_28_ZH.md) fixes Query Skill static-policy discovery and records **792 passed, 4 skipped** in a clean local copy; this new patch still awaits remote CI. Four live MySQL tests remain disabled, and native MRTR UI acceptance remains separate.
 
 Later [live review and native reconnection tests](docs/validation/V3_8_LIVE_REVIEW_2026_09_26_ZH.md) verified MySQL connection/basic read probes and a native SQLite preview/execute/compensation cycle. Three isolated GPT-6 Luna agents completed six rounds each (22 calls, no observed wrong-target access); the host-directed write fixture was restored. These are separate from the four skipped MySQL integration tests and do not establish native MRTR, human approval UI or MySQL write behavior. Native subagent usage/protocol were not exposed; no cost or negotiated-version claims are inferred.
+
+**October 1 pre-commit check:** the complete pending v3.8.0 change passed clean-copy, frozen-dependency validation: **793 passed, 4 skipped**, with three existing legacy logging warnings. Pyright, sdist/wheel build and installed-wheel checks outside the repository passed. Version stays **3.8.0**; remote CI for the new commit and the remaining native UI cases are separate. See the [final local verification](docs/validation/V3_8_MRTR_NATIVE_2026_10_01_ZH.md).
 
 ### Test Scripts
 

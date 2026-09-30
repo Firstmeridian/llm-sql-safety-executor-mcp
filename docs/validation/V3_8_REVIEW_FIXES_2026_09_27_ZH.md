@@ -1,5 +1,7 @@
 # v3.8.0 外部评审处理与 CI 复核 · 2026-09-27
 
+> **2026-09-28 后续确认：** 修复提交 `139d53a` 的远端 [CI 36330541822](https://github.com/Firstmeridian/llm-sql-safety-executor-mcp/actions/runs/36330541822) 已完整成功：786 passed、4 skipped，类型、构建和安装后验证均通过。下文“尚未推送/待远端运行”保留编写时语境。新增 UNION 发现问题及本轮处理见[复评记录](V3_8_REREVIEW_2026_09_28_ZH.md)，不回写旧失败或旧本地结果。
+
 评审基线：`1be44b41ee79839c0e975e747f0b1a3fc41453a8`。输入为维护者提供的 MCP/FastMCP 与 TOML 两份独立评审，原件及局部探针保留在私有 `local_archive/v380_review_evidence/`。本文记录对源码、真实依赖和生产加载器的复核；未直接把报告中的建议或隔离 stub 结果当作生产验证。
 
 ## 已确认问题与处理

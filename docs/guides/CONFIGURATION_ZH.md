@@ -43,7 +43,7 @@ sql-safety-executor config explain --config /path/server.toml
 | `skills.mutation.enabled` / `allowed_connections` | false / [] |
 | `skills.mutation.preview.ttl_seconds` | 300，范围 1…86400 |
 | `skills.mutation.preview.max_entries` | 10000，范围 1…100000 |
-| `skills.mutation.mrtr.enabled` | false；开启必须同时开启 Skills 与全局写入 |
+| `skills.mutation.mrtr.enabled` | false；开启必须同时开启 Skills 与全局写入。仅控制额外 MRTR 工具注册，不禁用旧 preview/execute，不是全局强制人工审批开关 |
 | `skills.audit.queries` / `path` / `agent_id` | false / `../logs/skill_audit.jsonl` / unknown |
 
 仅查询超时和连接超时按“内置值 → server 公共默认 → connections 目标值”覆盖。数据库类型、文件、host、user、database、password 不继承其他连接。MySQL 必须声明且仅声明 `mysql`，SQLite 必须声明且仅声明 `sqlite`。`agent_id` 是可伪造审计标签，不是认证主体。
@@ -70,6 +70,8 @@ mysql.password = { value = "literal" }        # 三选一
 
 Query Skill 的发现、详情和执行共享无数据库 I/O 的读取准入判断；即使 SQL 为 `SELECT 1`、没有声明表，deny 或空 allowlist 下也不可执行，并从 `available_only=true` 的发现中隐藏。已配置的 schema readiness 是另一项检查，仍可能访问数据库元数据。
 
+通过读取准入和声明表范围检查后，发现/详情还使用执行侧完整静态 SQL 策略预检启动时缓存的模板，包括该连接的 UNION 开关和解析后的表范围。禁止 UNION 的连接会隐藏相应 Skill，完整列表/详情给出原因；另一明确允许 UNION 的连接仍可使用同一模板。预检不执行 SQL、不重读文件、不跨连接缓存授权结论。执行期仍重新验证，`executable=true` 不保证参数、数据库状态或 SQL 方言一定满足执行要求。
+
 `exclude_profiles = ["DEMO", " demo "]` 的快照等同于 `["demo"]`；`[]` 不排除任何 profile，`[""]` 或纯空白项以 `nonempty_profile_name_required` 报错，数字/布尔值不会转为字符串。该规范化只用于 profile 标签，不适用于密钥内容。此项修复会让之前误写大小写或空白的排除配置真正生效，重启前应运行 `config check/explain` 核对。
 
 `allow_union = true` 还要求有效表范围。特别注意：旧空白名单读取本来较宽松，但 `ALLOW_UNION=1` 与旧空名单组合仍禁止 UNION。迁移成 `mode="all"` 时必须保留 `allow_union=false`，除非另行明确扩大权限。不能将旧配置字段机械逐项转换。
@@ -83,6 +85,12 @@ Mutation Skills 的写入权限是五层配置与既有执行检查的交集：
 5. Skill 在 `connections.<id>.mutation.skills` 中（或显式 `"*"`）。
 
 Skill 的 `databases`、`connection_ids`、profile、参数、就绪和托管计划仍继续收紧作用域。读表白名单不会普遍限制 Mutation Skills。关闭读取不自动撤销已显式授权的写入，托管 preview 和内部就绪仍可能读取其业务表。删除了旧 default-only 兼容授权；空连接准入名单不允许默认连接写入。
+
+## 默认审批流程（2026-10-01 决策）
+
+继续以 preview/execute 为默认，保持 `skills.mutation.mrtr.enabled = false`；这沿用现有模型及公开模板默认值，不是配置迁移或禁写开关。10 月 1 日所测 Codex IDE 已完成主要原生审批交互，所测 Copilot 会话被协议门槛拒绝；不足以概括全部客户端的支持情况。只有核实实际 Host 的协议、能力、审阅展示和决定续接后，才在对应部署显式开启 MRTR。见[验收复核](../validation/V3_8_MRTR_NATIVE_2026_10_01_ZH.md)。
+
+preview/execute 的人工交互由可信 Host 负责，可用专用 Host 代码强制执行；只在提示词中要求 Agent 询问，则仅是行为约定。MRTR 在自身入口强制校验批准响应，仍不能证明来自真人，也不会关闭旧入口。审批失败、取消、超时或结果未知后，不应自动改走另一入口写入；必须按原任务授权重新审阅，结果未知时先核对业务状态。需要防止客户端自行批准时，应采用尚未实现的独立授权设计，见[安全边界](../security/V3_8_SECURITY.md#where-approval-is-enforced)。
 
 ## 逐字段迁移
 

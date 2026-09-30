@@ -9,6 +9,7 @@ from sql_safety_executor.core.types import (
 from sql_safety_executor.database.models import DatabaseConfig
 from sql_safety_executor.database.outcomes import MetadataQueryError
 from sql_safety_executor.core.connections import read_access_enabled
+from sql_safety_executor.core.policy import _validate_sql_query_policy
 from sql_safety_executor.skills.catalog import SkillMetadata
 
 logger = logging.getLogger(__name__)
@@ -334,6 +335,22 @@ def _skill_availability_state(
             "Required query skill table(s) are blocked by the target "
             f"connection allowlist: {blocked_tables}."
         )
+
+    if meta.type == "query" and policy_allowed:
+        # Preflight the same startup snapshot and explicit target policy used
+        # by execution. Never re-read SQL or share a verdict across targets.
+        if meta._sql_template is None:
+            policy_allowed = False
+            reasons.append("Query skill SQL template is not cached (internal error).")
+        else:
+            sql_allowed, sql_reason = _validate_sql_query_policy(
+                runtime, meta._sql_template, connection.policy
+            )
+            if not sql_allowed:
+                policy_allowed = False
+                reasons.append(
+                    f"Skill '{meta.name}' failed SQL safety policy: {sql_reason}"
+                )
 
     if schema_snapshot.enabled and meta.tables:
         if not schema_snapshot.available:

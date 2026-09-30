@@ -178,8 +178,11 @@ Skills 场景：未知 Skill → list_skills(search=..., detail_level="compact",
   | L2 | 启用 Mutations | `true` | `true` | + execute_mutation_skill | + 目标授权后的受控写操作（两阶段 preview/execute gate） |
 
 - **MRTR（可选）**：完整配置最多注册 13 个工具；审批等待返回 `InputRequiredResult`，遥测记录 `phase=awaiting_approval`、`success=null`。续接共用同一提案与执行服务，不把等待当成业务成功。
+- **默认审批流程**：继续使用 preview/execute，保持 `skills.mutation.mrtr.enabled=false`。10 月 1 日实测已验证 Codex IDE 的主要原生交互，所测 Copilot 会话则被协议门槛拒绝；结论限于已测客户端支持不一致，不泛化为所有 Host。MRTR 按部署显式开启，并先验证实际 Host。两条流程都不独立认证真人，开启 MRTR 也保留旧写入入口。详见[验收与剩余缺口](docs/validation/V3_8_MRTR_NATIVE_2026_10_01_ZH.md)及[审批边界](docs/security/V3_8_SECURITY.md#where-approval-is-enforced)。
 - **Skills 两阶段 Preview/Execute Gate**：写操作必须携带匹配的服务端 preview token；它阻止 replay/漂移，但没有可信客户端流程时不能证明人工批准
 - **Skills 审计日志**：mutation preview/execute 路径会在服务端尝试 best-effort JSONL 审计，正常工具结果会报告 `audit_logged`
+
+> **审批边界：MRTR 给 `request_mutation_approval` 这个入口增加了服务端强制的“批准轮次”；而 preview/execute 的“人工批准”属于 Host 工作流，Server 强制 preview-token 协议、权限与执行检查，但并不知道是否真的有人批准。** MRTR 同样信任 Host 返回的决定，不独立认证真人；开启它也不会关闭旧写入入口。专用 Host 可用代码强制交互，因此旧流程不必仅靠 Agent 遵守提示词。详见[两种流程对比](docs/security/V3_8_SECURITY.md#where-approval-is-enforced)。
 
 ### 关键组件
 
@@ -483,7 +486,7 @@ Agent **既是决策者又是执行者**，安全保障依赖于：
 
 #### 1. 准备工作
 *   使用支持 MCP 的 VS Code，并安装 Python ≥3.12 和 uv。
-*   安装 **GitHub Copilot Chat** 扩展。
+*   VS Code 1.116 及以后使用内置 **GitHub Copilot Chat**；较早且仍受支持的版本可能需要安装相匹配的独立扩展，见[官方变更说明](https://code.visualstudio.com/updates/v1_116#_github-copilot-is-now-builtin)。
 *   确保本项目已安装依赖 (在本项目路径下运行 `uv sync --frozen --group dev`)。
 *   先运行 `uv run sql-safety-executor config check --config config/examples/sqlite/server.toml` 验证 SQLite 示例；实际数据库按下方[配置](#配置)创建三份 TOML。
 
@@ -540,7 +543,7 @@ Agent **既是决策者又是执行者**，安全保障依赖于：
 
     ![answer](readme_pic/answer.png)
 
-注意：先使用可丢弃测试库，并按当前账户可用模型和额度选择。v3.8 的 Copilot 交互审批尚未实测；工具可见不等于支持 MRTR，见[验收记录](docs/validation/V3_8_VALIDATION_ZH.md)。
+注意：先使用可丢弃测试库，并按当前账户可用模型和额度选择。用户提供的 Copilot 试验在表单出现前被 MCP 2026-07-28 协议门槛拒绝，交互 MRTR 仍未验收；工具可见不等于支持 MRTR，见[验收记录](docs/validation/V3_8_VALIDATION_ZH.md)。
 
 #### 常见问题
 *   **找不到工具？** 检查 `Output` (输出) 面板，切换到 "GitHub Copilot" 查看是否有报错。
@@ -810,6 +813,8 @@ MRTR 保存最多 64 KiB 的同一审阅快照，用框架密封状态续接；�
 
 批准仍信任 Host，并非独立的人类身份认证。审阅及终端结果可能含业务数据；密封状态也应视为敏感。子进程仍继承调用者导出的环境，生产 Host 应按自身需要收窄环境。此行为不恢复旧 `.env` 配置通道。
 
+原有 preview/execute 本身不弹出审批表单，由 Host 收集决定；拥有工具权限的 Agent 可以自行携带预览令牌提交 `confirm=true`。MRTR 通过协议请求表单并验证批准响应，但自动化 Host 也能提交该响应。启用 MRTR 仍保留旧 Mutation 工具，不是全局强制人工批准开关。两者均不能独立保证 Agent 无法自我批准，详见[审批边界对比](docs/security/V3_8_SECURITY.md#where-approval-is-enforced)及 DRR-2026-050。
+
 **隐私与日志运维说明**：
 
 - Skill audit params 只做长度截断，不按 key/value 脱敏。请把 Skill 参数视为业务审计数据，不要把 secret、token、凭据或敏感个人数据作为 Skill 参数传入。
@@ -872,7 +877,7 @@ SQLite 初始化拒绝覆盖已有文件；MySQL 初始化遇到现存 orders �
 - 三文件 TOML、显式 `--config`、严格模型、密钥来源、离线 `config check/explain`；读取默认 deny，写入要求全部准入条件，移除 default-only 兼容授权和弱 `execute_sql()` 入口。
 - 默认关闭的 `request_mutation_approval` 仅支持托管单语句；密封续接、64 KiB 审阅上限、严格批准值、原期限校验及单次消费，不自动重试未知写入。
 - 公开 Skill SDK 导入迁移，允许显式外部可信目录；更新客户端、AutoGen 隔离环境、迁移文档、依赖锁与 CI。
-- 早期本地自动化记录为 744 passed、4 skipped；提交 `1be44b4` 后 CI 因旧工具说明断言失败，详见[评审修复与当前验收](docs/validation/V3_8_REVIEW_FIXES_2026_09_27_ZH.md)。实测已验证 MySQL 连通/基础读取、原生 Codex 的 SQLite preview/execute 及数据恢复，以及三组隔离 Luna 六轮路由任务。原生 MRTR/人工审批 UI、Copilot 与 MySQL 写入仍未验收；保留早期 MRTR 调用拦截记录。
+- 早期本地自动化记录为 744 passed、4 skipped；提交 `1be44b4` 后 CI 因旧工具说明断言失败，详见[评审修复与当前验收](docs/validation/V3_8_REVIEW_FIXES_2026_09_27_ZH.md)。实测已验证 MySQL 连通/基础读取、原生 Codex 的 SQLite preview/execute 及数据恢复，以及三组隔离 Luna 六轮路由任务。后续[10 月 1 日 MRTR 更新](REFACTORING_LOG_ZH.md)记录了原生 Codex IDE 批准、取消和未勾选拒绝通过；[后续原生实测](docs/validation/V3_8_MRTR_NATIVE_2026_10_01_ZH.md)确认长等待后批准被框架拒绝且未写入；独立真实进程重启验收及新提案正常执行对照已通过，业务 TTL 有模拟时钟覆盖；原生业务 TTL/重启 UI 与 MySQL 写入仍未验收；用户提供的 Copilot 试验触发协议门槛拒绝，未进入 MRTR 表单，保留早期 MRTR 调用拦截记录。
 
 参见 [v3.8 发布说明](docs/releases/RELEASE_NOTES_v3_8.md) 和 [验收记录](docs/validation/V3_8_VALIDATION_ZH.md)。以下历史条目保留当时版本的配置、路径与结论，不作为 v3.8 部署指令。
 
@@ -1535,6 +1540,10 @@ MySQL 还可能遇到 metadata-lock contention）。该成本警告也写入机�
 
 **注意：** 需要 `skills.enabled=true`。`detail_level` 是非空的 `compact|summary|full` 枚举，其机器可见默认值等于启动时解析的 `skills.discovery.default_detail`（默认 `summary`）。`full` 已包含参数 schema，之后不应再调用 `get_skill_detail()`。`available_only` 是非空布尔值，其机器可见默认值也等于启动时解析的 `skills.discovery.available_only`（默认 `true`），因此 Agent 发现面会隐藏目标 `connection_id` 下因可选 Skill `connection_ids` 范围、DB 类型、mutation 开关/写策略、查询连接 allowlist、缺少所需表，或已启用但 metadata 不可用的 schema readiness 检查而不可执行的 Skill。最后一种情况以 `schema_check_available=false` 区分“无法验证”和已知 `missing_tables`。传 `available_only=false` 可查看完整开发者目录和失败原因。这只影响 Agent 看到的元数据；执行期会再次做权威检查，并在已启用的 readiness 无法验证时 fail closed。查询 Skills 接受 `connection_id`；严格命名写策略授权目标时，mutation Skills 也接受该参数。
 
+Query Skill 可用性还会针对已解析连接，用执行侧完整静态策略预检缓存 SQL，
+包括 UNION 和解析后的表范围。某连接禁止的模板仍可在另一明确授权连接上发现。
+静态预检不访问数据库；已开启的 schema readiness 仍可能访问元数据，执行期继续复核。
+
 summary/full 输出中的 `configured_connection_ids` 只表示该 Skill 声明的
 `connection_ids` 中当前部署已配置的子集，并不是服务端全部连接列表；
 `unconfigured_connection_ids` 是声明但未配置的 portable 成员，
@@ -2159,9 +2168,11 @@ uv run pyright
 uv build
 ```
 
-早期本地 v3.8 实测为 744 passed、4 skipped，类型检查及安装后 wheel 验证通过。提交后，[`1be44b4` 的 CI](https://github.com/Firstmeridian/llm-sql-safety-executor-mcp/actions/runs/36252844733) 因旧提示词断言失败，后续步骤被跳过。[9 月 27 日评审修复记录](docs/validation/V3_8_REVIEW_FIXES_2026_09_27_ZH.md) 分别记录修复、本地 CI 等价检查和待触发的远端运行。四项 MySQL 实库测试仍未启用；实际 Host 证据继续保持[验收文档](docs/validation/V3_8_VALIDATION_ZH.md)中的范围。
+[`139d53a` 的远端 CI](https://github.com/Firstmeridian/llm-sql-safety-executor-mcp/actions/runs/36330541822) 已完整通过：**786 passed、4 skipped**，类型、构建和安装后 wheel 验证均成功。此前 `1be44b4` 的失败和本地结果保留在[9 月 27 日记录](docs/validation/V3_8_REVIEW_FIXES_2026_09_27_ZH.md)。[9 月 28 日复评](docs/validation/V3_8_REREVIEW_2026_09_28_ZH.md)进一步修复 Query Skill 静态策略发现，干净副本本地验证为 **792 passed、4 skipped**；这次新补丁仍待远端 CI。四项 MySQL 实库测试未启用，原生 MRTR UI 验收继续单独记录。
 
 后续[本地实测与原生重连测试](docs/validation/V3_8_LIVE_REVIEW_2026_09_26_ZH.md)验证了 MySQL 连通/基础读取及原生 SQLite 预览、执行和补偿。三个隔离上下文 GPT-6 Luna 各完成六轮任务（共 22 次调用，未观察到误访问）；主持者写入试验的夹具已恢复。这与四项跳过的 MySQL 集成测试分别记录，不代表原生 MRTR、人工审批 UI 或 MySQL 写入已通过。原生子代理未暴露 usage/协商协议，不据此推算费用或协议版本。
+
+**10 月 1 日提交前检查：** 完整待提交 v3.8.0 改动经干净副本、锁定依赖验证，结果为 **793 passed、4 skipped**，三项警告均为已有旧协议日志弃用。Pyright、sdist/wheel 构建及仓库外安装后验证通过。版本仍为 **3.8.0**；新提交的远端 CI 和剩余原生 UI 项目分别管理，详见[最终本地验证](docs/validation/V3_8_MRTR_NATIVE_2026_10_01_ZH.md)。
 
 ### 测试脚本
 

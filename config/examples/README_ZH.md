@@ -89,6 +89,8 @@ uv run python -m examples.manual_mutation_approval \
 
 使用 MRTR 时，在私有 Skills 文件中将 `skills.mutation.mrtr.enabled` 设为 `true`，参考 Host 传入对应部署的 `--config` 和 `--flow mrtr`。它要求 MCP `2026-07-28`、客户端表单能力及托管单语句 Skill。旧客户端仍可使用 preview/execute；不支持 MRTR 的调用会明确拒绝。服务端信任 Host 收集的决定，不独立认证真实人类。结果未知或响应丢失时不得自动重试，须先核对业务状态。重启会使未使用提案失效。
 
+部署继续默认使用 preview/execute，仅对已验证的 Host 显式启用 MRTR。[10 月 1 日验收复核](../../docs/validation/V3_8_MRTR_NATIVE_2026_10_01_ZH.md)记录了 Codex IDE 原生交互通过、Copilot 协议拒绝和剩余 UI 项目，不能概括为所有客户端均不支持 MRTR。启用 MRTR 仍保留旧执行入口，也不独立证明人工批准。审批失败或结果未知后，不得自动改走另一写入流程。
+
 ## 复制到本地配置时的注意事项
 
 本地部署可使用已忽略的 `config/server.toml`、`config/connections.toml` 和 `config/skills.toml`。复制前检查是否已有配置，保留当前设置与密钥。应复制主文件实际引用的全部文件，并调整因声明文件目录变化而改变的相对路径：

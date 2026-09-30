@@ -2,14 +2,116 @@
 
 English | [中文](REFACTORING_LOG_ZH.md)
 
-**Date:** December 2, 2025 (Updated: September 27, 2026)
+**Date:** December 2, 2025 (Updated: October 1, 2026)
 **Author:** Code Refactoring Session
+
+## v3.8.0 pre-commit verification (October 1, 2026)
+
+- Highlight the maintainer's approval-round explanation in both READMEs and this log, retaining the permission/execution checks, trusted-Host and legacy-entry-point qualifications. No version bump: package metadata, lockfile and runtime remain **3.8.0**.
+- Review all pending runtime changes: per-connection Query Skill SQL preflight, the MRTR false-default form hint and complete indented review snapshots. Preserve the shared execution boundary; no additional runtime change was needed in this final review.
+- A clean source copy, new environments and frozen dependencies passed **793 tests, 4 skipped, 3 existing legacy logging warnings (87.74 seconds)**; Pyright reported **0 errors, 0 warnings**. Source distribution/wheel build and non-editable wheel checks outside the repository passed, including packaged prompts and modern/legacy stdio queries.
+- Four real-MySQL integration tests remain opt-in and skipped. Native UI gaps stay documented; no live database was accessed in this review. Private deployment files remain ignored. These are local pre-commit results, not a new remote CI pass; see the [complete verification record](docs/validation/V3_8_MRTR_NATIVE_2026_10_01_ZH.md).
+
+## Default mutation workflow and acceptance audit (October 1, 2026)
+
+- Retain preview/execute as the deployment default and MRTR as an explicit per-Host option, consistent with the current model, public template and private setting. The tested Codex IDE supports the main native interactions; the recorded Copilot session fails the protocol gate. Do not generalize these observations to every client or confuse the default choice with stronger human authentication.
+- Reconcile the saved test conversation, implementation and tests in the [acceptance audit](docs/validation/V3_8_MRTR_NATIVE_2026_10_01_ZH.md). Native business-TTL, old-form restart and repeated-submission behavior remain distinct from automated coverage; post-reinstall Codex version and raw protocol evidence are incomplete. The Copilot legacy approval-tool response also does not prove visible human review.
+- Clarify that MRTR is an input-request mechanism used for approval on this specific entry point. It does not authenticate a human or disable legacy writes. A dedicated preview/execute Host can enforce interaction in code; prompts alone are Agent behavior rules. Keep DRR-2026-050 and both language editions aligned, including the separate Copilot commits/restoration and preview-only trial.
+- Focused revalidation: **131 passed, 1 existing logging deprecation warning, 35.84 seconds**. Documentation changes only in this follow-up; no deployment changes, live DB access or new native UI/full-suite/remote CI claims. Synchronize README, configuration examples, client/configuration guides, architecture, security and release notes without rewriting historical outcomes.
+
+## Approval trust in preview/execute and MRTR (October 1, 2026)
+
+**Maintainer-facing summary:** MRTR adds a server-enforced approval round to `request_mutation_approval`; human approval in preview/execute belongs to the Host workflow. The server enforces the preview-token protocol, permissions and execution checks, but cannot determine whether a person approved. MRTR still trusts the Host's decision and leaves legacy execution available; it is neither independent human authentication nor a global approval policy. This summary is also highlighted in both READMEs; version remains **3.8.0**.
+
+- In the separate trial with preview expiry 20:44:01 UTC, MRTR's tool was absent while legacy preview succeeded with not_executed and unchanged independent reads. The Agent requested conversational confirmation; the user's subsequent question was not approval, so execute was not called. Only this trial was preview-only, not a complete write round trip.
+- The earlier Copilot session recorded a committed shipped -> delivered update and three separately committed restoration steps, delivered -> pending -> confirmed -> shipped. Each execute affected one row; post-step reads verified the states. The final all-shipped result does not mean no writes occurred or constitute a transaction rollback.
+- The client question tool recorded approval/cancellation choices, but complete previews were primarily in its message field. The user later reported missing review UI; tool responses alone do not prove visible review. Future writes in this interaction require a complete preview in the chat body and an explicit approval reply. This is a client rule, not a new server control; see the [separate trials and evidence limits](docs/validation/V3_8_MRTR_NATIVE_2026_10_01_ZH.md).
+- Legacy execution requires confirm=true, a valid matching one-time token and policy checks. The token proves preview binding and consumable state, not human approval. A dedicated Host can enforce interaction in code; an Agent's conversational confirmation is a behavior rule.
+- MRTR enforces a valid continuation and accept/strict true on its own path, but still trusts the Host to collect a human decision. Its registration switch does not disable the legacy mutation tool or enforce approval globally.
+- Extend existing DRR-2026-050 in both languages and synchronize README, security, configuration/client guides and implementation decisions. Independently authenticated approval outside the Agent's control, enforced on every write path, remains a future design. This clarification changes documentation only.
 
 ## Overview
 
 This actively maintained log records the project’s refactoring, design decisions, compatibility changes, trade-offs and validation. It began with `mcp_sql_server.py` and now also covers the installed `sql_safety_executor` package.
 
 Dated entries preserve the interfaces, configuration and evidence from their own version. Old filenames, environment variables, test counts and failures remain historical; use the newest entry and linked current guides for deployment. Future implementation changes should update both language editions without rewriting earlier outcomes.
+
+## v3.8.0 Copilot session and SDK evidence (October 1, 2026)
+
+- Later direct inspection of the same Copilot session log records VS Code 1.140.0 / Copilot 0.68.0 in session_start and corroborates the earlier reported approval tool protocol-gate error. Earlier statements that versions were not captured remain historical.
+- The local built-in Copilot bundle contains an MCP SDK whose latest protocol constant is 2025-11-25; its supported-version list omits 2026-07-28. This supports a client compatibility hypothesis, not proof that the session used that SDK path. The actual request protocol, capabilities and harness/backend remain unknown; do not generalize to every Copilot version or path.
+- Update the [acceptance record](docs/validation/V3_8_MRTR_NATIVE_2026_10_01_ZH.md) and client guide to distinguish modern MRTR, legacy form elicitation and Agent Host Protocol. Further diagnosis needs actual request metadata. This documentation-only follow-up adds no database calls, approval retries, alternative writes or automated/UI acceptance results.
+
+## v3.8.0 Copilot version evidence (October 1, 2026)
+
+- Official Stable release notes and the update service report VS Code 1.140.0 (September 30). The local Server product manifest and active installation match commit `07f806f999227108933c2e30515b26eecc1fda74`; its built-in `GitHub.copilot-chat` manifest reports 0.68.0.
+- Copilot Chat has shipped built-in since VS Code 1.116. Old standalone Marketplace listings must not be substituted for the bundled component version. The prior transcript's exact harness and negotiated MCP protocol remain unknown; do not rewrite it as a proven protocol/version combination.
+- Sources and local manifest locations are in the [version supplement](docs/validation/V3_8_MRTR_NATIVE_2026_10_01_ZH.md). This was read-only verification and documentation work, without installing updates or repeating database/UI tests.
+
+## v3.8.0 Copilot compatibility observation (October 1, 2026)
+
+- The user supplied a native VS Code Copilot transcript: read live_test_sqlite, request one managed approval for order 2 shipped to delivered, then read again. The approval call was rejected with `MRTR requires MCP 2026-07-28; use preview/execute with trusted Host approval.` No form appeared; no automatic retry or alternative write was recorded, and both reads reported orders 1–3 shipped.
+- Record expected protocol-gate rejection, not successful MRTR display/cancellation. The transcript provides neither a standalone error_code nor execution_outcome. The user reports “latest”; exact client/extension versions and negotiated protocol were not captured. Do not generalize this observation to all Copilot versions or infer form capability from the earlier protocol check.
+- Evidence is user-supplied, not a direct Copilot run by this Agent; see the [acceptance record](docs/validation/V3_8_MRTR_NATIVE_2026_10_01_ZH.md). This update adds no runtime changes or automated-test claim.
+
+## v3.8.0 native review rendering confirmed (October 1, 2026)
+
+- After the user restarted Codex, the new screenshot shows indented JSON with the target, parameters, full SQL/bindings, expiry and Skill visible. The proposal targets order 2 on live_test_sqlite, shipped to delivered, with expiry `2026-09-30T19:59:37+00:00`.
+- The close-button test returned `approval_cancelled` / `not_executed`; independent before/after queries showed orders 1–3 still shipped. The current Codex IDE's multiline presentation and cancellation path are accepted. This was a new proposal after restart, not resumption of a pre-restart approval.
+- Earlier pending-rendering statements below describe their stage. Native business-TTL/restart continuation and other Hosts remain separate open items. The screenshot remains in the conversation; this documentation update adds no automated-test result or database write.
+
+## v3.8.0 Codex review rendering and button diagnosis (October 1, 2026)
+
+- Both inspected Codex-owned MCP processes started before the indentation patch; they do not hot-reload the module. A Host restart after the patch is required. The installed frontend uses `whitespace-pre-wrap`, supporting preserved newlines; native post-restart rendering remains to be observed.
+- Extension 26.917.62051 maps Skip to `decline`, and the top-right close button/Escape to `cancel`. Correct the client guide's earlier conflation of Skip and close. The screenshot trial returned `approval_declined` without a database change, which is consistent with Skip; the user's combined “Skip/close” description does not establish which button was clicked.
+- Preserve server action semantics and add explicit error-code assertions for decline, cancel and accept(false). Do not patch the third-party extension, silently remap actions or terminate the active service. See [diagnostic evidence](docs/validation/V3_8_MRTR_NATIVE_2026_10_01_ZH.md).
+
+## v3.8.0 readable MRTR review payload (October 1, 2026)
+
+- Replace compact review JSON with two-space indentation and readable Unicode, keeping the existing question line followed by valid JSON. The reference Host can still parse the entire payload after the first newline; no Markdown renderer is required. JSON string escaping is retained.
+- First asks and missing-answer re-asks format the same saved review snapshot. Preserve every field, SQL, binding, target and expiry without truncation or new preview generation. Canonical storage, approval binding and execution rules are unchanged. The 64 KiB cap still applies to stored review JSON; indentation increases display payload size, so it is not a 64 KiB wire-message guarantee.
+- Focused regression after this change: **131 passed, 1 existing logging deprecation warning, 27.54 seconds**. Assertions compare the parsed display with the saved snapshot and verify multiline formatting; existing re-ask, reference Host, strict-approval and restart cases passed. Actual rendering after restart remains unverified; a Host may collapse whitespace or use its own layout.
+- Current acceptance is partial: native approval, cancellation, unchecked refusal and delayed framework rejection have evidence; separate real-process restart passes. Native business-TTL and restart UI cases and other Hosts remain pending. See the [current acceptance matrix](docs/validation/V3_8_MRTR_NATIVE_2026_10_01_ZH.md). No new native mutation was performed for this presentation change.
+
+## v3.8.0 real-process MRTR restart regression (October 1, 2026)
+
+- Added `tests/test_v38_mrtr_restart.py`: a reference Client starts the production package entry point over stdio, obtains a sealed proposal, closes and reaps the old process, then starts a different PID with the same configuration and temporary SQLite file. Both sessions negotiate MCP 2026-07-28. A minimal launcher records only the child PID; it does not change runtime behavior.
+- The exact old request and approval are rejected with a requestState protocol error before the original proposal expires; an independent SQLite read remains pending. A fresh proposal in the new process then commits exactly one row. Both child processes are verified exited. This is real-process protocol acceptance, not native Codex UI acceptance; the connected Codex service and local live-test database are untouched.
+- Focused validation: **131 passed, 1 warning** in 26.82 seconds across restart, stdio, MRTR, review-regression and manual-approval tests. The warning is the existing legacy logging-capability deprecation. Existing simulated-clock tests separately verify business expiry while the framework seal remains valid; they do not establish native UI business-TTL acceptance. The new POSIX test is discovered by the existing Ubuntu CI suite; no new remote CI run is claimed.
+- See the [updated acceptance record](docs/validation/V3_8_MRTR_NATIVE_2026_10_01_ZH.md) for remaining native UI and cross-Host boundaries. No production-code or deployment-configuration change was needed.
+
+## v3.8.0 native MRTR waiting and restart acceptance (October 1, 2026)
+
+- Follow-up native tests committed orders 1 and 2 from confirmed to shipped. The first trial lacks expiry evidence; the second returned 4 minutes 11 seconds before the screenshot's expiry. Neither establishes expired-approval rejection.
+- A shipped-to-confirmed proposal failed business validation without execution. A subsequent shipped-to-delivered proposal was approved by the user after more than ten minutes of waiting; the call returned after about 26 minutes with MCP `-32602`, `Invalid or expired requestState`, reason `invalid_request_state`. Independent reads showed no change. This verifies the observed framework rejection, not the business proposal TTL branch independently; the protocol error has no business `execution_outcome` field.
+- The attempted restart scenario returned `approval_declined` / `not_executed`; no successful restart with an old approval was established. The current Agent has no callable Host reconnect control for the Codex-owned child. No process was terminated. A separately controlled real-process restart test is proposed, not yet executed, and would not replace native UI acceptance.
+- Last observed orders 1, 2 and 3 are all shipped; no compensating write was performed. Earlier confirmed states below are historical. Full evidence and remaining boundaries: [native acceptance record (Chinese)](docs/validation/V3_8_MRTR_NATIVE_2026_10_01_ZH.md). This update changes documentation only and introduces no new automated-test result.
+
+## v3.8.0 MRTR approval form default (October 1, 2026)
+
+- Native Codex IDE testing and user screenshots confirmed human approval followed by a committed SQLite update, and cancellation without a write. The required checkbox without a default could not submit an unchecked value in that UI; explicit-false refusal was initially blocked by the form.
+- Add `default=false` to the required boolean approval field as a client initialization hint only. Missing/invalid answers still re-ask; execution still requires `accept` with strict boolean true. No optional-field or enum migration is introduced.
+- After the service restart, the user confirmed that leaving the field unchecked and clicking Continue no longer caused a required-field error. The server returned `approval_declined` / `not_executed`; before/after reads showed order 1 still confirmed and all three order statuses unchanged. Together with the earlier screenshots and user confirmation, native approval, cancellation and unchecked refusal are accepted for the tested Codex IDE (extension 26.917.62051 / embedded client 0.155.0-alpha.16.3). Expiry/restart UI acceptance remains pending; no compensating write was performed.
+- Scope audit: `_ask` is the sole production elicitation-schema builder, shared by first asks and missing-answer re-asks. The reference Host initializes `self.approved = False` and returns explicit boolean decisions; legacy preview/execute uses `confirm=false` by default and a matching one-time token for execution. Neither is another checkbox schema requiring this patch; ordinary configuration booleans and AutoGen conversational approvals are not changed.
+- Regression validation: 121 passed, 1 legacy logging deprecation warning across `test_v38_mrtr.py`, `test_v38_review_regressions.py` and `test_manual_mutation_approval.py`; `git diff --check` passed. The schema assertion preserves both false default and required presence, while existing tests cover false, cancellation, invalid values, missing answers and true execution. These results precede this documentation-only acceptance update.
+- `default=false` is standard [MCP boolean schema metadata](https://modelcontextprotocol.io/specification/2026-07-28/client/elicitation#requested-schema), not a Codex-specific branch or a server-side fallback. Required means the field must be present, not true. The screenshots establish observed Host behavior, not its internal validation implementation. Other Host UIs, including Copilot and Codex Desktop, remain unverified; a client ignoring defaults must still fail closed.
+
+## v3.8.0 follow-up review and Query Skill preflight (September 28, 2026)
+
+- Independently confirmed remote run `36330541822` for `139d53a`: 786 passed,
+  4 skipped; type checks, build and installed-wheel verification all passed.
+  Closed the previous findings while preserving the failed `1be44b4` run.
+- Reproduced the newly reported UNION discovery mismatch. Query availability
+  now preflights cached SQL through the execution path's full static policy
+  for the resolved target. Retain templates usable on other connections and
+  avoid sharing authorization verdicts across targets. Execution still checks.
+- Added six production-path regressions for modern/legacy UNION decisions,
+  quoted table scope and a missing SQL snapshot. Discovery adds parsing CPU;
+  dynamic readiness may still perform metadata I/O. Mutation policy is unchanged.
+- Clean-copy local validation: 792 passed, 4 skipped, clean type checks, build
+  and installed-wheel checks. This new patch still awaits a remote run; native
+  MRTR UI and other deferred scopes remain separate. See the
+  [follow-up evidence](docs/validation/V3_8_REREVIEW_2026_09_28_ZH.md).
 
 ## v3.8.0 independent review fixes (September 27, 2026)
 

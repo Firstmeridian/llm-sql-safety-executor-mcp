@@ -69,9 +69,16 @@ async def test_prepare_reask_same_snapshot_and_atomic_once(mrtr_server, monkeypa
     server = mrtr_server
     first = await request(server)
     assert isinstance(first, InputRequiredResult)
+    approval_schema = first.input_requests["approval"].params.requested_schema
+    assert approval_schema["properties"]["approve"]["default"] is False
+    assert "approve" in approval_schema["required"]
     assert status(server) == "pending"
     assert len(server.gateway_runtime.tokens) == 1
     review = first.input_requests["approval"].params.message
+    displayed = review.split("\n", 1)[1]
+    assert '\n  "connection_id": "demo"' in displayed
+    record = next(iter(server.gateway_runtime.tokens._entries.values()))
+    assert json.loads(displayed) == json.loads(record.review_json)
     raw_token = json.loads(first.request_state)["preview_token"]
     assert raw_token not in review
     # Waiting leaves no row lock / transaction behind.
@@ -113,6 +120,8 @@ async def test_decline_cancel_close_proposal(mrtr_server, action, content):
         first.request_state, {"approval": ElicitResult(action=action, content=content)}
     )
     result = await request(mrtr_server, ctx)
+    expected_code = "approval_cancelled" if action == "cancel" else "approval_declined"
+    assert result.structured_content["error_code"] == expected_code
     assert result.structured_content["execution_outcome"] == "not_executed"
     assert status(mrtr_server) == "pending"
     with pytest.raises(OperationError):

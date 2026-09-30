@@ -2,15 +2,107 @@
 
 [English](REFACTORING_LOG.md) | 中文
 
-**创建日期：** 2025-12-02；**最近更新：** 2026-09-27
+**创建日期：** 2025-12-02；**最近更新：** 2026-10-01
 
 **作者：** 项目重构与维护记录
+
+## v3.8.0 提交前完整验证（2026-10-01）
+
+- 在双语 README 与本日志中突出维护者提出的“服务端强制批准轮次／Host 人工批准工作流”解释，保留权限与执行检查、可信 Host 及旧入口仍可用的限定。不升级版本：包元数据、锁文件和运行版本仍为 **3.8.0**。
+- 复查全部待提交运行时改动：Query Skill 按连接预检 SQL 策略、MRTR 表单默认 false 提示及完整缩进审阅快照。共享执行边界不变，本轮最终检查无需追加运行代码修改。
+- 干净源码副本、全新环境及锁定依赖验证：**793 passed、4 skipped、3 项已有旧协议日志弃用警告（87.74 秒）**；Pyright **0 errors、0 warnings**。sdist/wheel 构建、非 editable wheel 在仓库外加载提示词及新旧协议 stdio 查询均通过。
+- 四项真实 MySQL 集成测试仍为显式启用并跳过；原生 UI 缺口继续保留。本次没有访问 live 数据库，私有部署文件仍被忽略。这是本地提交前结果，不是新增远端 CI 通过，详见[完整验证记录](docs/validation/V3_8_MRTR_NATIVE_2026_10_01_ZH.md)。
+
+## 默认写入流程与验收复核（2026-10-01）
+
+- 继续默认使用 preview/execute，MRTR 作为按实际 Host 显式开启的选项，与当前配置模型、公开模板和私有配置一致。所测 Codex IDE 的主要原生交互通过，Copilot 会话被协议门槛拒绝；不概括全部客户端，也不把默认流程选择解释为更强的人类身份认证。
+- 对照本机保存的测试会话、实现与测试，补充[验收复核](docs/validation/V3_8_MRTR_NATIVE_2026_10_01_ZH.md)。原生业务 TTL、旧表单跨重启及重复提交尚不能由自动化覆盖替代；重装后 Codex 确切版本、原始协议证据仍不完整。Copilot 旧流程的批准工具返回也不证明可见人工审阅通过。
+- 明确 MRTR 是请求输入机制，本项目在特定入口用它校验批准响应；不认证真人，也不关闭旧写入口。专用 preview/execute Host 可用代码强制交互，仅提示 Agent 则是行为规则。同步 DRR-2026-050 双语说明，区分 Copilot 提交/恢复和另一场次的仅预览。
+- 本次聚焦复验 **131 passed、1 项已有日志弃用警告，35.84 秒**。本次只改文档，没有修改部署、访问 live 数据库或新增原生 UI/全量/远端 CI 结论。同步双语 README、配置示例、配置/客户端指南、架构、安全和发布说明，保留历史结果。
+
+## preview/execute 与 MRTR 的审批信任边界（2026-10-01）
+
+**便于维护者理解的概括：MRTR 给 `request_mutation_approval` 这个入口增加了服务端强制的“批准轮次”；而 preview/execute 的“人工批准”属于 Host 工作流，Server 强制 preview-token 协议、权限与执行检查，但并不知道是否真的有人批准。** MRTR 仍信任 Host 的决定并保留旧执行入口，不是独立人类认证或全局审批策略。双语 README 同步突出说明，版本保持 **3.8.0**。
+
+- 到期时间为 20:44:01 UTC 的独立预览试验中，工具列表不提供 request_mutation_approval，旧 preview 成功并返回 not_executed，独立查询未变。Agent 请求对话确认，用户随后询问机制而未批准，因此没有执行；“仅 preview”只描述该次，不能概括同日全部旧流程试验。
+- 较早 Copilot 会话记录一次 shipped → delivered 提交，以及 delivered → pending → confirmed → shipped 三次分别提交的恢复，每次 execute 均影响一行并有后续状态读取。最终订单均为 shipped 不代表期间无写入，恢复也不是事务回滚。
+- 客户端提问工具记录了批准/取消选项，但完整预览主要位于其 message 字段；用户随后报告未看到审阅界面，不能单凭返回认定可见审阅通过。后续交互要求先在正文展示完整预览，再等待用户明确回复批准；这不是新增服务端门禁。见[分场次记录与证据边界](docs/validation/V3_8_MRTR_NATIVE_2026_10_01_ZH.md)。
+- 明确旧流程的服务端门槛为 confirm=true、有效匹配的一次性令牌及既有策略；令牌证明预览绑定和可消费状态，不证明人类批准。专用 Host 可以通过程序强制收集决定，单纯让 Agent 在聊天中询问则属于行为约定。
+- MRTR 路径要求有效续接及 accept/严格 true，但仍信任 Host，不能证明真人操作；mrtr.enabled 只控制额外工具注册，不禁用旧写入入口，不是全局强制审批开关。
+- 在双语 DRR-2026-050 下补充当前接受的边界及重新评审条件，同步 README、安全说明、配置/客户端指南和实施文档。独立审批认证、Agent 不持有授权凭据及所有写入路径不可绕过的校验仍属未来设计。本次仅澄清文档，不改代码、配置或批准规则。
 
 ## 概述
 
 本文持续记录项目的重构、设计决策、兼容性变化、取舍和验证结果，范围从最初的 `mcp_sql_server.py` 延伸到当前可安装的 `sql_safety_executor` 包。
 
 中文版按英文日志相同的版本和日期整理变更、原因、边界与验收。各历史条目附有英文对应位置，便于查阅原始逐文件清单、代码对照和完整实测表。旧文件名、环境变量、失败记录和测试数量保留其当时含义，不作为当前部署说明。后续实现变更应同步更新两种语言，不能用新的通过结果覆盖旧失败。
+
+## v3.8.0 Copilot 会话与 SDK 补证（2026-10-01）
+
+- 后续直接核对同一 Copilot 会话日志：session_start 记录 VS Code 1.140.0 / Copilot 0.68.0，审批调用返回与先前转述相同的协议门槛错误。此前“版本未采集”的描述保留其阶段含义。
+- 本机内置 Copilot 打包组件的 MCP SDK 最新协议常量为 2025-11-25，支持列表不含 2026-07-28。这支持客户端兼容性不足的假设，但不能证明会话使用该 SDK 路径；实际请求协议、能力与 harness/后端仍未知，不能推广至全部 Copilot 版本或路径。
+- 同步[验收记录](docs/validation/V3_8_MRTR_NATIVE_2026_10_01_ZH.md)与客户端指南，区分新版 MRTR、旧版 form elicitation 和 Agent Host Protocol；后续应核对实际请求元数据。本次仅补文档，没有新增数据库调用、审批重试、替代写入或自动化/UI 验收。
+
+## v3.8.0 Copilot 版本补证（2026-10-01）
+
+- 官方 Stable 发布说明和更新接口核实 VS Code 1.140.0（9 月 30 日发布）；本机 Server 清单及活动安装对应 commit `07f806f999227108933c2e30515b26eecc1fda74`，随附内置 `GitHub.copilot-chat` 清单为 0.68.0。
+- Copilot Chat 自 VS Code 1.116 起内置，旧独立 Marketplace 条目不能代替随附组件版本。此前实测会话的具体 harness 与 MCP 协商协议仍未知，不能回填为已证实的协议/版本组合。
+- 来源和本机清单位置见[版本补证](docs/validation/V3_8_MRTR_NATIVE_2026_10_01_ZH.md)。仅只读核验与补充文档，没有升级安装或重跑数据库/UI 测试。
+
+## v3.8.0 Copilot 兼容性观察（2026-10-01）
+
+- 用户提供原生 VS Code Copilot 调用记录：仅查询 live_test_sqlite、请求一次订单 2 shipped → delivered 审批、再查询。审批被 `MRTR requires MCP 2026-07-28; use preview/execute with trusted Host approval.` 拒绝，未出现表单；无重试或替代写入，前后报告订单 1–3 均为 shipped。
+- 记为协议门槛拒绝符合预期，不能记为 MRTR 展示/取消通过。记录没有独立 error_code 或 execution_outcome。用户称“最新版”，具体客户端/扩展版本与协商协议未采集；不推广至全部 Copilot 版本，不由先触发的协议检查推断 form 能力。
+- 证据来自用户，不是本 Agent 直接运行 Copilot；见[验收记录](docs/validation/V3_8_MRTR_NATIVE_2026_10_01_ZH.md)。本次不改运行逻辑，不新增自动化测试结论。
+
+## v3.8.0 原生审阅排版确认（2026-10-01）
+
+- 用户重启 Codex 后补充截图，确认多行缩进 JSON 已显示完整目标、参数、SQL/绑定值、期限及 Skill。提案为 live_test_sqlite 的订单 2 shipped → delivered，到期时间为 `2026-09-30T19:59:37+00:00`。
+- 右上角关闭按钮测试返回 `approval_cancelled` / `not_executed`；前后独立查询确认订单 1–3 仍为 shipped。当前 Codex IDE 的新排版展示及取消路径通过。此次是重启后的新提案，不是重启前旧审批的续接。
+- 下文排版待验收的描述保留其阶段含义；原生业务 TTL/重启续接和其他 Host 仍为独立待办。截图保留在会话中，本次仅补充文档，不新增自动化测试结果或数据库写入。
+
+## v3.8.0 Codex 排版与按钮分类定位（2026-10-01）
+
+- 当前两个 Codex MCP 子进程均早于缩进补丁启动，运行中不热加载模块，需 Host 在补丁后重启。已安装前端使用 `whitespace-pre-wrap` 保留换行；新进程的实际 UI 展示仍待观察。
+- 扩展 26.917.62051 中 Skip 发送 decline，右上角 × / Esc 发送 cancel。已更正指南把 Skip/关闭混为取消的说法；截图对应调用返回 approval_declined 且数据未变，与 Skip 行为一致。用户合称“Skip/关闭”不能确定实际点击了哪个按钮。
+- 保持服务端按协议 action 分类，补充 decline、cancel、accept(false) 的错误码断言。未修改第三方扩展、强行重映射事件或终止当前服务；详见[诊断证据](docs/validation/V3_8_MRTR_NATIVE_2026_10_01_ZH.md)。
+
+## v3.8.0 MRTR 审阅内容可读性（2026-10-01）
+
+- 将紧凑审阅 JSON 改为两空格缩进、Unicode 可读的多行 JSON，保留首行问题及其后完整 JSON 的契约。参考 Host 仍可解析首个换行后的内容，不依赖 Markdown 渲染；JSON 字符串转义保留。
+- 首轮与缺失回答重发都从同一份已保存快照排版；目标、Skill、参数、SQL、绑定值、期限及其他字段完整保留，不截断、不重新 preview。规范化存储、批准绑定和执行规则不变。64 KiB 仍约束保存的审阅 JSON，缩进会增加展示负载，不能声称完整 wire 消息也不超过 64 KiB。
+- 改动后聚焦回归 **131 passed、1 项已有日志弃用警告，27.54 秒**；断言展示 JSON 与保存快照等价且包含换行缩进，既有重问、参考 Host、严格批准与重启用例通过。新排版重启后的原生显示效果尚待确认，Host 仍可能折叠空白或采用自己的布局。
+- 尚非全部验收完成：原生批准、取消、未勾选拒绝及长等待框架拒绝已有证据；独立真实进程重启通过。原生业务 TTL/重启 UI 和其他 Host 仍待验收，详见[当前验收矩阵](docs/validation/V3_8_MRTR_NATIVE_2026_10_01_ZH.md)。本次展示改动没有新增原生写入。
+
+## v3.8.0 MRTR 真实进程重启回归（2026-10-01）
+
+- 新增 `tests/test_v38_mrtr_restart.py`：参考 Client 通过 stdio 启动生产包入口，取得密封提案后关闭并回收旧进程，以同一配置和临时 SQLite 文件启动不同 PID；两次协商均为 MCP 2026-07-28。最小启动包装只记录子进程 PID，不改变运行逻辑。
+- 在原提案尚未到期时提交原请求与批准，收到 requestState 协议拒绝，独立 SQLite 读取仍为 pending；新进程创建的新提案可提交且只影响一行。两个子进程退出均有断言。这属于真实进程协议验收，不是原生 Codex UI 验收；未操作当前 Codex 服务或本地 live 测试库。
+- 聚焦验证：重启、stdio、MRTR、复评回归和人工批准示例共 **131 passed、1 warning，26.82 秒**。警告为原有旧协议日志能力弃用。现有模拟时钟测试单独覆盖密封状态有效时的业务过期，但不代表原生 UI 的业务 TTL 验收。新测试使用 POSIX PID 检查，现有 Ubuntu CI 默认会收集，未声称新的远端 CI 已通过。
+- 原生 UI 与跨 Host 待验收范围见[更新后的验收记录](docs/validation/V3_8_MRTR_NATIVE_2026_10_01_ZH.md)。本次无需修改生产代码或部署配置。
+
+## v3.8.0 原生 MRTR 等待与重启验收补充（2026-10-01）
+
+- 后续测试实际提交了订单 1、2 的 confirmed → shipped。第一次缺少到期证据，第二次返回时距截图到期时间尚有 4 分 11 秒，均不能记为过期拒绝通过。
+- shipped → confirmed 提案被业务校验拒绝且未执行。改为 shipped → delivered 后，用户确认等待超过 10 分钟再主动批准；调用约 26 分钟后返回 MCP `-32602`、`Invalid or expired requestState`、reason=`invalid_request_state`，独立读取不变。该结果验证本次框架拒绝，未单独验证业务提案 TTL 分支；协议错误没有业务 `execution_outcome` 字段。
+- 重启场景尝试返回 `approval_declined` / `not_executed`，无成功重启并提交旧审批的证据。当前 Agent 无可调用的 Host 重连控制，服务由 Codex 子进程承载；没有终止进程。独立客户端控制真实服务重启的协议测试仅为后续方案，本轮未执行，也不替代原生 UI 验收。
+- 最后观察到订单 1、2、3 均为 shipped，没有补偿写入；下文 confirmed 状态属于较早阶段。详见[原生验收记录](docs/validation/V3_8_MRTR_NATIVE_2026_10_01_ZH.md)。本次仅更新文档，没有新增自动化测试结果。
+
+## v3.8.0 MRTR 审批表单默认值（2026-10-01）
+
+- Codex IDE 原生测试与用户截图确认：人工批准后 SQLite 写入提交，人工取消后不写入。该界面无法提交无默认值的必填复选框的未勾选状态，当时显式 `false` 拒绝被表单校验阻止。
+- 为必填布尔批准字段增加 `default=false`，仅提示客户端初始化表单，不补齐缺失回答；缺失或非法回答仍重问，只有 `accept` 且严格布尔 `true` 才执行。未改为可选字段或枚举。
+- 服务重启后，用户确认未勾选并点击 Continue 已无必填错误；服务端返回 `approval_declined` / `not_executed`。前后读取确认订单 1 仍为 `confirmed`，三条订单状态均未变化。结合之前截图及用户确认，当前 Codex IDE（扩展 26.917.62051 / 内置客户端 0.155.0-alpha.16.3）的批准、取消、未勾选拒绝路径通过；过期与重启失效的 UI 验收仍待完成，没有执行补偿写入。
+- 同类检查：生产代码只有 `_ask` 一处定义 elicitation schema，首轮和缺失回答时重发共用该函数。参考 Host 已初始化 `self.approved = False` 并返回显式布尔决定；旧 preview/execute 的 `confirm` 已默认为 false，执行另需匹配一次性令牌。这些入口不是另一份复选框表单，无需重复补丁；普通配置布尔值和 AutoGen 对话批准未机械修改。
+- 回归验证：`test_v38_mrtr.py`、`test_v38_review_regressions.py`、`test_manual_mutation_approval.py` 共 121 passed，1 项旧协议日志弃用警告；`git diff --check` 通过。新增断言同时约束默认值为 false 与字段必填；原有测试覆盖 false、取消、非法值、缺失回答与 true 执行。该结果来自本次文档验收更新之前的代码验证。
+- `default=false` 属于 [MCP 标准布尔 schema](https://modelcontextprotocol.io/specification/2026-07-28/client/elicitation#requested-schema)，没有 Codex 专用分支，也不作为服务端缺失值回退。required 要求字段存在，不要求值为 true；截图只能证明所观察到的 Host 行为，不证明其内部校验实现。Copilot、Codex Desktop 等其他 Host UI 尚未实测；即使客户端忽略默认值，也不能默认批准。
+
+## v3.8.0 复评与 Query Skill 静态预检（2026-09-28）
+
+- 独立确认 `139d53a` 的远端运行 `36330541822`：786 passed、4 skipped，类型、构建和安装后验证均通过。上一轮问题关闭，保留 `1be44b4` 的失败历史。
+- 复现新增 UNION 发现不一致：Query 可用性改为对当前目标调用执行侧完整静态 SQL 策略，预检同一缓存模板。保留可供其他连接使用的模板，不跨目标共享授权结论；执行仍做复核。
+- 新增六项生产路径回归，覆盖新旧协议 UNION 裁决、双引号表范围及缺失 SQL 快照。发现增加解析 CPU；动态 readiness 仍可能访问元数据，Mutation 策略不变。
+- 干净副本本地验证：792 passed、4 skipped，类型、构建和安装后 wheel 检查通过。本次新补丁仍待远端运行；原生 MRTR UI 和其余暂缓范围独立管理，详见[复评记录](docs/validation/V3_8_REREVIEW_2026_09_28_ZH.md)。
 
 ## v3.8.0 外部评审修复（2026-09-27）
 

@@ -89,6 +89,8 @@ The reference Host displays the review and accepts only literal `APPROVE` before
 
 For MRTR, set `skills.mutation.mrtr.enabled = true` in your private Skills file and run the Host with that deployment's `--config` and `--flow mrtr`. This requires MCP `2026-07-28`, client form elicitation and a managed single-statement Skill. Older clients can use preview/execute; an unsupported MRTR call is rejected. The server trusts the Host's approval decision, without independently authenticating a human. Do not automatically retry unknown outcomes or lost responses; inspect business state first. Restart invalidates unused proposals.
 
+Keep preview/execute as the deployment default; enable MRTR only for a Host verified with that deployment. The [October 1 acceptance audit](../../docs/validation/V3_8_MRTR_NATIVE_2026_10_01_ZH.md) records working native Codex IDE interactions and a Copilot protocol rejection, with remaining UI cases listed separately. This is not a claim that all clients lack MRTR. Enabling MRTR leaves legacy execution available and does not independently prove human approval. Do not automatically switch write paths after an approval failure or unknown result.
+
 ## Copying templates into local configuration
 
 Use the ignored `config/server.toml`, `config/connections.toml` and `config/skills.toml` for local deployment. Review existing files before copying; preserve your current settings and secrets. Copy all files referenced by the chosen main file, then adjust paths because their declaring directory has changed:

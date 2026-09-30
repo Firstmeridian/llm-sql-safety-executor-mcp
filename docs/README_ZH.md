@@ -33,6 +33,9 @@
 
 ## 发布与验收
 
+- [10 月 1 日 MRTR 原生验收](validation/V3_8_MRTR_NATIVE_2026_10_01_ZH.md)：实际提交、延迟批准拒绝、夹具最终状态及 TTL/重启待验收边界。
+
+- [v3.8 复评处理记录](validation/V3_8_REREVIEW_2026_09_28_ZH.md)：确认 `139d53a` 远端 CI 成功，补齐 Query Skill 静态策略发现，记录回归和 Host 待验收范围。
 - [v3.8 外部评审修复记录](validation/V3_8_REVIEW_FIXES_2026_09_27_ZH.md)：已确认问题、CI 失败、生产路径回归及待验收范围。
 
 - [v3.8 本地 live Review](validation/V3_8_LIVE_REVIEW_2026_09_26_ZH.md)：Host 入口修复、真实数据库检查、9 次 Luna CLI 试验，以及后续原生重连和三组六轮代理测试；保留失败与验收边界。

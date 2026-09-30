@@ -18,12 +18,21 @@
 > do not isolate malicious Python. The original CI failure remains recorded;
 > local validation does not establish a successful remote run or native MRTR UI.
 
+> **Follow-up (2026-09-28):** `139d53a` passed remote CI; previous findings are
+> closed. Query Skill discovery now preflights cached SQL with the selected
+> connection's full static execution policy, covering the newly reported UNION
+> mismatch. This adds parsing cost, not a policy-result cache or a replacement
+> for execution checks. Dynamic readiness and native MRTR UI retain their
+> existing boundaries. See [evidence](../validation/V3_8_REREVIEW_2026_09_28_ZH.md).
+
+> **Acceptance update (2026-10-01):** Native approval/refusal/cancellation and delayed framework rejection have evidence; real-process restart is covered separately. The tested Codex IDE now has post-restart screenshot evidence for multiline rendering and a no-write close-button cancellation. Native business-TTL/restart UI and other Hosts remain pending. Formatting preserves all snapshot values and adds display whitespace beyond the stored-review size cap. See the [current acceptance matrix](../validation/V3_8_MRTR_NATIVE_2026_10_01_ZH.md).
+
 # Design Risk Register
 
 English | [中文](DESIGN_RISK_REGISTER_ZH.md)
 
 Date opened: 2026-05-24
-Last reviewed: 2026-09-27 (v3.8 review fixes; historical rows retain their original review dates)
+Last reviewed: 2026-10-01 (approval-boundary clarification; historical rows retain their original review dates)
 
 Document status: Living design and operations risk register.  
 Initial review batch: v3.4.3.
@@ -234,6 +243,16 @@ Database least privilege and schema-enforced order-id uniqueness remain
 authoritative because
 SELECT-shaped stored functions and locking functions can have side effects that
 an outer-statement checker cannot prove absent.
+
+### DRR-2026-050 approval boundary follow-up (October 1, 2026)
+
+**Status: Accepted; risk: Medium, retained for trusted local Host mode A.** This follows up the existing risk ID rather than creating a duplicate or rewriting its v3.7 history below.
+
+- Legacy preview/execute does not request a protocol approval form. The server verifies `confirm=true`, the exact matching one-time token, grants and execution policy; it cannot prove that the client asked a person. An Agent with access to preview and execute can return the token itself. A dedicated reference Host enforces user interaction and deadlines in code, but that protection belongs to the Host and is not mandatory for every client.
+- MRTR makes the input request and decision part of the protocol. A valid sealed continuation plus `accept` and strict boolean `approve=true` is required on that path. This is approval-response validation, not independent human authentication; an automated or compromised Host can produce the response.
+- The MRTR switch adds/removes that tool only. The legacy mutation tool remains available when Skills/mutation configuration permits it. Enabling MRTR is not an all-write human-approval policy; disabling MRTR does not disable writes. A generic tool-call permission dialog is also not proof of review of the exact SQL.
+- Current decision: retain preview/execute as the default and MRTR as an explicit option for verified Hosts, with both flows' server-side binding/expiry/single-consumption controls. This follows uneven support in the tested Codex/Copilot paths, not a universal compatibility claim; neither flow prevents an authorized client from approving its own requests. Only the separate trial with preview expiry 20:44:01 UTC was preview-only. The Copilot trial committed a change and three restoration steps, with user-reported missing review UI; recorded approval choices do not establish visible review. No new security control was implemented by this clarification.
+- Reopen if approver identity, separation of duties, or resistance to an untrusted Agent becomes required. Then design a separately authenticated approval bound to the exact proposal, with credentials outside the Agent's control and enforcement across **all** write paths (or an unbypassable trusted gateway). Merely prompting the Agent, setting MRTR enabled, or hiding a tool from discovery does not meet that requirement. See the [flow comparison](V3_8_SECURITY.md#where-approval-is-enforced) and [observed trial](../validation/V3_8_MRTR_NATIVE_2026_10_01_ZH.md).
 
 ## Register
 

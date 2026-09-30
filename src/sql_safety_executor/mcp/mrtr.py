@@ -64,13 +64,21 @@ def _ask(record, state, connection):
                 method="elicitation/create",
                 params=ElicitRequestFormParams(
                     message="Approve this exact database mutation?\n"
-                    + record.review_json,
+                    # Keep the header + JSON contract used by reference Hosts.
+                    # Format only the saved snapshot; never recompute a preview.
+                    + json.dumps(
+                        json.loads(record.review_json),
+                        ensure_ascii=False,
+                        indent=2,
+                        allow_nan=False,
+                    ),
                     requested_schema={
                         "type": "object",
                         "properties": {
                             "approve": {
                                 "type": "boolean",
                                 "title": "Approve this mutation",
+                                "default": False,
                             }
                         },
                         "required": ["approve"],

@@ -12,7 +12,15 @@
 
 验证记录将在各阶段完成后追加，未运行的 Host 或数据库场景不会记为通过。
 
-完成后的自动化与实测分别记录在[阶段验收](../validation/V3_8_VALIDATION_ZH.md)和[本地 live Review](../validation/V3_8_LIVE_REVIEW_2026_09_26_ZH.md)：包含 Host 入口迁移/重连、真实 MySQL 连通与基础读取、原生 SQLite preview/execute 恢复，以及三组 Luna 六轮路由任务。原生 MRTR/人工审批 UI、Copilot、MySQL 写入仍未验收；新旧参考协议的结果不替代原生 Host 协商证据。提交 `1be44b4` 的远端 CI 因旧提示词断言失败，修复与重新验证见[9 月 27 日记录](../validation/V3_8_REVIEW_FIXES_2026_09_27_ZH.md)。
+完成后的自动化与实测分别记录在[阶段验收](../validation/V3_8_VALIDATION_ZH.md)和[本地 live Review](../validation/V3_8_LIVE_REVIEW_2026_09_26_ZH.md)：包含 Host 入口迁移/重连、真实 MySQL 连通与基础读取、原生 SQLite preview/execute 恢复，以及三组 Luna 六轮路由任务。后续[10 月 1 日记录](../../REFACTORING_LOG_ZH.md)确认原生 Codex IDE MRTR 批准、取消及未勾选拒绝通过；[后续原生记录](../validation/V3_8_MRTR_NATIVE_2026_10_01_ZH.md)确认长等待后批准被框架拒绝且未写入，独立真实进程重启及新提案执行对照已通过，业务 TTL 有模拟时钟覆盖；原生业务 TTL/重启 UI、MySQL 写入仍未验收；用户提供的 Copilot 试验被协议门槛拒绝，尚未进入表单；新旧参考协议的结果不替代原生 Host 协商证据。提交 `1be44b4` 的远端 CI 因旧提示词断言失败，修复与重新验证见[9 月 27 日记录](../validation/V3_8_REVIEW_FIXES_2026_09_27_ZH.md)。
+
+## 审批信任归属补充（2026-10-01）
+
+部署继续默认采用 preview/execute，MRTR 保持默认关闭并按实际 Host 显式启用。依据是[已测客户端的支持与验收范围](../validation/V3_8_MRTR_NATIVE_2026_10_01_ZH.md)：Codex IDE 主要原生交互通过，Copilot 会话被协议门槛拒绝，仍有原生边界场景和证据缺口。此决定不宣称全行业兼容性，也不因默认流程选择而增强人工认证；不增加失败后自动切换写入入口的逻辑。
+
+原有 preview/execute 的服务端门槛是 `confirm=true`、匹配的一次性 token 和既有权限/执行检查，不主动产生协议审批表单。参考 Host 可以用代码强制收集决定，但普通 Agent 自行调用两步工具时，聊天确认只是客户端行为约定。MRTR 将请求与批准响应纳入协议，并强制 accept/严格 true；仍不独立认证真人，自动化 Host 可提交同样响应。
+
+MRTR 开关只控制额外工具注册，不移除旧 execute_mutation_skill，因此不是全局写入审批门禁。两条流程当前均采用可信 Host 模式 A。独立认证批准、Agent 无法取得批准凭据、所有写入路径不可绕过的授权检查尚未实现；沿用 [DRR-2026-050](../security/DESIGN_RISK_REGISTER.md#drr-2026-050-approval-boundary-follow-up-october-1-2026) 记录接受边界及重评条件。
 
 ## 结构与生命周期
 
@@ -61,3 +69,9 @@ CI 使用只读仓库权限、禁用 checkout 凭据持久化，并将 Actions �
 MRTR 等待结果附带已验证的目标元数据，中间件从 FastMCP 包装对象中的原始 `InputRequiredResult.meta` 读取。普通结果缺少身份时记录 null，诊断继续按独立校验的 scope 归属。参考 Host 两条流程共享审批期限、展示内容指纹和有效期复核；服务端原子消费边界不变。
 
 概要设计 D01 仅部分完成：显式连接/部署权限不等于可信请求级任务授权，`OperationContext` 不是 grant。D04 的稳定定义与动态 readiness 仍在列表/详情中组合，独立接口与优化暂缓。D07 本次修正归属与阶段，但跨轮关联、完整追踪及 OTel 仍暂缓。扩大这些边界需单独设计和测试，不将报告建议自动视为本次新增功能范围。
+
+## 2026-09-28 复评收口与静态策略预检
+
+已独立核实 `139d53a` 的远端 CI 全流程成功，上一轮问题关闭；原始失败和本地记录保持原时间范围。新增 N01 的 UNION 发现不一致经真实 FastMCP/SQLite 复现后修复：Query Skill 通过读取准入与声明表范围检查后，用 `_validate_sql_query_policy()` 对同一缓存模板和当前连接做预检。执行入口继续复核，不在目录加载时按默认连接删模板，也不跨连接缓存裁决。
+
+完整 SQL 预检补齐 UNION 及解析后表范围等条件；原声明表、profile、连接范围、类型与 schema readiness 继续约束可用性。代价是每次发现增加候选 SQL 解析，尚未做大目录性能基准；静态预检无数据库 I/O，整个发现接口仍可能访问 readiness 元数据。此修复不等于完成 D04 独立接口，也不扩大 MRTR/任务授权范围。六项新增回归与验证结果见[本轮复评记录](../validation/V3_8_REREVIEW_2026_09_28_ZH.md)。
