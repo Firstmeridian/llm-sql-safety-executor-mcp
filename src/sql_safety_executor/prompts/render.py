@@ -3,6 +3,10 @@
 from importlib.resources import files
 from string import Template
 
+from sql_safety_executor.core.connections import read_access_enabled
+
+MAX_POLICY_LINES = 12
+
 
 def text(name: str) -> str:
     return (
@@ -10,8 +14,42 @@ def text(name: str) -> str:
     )
 
 
+def connection_policies(config) -> str:
+    """Summarize each connection's configured read and UNION policy without I/O."""
+    lines = []
+    aliases = sorted(config.connections)
+    for alias in aliases[:MAX_POLICY_LINES]:
+        connection = config.connections[alias]
+        policy = connection.policy
+        if not read_access_enabled(policy):
+            lines.append(f"- {alias} ({connection.db_type}): reads disabled")
+            continue
+        scope = (
+            "all tables"
+            if policy.read_mode == "all"
+            else f"allowlist of {len(policy.allowed_tables)} table(s)"
+        )
+        union = "UNION allowed" if policy.allow_union else "UNION disabled"
+        lines.append(f"- {alias} ({connection.db_type}): reads {scope}; {union}")
+    if len(aliases) > MAX_POLICY_LINES:
+        lines.append(
+            f"- {len(aliases) - MAX_POLICY_LINES} more connection(s): "
+            "see list_connections()"
+        )
+    return "\n".join(lines)
+
+
+def read_policy(config) -> str:
+    return Template(text("read_policy.md")).substitute(
+        connection_policies=connection_policies(config)
+    )
+
+
 def instructions(config) -> str:
-    value = Template(text("server.md")).substitute(routing=text("routing.md"))
+    value = Template(text("server.md")).substitute(
+        routing=text("routing.md"),
+        read_policy=read_policy(config),
+    )
     if config.skills.mutation.mrtr.enabled:
         value += "\n" + text("mrtr.md")
     return value
@@ -26,7 +64,7 @@ def assistant(config) -> str:
     value = Template(text("assistant.md")).substitute(
         routing=text("routing.md"),
         skills_info=skills_info,
-        cross_table="UNION policy is connection-specific. Inspect the selected alias in list_connections(); query() and Query Skills enforce that target's policy.",
+        cross_table="UNION policy is connection-specific. Inspect the selected alias in list_connections() when needed; query() and Query Skills enforce that target's policy.\n\n" + read_policy(config),
     )
     if config.skills.mutation.mrtr.enabled:
         value += "\n\n" + text("mrtr.md")

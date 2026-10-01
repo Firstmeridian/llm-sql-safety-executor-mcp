@@ -323,12 +323,24 @@ def test_union_policy_and_disclosure_follow_selected_connection(
                 )
                 assert payload["success"] is False
                 assert "UNION queries disabled" in payload["error"]
+                assert "Prefer one permitted query without UNION" in payload["error"]
+                assert "combine results in your response" not in payload["error"]
                 assert payload["connection_id"] == connection_id
                 assert meta["connection_id"] == connection_id
 
         prompt = module.sql_assistant()
         assert "UNION policy is connection-specific" in prompt
         assert "selected alias in list_connections()" in prompt
+        for connection_id, is_allowed in (
+            ("default", default_allow_union),
+            ("analytics", analytics_allow_union),
+        ):
+            line = next(
+                item for item in prompt.splitlines()
+                if item.startswith(f"- {connection_id} (")
+            )
+            assert ("UNION allowed" in line) is is_allowed
+            assert module.mcp.instructions.count(line) == 1
         assert "UNION supported for combining results" not in prompt
         assert "UNION allowed for:" not in prompt
         assert "Query tables separately" not in prompt

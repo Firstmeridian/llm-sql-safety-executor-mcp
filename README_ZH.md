@@ -96,7 +96,7 @@ SQL 方言的全面语义分析。
 - MCP `ToolAnnotations` 包含只读/破坏性/幂等提示，并统一设置 `openWorldHint=false`，表示工具工作在当前配置的数据库边界内，而不是任意外部系统
 - Skills 执行工具返回结构化业务 payload，并通过 `ToolResult.meta` 附加运行时
   元数据（如耗时、行数、截断状态、Skill 版本），用于调试和可观测性
-- 支持基于配置的策略/提示注入（如 read.allow_union、read.tables、截断阈值），用更短、更相关的指导减少无效工具调用
+- 支持基于配置的策略指导：服务端 instructions 在启动时按连接列出读取范围类型与 UNION 策略（自 v3.8.1 起），用更短、更相关的指导减少无效工具调用
 - 错误反馈面向 LLM 优化：明确失败原因（安全拦截/表未允许/语法/超时/截断等）并给出修正建议，减少反复试错与无效调用，同时避免泄露敏感信息（凭据、系统表细节等）
 - 适配 ReAct 模式：推理 → 行动 → 观察 → 再思考
 
@@ -876,7 +876,9 @@ SQLite 初始化拒绝覆盖已有文件；MySQL 初始化遇到现存 orders �
 - 更新 Skill 写明正向生命周期并关联重置 Skill；演示数据恢复按独立批准、非原子的步骤记录。工具说明禁止绕过拒绝，并将令牌有效性交由 execute 判定。
 - 响应仍只返回绝对期限 `preview_token_expires_at`；试验性恢复的 `preview_token_expires_in_seconds` 已撤回。子代理被问及令牌是否仍可用时仍会按自身日期误判（偏保守，过期始终由 execute 校验）。
 - 写入工具说明新增结果解读规则：以 `execution_outcome` 而非 `success` 判断写入；`success=false` 但 `committed` 不得重做；`unknown` 可能已写入也可能未写入；不带 `execution_outcome` 的错误不证明任何结论；不得自行重试或改走其他入口。回放试验从 12/18 提升到 16/18（MRTR 协议错误 0/3 → 3/3），每次请求输入约增加 159 token；引导不替代服务端控制。
-- 796 passed、4 skipped；Pyright 0 errors；Host 与子代理测试均未写入。详见[发布说明](docs/releases/RELEASE_NOTES_v3_8.md#v381--skill-rejection-recovery-clue-october-1-2026)。
+- 服务端 instructions 现按连接列出读取策略（禁止读取或表范围类型、是否允许 UNION），并写明所有连接都拒绝 FROM 子查询（改用 CTE）；UNION 拒绝提示不再建议在回答中合并结果。禁止 UNION 的 MySQL 任务从 11–15 次调用（58k–78k token）降至 2 次（约 44k）；允许 UNION 的 SQLite 任务从首条被拒变为 1 次调用（约 28k），答案均正确。每次请求固定开销约增加 184 token。
+- 在更丰富的本地 SQLite 库上做真实工具通道复测：`committed` 与 `rolled_back` 均 3/3 报告正确。预览令牌拒绝发生在任何写入之前，其文本由“run preview again”改为说明本次未写入、先核对状态并由用户决定是否重新预览；清楚报告由 0/3 升至 3/3。预览被拒后把预览时状态说成当前状态（0/3）仍是已记录的残余风险。
+- 三项更新后全量依次为 796 → 797 → 799 passed、4 skipped；Pyright 0 errors。子代理测试仅在逐条批准后写入专用本地测试数据。详见[发布说明](docs/releases/RELEASE_NOTES_v3_8.md#v381--skill-rejection-recovery-clue-october-1-2026)。
 
 ### v3.8.0 FastMCP 4、TOML 与托管 MRTR（2026年9月）
 
@@ -2186,7 +2188,7 @@ uv build
 
 **10 月 1 日提交前检查：** 完整待提交 v3.8.0 改动经干净副本、锁定依赖验证，结果为 **793 passed、4 skipped**，三项警告均为已有旧协议日志弃用。Pyright、sdist/wheel 构建及仓库外安装后验证通过。版本仍为 **3.8.0**；新提交的远端 CI 和剩余原生 UI 项目分别管理，详见[最终本地验证](docs/validation/V3_8_MRTR_NATIVE_2026_10_01_ZH.md)。
 
-**v3.8.1 检查（10 月 1 日）：** 加入拒绝恢复线索后，本地全量测试为 **796 passed、4 skipped**，Pyright 0 errors；随后加入结果解读引导后为 **797 passed、4 skipped**。这些结果来自现有开发环境，不是干净副本，未宣称构建或远端 CI 结果。见 [v3.8.1 说明](docs/releases/RELEASE_NOTES_v3_8.md#v381--skill-rejection-recovery-clue-october-1-2026)。
+**v3.8.1 检查（10 月 1 日）：** 加入拒绝恢复线索后，本地全量测试为 **796 passed、4 skipped**，Pyright 0 errors；随后加入结果解读引导后为 **797 passed、4 skipped**，加入按连接读取策略指导后为 **799 passed、4 skipped**。这些结果来自现有开发环境，不是干净副本，未宣称构建或远端 CI 结果。见 [v3.8.1 说明](docs/releases/RELEASE_NOTES_v3_8.md#v381--skill-rejection-recovery-clue-october-1-2026)。
 
 ### 测试脚本
 

@@ -13,4 +13,6 @@ if __name__ == "__main__":
         assert "connection_id" in prompt
         assert "list_connections" in prompt
     assert "UNION policy is connection-specific" in assistant(config)
+    for prompt in (assistant(config), instructions(config)):
+        assert "Configured read policy by connection" in prompt
     print("Installed prompt resources and routing guidance valid.")

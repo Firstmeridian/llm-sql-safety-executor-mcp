@@ -2596,6 +2596,9 @@ def test_execute_rejects_altered_or_unknown_handle_without_echoing_it(
         error_message = str(exc_info.value)
         assert original_token not in error_message
         assert altered_handle not in error_message
+        assert "this request wrote nothing" in error_message
+        assert "let the user decide whether to preview again" in error_message
+        assert "run preview again" not in error_message
         assert _order_status(mysql_db, 1) == "pending"
 
         payload, _ = run_tool(

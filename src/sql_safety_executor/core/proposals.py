@@ -14,6 +14,12 @@ logger = logging.getLogger(__name__)
 
 from sql_safety_executor.core.constants import MUTATION_PREVIEW_BINDING_MAX_BYTES
 
+# Token checks run before any database write in the execute path.
+_TOKEN_REJECTED = (
+    "rejected before execution, so this request wrote nothing. Check the "
+    "current state and let the user decide whether to preview again."
+)
+
 
 def _canonical_json(value: Any) -> str:
     try:
@@ -143,23 +149,23 @@ def _consume_mutation_preview_token(
         now=int(time.time()),
     )
     if status == "expired":
-        raise ToolError("Expired preview_token; run preview again.")
+        raise ToolError(f"Expired preview_token; {_TOKEN_REJECTED}")
     if status == "mismatch":
         raise ToolError(
-            "preview_token does not match this mutation request; run preview again."
+            f"preview_token does not match this mutation request; {_TOKEN_REJECTED}"
         )
     if status == "not_found" or record is None:
         raise ToolError(
             "Invalid preview_token, has already been used, or was not issued "
-            "by this server process; run preview again."
+            f"by this server process; {_TOKEN_REJECTED}"
         )
 
     try:
         execution_binding = json.loads(record.execution_binding_json)
     except Exception as exc:
         raise ToolError(
-            "Invalid preview_token execution binding; run preview again."
+            f"Invalid preview_token execution binding; {_TOKEN_REJECTED}"
         ) from exc
     if not isinstance(execution_binding, dict):
-        raise ToolError("Invalid preview_token execution binding; run preview again.")
+        raise ToolError(f"Invalid preview_token execution binding; {_TOKEN_REJECTED}")
     return execution_binding

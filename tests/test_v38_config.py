@@ -185,6 +185,61 @@ def test_config_is_immutable(bundle):
         cfg.server.limits.result_rows = 5
 
 
+def test_connection_read_policy_guidance_matches_config(bundle, tmp_path):
+    from sql_safety_executor.prompts import render
+
+    _, connections, _, save = bundle
+    connections["connections"].update(
+        {
+            "sales": {
+                "type": "sqlite",
+                "sqlite": {"path": "sales.sqlite"},
+                "read": {
+                    "mode": "allowlist",
+                    "tables": ["secret_q1", "secret_q2"],
+                    "allow_union": True,
+                },
+            },
+            "warehouse": {
+                "type": "sqlite",
+                "sqlite": {"path": "warehouse.sqlite"},
+                "read": {"mode": "all"},
+            },
+        }
+    )
+    cfg = load_config(save())
+    guidance = render.read_policy(cfg)
+    assert "- demo (sqlite): reads disabled" in guidance
+    assert "- sales (sqlite): reads allowlist of 2 table(s); UNION allowed" in guidance
+    assert "- warehouse (sqlite): reads all tables; UNION disabled" in guidance
+    assert "use a CTE (WITH ...) instead" in guidance
+    assert "not proof of connectivity or table existence" in guidance
+    # Table names and file paths stay out of the always-loaded text.
+    assert "secret_q1" not in guidance and ".sqlite" not in guidance
+    server = create_server(cfg)
+    try:
+        assert guidance in server.instructions
+        assert guidance in render.assistant(cfg)
+    finally:
+        server.gateway_runtime.close()
+    assert not any(tmp_path.glob("*.sqlite"))
+
+
+def test_connection_read_policy_guidance_is_capped(bundle, monkeypatch):
+    from sql_safety_executor.prompts import render
+
+    _, connections, _, save = bundle
+    for index in range(5):
+        connections["connections"][f"c{index}"] = {
+            "type": "sqlite",
+            "sqlite": {"path": f"c{index}.sqlite"},
+        }
+    monkeypatch.setattr(render, "MAX_POLICY_LINES", 3)
+    lines = render.connection_policies(load_config(save())).splitlines()
+    assert len(lines) == 4
+    assert lines[-1] == "- 3 more connection(s): see list_connections()"
+
+
 @pytest.mark.parametrize(
     "mode,tables,union,valid",
     [

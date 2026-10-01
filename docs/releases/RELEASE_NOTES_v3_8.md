@@ -183,10 +183,20 @@ error carries no `execution_outcome`, and defers to these shared rules.
 
 **Design choices and compromises**
 
-- The rules live in the mutation tool description, which Hosts expose with the
-  tool, rather than in server instructions or `sql_assistant`; this avoids
-  paying for duplicated text. MRTR registers only when mutations are enabled, so
-  its description references the shared rules instead of copying them.
+- No misreading had been observed in earlier live tests, so this was treated as
+  a low-frequency, high-cost risk: a misread `committed` or `unknown` can cause
+  a duplicate write, and the failure paths are hard to provoke live. The
+  [MCP Tools specification](https://modelcontextprotocol.io/specification/2025-11-25/server/tools#error-handling)
+  describes tool execution errors as feedback a model can use to self-correct
+  and retry, so a write tool has to state the opposite explicitly.
+- The design proposal put the rules in four places (server instructions, both
+  tool descriptions and `sql_assistant`) and asked for 20 scenarios with a
+  recording/replay harness. Only the two tool descriptions were kept: in
+  Copilot, instructions and descriptions share the context, so duplication is
+  paid on every request, and Hosts do not inject `sql_assistant`. Acceptance
+  was reduced to six replay cases covering the highest-cost misreadings.
+- MRTR registers only when mutations are enabled, so its description
+  references the shared rules instead of copying them.
 - The description grows by 755 characters (1888 → 2643) and the MRTR
   description by 227 (218 → 445). Tests cap them below 2800 and 500. Measured
   subagent input grew by about 159 tokens per request (about 1.2%).
@@ -218,3 +228,138 @@ subagent runs may therefore have seen the previous description; their recovery
 results relied on the returned `related_available_skills` field. See
 [DRR-2026-073](../security/DESIGN_RISK_REGISTER.md#v381-rejection-recovery-and-token-expiry-reporting-october-1-2026)
 and the [acceptance record](../validation/V3_8_MRTR_NATIVE_2026_10_01_ZH.md).
+
+### Per-connection read policy guidance (v3.8.1, October 1, 2026)
+
+Part of 3.8.1; the version is unchanged. Authorization and SQL validation are
+unchanged; only always-loaded guidance and one rejection message change.
+
+**Why.** Models learned a connection's UNION policy only after a rejection.
+On a MySQL connection with UNION disabled, a five-table count task first tried
+`UNION ALL` in 3/3 runs, then made 11–15 calls (58k–78k input tokens). The
+rejection told the model to "combine results in your response"; one run then
+fetched raw rows that were truncated at 100. On a SQLite connection with UNION
+allowed, 3/3 first queries were rejected because UNION was placed in a
+`FROM (...)` subquery, which every connection rejects.
+
+**Delivery choice.** The design proposal added an optional `connection_id`
+argument to the `sql_assistant` MCP Prompt and kept server instructions
+connection-neutral. Its intent was adopted: guidance derived from the loaded
+configuration, no authorization change or database access, per-connection
+wording rather than a global rule, "UNION disabled" not meaning single-table
+queries, and a corrected merge fallback. Its delivery was not. The MCP
+specification describes Prompts as
+[user-controlled](https://modelcontextprotocol.io/specification/2025-11-25/server/prompts#user-interaction-model),
+and in Copilot they are slash commands the model cannot fetch, so most of the
+measured gain would not appear. Server instructions were verified to reach the
+main Agent and subagents without an extra call. `list_connections()` already
+reported `allow_union`, but with a known target the routing rules send the
+model straight to `query()`, so it was not consulted. `sql_assistant` stays
+parameterless and includes the same text; a parameterized Prompt is deferred
+until a Host lets models fetch Prompts.
+
+**Contract**
+
+- At startup, `render.connection_policies(config)` writes one line per
+  connection from the loaded `ConnectionPolicy`: alias, database type, reads
+  disabled or scope type (all, or an allowlist with a table count), and UNION
+  allowed/disabled. It uses `read_access_enabled()`, performs no database or
+  adapter I/O, and lists no table names, hosts or paths. Beyond 12 connections
+  it adds a count and points to `list_connections()`.
+- A shared `read_policy.md` adds: this is configuration, not proof of
+  connectivity or table existence; subqueries in FROM are rejected on every
+  connection, so use a CTE; where UNION is disabled, do not try UNION and use
+  one permitted query that keeps the task's meaning; UNION allowed does not
+  widen table scope or allow cross-connection queries.
+- The UNION rejection keeps its `UNION queries disabled` prefix but no longer
+  suggests merging separate results in the reply. It recommends scalar
+  subqueries, EXISTS/NOT EXISTS, JOIN or a CTE, and asks to aggregate in SQL and
+  check truncation, duplicates and ordering if separate queries are needed.
+
+**Compromises and limits**
+
+- Instructions grow by 833 characters with four connections (3,582 → 4,415);
+  measured fixed input grew about 184 tokens per request. Larger deployments
+  pay up to 12 lines plus a summary.
+- Guidance is generated at startup. Configuration changes need a server restart
+  and a Host tool refresh. Hosts that ignore server instructions do not benefit;
+  `list_connections()` and execution checks remain authoritative.
+- Aliases, database types and policy modes were already exposed by
+  parameterless `list_connections()`; table counts reveal scope size, not names.
+  Aliases must match `[a-z][a-z0-9_]{0,63}` and database types are a closed
+  set, so configuration cannot place free text in the instructions.
+- The FROM-subquery rejection is an existing text check (`FROM (`), not a new
+  rule; it is stated now because it caused the UNION-allowed rejections.
+
+**Validation.** Full suite **799 passed, 4 skipped**; Pyright 0 errors; prompt
+contract script passes. A local-only test database (`local_data/union-test.db`,
+three 240-row quarterly tables plus an unlisted table) and a read-only
+`union_test_sqlite` connection with UNION allowed were added for testing. Three
+GPT-5.6 Luna runs per case, identical prompts before and after:
+
+| Task | Before | After |
+|---|---|---|
+| UNION disabled (MySQL, 5 tables) | 3/3 correct; 3/3 rejected first; 11–15 calls; 58k–78k tokens | 3/3 correct; no rejection; 2 calls; ~44.0k tokens |
+| UNION allowed (SQLite, 3 tables) | 3/3 correct; 3/3 rejected first (FROM subquery); 2–4 calls; ~42.0k tokens | 3/3 correct; no rejection; 1 call (CTE + UNION ALL); ~27.9k tokens |
+
+A control that told the model "UNION is disabled" in the task took 2 calls and
+~43.5k tokens, matching the new result: the gain comes from knowing the policy
+before writing SQL. In the UNION-disabled baseline, one run followed the old
+advice and fetched raw rows truncated at 100 (actual 151–288) before switching
+to `DISTINCT` queries; its answer was still correct. Regression runs kept
+routing 3/3, recovery discovery 3/3, preview-only 3/3, MRTR protocol-error
+interpretation 3/3 and normal-commit control 3/3. Call counts were unchanged
+except preview-only (1.7 → 2.0: one run first passed a wrong parameter name and
+corrected itself, unrelated to this change). No writes were made. See [DRR-2026-074](../security/DESIGN_RISK_REGISTER.md#v381-rejection-recovery-and-token-expiry-reporting-october-1-2026)
+and the [acceptance record](../validation/V3_8_MRTR_NATIVE_2026_10_01_ZH.md).
+
+### Real tool-channel result check and token-rejection wording (v3.8.1, October 1, 2026)
+
+Part of 3.8.1 and of the same change set as the read policy guidance; the
+version is unchanged.
+
+**Why.** The result-interpretation guidance above was evaluated only with
+replayed results written into prompts. This check used real tool results on a
+richer local SQLite database: `local_data/mutation-rich.db` (24 customers, 80
+orders in all six statuses, 204 items; orders 1–12 are fixtures) behind a
+local-only `rich_mutation_sqlite` connection with the two sample Skills. Both
+are managed Skills, so success returns `committed`. Each execute was approved
+by the maintainer per write, then run by a fresh GPT-5.6 Luna subagent; three
+runs per case.
+
+| Case | Real result | Before fix | After fix |
+|---|---|---|---|
+| Normal commit | `committed`, rowcount 1 | 3/3 correct | — |
+| Execute with a consumed token | tool error, no `execution_outcome` | 3/3 no retry; 0/3 clearly "this request wrote nothing"; 1/3 advised a new preview | 3/3 no retry and clearly "this request wrote nothing"; 3/3 advised a new preview with approval |
+| Row changed after preview | `rolled_back`, `expected_rowcount_mismatch` | 3/3 correct, no retry | — |
+| Declined preview, row changed later | no execute | 0/3: preview-time status reported as current, no read | 0/3 with a trial sentence (removed) |
+
+Calls and turns were stable (1 call and 2 turns per execute run; first request
+about 13,750 input tokens, matching the measured fixed cost). The normal commit
+matches the replay control (3/3); the declined case is below the replay (1/3)
+and, because the data had changed, the misstatement was factually wrong.
+`success=false` + `committed`, `unknown` and MRTR protocol errors cannot be
+produced with the sample Skills and remain covered only by replay.
+
+**Fix.** Token checks run before any Skill code or database write, but the five
+rejection messages ended with "run preview again", conflicting with the rule
+against self-initiated new proposals while the description said an error
+without `execution_outcome` proves nothing. They now end with "rejected before
+execution, so this request wrote nothing. Check the current state and let the
+user decide whether to preview again." The description adds "A rejected
+preview_token means this request wrote nothing." Rejections remain tool errors
+with unchanged conditions and token semantics. A second trial sentence ("Preview
+fields such as current_status are preview-time state, not now.") had no
+measurable effect and was removed with the maintainer's agreement. Final
+description: 2,643 → 2,706 characters; both trial sentences together measured
++28 input tokens per request.
+
+**Limits.** Agents still recommend a new preview without first mentioning a
+state check; a new preview re-reads state and needs its own approval, so the
+risk is low. Reporting preview-time state as current after a decline remains a
+residual risk (DRR-2026-073); structural options are a Skill version that names
+the field as preview-time state or a Host re-read. Writes touched only the
+local test database: orders 1–3 were committed after approval; the maintainer
+side changed orders 4–6 and 10–12 to `returned` directly to simulate other
+writers. `live_test_sqlite` was untouched. Full suite **799 passed, 4
+skipped**; Pyright 0 errors.

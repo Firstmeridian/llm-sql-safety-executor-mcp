@@ -1,0 +1,3 @@
+Configured read policy by connection (configuration only, not proof of connectivity or table existence; every query is still checked):
+${connection_policies}
+Write SQL for the selected connection's policy from the first attempt. Subqueries in FROM are rejected on every connection; use a CTE (WITH ...) instead. Where UNION is disabled, do not try UNION or UNION ALL; use one permitted query when it keeps the task's meaning (scalar subqueries, EXISTS/NOT EXISTS, JOIN or a CTE). UNION allowed does not widen the table scope or permit cross-connection queries.

@@ -97,7 +97,7 @@ conservative gate, not comprehensive SQL semantic analysis for arbitrary dialect
 - Skills execution tools return structured business payloads and attach
   `ToolResult.meta` runtime metadata (for example elapsed time, row counts,
   truncation state, and Skill version) for debugging and observability.
-- Supports configuration-based policy/prompt injection (e.g., read.allow_union, read.tables, truncation thresholds), using shorter, more relevant guidance to reduce invalid tool calls.
+- Supports configuration-based policy guidance: server instructions list each connection's read scope type and UNION policy at startup (since v3.8.1), using shorter, more relevant guidance to reduce invalid tool calls.
 - Error feedback optimized for LLMs: Clearly identifies failure reasons (security blocking/table not allowed/syntax/timeout/truncation, etc.) and offers correction suggestions, reducing trial-and-error and invalid calls while avoiding leakage of sensitive information (credentials, system table details, etc.).
 - Adapted for ReAct Pattern: Thought → Action → Observation → Rethink.
 
@@ -896,7 +896,9 @@ See [mcp_config.json](mcp_config.json) for the portable template. Private `confi
 - The update Skill now states its forward lifecycle and links the reset Skill; demo restoration is documented as separate, non-atomic approved steps. Tool guidance forbids bypassing rejections and leaves token validity to execute.
 - The response keeps only the absolute `preview_token_expires_at`; a trial reintroduction of `preview_token_expires_in_seconds` was withdrawn. Subagents asked whether a token remained usable still misjudged it from their own date (conservative, since execute enforces expiry).
 - The mutation tool description now explains how to read results: `execution_outcome`, not `success`, states the write; `success=false` with `committed` must not be redone; `unknown` may or may not be written; an error without `execution_outcome` proves nothing; never retry or switch entry points on your own. Replay trials improved from 12/18 to 16/18 (MRTR protocol error 0/3 → 3/3) for about 159 extra input tokens per request; guidance does not replace server-side controls.
-- 796 passed, 4 skipped; Pyright 0 errors; Host and subagent checks with no writes. See [release notes](docs/releases/RELEASE_NOTES_v3_8.md#v381--skill-rejection-recovery-clue-october-1-2026).
+- Server instructions now list each connection's configured read policy (reads disabled or scope type, UNION allowed/disabled), add that FROM subqueries are rejected everywhere (use a CTE), and the UNION rejection no longer suggests merging results in the reply. A UNION-disabled MySQL task dropped from 11–15 calls (58k–78k tokens) to 2 calls (~44k); a UNION-allowed SQLite task from a rejected first query to 1 call (~28k), all answers correct. Fixed cost is about 184 input tokens per request.
+- A real tool-channel check on a richer local SQLite database confirmed correct reports for `committed` and `rolled_back` (3/3 each). Preview-token rejections, which happen before any write, now say the request wrote nothing and ask to check state and let the user decide on a new preview, instead of "run preview again"; clear reports rose from 0/3 to 3/3. Reporting preview-time status as current after a declined preview (0/3) remains a recorded residual risk.
+- Full suite 796 → 797 → 799 passed, 4 skipped across the three updates; Pyright 0 errors. Subagent checks wrote only to dedicated local test data after per-write approval. See [release notes](docs/releases/RELEASE_NOTES_v3_8.md#v381--skill-rejection-recovery-clue-october-1-2026).
 
 ### v3.8.0 FastMCP 4, TOML and Managed MRTR (September 2026)
 
@@ -2327,7 +2329,7 @@ Later [live review and native reconnection tests](docs/validation/V3_8_LIVE_REVI
 
 **October 1 pre-commit check:** the complete pending v3.8.0 change passed clean-copy, frozen-dependency validation: **793 passed, 4 skipped**, with three existing legacy logging warnings. Pyright, sdist/wheel build and installed-wheel checks outside the repository passed. Version stays **3.8.0**; remote CI for the new commit and the remaining native UI cases are separate. See the [final local verification](docs/validation/V3_8_MRTR_NATIVE_2026_10_01_ZH.md).
 
-**v3.8.1 check (October 1):** after adding the rejection recovery clue, the full local suite recorded **796 passed, 4 skipped** and Pyright 0 errors. After the later result-interpretation guidance it recorded **797 passed, 4 skipped**. These were run in the existing development environment, not a clean copy, and no build or remote CI result is claimed. See the [v3.8.1 notes](docs/releases/RELEASE_NOTES_v3_8.md#v381--skill-rejection-recovery-clue-october-1-2026).
+**v3.8.1 check (October 1):** after adding the rejection recovery clue, the full local suite recorded **796 passed, 4 skipped** and Pyright 0 errors. After the later result-interpretation guidance it recorded **797 passed, 4 skipped**, and after the per-connection read policy guidance **799 passed, 4 skipped**. These were run in the existing development environment, not a clean copy, and no build or remote CI result is claimed. See the [v3.8.1 notes](docs/releases/RELEASE_NOTES_v3_8.md#v381--skill-rejection-recovery-clue-october-1-2026).
 
 ### Test Scripts
 

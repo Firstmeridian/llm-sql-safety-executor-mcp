@@ -289,3 +289,26 @@ After changing tool descriptions, restarting the server was not enough in the
 tested VS Code build. Run **MCP: Reset Cached Tools**, then make one tool call so
 the Host lists tools again, and confirm the new text reached the model (for
 example, ask a subagent to quote it) before behavior testing.
+
+### Per-connection read policy in server instructions (v3.8.1)
+
+Server instructions list each connection's configured read state, scope type
+and UNION policy, plus the rule that FROM subqueries are rejected (use a CTE).
+This reached Copilot's main Agent and subagents without any extra call; MCP
+Prompts such as `sql_assistant` are user-invoked in Copilot and are not a
+reliable delivery path. Instructions are built at startup, so restart and
+refresh tool definitions after configuration changes. Compare UNION-disabled
+and UNION-allowed connections when evaluating SQL planning, and use tables
+larger than the 100-row result cap so that merging truncated output is visible.
+
+### Real tool-channel result checks (v3.8.1)
+
+Replaying results in a prompt does not show how an Agent reads a real tool
+result. Use a dedicated local database and connection, approve every execute
+separately, and have a fresh subagent run `confirm=true` and report. Useful
+real cases are a normal commit, a consumed or invalid token (rejected before
+execution), and a row changed between preview and execute (`rolled_back`).
+To test reports after a decline, change the row after preview so that a
+statement about current data can be checked. After a restart, server
+instructions were once stale for the first call while tool descriptions were
+not, so confirm both before testing.

@@ -142,3 +142,6 @@ AI_COLLABORATION_GUIDE.md
 /config/LOCAL_SETUP.md
 /mcp_config.local.json
 /local_data/mutation-demo.db
+/local_data/union-test.db
+/local_data/mutation-rich.db
+/local_data/make_mutation_rich_db.py

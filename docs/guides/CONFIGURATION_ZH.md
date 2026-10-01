@@ -76,6 +76,8 @@ Query Skill 的发现、详情和执行共享无数据库 I/O 的读取准入判
 
 `allow_union = true` 还要求有效表范围。特别注意：旧空白名单读取本来较宽松，但 `ALLOW_UNION=1` 与旧空名单组合仍禁止 UNION。迁移成 `mode="all"` 时必须保留 `allow_union=false`，除非另行明确扩大权限。不能将旧配置字段机械逐项转换。
 
+自 v3.8.1 起，服务启动时会把每个连接的读取状态、表范围类型（all 或含表数量的 allowlist）和 UNION 状态写入 MCP instructions，供 Agent 在编写 SQL 前参考；不列表名、主机或路径，超过 12 个连接时只给数量。修改这些字段后需重启服务并刷新 Host 工具定义。该文本只是指导，执行时仍由完整读取策略独立检查。
+
 Mutation Skills 的写入权限是五层配置与既有执行检查的交集：
 
 1. `skills.enabled = true`。

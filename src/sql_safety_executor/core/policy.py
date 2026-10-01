@@ -537,10 +537,14 @@ def _is_query_safe_extended(
         if not require_union_allowlist:
             logger.info("UNION in query skill template will be checked at runtime")
         elif not effective_policy.allow_union:
-            # Default: Block UNION, guide LLM to use multiple queries
+            # Default: block UNION and steer toward one permitted query.
             return False, (
-                "UNION queries disabled for security. "
-                "Execute separate queries for each table and combine results in your response."
+                "UNION queries disabled for security on this connection. "
+                "Prefer one permitted query without UNION (scalar "
+                "subqueries, EXISTS/NOT EXISTS, JOIN or a CTE) when it "
+                "keeps the task's meaning. If you run separate queries, "
+                "aggregate in SQL and check truncation, duplicates and "
+                "ordering before combining; do not switch connections."
             )
         # UNION enabled: Require table allowlist for validation
         elif effective_policy.allowed_tables is None:

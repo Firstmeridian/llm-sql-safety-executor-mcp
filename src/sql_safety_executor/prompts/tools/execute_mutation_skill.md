@@ -40,7 +40,8 @@ Reading results: execution_outcome, not success, states the write.
     error_code is extensible and never overrides execution_outcome.
     A tool or protocol error without execution_outcome (for example an
     invalid requestState or a timeout) proves neither write nor no-write;
-    do not invent an outcome. After unknown, an error, decline or cancel,
+    do not invent an outcome. A rejected preview_token means this request
+    wrote nothing. After unknown, an error, decline or cancel,
     never retry, switch entry points or start a new proposal yourself:
     report it and let the user decide after checking current state on an
     authorized target. idempotent=true does not permit retry. Report only
