@@ -377,3 +377,26 @@
 **工具定义刷新观察：** 加入新连接并重启、Reset Cached Tools 后，第一次子代理调用仍看到旧 instructions（无新连接行），下一次才刷新；修改工具说明后重启，则第一次就看到新说明。两次表现不一致，测试前仍应先让子代理复述新文本。
 
 全量 **799 passed、4 skipped**，Pyright 0 errors。样本小、单一模型与 Host。
+
+## 服务器状态读取、MySQL 表名大小写与结构化索引（v3.8.1，2026-10-03）
+
+**起因与决策：** 评估“在 `query()` 中支持有限原始 SHOW”的概要设计（v1.1，本地归档）时做了索引任务基线，并顺带发现两个读取策略缺口。维护者确认：先增强 `describe_table()` 返回结构化索引，本轮不实现原始 SHOW，仅在出现明确兼容需求时独立评估；SQLite rowid 主键合成记录、不加开关、`get_full_schema()` 不变。保留 v1.1 的目标一致、对象授权、默认不扩权、结果完整与资源边界。
+
+**顺带发现的实测（修复前，未记录具体值）：** MySQL 8.0.25 测试服务器（Windows，`lower_case_table_names=1`）上 `@@hostname`、`@@datadir`、`@@secure_file_priv`、`@@version_compile_os`、`CURRENT_USER()` 均可经 `query()` 读取；本地 SQLite 文件上 `pragma_database_list` 返回文件路径（在 `read.mode="all"` 连接上可经 `query()` 取得）。大小写问题仅在 `lower_case_table_names=0` 的 MySQL 上成立，测试服务器不受影响，由单元测试覆盖。
+
+**修复后实测：** `SELECT @@hostname`、`SELECT CURRENT_USER()`、`SELECT name FROM pragma_index_list('orders')` 均被拒并给出原因；`SELECT VERSION(), COUNT(*) FROM va_...` 与 SQLite `SELECT COUNT(*) FROM Orders` 正常。
+
+**索引真值核对：** 在终端用项目配置的适配器直接执行原生 `SHOW INDEX` 与 PRAGMA（只读，绕过网关，仅用于核对），`get_indexes()` 与之完全一致。MySQL 表 `va_manual_rerun_1772291866_20686`：`PRIMARY(id)`、`idx_group_no(group_no)`、`idx_source_file(source_file)`、唯一复合 `uk_code_date(code, source_file)`。本地 `mutation-rich.db` 新增复合、唯一、部分、表达式索引夹具（生成脚本同步，均不提交）。
+
+**前后对比（GPT-5.6 Luna MCP Runner，各 3 次，提示相同）：**
+
+| 任务 | 基线 | 修改后 |
+|---|---|---|
+| MySQL：列出 `va_*` 表全部索引 | 0/3（只拿到列级 `PRI`/`MUL`）；先查 `information_schema` 被拒；2–3 次调用、3–4 回合、43,625–59,379 token | 3/3 完整正确；1 次 `describe_table`、2 回合、28,932–28,980 token |
+| SQLite：列出 orders、customers 全部索引 | 0/3；尝试 `sqlite_schema`、`pragma_index_list`、索引类 Skill 均未果；4–5 次调用、4–6 回合、59,176–93,492 token | 初版：索引集合 3/3 正确，但 2/3 把未标记 `partial` 的索引报为“状态未返回”；2 次调用、28,276–28,357 token。改为始终返回 `partial` 后：3/3 正确且明确；2 次调用（2/3）或 3 次（1/3，另试 `sqlite_master` 取表达式被拒）；28,365–43,354 token |
+
+所有运行都如实说明表达式原文不可用。首回合输入由 13,722 升至 13,774（初版说明）和 13,790（最终说明），即固定开销约 +68 token。重启后先让子代理复述新说明确认生效。
+
+**回归：** 用途型目标（“analytics database”）2/2 只调用 `list_connections()` 后询问别名，约 28.3k token（此前 4 个连接时约 28.0k，现为 5 个连接）；禁止 UNION 的 MySQL 任务 2/2 正确（1,023 行 / 20 个代码），2 次调用、约 44.4k token（此前约 44.0k）。未写入。
+
+全量 **820 passed、4 skipped**，Pyright 0 errors，提示词契约通过。样本小、单一模型与 Host。风险见 DRR-2026-075/076/077。

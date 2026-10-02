@@ -339,6 +339,45 @@ def test_meta_describe_table(base_server):
     )
     _assert_common_meta(result.meta, "describe_table")
     assert result.meta["success"] is True
+    payload = result.structured_content
+    assert payload["indexes_status"] == "complete"
+    assert payload["indexes"] == [
+        {"name": None, "primary": True, "unique": True, "columns": ["id"], "partial": False}
+    ]
+
+
+def test_describe_table_index_failure_is_reported_as_unavailable(
+    base_server, monkeypatch
+):
+    adapter = base_server.get_adapter()
+
+    def fail_indexes(_table_name):
+        raise base_server.MetadataQueryError("reading table indexes")
+
+    monkeypatch.setattr(adapter, "get_indexes", fail_indexes)
+    result = asyncio.run(
+        base_server.describe_table(table_name="widgets", ctx=_DummyContext())
+    )
+    payload = result.structured_content
+    assert payload["success"] is True
+    assert payload["columns"]
+    assert payload["indexes"] is None
+    assert payload["indexes_status"] == "unavailable"
+    assert payload["indexes_error"] == "Index metadata could not be read"
+
+
+def test_describe_table_rejects_before_reading_indexes(base_server, monkeypatch):
+    adapter = base_server.get_adapter()
+
+    def unexpected(_table_name):
+        pytest.fail("index metadata read before authorization")
+
+    monkeypatch.setattr(adapter, "get_indexes", unexpected)
+    result = asyncio.run(
+        base_server.describe_table(table_name="bad;name", ctx=_DummyContext())
+    )
+    assert result.structured_content["success"] is False
+    assert "indexes" not in result.structured_content
 
 
 def test_single_table_tools_preserve_unavailable_row_estimate(

@@ -15,6 +15,16 @@ class ConnectionPolicy:
     read_mode: str = "allowlist"
     allow_mutations: bool = False
     mutation_skills: frozenset[str] = frozenset()
+    # MySQL table identity may be case-sensitive (lower_case_table_names=0).
+    case_sensitive_tables: bool = False
+
+    def table_key(self, name: str) -> str:
+        return name if self.case_sensitive_tables else name.lower()
+
+    def allows_table(self, name: str) -> bool:
+        if "*" in self.allowed_tables:
+            return True
+        return self.table_key(name) in self.allowed_tables
 
 
 @dataclass(frozen=True)

@@ -6,6 +6,16 @@
 
 **作者：** 项目重构与维护记录
 
+## v3.8.1 服务器状态读取、MySQL 表名大小写与结构化索引（2026-10-03）
+
+- 3.8.1 的第四项更新，版本不变。起因是“在 `query()` 中支持有限原始 SHOW”的提案；该提案改为在 `describe_table()` 中返回结构化索引，原始 SHOW 仍被拒绝，只在出现明确兼容需求时独立评估。
+- 共享读取策略按 SQL token 拒绝 `@@` 系统变量、`USER`/`CURRENT_USER`/`SESSION_USER`/`SYSTEM_USER`/`CURRENT_ROLE` 及 SQLite `pragma_*` 表值函数，字面量和引号标识符不受影响。修复前实测 MySQL 8.0.25 测试服务器可经 SELECT 读取主机名、数据目录、文件权限路径和账号，SQLite 在 `read.mode="all"` 时 `pragma_database_list` 返回文件路径。`VERSION()` 仍允许；其他函数（包括 `SLEEP`、`BENCHMARK`、`GET_LOCK`）留待另行评审（DRR-2026-075）。
+- MySQL 白名单保留配置大小写并精确比较表引用（`ConnectionPolicy.case_sensitive_tables`、`allows_table()`），覆盖查询、Query Skill 检查、`describe_table()`、`list_tables()`、`get_full_schema()` 与 Query Skill 可用性；CTE 名称精确匹配。SQLite 不变。在不区分大小写的服务器上偏保守：大小写不同的引用会被拒绝（DRR-2026-076）。
+- 全量 **814 passed、4 skipped**；Pyright 0 errors。
+- `describe_table()` 新增 `indexes_status` 与 `indexes`（名称、是否主键、是否唯一、按序键列；表达式键部分为 `null` 并标记 `has_expression`；MySQL 非 BTREE 索引给出 `type`；SQLite 始终给出 `partial`）。新增适配器方法 `get_indexes()`：MySQL 读取 `INFORMATION_SCHEMA.STATISTICS`，不选 `CARDINALITY`；SQLite 使用 `pragma_index_list`/`pragma_index_xinfo`/`pragma_table_info`，并以 `name: null` 合成隐式 rowid 主键。仅索引读取失败时调用仍成功，`indexes_status="unavailable"`、`indexes=null`。不加开关；`get_full_schema()` 不变；不返回注释、表达式、部分索引条件与基数（DRR-2026-077）。
+- 前后对比（各 3 次，提示相同）：MySQL 0/3 → 3/3，2–3 次调用 → 1 次，43.6k–59.4k → 约 28.9k token；SQLite 0/3 → 3/3，4–5 次 → 2–3 次，59.2k–93.5k → 28.4k–43.4k token。初版 `partial` 只在为 true 时出现，2/3 把其余索引报为未知，已改为始终返回。输出与原生 `SHOW INDEX` 和 PRAGMA 一致。每次请求固定输入约 +68 token；路由与禁止 UNION 回归无变化。SHOW、系统库与 PRAGMA 的拒绝提示现指向 `describe_table()` 的索引。本地丰富 SQLite 夹具新增索引。
+- 实测：`@@hostname`、`CURRENT_USER()`、`pragma_index_list` 均被拒；`VERSION()` 与 SQLite 不区分大小写的表名仍正常。全量 **820 passed、4 skipped**；Pyright 0 errors。
+
 ## v3.8.1 按连接读取策略指导与真实通道结果复测（2026-10-01）
 
 - 3.8.1 的第三项更新，版本不变。授权、SQL 校验、执行、输出结构和配置格式均未改。

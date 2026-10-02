@@ -2,6 +2,7 @@ from __future__ import annotations
 import re
 import logging
 import sqlparse
+from collections.abc import Callable
 from sqlparse import tokens as sql_tokens
 from sqlparse.sql import Function, Identifier, IdentifierList, Parenthesis, TokenList
 from typing import Any
@@ -41,9 +42,7 @@ def _is_table_allowed(
     allowed_tables = _effective_policy(runtime, policy).allowed_tables
     if allowed_tables is None:
         return True  # No allowlist - allow all
-    if "*" in allowed_tables:
-        return True  # Explicit "allow all" via read.mode=all
-    return table_name.lower() in allowed_tables
+    return _effective_policy(runtime, policy).allows_table(table_name)
 
 
 def _normalize_sql_identifier(identifier: str) -> str:
@@ -68,7 +67,7 @@ def _significant_sql_tokens(token_list: TokenList) -> list[Any]:
     ]
 
 
-def _cte_names(statement: TokenList) -> set[str]:
+def _cte_names(statement: TokenList, fold: Callable[[str], str] = str.lower) -> set[str]:
     """Collect top-level CTE aliases so they are not treated as base tables."""
     tokens = _significant_sql_tokens(statement)
     with_index = next(
@@ -102,7 +101,7 @@ def _cte_names(statement: TokenList) -> set[str]:
         name = identifier.get_real_name()
         if not name:
             raise ValueError("Unnamed CTE")
-        names.add(_normalize_sql_identifier(name).lower())
+        names.add(fold(_normalize_sql_identifier(name)))
     return names
 
 
@@ -111,6 +110,7 @@ def _table_references_from_target(
     cte_names: set[str],
     *,
     allow_column_list: bool = False,
+    fold: Callable[[str], str] = str.lower,
 ) -> list[str]:
     """Extract complete table references from one FROM/JOIN target token."""
     if isinstance(token, IdentifierList):
@@ -121,6 +121,7 @@ def _table_references_from_target(
                     identifier,
                     cte_names,
                     allow_column_list=allow_column_list,
+                    fold=fold,
                 )
             )
         return references
@@ -141,22 +142,22 @@ def _table_references_from_target(
         schema_name = token.get_parent_name()
         if schema_name:
             schema_name = _normalize_sql_identifier(schema_name)
-            return [f"{schema_name}.{table_name}".lower()]
-        if table_name.lower() in cte_names:
+            return [fold(f"{schema_name}.{table_name}")]
+        if fold(table_name) in cte_names:
             return []
-        return [table_name.lower()]
+        return [fold(table_name)]
 
     if isinstance(token, Function) and allow_column_list:
         table_name = token.get_real_name()
         if not table_name:
             raise ValueError("DML table target has no resolvable name")
-        return [_normalize_sql_identifier(table_name).lower()]
+        return [fold(_normalize_sql_identifier(table_name))]
 
     if token.ttype in sql_tokens.Name:
         table_name = _normalize_sql_identifier(token.value)
-        if table_name.lower() in cte_names:
+        if fold(table_name) in cte_names:
             return []
-        return [table_name.lower()]
+        return [fold(table_name)]
 
     raise ValueError(f"Unsupported table target: {token.value!r}")
 
@@ -164,6 +165,7 @@ def _table_references_from_target(
 def _explained_dml_table_references(
     top_level: list[Any],
     cte_names: set[str],
+    fold: Callable[[str], str] = str.lower,
 ) -> list[str]:
     """Extract a write target from non-executing MySQL EXPLAIN-family SQL."""
     dml_index = next(
@@ -210,6 +212,7 @@ def _explained_dml_table_references(
         return _table_references_from_target(
             top_level[using_index + 1],
             cte_names,
+            fold=fold,
         )
 
     modifiers_by_command = {
@@ -242,6 +245,7 @@ def _explained_dml_table_references(
         top_level[target_index],
         cte_names,
         allow_column_list=command in {"INSERT", "REPLACE"},
+        fold=fold,
     )
 
 
@@ -250,6 +254,7 @@ def _collect_table_references(
     cte_names: set[str],
     *,
     strict: bool,
+    fold: Callable[[str], str] = str.lower,
 ) -> list[str]:
     """Walk parsed SQL and collect every FROM/JOIN base-table reference."""
     references: list[str] = []
@@ -265,7 +270,9 @@ def _collect_table_references(
                 continue
             try:
                 references.extend(
-                    _table_references_from_target(tokens[index + 1], cte_names)
+                    _table_references_from_target(
+                        tokens[index + 1], cte_names, fold=fold
+                    )
                 )
             except ValueError:
                 if strict:
@@ -273,12 +280,16 @@ def _collect_table_references(
 
         if isinstance(token, TokenList):
             references.extend(
-                _collect_table_references(token, cte_names, strict=strict)
+                _collect_table_references(
+                    token, cte_names, strict=strict, fold=fold
+                )
             )
     return references
 
 
-def _extract_tables_from_sql(sql: str, *, strict: bool = True) -> list[str]:
+def _extract_tables_from_sql(
+    sql: str, *, strict: bool = True, case_sensitive: bool = False
+) -> list[str]:
     """Extract complete base-table references for restrictive allowlists.
 
     This intentionally supports a conservative subset rather than pretending
@@ -300,8 +311,9 @@ def _extract_tables_from_sql(sql: str, *, strict: bool = True) -> list[str]:
         return []
 
     statement = statements[0]
+    fold: Callable[[str], str] = (lambda name: name) if case_sensitive else str.lower
     try:
-        cte_names = _cte_names(statement)
+        cte_names = _cte_names(statement, fold)
     except ValueError:
         if strict:
             raise
@@ -310,6 +322,7 @@ def _extract_tables_from_sql(sql: str, *, strict: bool = True) -> list[str]:
         statement,
         cte_names,
         strict=strict,
+        fold=fold,
     )
     top_level = _significant_sql_tokens(statement)
 
@@ -320,7 +333,9 @@ def _extract_tables_from_sql(sql: str, *, strict: bool = True) -> list[str]:
         )
         if has_explained_dml:
             try:
-                references.extend(_explained_dml_table_references(top_level, cte_names))
+                references.extend(
+                    _explained_dml_table_references(top_level, cte_names, fold)
+                )
             except ValueError:
                 if strict:
                     raise
@@ -331,7 +346,9 @@ def _extract_tables_from_sql(sql: str, *, strict: bool = True) -> list[str]:
             else:
                 try:
                     references.extend(
-                        _table_references_from_target(top_level[1], cte_names)
+                        _table_references_from_target(
+                            top_level[1], cte_names, fold=fold
+                        )
                     )
                 except ValueError:
                     if strict:
@@ -345,7 +362,9 @@ def _extract_tables_from_sql(sql: str, *, strict: bool = True) -> list[str]:
             if len(top_level) == 2:
                 try:
                     references.extend(
-                        _table_references_from_target(top_level[1], cte_names)
+                        _table_references_from_target(
+                            top_level[1], cte_names, fold=fold
+                        )
                     )
                 except ValueError:
                     if strict:
@@ -368,20 +387,23 @@ def _check_table_allowlist(
     Returns:
         (is_allowed, error_message) - True if all tables allowed, False with error otherwise
     """
-    allowed_tables = _effective_policy(runtime, policy).allowed_tables
+    effective = _effective_policy(runtime, policy)
+    allowed_tables = effective.allowed_tables
     if allowed_tables is None:
         return True, None  # No allowlist configured
     if "*" in allowed_tables:
         return True, None  # Explicit allow-all; structural policy still applies
 
     try:
-        tables = _extract_tables_from_sql(sql)
+        tables = _extract_tables_from_sql(
+            sql, case_sensitive=effective.case_sensitive_tables
+        )
     except (AttributeError, TypeError, ValueError) as exc:
         logger.info("Table allowlist rejected ambiguous SQL shape: %s", exc)
         return False, (
             "Table allowlist could not safely determine every referenced table"
         )
-    blocked_tables = [t for t in tables if not _is_table_allowed(runtime, t, policy)]
+    blocked_tables = [t for t in tables if not effective.allows_table(t)]
 
     if blocked_tables:
         return (
@@ -479,6 +501,53 @@ def _normalize_sql_for_policy(sql: str) -> str:
     return re.sub(r"\s+", " ", sql).strip()
 
 
+_ACCOUNT_FUNCTIONS = frozenset(
+    {"USER", "CURRENT_USER", "SESSION_USER", "SYSTEM_USER", "CURRENT_ROLE"}
+)
+
+
+def _server_state_reference_error(sql: str) -> str | None:
+    """Reject SELECT-shaped reads of server, account or database-file state.
+
+    Such values (host names, data paths, file privileges, accounts) are not
+    table data, so table scope cannot authorize them. Token-based so string
+    literals and quoted identifiers are not misread as references.
+    """
+    try:
+        statements = sqlparse.parse(sql)
+    except Exception:
+        return "Query could not be parsed for server-state checks"
+    tokens = [
+        token
+        for statement in statements
+        for token in statement.flatten()
+        if not token.is_whitespace and token.ttype not in sql_tokens.Comment
+    ]
+    for index, token in enumerate(tokens):
+        if token.ttype in sql_tokens.String:
+            continue
+        value = token.value.upper()
+        if token.ttype in sql_tokens.Operator and value == "@@":
+            return (
+                "System variables (@@...) are not allowed in queries; they "
+                "expose server configuration rather than table data."
+            )
+        next_value = tokens[index + 1].value if index + 1 < len(tokens) else ""
+        if value in _ACCOUNT_FUNCTIONS and (
+            next_value == "(" or value == "CURRENT_USER"
+        ):
+            return "Account and role functions are not allowed in queries."
+        if token.ttype in sql_tokens.Name and _normalize_sql_identifier(
+            token.value
+        ).upper().startswith("PRAGMA_"):
+            return (
+                "SQLite PRAGMA table-valued functions are not allowed in "
+                "queries; use list_tables() or describe_table() instead "
+                "(describe_table() also returns indexes)."
+            )
+    return None
+
+
 def _is_query_safe_extended(
     runtime,
     sql: str,
@@ -506,7 +575,8 @@ def _is_query_safe_extended(
     if re.match(r"^SHOW\b", sql_upper, re.IGNORECASE):
         return False, (
             "SHOW statements are not allowed in raw queries. "
-            "Use list_tables() or describe_table() instead."
+            "Use list_tables() or describe_table() instead; describe_table() "
+            "also returns indexes."
         )
 
     # Block MySQL server-side file reads/writes. These are SELECT-shaped but can
@@ -514,6 +584,10 @@ def _is_query_safe_extended(
     for pattern in MYSQL_FILE_OPERATION_PATTERNS:
         if re.search(pattern, normalized_sql, re.IGNORECASE):
             return False, "MySQL server-side file operations are not allowed"
+
+    server_state_error = _server_state_reference_error(normalized_sql)
+    if server_state_error:
+        return False, server_state_error
 
     # Block access to system schemas using parsed table targets, not a raw-text
     # regex that could mistake a string literal such as 'mysql.user' for a
@@ -527,7 +601,8 @@ def _is_query_safe_extended(
     ):
         return (
             False,
-            "Access to system databases not allowed. Use list_tables() or describe_table() instead.",
+            "Access to system databases not allowed. Use list_tables() or "
+            "describe_table() instead; describe_table() also returns indexes.",
         )
 
     # UNION handling: Configurable based on ALLOW_UNION setting

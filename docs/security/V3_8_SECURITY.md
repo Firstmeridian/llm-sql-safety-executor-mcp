@@ -130,3 +130,34 @@ existence. The UNION rejection no longer tells the model to combine separate
 results in its reply, which had led to merging truncated rows; it now recommends
 one permitted query, or SQL-side aggregation with truncation, duplicate and
 ordering checks. See DRR-2026-074.
+
+### Server-state reads and table-name case (v3.8.1)
+
+Table scope authorizes table data only. SELECT-shaped reads of server,
+account and file-path state are therefore rejected by the shared read policy:
+`@@` system variables, `USER`, `CURRENT_USER`, `SESSION_USER`, `SYSTEM_USER`,
+`CURRENT_ROLE` and SQLite `pragma_*` table-valued functions. The check walks
+SQL tokens so literals and quoted identifiers are not misread. It is a
+denylist; other built-in functions, including sleep, benchmark and named-lock
+functions, remain allowed and are tracked in DRR-2026-075. Database account
+privileges stay the primary control.
+
+MySQL allowlists match table names exactly because, with
+`lower_case_table_names=0`, names that differ only by case are different
+tables. Lowercasing both sides had authorized and listed such tables. SQLite
+identifiers remain case-insensitive. On case-insensitive MySQL servers the
+exact match can reject a differently cased but equivalent reference; this
+fail-closed trade-off is recorded in DRR-2026-076.
+
+### Index metadata (v3.8.1)
+
+`describe_table()` returns index names, primary/unique flags, ordered key
+columns, non-BTREE type (MySQL) and partial/expression flags. Reads happen
+only after the existing read-access, identifier and allowlist checks, inside
+the adapter with bound parameters (MySQL `INFORMATION_SCHEMA.STATISTICS`,
+SQLite `pragma_*`). Agents still cannot run these queries through `query()`.
+Comments, expression text, partial-index predicates and cardinality are not
+returned; returned names are data, not instructions. There is no switch
+because the object scope does not change; deployments that consider index
+names sensitive should not allowlist those tables. Raw SHOW remains rejected.
+See DRR-2026-077.

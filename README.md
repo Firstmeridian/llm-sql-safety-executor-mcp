@@ -898,7 +898,9 @@ See [mcp_config.json](mcp_config.json) for the portable template. Private `confi
 - The mutation tool description now explains how to read results: `execution_outcome`, not `success`, states the write; `success=false` with `committed` must not be redone; `unknown` may or may not be written; an error without `execution_outcome` proves nothing; never retry or switch entry points on your own. Replay trials improved from 12/18 to 16/18 (MRTR protocol error 0/3 → 3/3) for about 159 extra input tokens per request; guidance does not replace server-side controls.
 - Server instructions now list each connection's configured read policy (reads disabled or scope type, UNION allowed/disabled), add that FROM subqueries are rejected everywhere (use a CTE), and the UNION rejection no longer suggests merging results in the reply. A UNION-disabled MySQL task dropped from 11–15 calls (58k–78k tokens) to 2 calls (~44k); a UNION-allowed SQLite task from a rejected first query to 1 call (~28k), all answers correct. Fixed cost is about 184 input tokens per request.
 - A real tool-channel check on a richer local SQLite database confirmed correct reports for `committed` and `rolled_back` (3/3 each). Preview-token rejections, which happen before any write, now say the request wrote nothing and ask to check state and let the user decide on a new preview, instead of "run preview again"; clear reports rose from 0/3 to 3/3. Reporting preview-time status as current after a declined preview (0/3) remains a recorded residual risk.
-- Full suite 796 → 797 → 799 passed, 4 skipped across the three updates; Pyright 0 errors. Subagent checks wrote only to dedicated local test data after per-write approval. See [release notes](docs/releases/RELEASE_NOTES_v3_8.md#v381--skill-rejection-recovery-clue-october-1-2026).
+- `describe_table()` now returns structured indexes (name, primary, unique, ordered key columns; SQLite `partial`; MySQL non-BTREE `type`) and `indexes_status`. Raw SHOW stays rejected. Listing a table's indexes went from 0/3 to 3/3 on MySQL and SQLite, from 2–5 calls (43.6k–93.5k tokens) to 1–2 calls (about 28k–29k); fixed cost about +68 input tokens per request.
+- Read policy now rejects SELECT-shaped reads of server, account and file-path state (`@@` system variables, `CURRENT_USER()` and related functions, SQLite `pragma_*` functions), and MySQL allowlists match table-name case exactly because `Orders` and `orders` can be different tables on Linux. On case-insensitive MySQL servers, configure allowlist entries with stored names; differently cased references are now rejected (DRR-2026-075/076).
+- Full suite 796 → 797 → 799 → 820 passed, 4 skipped across the updates; Pyright 0 errors. Subagent checks wrote only to dedicated local test data after per-write approval. See [release notes](docs/releases/RELEASE_NOTES_v3_8.md#v381--skill-rejection-recovery-clue-october-1-2026).
 
 ### v3.8.0 FastMCP 4, TOML and Managed MRTR (September 2026)
 
@@ -1491,17 +1493,24 @@ Output:
 ```
 
 ### 4. `describe_table`
-Usage: Get Table Structure - Column info, estimated row count, and query suggestions.
+Usage: Get Table Structure - Column info, indexes, estimated row count, and query suggestions.
 
-Returns full adapter-visible column metadata and estimated row counts from
-adapter metadata/statistics (MySQL INFORMATION_SCHEMA; SQLite sqlite_stat1 or
-bounded sampling). This is not complete DDL: indexes, foreign keys, checks, and
-other backend-specific properties may be absent. Includes `is_large` for query
+Returns full adapter-visible column metadata, indexes, and estimated row counts
+from adapter metadata/statistics (MySQL INFORMATION_SCHEMA; SQLite PRAGMA and
+sqlite_stat1 or bounded sampling). Since v3.8.1 each index lists `name`,
+`primary`, `unique` and ordered key `columns` (`null` for an expression key
+part, with `has_expression: true`); MySQL adds `type` for non-BTREE indexes and
+SQLite always adds `partial`. SQLite's implicit rowid primary key is reported
+with `name: null`. Index comments, expressions, partial-index predicates and
+cardinality are not returned. This is not complete DDL: foreign keys, checks and
+other backend-specific properties are absent. Includes `is_large` for query
 planning and avoids automatic COUNT(*) full table scans.
 
 If adapter metadata cannot be read, this tool returns `success=false` with
 `error_code="metadata_query_failed"` rather than a missing-table or zero-row
-result. If MySQL returns no usable estimate, the successful response uses
+result. If only index metadata fails, the response stays successful with
+`indexes_status="unavailable"` and `indexes=null`; this does not mean the table
+has no indexes. If MySQL returns no usable estimate, the successful response uses
 `row_count=null`, `row_count_approximate=null`, and `is_large=null`; no
 large-table recommendation is inferred from the unknown value.
 
@@ -1525,7 +1534,12 @@ Output:
     {"column_name": "name", "data_type": "varchar", "nullable": "YES", "key_type": "", "default_value": null}
   ],
   "is_large": true,
-  "recommendation": "Large table (~1500 rows). Use LIMIT or aggregation (COUNT/GROUP BY)."
+  "recommendation": "Large table (~1500 rows). Use LIMIT or aggregation (COUNT/GROUP BY).",
+  "indexes_status": "complete",
+  "indexes": [
+    {"name": "PRIMARY", "primary": true, "unique": true, "columns": ["id"]},
+    {"name": "idx_name", "primary": false, "unique": false, "columns": ["name"]}
+  ]
 }
 ```
 
@@ -2329,7 +2343,7 @@ Later [live review and native reconnection tests](docs/validation/V3_8_LIVE_REVI
 
 **October 1 pre-commit check:** the complete pending v3.8.0 change passed clean-copy, frozen-dependency validation: **793 passed, 4 skipped**, with three existing legacy logging warnings. Pyright, sdist/wheel build and installed-wheel checks outside the repository passed. Version stays **3.8.0**; remote CI for the new commit and the remaining native UI cases are separate. See the [final local verification](docs/validation/V3_8_MRTR_NATIVE_2026_10_01_ZH.md).
 
-**v3.8.1 check (October 1):** after adding the rejection recovery clue, the full local suite recorded **796 passed, 4 skipped** and Pyright 0 errors. After the later result-interpretation guidance it recorded **797 passed, 4 skipped**, and after the per-connection read policy guidance **799 passed, 4 skipped**. These were run in the existing development environment, not a clean copy, and no build or remote CI result is claimed. See the [v3.8.1 notes](docs/releases/RELEASE_NOTES_v3_8.md#v381--skill-rejection-recovery-clue-october-1-2026).
+**v3.8.1 check (October 1):** after adding the rejection recovery clue, the full local suite recorded **796 passed, 4 skipped** and Pyright 0 errors. After the later result-interpretation guidance it recorded **797 passed, 4 skipped**, and after the per-connection read policy guidance **799 passed, 4 skipped**, and after the server-state, MySQL table-case and structured-index updates **820 passed, 4 skipped**. These were run in the existing development environment, not a clean copy, and no build or remote CI result is claimed. See the [v3.8.1 notes](docs/releases/RELEASE_NOTES_v3_8.md#v381--skill-rejection-recovery-clue-october-1-2026).
 
 ### Test Scripts
 

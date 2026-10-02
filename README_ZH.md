@@ -878,7 +878,9 @@ SQLite 初始化拒绝覆盖已有文件；MySQL 初始化遇到现存 orders �
 - 写入工具说明新增结果解读规则：以 `execution_outcome` 而非 `success` 判断写入；`success=false` 但 `committed` 不得重做；`unknown` 可能已写入也可能未写入；不带 `execution_outcome` 的错误不证明任何结论；不得自行重试或改走其他入口。回放试验从 12/18 提升到 16/18（MRTR 协议错误 0/3 → 3/3），每次请求输入约增加 159 token；引导不替代服务端控制。
 - 服务端 instructions 现按连接列出读取策略（禁止读取或表范围类型、是否允许 UNION），并写明所有连接都拒绝 FROM 子查询（改用 CTE）；UNION 拒绝提示不再建议在回答中合并结果。禁止 UNION 的 MySQL 任务从 11–15 次调用（58k–78k token）降至 2 次（约 44k）；允许 UNION 的 SQLite 任务从首条被拒变为 1 次调用（约 28k），答案均正确。每次请求固定开销约增加 184 token。
 - 在更丰富的本地 SQLite 库上做真实工具通道复测：`committed` 与 `rolled_back` 均 3/3 报告正确。预览令牌拒绝发生在任何写入之前，其文本由“run preview again”改为说明本次未写入、先核对状态并由用户决定是否重新预览；清楚报告由 0/3 升至 3/3。预览被拒后把预览时状态说成当前状态（0/3）仍是已记录的残余风险。
-- 三项更新后全量依次为 796 → 797 → 799 passed、4 skipped；Pyright 0 errors。子代理测试仅在逐条批准后写入专用本地测试数据。详见[发布说明](docs/releases/RELEASE_NOTES_v3_8.md#v381--skill-rejection-recovery-clue-october-1-2026)。
+- `describe_table()` 现返回结构化索引（名称、是否主键、是否唯一、按序键列；SQLite `partial`；MySQL 非 BTREE 的 `type`）及 `indexes_status`；原始 SHOW 仍被拒绝。列出表索引在 MySQL 与 SQLite 上均由 0/3 变为 3/3，调用由 2–5 次（43.6k–93.5k token）降至 1–2 次（约 28k–29k）；每次请求固定输入约 +68 token。
+- 读取策略现拒绝以 SELECT 读取服务器、账号与文件路径状态（`@@` 系统变量、`CURRENT_USER()` 等函数、SQLite `pragma_*` 函数）；MySQL 白名单按表名大小写精确匹配，因为在 Linux 上 `Orders` 与 `orders` 可能是不同的表。在不区分大小写的 MySQL 服务器上，白名单条目应使用存储名；大小写不同的引用现会被拒绝（DRR-2026-075/076）。
+- 各项更新后全量依次为 796 → 797 → 799 → 820 passed、4 skipped；Pyright 0 errors。子代理测试仅在逐条批准后写入专用本地测试数据。详见[发布说明](docs/releases/RELEASE_NOTES_v3_8.md#v381--skill-rejection-recovery-clue-october-1-2026)。
 
 ### v3.8.0 FastMCP 4、TOML 与托管 MRTR（2026年9月）
 
@@ -1404,15 +1406,21 @@ check_connection(scope="all")                   # 全部已配置连接
 ```
 
 ### 4. `describe_table`
-用途：获取表结构 - 列信息、估计行数和查询建议
+用途：获取表结构 - 列信息、索引、估计行数和查询建议
 
-返回 adapter 可见的完整列元数据，以及来自适配器元数据/统计信息的估计行数
-（MySQL 使用 INFORMATION_SCHEMA；SQLite 使用 sqlite_stat1 或有界采样）。这不
-等于完整 DDL：索引、外键、check 和其它 backend-specific 属性可能不在结果中。
+返回 adapter 可见的完整列元数据、索引，以及来自适配器元数据/统计信息的估计行数
+（MySQL 使用 INFORMATION_SCHEMA；SQLite 使用 PRAGMA 与 sqlite_stat1 或有界采样）。自
+v3.8.1 起，每个索引返回 `name`、`primary`、`unique` 和按序排列的键列 `columns`
+（表达式键部分为 `null`，并标记 `has_expression: true`）；MySQL 对非 BTREE 索引
+返回 `type`，SQLite 始终返回 `partial`。SQLite 的隐式 rowid 主键以
+`name: null` 返回。不返回索引注释、表达式、部分索引条件和基数。这不等于完整
+DDL：外键、check 和其它 backend-specific 属性不在结果中。
 包含 `is_large` 标志用于查询规划，并避免自动执行 COUNT(*) 全表扫描。
 
 若 adapter 元数据无法读取，本工具返回 `success=false` 和
 `error_code="metadata_query_failed"`，不会伪装为缺表或 0 行结果。
+若只是索引元数据读取失败，响应仍为成功，但 `indexes_status="unavailable"`、
+`indexes=null`；这不表示该表没有索引。
 若 MySQL 返回不可用的估算值，成功响应会使用 `row_count=null`、
 `row_count_approximate=null` 和 `is_large=null`，不会根据未知值生成大表建议。
 
@@ -1436,7 +1444,12 @@ check_connection(scope="all")                   # 全部已配置连接
     {"column_name": "name", "data_type": "varchar", "nullable": "YES", "key_type": "", "default_value": null}
   ],
   "is_large": true,
-  "recommendation": "Large table (~1500 rows). Use LIMIT or aggregation (COUNT/GROUP BY)."
+  "recommendation": "Large table (~1500 rows). Use LIMIT or aggregation (COUNT/GROUP BY).",
+  "indexes_status": "complete",
+  "indexes": [
+    {"name": "PRIMARY", "primary": true, "unique": true, "columns": ["id"]},
+    {"name": "idx_name", "primary": false, "unique": false, "columns": ["name"]}
+  ]
 }
 ```
 
@@ -2188,7 +2201,7 @@ uv build
 
 **10 月 1 日提交前检查：** 完整待提交 v3.8.0 改动经干净副本、锁定依赖验证，结果为 **793 passed、4 skipped**，三项警告均为已有旧协议日志弃用。Pyright、sdist/wheel 构建及仓库外安装后验证通过。版本仍为 **3.8.0**；新提交的远端 CI 和剩余原生 UI 项目分别管理，详见[最终本地验证](docs/validation/V3_8_MRTR_NATIVE_2026_10_01_ZH.md)。
 
-**v3.8.1 检查（10 月 1 日）：** 加入拒绝恢复线索后，本地全量测试为 **796 passed、4 skipped**，Pyright 0 errors；随后加入结果解读引导后为 **797 passed、4 skipped**，加入按连接读取策略指导后为 **799 passed、4 skipped**。这些结果来自现有开发环境，不是干净副本，未宣称构建或远端 CI 结果。见 [v3.8.1 说明](docs/releases/RELEASE_NOTES_v3_8.md#v381--skill-rejection-recovery-clue-october-1-2026)。
+**v3.8.1 检查（10 月 1 日）：** 加入拒绝恢复线索后，本地全量测试为 **796 passed、4 skipped**，Pyright 0 errors；随后加入结果解读引导后为 **797 passed、4 skipped**，加入按连接读取策略指导后为 **799 passed、4 skipped**，修复服务器状态读取、MySQL 表名大小写并加入结构化索引后为 **820 passed、4 skipped**。这些结果来自现有开发环境，不是干净副本，未宣称构建或远端 CI 结果。见 [v3.8.1 说明](docs/releases/RELEASE_NOTES_v3_8.md#v381--skill-rejection-recovery-clue-october-1-2026)。
 
 ### 测试脚本
 

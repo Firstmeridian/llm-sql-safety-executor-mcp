@@ -162,14 +162,18 @@ def load_config(path: str | Path) -> AppConfig:
             explanation[field] = value
             sources[field] = str(file) if field in explicit else "builtin_default"
     for alias, connection in connections.connections.items():
+        case_sensitive = connection.type == "mysql"
         policy = ConnectionPolicy(
             allow_union=connection.read.allow_union,
             allowed_tables=frozenset({"*"})
             if connection.read.mode == "all"
-            else frozenset(t.lower() for t in connection.read.tables),
+            else frozenset(
+                t if case_sensitive else t.lower() for t in connection.read.tables
+            ),
             allow_mutations=connection.mutation.enabled,
             mutation_skills=frozenset(connection.mutation.skills),
             read_mode=connection.read.mode,
+            case_sensitive_tables=case_sensitive,
         )
         timeouts = {}
         for key in ("query_seconds", "connect_seconds"):

@@ -391,6 +391,43 @@ class MySQLAdapter(DatabaseAdapter):
             for row in result
         ]
 
+    def get_indexes(self, table_name: str) -> list[dict[str, Any]]:
+        """Get index structure from INFORMATION_SCHEMA.STATISTICS."""
+        if _metadata_identifier_is_rejected(table_name):
+            raise MetadataQueryError("reading table indexes")
+
+        # CARDINALITY is not selected: reading it can refresh cached statistics.
+        sql = """
+            SELECT INDEX_NAME, NON_UNIQUE, SEQ_IN_INDEX, COLUMN_NAME, INDEX_TYPE
+            FROM INFORMATION_SCHEMA.STATISTICS
+            WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = :table_name
+            ORDER BY INDEX_NAME, SEQ_IN_INDEX
+        """
+        result = self.execute(sql, params={"table_name": table_name})
+        if isinstance(result, str):
+            logger.error("Failed to read MySQL index metadata")
+            raise MetadataQueryError("reading table indexes")
+
+        indexes: dict[str, dict[str, Any]] = {}
+        for name, non_unique, _seq, column, index_type in result:
+            index = indexes.setdefault(
+                name,
+                {
+                    "name": name,
+                    "primary": name == "PRIMARY",
+                    "unique": int(non_unique) == 0,
+                    "columns": [],
+                },
+            )
+            index["columns"].append(column)
+            if column is None:
+                index["has_expression"] = True
+            if index_type and str(index_type).upper() != "BTREE":
+                index["type"] = str(index_type).upper()
+        return sorted(
+            indexes.values(), key=lambda item: (not item["primary"], item["name"])
+        )
+
     def get_row_estimate(self, table_name: str) -> int | None:
         """Get row count estimate from INFORMATION_SCHEMA.TABLES."""
         if _metadata_identifier_is_rejected(table_name):

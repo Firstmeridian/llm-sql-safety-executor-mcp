@@ -435,6 +435,62 @@ class SQLiteAdapter(DatabaseAdapter):
 
         return columns
 
+    def get_indexes(self, table_name: str) -> list[dict[str, Any]]:
+        """Get index structure from SQLite PRAGMA table-valued functions."""
+        if _metadata_identifier_is_rejected(table_name):
+            raise MetadataQueryError("reading table indexes")
+
+        index_rows = self.execute(
+            'SELECT name, "unique", origin, partial '
+            "FROM pragma_index_list(:table_name)",
+            params={"table_name": table_name},
+        )
+        pk_rows = self.execute(
+            "SELECT name FROM pragma_table_info(:table_name) "
+            "WHERE pk > 0 ORDER BY pk",
+            params={"table_name": table_name},
+        )
+        if isinstance(index_rows, str) or isinstance(pk_rows, str):
+            logger.error("Failed to read SQLite index metadata")
+            raise MetadataQueryError("reading table indexes")
+
+        indexes: list[dict[str, Any]] = []
+        for name, unique, origin, partial in index_rows:
+            key_rows = self.execute(
+                "SELECT cid, name FROM pragma_index_xinfo(:index_name) "
+                "WHERE key = 1 ORDER BY seqno",
+                params={"index_name": name},
+            )
+            if isinstance(key_rows, str):
+                logger.error("Failed to read SQLite index metadata")
+                raise MetadataQueryError("reading table indexes")
+            index: dict[str, Any] = {
+                "name": name,
+                "primary": origin == "pk",
+                "unique": bool(unique),
+                # cid -2 marks an expression key part.
+                "columns": [None if cid == -2 else column for cid, column in key_rows],
+                "partial": bool(partial),
+            }
+            if any(cid == -2 for cid, _ in key_rows):
+                index["has_expression"] = True
+            indexes.append(index)
+
+        # An INTEGER PRIMARY KEY aliases the rowid and has no index entry.
+        if pk_rows and not any(index["primary"] for index in indexes):
+            indexes.append(
+                {
+                    "name": None,
+                    "primary": True,
+                    "unique": True,
+                    "columns": [row[0] for row in pk_rows],
+                    "partial": False,
+                }
+            )
+        return sorted(
+            indexes, key=lambda item: (not item["primary"], item["name"] or "")
+        )
+
     def get_row_estimate(self, table_name: str) -> int | None:
         """
         Estimate row count using sqlite_stat1 or bounded sampling.

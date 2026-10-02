@@ -125,6 +125,25 @@ def test_secret_errors_do_not_echo_input(bundle, password):
     assert "PRIVATE" not in str(exc.value)
 
 
+def test_mysql_allowlist_keeps_exact_table_case(bundle):
+    _, c, _, save = bundle
+    c["connections"]["demo"]["read"] = {"mode": "allowlist", "tables": ["Orders"]}
+    c["connections"]["remote"] = {
+        "type": "mysql",
+        "mysql": {"host": "db", "user": "u", "database": "d", "password": {"value": "x"}},
+        "read": {"mode": "allowlist", "tables": ["Orders"]},
+    }
+    cfg = load_config(save())
+    sqlite_policy = cfg.connections["demo"].policy
+    mysql_policy = cfg.connections["remote"].policy
+    assert sqlite_policy.case_sensitive_tables is False
+    assert sqlite_policy.allows_table("ORDERS")
+    assert mysql_policy.case_sensitive_tables is True
+    assert mysql_policy.allowed_tables == frozenset({"Orders"})
+    assert mysql_policy.allows_table("Orders")
+    assert not mysql_policy.allows_table("orders")
+
+
 @pytest.mark.parametrize("content", [b"", b"a" * 65537, b"\xff"])
 def test_invalid_secret_file(bundle, tmp_path, content):
     _, c, _, save = bundle

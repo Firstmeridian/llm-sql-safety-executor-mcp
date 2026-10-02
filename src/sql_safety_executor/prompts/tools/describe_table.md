@@ -1,6 +1,8 @@
-Get one selected table's full adapter-visible column metadata and row count
-estimate. This is not complete DDL: indexes, foreign keys, checks, and other
-backend-specific properties may be absent.
+Get one selected table's full adapter-visible column metadata, indexes and
+row count estimate. Each index lists name, primary, unique and ordered key
+columns (null for an expression part); SQLite adds partial, and its implicit
+rowid primary key has name null. This is not complete DDL: foreign
+keys, checks, index comments and expressions are absent.
 
 Do not call repeatedly to survey many tables. Use get_full_schema with
 detail_level="compact" for broad columns, or detail_level="full" when full
@@ -23,4 +25,6 @@ Example arguments (replace the table and alias with the selected target):
     {"table_name": "orders", "connection_id": "analytics_demo_sqlite"}
     
 Returns:
-    Table structure with columns, row count, and query recommendations
+    Table structure with columns, indexes, row count, and query recommendations.
+    indexes_status is "unavailable" (indexes null) when index metadata could
+    not be read; that does not mean the table has no indexes.

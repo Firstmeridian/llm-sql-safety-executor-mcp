@@ -78,6 +78,8 @@ Query Skill 的发现、详情和执行共享无数据库 I/O 的读取准入判
 
 自 v3.8.1 起，服务启动时会把每个连接的读取状态、表范围类型（all 或含表数量的 allowlist）和 UNION 状态写入 MCP instructions，供 Agent 在编写 SQL 前参考；不列表名、主机或路径，超过 12 个连接时只给数量。修改这些字段后需重启服务并刷新 Host 工具定义。该文本只是指导，执行时仍由完整读取策略独立检查。
 
+`read.tables` 的大小写规则（v3.8.1 起）：SQLite 连接不区分大小写；MySQL 连接保留配置中的大小写并精确匹配，因为 `lower_case_table_names=0`（Linux 默认）时 `Orders` 与 `orders` 是不同的表。MySQL 条目应写成数据库中的存储名；在不区分大小写的服务器上，大小写不同的查询引用也会被拒绝。`mode = "all"` 不受影响。见 DRR-2026-076。
+
 Mutation Skills 的写入权限是五层配置与既有执行检查的交集：
 
 1. `skills.enabled = true`。

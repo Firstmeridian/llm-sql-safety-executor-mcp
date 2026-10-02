@@ -3,6 +3,8 @@ import logging
 from abc import ABC, abstractmethod
 from typing import Any
 
+from .outcomes import MetadataQueryError
+
 logger = logging.getLogger(__name__)
 
 
@@ -110,6 +112,21 @@ class DatabaseAdapter(ABC):
             MetadataQueryError: If the metadata query cannot be completed
         """
         pass
+
+    def get_indexes(self, table_name: str) -> list[dict[str, Any]]:
+        """
+        Get the table's indexes, primary key first, then by name.
+
+        Each dict has name (None for an implicit SQLite rowid key), primary,
+        unique and ordered columns (None for an expression key part), plus
+        optional has_expression and type; SQLite always adds partial.
+        Comments, expressions, partial-index predicates and cardinality are
+        not returned.
+
+        Raises:
+            MetadataQueryError: If index metadata cannot be read
+        """
+        raise MetadataQueryError("reading table indexes")
 
     @abstractmethod
     def get_row_estimate(self, table_name: str) -> int | None:

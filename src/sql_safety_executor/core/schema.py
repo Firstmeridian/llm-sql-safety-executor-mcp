@@ -90,7 +90,7 @@ async def list_tables(
     allowed_tables = connection.policy.allowed_tables
     if allowed_tables is not None and "*" not in allowed_tables:
         original_count = len(tables)
-        tables = [t for t in tables if t["table_name"].lower() in allowed_tables]
+        tables = [t for t in tables if connection.policy.allows_table(t["table_name"])]
         if len(tables) < original_count:
             await ctx.info(
                 f"Filtered {original_count - len(tables)} tables by allowlist"
@@ -256,6 +256,14 @@ async def describe_table(
         "columns": columns_data,
         "is_large": is_large,
     }
+    # Index failure must not look like "no indexes"; columns stay usable.
+    try:
+        result_payload["indexes"] = adapter.get_indexes(table_name)
+        result_payload["indexes_status"] = "complete"
+    except MetadataQueryError:
+        result_payload["indexes"] = None
+        result_payload["indexes_status"] = "unavailable"
+        result_payload["indexes_error"] = "Index metadata could not be read"
 
     # Add recommendation only for large tables (reduce token overhead)
     if is_large is True:
@@ -383,7 +391,7 @@ async def get_full_schema(
     allowed_tables = connection.policy.allowed_tables
     if allowed_tables is not None and "*" not in allowed_tables:
         tables_data = [
-            t for t in tables_data if t["table_name"].lower() in allowed_tables
+            t for t in tables_data if connection.policy.allows_table(t["table_name"])
         ]
         await ctx.info(f"Allowlist active: showing {len(tables_data)} allowed tables")
 

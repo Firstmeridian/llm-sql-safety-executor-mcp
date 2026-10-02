@@ -5,6 +5,16 @@ English | [中文](REFACTORING_LOG_ZH.md)
 **Date:** December 2, 2025 (Updated: October 1, 2026)
 **Author:** Code Refactoring Session
 
+## v3.8.1 Server-state reads, MySQL table-name case and structured indexes (October 3, 2026)
+
+- Fourth 3.8.1 update; version unchanged. Started from a proposal to allow limited raw SHOW in `query()`; the proposal was replaced by structured index metadata in `describe_table()`, and raw SHOW stays rejected. It will be evaluated separately only on a concrete compatibility need.
+- The shared read policy rejects `@@` system variables, `USER`/`CURRENT_USER`/`SESSION_USER`/`SYSTEM_USER`/`CURRENT_ROLE` and SQLite `pragma_*` table-valued functions, by SQL token so literals and quoted identifiers are unaffected. Verified beforehand that the MySQL 8.0.25 test server exposed host name, data directory, file-privilege path and account through SELECT, and that SQLite `pragma_database_list` returns the file path under `read.mode="all"`. `VERSION()` stays allowed; other functions (including `SLEEP`, `BENCHMARK`, `GET_LOCK`) are left for separate review (DRR-2026-075).
+- MySQL allowlists keep configured case and compare table references exactly (`ConnectionPolicy.case_sensitive_tables`, `allows_table()`), in queries, Query Skill checks, `describe_table()`, `list_tables()`, `get_full_schema()` and Query Skill availability; CTE names match exactly. SQLite unchanged. Fail-closed on case-insensitive servers: differently cased references are rejected (DRR-2026-076).
+- Full suite **814 passed, 4 skipped**; Pyright 0 errors.
+- `describe_table()` adds `indexes_status` and `indexes` (name, primary, unique, ordered key columns, `null` plus `has_expression` for expression parts, MySQL non-BTREE `type`, SQLite `partial` always present). New adapter method `get_indexes()`: MySQL reads `INFORMATION_SCHEMA.STATISTICS` without `CARDINALITY`; SQLite uses `pragma_index_list`/`pragma_index_xinfo`/`pragma_table_info` and synthesizes the implicit rowid primary key with `name: null`. Index-only failure keeps the call successful with `indexes_status="unavailable"` and `indexes=null`. No switch; `get_full_schema()` unchanged; comments, expressions, predicates and cardinality are not returned (DRR-2026-077).
+- Baseline vs after (3 runs each, same prompts): MySQL 0/3 → 3/3, 2–3 calls → 1, 43.6k–59.4k → ~28.9k tokens; SQLite 0/3 → 3/3, 4–5 calls → 2–3, 59.2k–93.5k → 28.4k–43.4k tokens. A first version omitted `partial` when false and 2/3 runs reported it as unknown; it is now always present. Output matched native `SHOW INDEX` and PRAGMA. Fixed cost about +68 input tokens per request; routing and UNION-disabled regressions unchanged. SHOW, system-schema and PRAGMA rejections now point to `describe_table()` for indexes. The local rich SQLite fixture gained index fixtures.
+- Live checks: `@@hostname`, `CURRENT_USER()` and `pragma_index_list` are rejected; `VERSION()` and SQLite case-insensitive names still work. Full suite **820 passed, 4 skipped**; Pyright 0 errors.
+
 ## v3.8.1 Per-connection read policy guidance and real-channel result checks (October 1, 2026)
 
 - Third 3.8.1 update; version unchanged. Authorization, SQL validation, execution, output schemas and configuration format are unchanged.

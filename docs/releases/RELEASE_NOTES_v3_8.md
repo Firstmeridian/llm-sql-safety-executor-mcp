@@ -363,3 +363,110 @@ local test database: orders 1–3 were committed after approval; the maintainer
 side changed orders 4–6 and 10–12 to `returned` directly to simulate other
 writers. `live_test_sqlite` was untouched. Full suite **799 passed, 4
 skipped**; Pyright 0 errors.
+
+### Server-state reads and MySQL table-name case (v3.8.1, October 3, 2026)
+
+Part of 3.8.1; the version is unchanged. Two read-policy gaps found while
+evaluating a raw SHOW proposal (see the next section). Full suite after this
+and the next section: **820 passed, 4 skipped**.
+
+**Server, account and file-path state (DRR-2026-075).** Raw SHOW and system
+schemas were already rejected, but SELECT could still read server state. On
+the MySQL 8.0.25 test server, `@@hostname`, `@@datadir`, `@@secure_file_priv`,
+`@@version_compile_os` and `CURRENT_USER()` were readable (values were not
+recorded); on SQLite with `read.mode="all"`, `pragma_database_list` returns the
+database file path. The shared read policy, used by `query()` and by Query
+Skill startup and runtime checks, now rejects `@@` system variables, the
+account and role functions `USER`, `CURRENT_USER`, `SESSION_USER`,
+`SYSTEM_USER` and `CURRENT_ROLE`, and `pragma_*` table-valued functions. The
+check uses SQL tokens, so string literals, quoted identifiers, a plain column
+named `user` and user variables (`@x`) are unaffected. `VERSION()` and
+`sqlite_version()` stay allowed for dialect checks. This is a denylist:
+`DATABASE()`, `CONNECTION_ID()`, `UUID()`, `SLEEP()`, `BENCHMARK()` and
+named-lock functions remain allowed and are left for separate review.
+
+**MySQL table-name case (DRR-2026-076).** Allowlist entries and table
+references were lowercased. On MySQL with `lower_case_table_names=0` (the Linux
+default), `Orders` and `orders` are different tables, so allowing `orders` also
+authorized `Orders` in queries and exposed it through `list_tables()` and
+`get_full_schema()`. MySQL connections now keep the configured case and match
+table references exactly everywhere the allowlist applies; CTE names are also
+matched exactly, so a differently cased reference is checked as a table.
+SQLite stays case-insensitive. **Behavior change:** on case-insensitive MySQL
+servers (`lower_case_table_names=1/2`), queries or allowlist entries whose case
+differs from the stored table name are now rejected or hidden. Configure MySQL
+allowlist entries with the stored names. `read.mode="all"` is unaffected.
+
+No database I/O was added. Live checks after restart: `SELECT @@hostname`,
+`SELECT CURRENT_USER()` and `pragma_index_list('orders')` were rejected with
+their reasons; `VERSION()` and SQLite `FROM Orders` still worked. The MySQL
+case change could not be exercised live (the test server is case-insensitive
+and its connection uses `read.mode="all"`); unit tests cover it.
+
+### Structured index metadata in describe_table() (v3.8.1, October 3, 2026)
+
+Part of 3.8.1 and of the same change set; the version is unchanged.
+
+**Why.** Agents could not list a table's indexes. With identical prompts and
+three runs each, a MySQL task (one `va_*` table) failed 3/3 with 2–3 calls and
+43.6k–59.4k input tokens, and a SQLite task (two tables with composite,
+unique, partial and expression indexes) failed 3/3 with 4–5 calls and
+59.2k–93.5k tokens. They tried `information_schema`, `sqlite_schema` and
+`pragma_*`, all rejected; none tried `SHOW INDEX`. `describe_table()` only
+exposed per-column `PRI`/`MUL`, so a composite unique key
+`uk_code_date(code, source_file)` appeared as a non-unique `code`.
+
+**Decision.** A proposal to allow limited raw `SHOW INDEX`/`SHOW COLUMNS` in
+`query()` was not adopted. The need is index metadata, not SHOW syntax; raw
+SHOW would add a parser, per-connection switches, Query Skill isolation and a
+WARNINGS contract, would serve MySQL only, and `MAX_EXECUTION_TIME` does not
+apply to SHOW. Raw SHOW is not a planned follow-up; it will be evaluated
+separately only if a concrete compatibility need appears. Kept from that
+proposal: one resolved target for checks and execution, authorization before
+any metadata read, no new capability by default, explicit completeness and
+bounded resources.
+
+**Contract.** A successful `describe_table()` adds `indexes_status`
+(`complete` or `unavailable`) and `indexes`. Each index has `name`, `primary`,
+`unique` and ordered key `columns` (`null` for an expression key part, then
+`has_expression: true`); MySQL adds `type` only for non-BTREE indexes; SQLite
+always adds `partial` (an early version emitted it only when true and 2/3 runs
+reported the others as unknown). SQLite's implicit rowid primary key, which has
+no index entry, is synthesized with `name: null`. Primary key first, then by
+name. If only index metadata fails, the call still succeeds with
+`indexes_status="unavailable"`, `indexes=null` and a fixed error text, so a
+failure never looks like "no indexes". Rejections of raw SHOW, system schemas
+and `pragma_*` now add that `describe_table()` also returns indexes.
+
+**Implementation.** MySQL runs one parameterized
+`INFORMATION_SCHEMA.STATISTICS` SELECT (`TABLE_SCHEMA = DATABASE()`) under the
+existing read timeout and does not select `CARDINALITY`, which can refresh
+cached statistics. SQLite uses `pragma_index_list`, `pragma_index_xinfo` and
+`pragma_table_info` with bound parameters inside the adapter. These internal
+metadata reads do not pass through `query()`; agents still cannot query
+system tables or PRAGMA functions. Existing read-access, identifier and
+allowlist checks (now case-exact for MySQL) run first.
+
+**Disclosure and limits.** No new switch: the object scope is unchanged and
+indexes belong to the table structure already exposed. Index names, key
+columns, uniqueness, type and partial/expression flags are now visible for
+allowlisted tables; comments, expressions, partial predicates and cardinality
+are not. `get_full_schema()` is unchanged. Foreign keys, checks and triggers
+remain absent. Agents asked for expressions correctly reported them as
+unavailable; one run then tried `sqlite_master` and was rejected.
+
+**Validation.** Full suite **820 passed, 4 skipped**; Pyright 0 errors. Adapter
+output matched native `SHOW INDEX` (MySQL) and PRAGMA (SQLite, three tables)
+exactly. Three runs per case, same prompts as the baseline:
+
+| Task | Before | After |
+|---|---|---|
+| MySQL indexes | 0/3; 2–3 calls; 3–4 turns; 43.6k–59.4k tokens | 3/3 complete; 1 call; 2 turns; ~28.9k tokens |
+| SQLite indexes | 0/3; 4–5 calls; 4–6 turns; 59.2k–93.5k tokens | 3/3 correct with explicit `partial`; 2 calls (2/3) or 3 calls (1/3, rejected `sqlite_master` attempt); 2–3 turns; 28.4k–43.4k tokens |
+
+The longer `describe_table` description (1,065 → 1,369 characters) adds about
+68 input tokens per request. Regression: purpose-only routing 2/2 asked for the
+alias with one call (~28.3k tokens, previously ~28.0k with four connections);
+the UNION-disabled MySQL task 2/2 correct with 2 calls (~44.4k, previously
+~44.0k). No writes were made. See DRR-2026-077 and the
+[acceptance record](../validation/V3_8_MRTR_NATIVE_2026_10_01_ZH.md).

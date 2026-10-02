@@ -36,6 +36,12 @@ MRTR 开关只控制额外工具注册，不移除旧 execute_mutation_skill，�
 
 令牌拒绝文本（同属 3.8.1，来自真实通道复测）：`core/proposals.py` 的 `_consume_mutation_preview_token()` 在 execute 路径中先于任何 Skill 代码或数据库写入运行；缺失令牌之外的 5 条拒绝（过期、不匹配、未知或已用、绑定解析失败两种）共用 `_TOKEN_REJECTED` 后缀，说明“执行前已拒绝、本次未写入，先核对当前状态并由用户决定是否重新预览”，取代原 “run preview again”。拒绝仍是 ToolError（令牌拒绝不是业务执行结果的既有设计），条件与语义不变。工具说明加一句“A rejected preview_token means this request wrote nothing.”，使其与“无 outcome 的错误不证明任何事”的一般规则不冲突。曾试加“预览字段只代表预览时状态”，因复测无效果删除。实测与残余风险见验收记录和 DRR-2026-073。
 
+服务器状态读取（同属 3.8.1，2026-10-03）：`core/policy.py` 新增 `_server_state_reference_error()`，由 `_is_query_safe_extended()` 在文件操作检查之后、UNION 检查之前调用，因此同时作用于原始 `query()` 与 Query Skill 的启动和运行时校验。它遍历 sqlparse 扁平化后的 token（跳过字符串与注释）：`@@` 运算符、`USER`/`SESSION_USER`/`SYSTEM_USER`/`CURRENT_ROLE` 后接括号或任意形式的 `CURRENT_USER`、去引号后以 `pragma_` 开头的名称均拒绝。这是黑名单，其他函数见 DRR-2026-075。
+
+MySQL 表名大小写（同属 3.8.1）：`ConnectionPolicy` 新增 `case_sensitive_tables` 与 `table_key()`/`allows_table()`；加载器对 MySQL 保留配置大小写并置为 true，SQLite 仍转小写。表引用提取函数接受 `fold` 参数，`_check_table_allowlist()` 按策略选择是否保留大小写（含 CTE 名称）；`list_tables()`、`get_full_schema()`、`describe_table()` 与 Query Skill 可用性都改用 `allows_table()`。系统库检查仍按小写比较（只会多拦）。未读取 `lower_case_table_names`，故在不区分大小写的服务器上偏保守，见 DRR-2026-076。
+
+结构化索引（同属 3.8.1）：评估“在 `query()` 中支持有限原始 SHOW”的提案后改为结构化方案。`DatabaseAdapter.get_indexes()` 默认抛 `MetadataQueryError`；`MySQLAdapter` 用参数化的 `INFORMATION_SCHEMA.STATISTICS` 查询（不选 `CARDINALITY`，避免刷新缓存统计），按索引名分组，`COLUMN_NAME` 为 NULL 的函数索引键部分映射为 `null` + `has_expression`，非 BTREE 给出 `type`；`SQLiteAdapter` 用绑定参数的 `pragma_index_list`、`pragma_index_xinfo`（`key = 1`，`cid = -2` 为表达式）与 `pragma_table_info`，`partial` 始终返回，若没有 `origin = 'pk'` 的索引却有主键列，则合成 `name = null` 的 rowid 主键。这些是适配器内部查询，不经过 `query()` 策略；Agent 仍不能直接查询系统表或 PRAGMA。`describe_table()` 在列元数据成功后读取索引；仅索引失败时返回 `indexes_status="unavailable"`、`indexes=null` 与固定错误文本。工具说明 1,065 → 1,369 字符；SHOW、系统库与 PRAGMA 的拒绝提示指向 `describe_table()`。未加开关，`get_full_schema()` 不变。风险见 DRR-2026-077。
+
 ## 结构与生命周期
 
 `src/sql_safety_executor/` 是唯一运行包：`config` 处理严格模型、来源与密钥；`core` 提供完整读取策略、查询/schema/诊断服务及 Mutation 提案/执行；`database` 保留适配器与事务证据；`skills` 提供可信扩展 SDK、目录快照和发现服务；`mcp` 负责注册、上下文、结果编码和 MRTR；`prompts` 保存 UTF-8 资源；`observability` 处理审计与脱敏工具遥测；`cli` 提供显式启动和离线检查。

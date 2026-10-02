@@ -159,7 +159,8 @@ def test_shared_sql_policy_blocks_comment_separated_show(monkeypatch):
     assert is_safe is False
     assert error == (
         "SHOW statements are not allowed in raw queries. "
-        "Use list_tables() or describe_table() instead."
+        "Use list_tables() or describe_table() instead; describe_table() "
+        "also returns indexes."
     )
 
 
@@ -185,7 +186,8 @@ def test_shared_sql_policy_blocks_all_raw_show_forms(monkeypatch, sql):
     assert is_safe is False
     assert error == (
         "SHOW statements are not allowed in raw queries. "
-        "Use list_tables() or describe_table() instead."
+        "Use list_tables() or describe_table() instead; describe_table() "
+        "also returns indexes."
     )
 
 
@@ -230,7 +232,8 @@ def test_shared_sql_policy_blocks_quoted_system_schemas(monkeypatch):
         assert is_safe is False
         assert error == (
             "Access to system databases not allowed. "
-            "Use list_tables() or describe_table() instead."
+            "Use list_tables() or describe_table() instead; describe_table() "
+            "also returns indexes."
         )
 
 
@@ -243,6 +246,72 @@ def test_system_schema_names_in_string_literals_are_not_tables(monkeypatch):
 
     assert is_safe is True
     assert error is None
+
+
+@pytest.mark.parametrize(
+    "sql,reason",
+    [
+        ("SELECT @@hostname", "System variables"),
+        ("SELECT @@GLOBAL.datadir, 1", "System variables"),
+        ("SELECT id FROM orders WHERE @@secure_file_priv IS NULL", "System variables"),
+        ("SELECT CURRENT_USER", "Account and role"),
+        ("SELECT current_user(), 1", "Account and role"),
+        ("SELECT USER()", "Account and role"),
+        ("SELECT session_user()", "Account and role"),
+        ("SELECT * FROM pragma_database_list", "PRAGMA"),
+        ("SELECT name FROM pragma_table_info('orders')", "PRAGMA"),
+    ],
+)
+def test_shared_sql_policy_blocks_server_state_reads(monkeypatch, sql, reason):
+    module = _reload_server(monkeypatch)
+    policy = module.ConnectionPolicy(allow_union=False, allowed_tables={"*"}, read_mode="all")
+
+    is_safe, error = module._validate_sql_query_policy(sql, policy)
+
+    assert is_safe is False
+    assert reason in error
+
+
+@pytest.mark.parametrize(
+    "sql",
+    [
+        "SELECT '@@hostname', 'current_user()' AS note",
+        "SELECT user, `current_user` FROM accounts",
+        "SELECT VERSION(), sqlite_version()",
+        "SELECT @x",
+    ],
+)
+def test_server_state_check_ignores_literals_columns_and_version(monkeypatch, sql):
+    module = _reload_server(monkeypatch)
+    policy = module.ConnectionPolicy(allow_union=False, allowed_tables={"*"}, read_mode="all")
+
+    is_safe, error = module._validate_sql_query_policy(sql, policy)
+
+    assert is_safe is True, error
+
+
+def test_case_sensitive_allowlist_requires_exact_table_case(monkeypatch):
+    module = _reload_server(monkeypatch)
+    policy = module.ConnectionPolicy(
+        allowed_tables=frozenset({"orders"}), case_sensitive_tables=True
+    )
+
+    for sql in (
+        "SELECT * FROM Orders",
+        "SELECT * FROM `ORDERS`",
+        "WITH Orders AS (SELECT 1) SELECT * FROM ORDERS",
+    ):
+        is_safe, error = module._validate_sql_query_policy(sql, policy)
+        assert is_safe is False, sql
+        assert "Access denied" in error
+
+    for sql in ("SELECT * FROM orders", "WITH t AS (SELECT 1) SELECT * FROM orders, t"):
+        is_safe, error = module._validate_sql_query_policy(sql, policy)
+        assert is_safe is True, (sql, error)
+
+    insensitive = module.ConnectionPolicy(allowed_tables=frozenset({"orders"}))
+    is_safe, error = module._validate_sql_query_policy("SELECT * FROM Orders", insensitive)
+    assert is_safe is True, error
 
 
 def test_table_allowlist_blocks_quoted_identifiers(monkeypatch):

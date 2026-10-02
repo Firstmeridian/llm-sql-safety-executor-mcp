@@ -226,7 +226,7 @@ def _query_skill_blocked_tables(
     allowed_tables = connection.policy.allowed_tables
     if allowed_tables is None or "*" in allowed_tables:
         return []
-    return [table for table in meta.tables if table.lower() not in allowed_tables]
+    return [table for table in meta.tables if not connection.policy.allows_table(table)]
 
 
 def _mutation_connection_policy_state(
