@@ -21,6 +21,7 @@ from .outcomes import (
     _close_write_connection,
 )
 from .identifiers import _adapter_logging_name, _metadata_identifier_is_rejected
+from .indexes import IndexMetadataBudget, MAX_INDEX_KEY_PARTS
 
 
 class MySQLAdapter(DatabaseAdapter):
@@ -123,7 +124,7 @@ class MySQLAdapter(DatabaseAdapter):
             return False
 
     def execute(
-        self, sql: str, timeout: int | None = None, params: dict | None = None
+        self, sql: str, timeout: int | float | None = None, params: dict | None = None
     ) -> list | str:
         """
         Execute SQL query with timeout protection.
@@ -152,7 +153,9 @@ class MySQLAdapter(DatabaseAdapter):
             with engine.connect() as connection:
                 # Set session-level query timeout for MySQL
                 # MAX_EXECUTION_TIME is in milliseconds
-                timeout_ms = timeout * 1000
+                # A fractional remaining metadata budget still needs a valid,
+                # nonzero integer millisecond server timeout.
+                timeout_ms = max(1, int(timeout * 1000))
                 try:
                     connection.execute(
                         text(f"SET SESSION MAX_EXECUTION_TIME = {timeout_ms}")
@@ -306,7 +309,7 @@ class MySQLAdapter(DatabaseAdapter):
         _close_write_connection(connection)
         return WriteExecutionResult(rowcount)
 
-    def _handle_error(self, e: Exception, timeout: int | None = None) -> str:
+    def _handle_error(self, e: Exception, timeout: int | float | None = None) -> str:
         """
         Sanitize error messages for security.
 
@@ -392,24 +395,43 @@ class MySQLAdapter(DatabaseAdapter):
         ]
 
     def get_indexes(self, table_name: str) -> list[dict[str, Any]]:
-        """Get index structure from INFORMATION_SCHEMA.STATISTICS."""
+        """Get bounded index structure, preserving unknown legacy visibility."""
         if _metadata_identifier_is_rejected(table_name):
             raise MetadataQueryError("reading table indexes")
-
+        budget = IndexMetadataBudget(self._query_timeout_seconds)
+        # MySQL 5.7 has no IS_VISIBLE. Probe the metadata column, not a version
+        # string. A failed probe fails collection; errors are never interpreted
+        # as proof that this is an old server, nor retried with weaker metadata.
+        visibility_rows = budget.rows(
+            self.execute(
+                "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS "
+                "WHERE TABLE_SCHEMA = 'information_schema' "
+                "AND TABLE_NAME = 'STATISTICS' AND COLUMN_NAME = 'IS_VISIBLE' LIMIT 1",
+                timeout=budget.remaining(),
+            )
+        )
+        visibility_column = "IS_VISIBLE" if visibility_rows else "NULL AS IS_VISIBLE"
         # CARDINALITY is not selected: reading it can refresh cached statistics.
-        sql = """
-            SELECT INDEX_NAME, NON_UNIQUE, SEQ_IN_INDEX, COLUMN_NAME, INDEX_TYPE
+        sql = f"""
+            SELECT INDEX_NAME, NON_UNIQUE, SEQ_IN_INDEX, COLUMN_NAME, INDEX_TYPE,
+                   SUB_PART, COLLATION, {visibility_column}
             FROM INFORMATION_SCHEMA.STATISTICS
             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = :table_name
             ORDER BY INDEX_NAME, SEQ_IN_INDEX
+            LIMIT :row_limit
         """
-        result = self.execute(sql, params={"table_name": table_name})
-        if isinstance(result, str):
-            logger.error("Failed to read MySQL index metadata")
-            raise MetadataQueryError("reading table indexes")
+        result = budget.rows(
+            self.execute(
+                sql,
+                timeout=budget.remaining(),
+                params={"table_name": table_name, "row_limit": MAX_INDEX_KEY_PARTS + 1},
+            )
+        )
 
         indexes: dict[str, dict[str, Any]] = {}
-        for name, non_unique, _seq, column, index_type in result:
+        for (
+            name, non_unique, _seq, column, index_type, prefix_length, direction, visible
+        ) in result:
             index = indexes.setdefault(
                 name,
                 {
@@ -417,15 +439,24 @@ class MySQLAdapter(DatabaseAdapter):
                     "primary": name == "PRIMARY",
                     "unique": int(non_unique) == 0,
                     "columns": [],
+                    "key_parts": [],
+                    "visible": {"YES": True, "NO": False}.get(visible),
                 },
             )
             index["columns"].append(column)
+            index["key_parts"].append(
+                {
+                    "column": column,
+                    "prefix_length": None if prefix_length is None else int(prefix_length),
+                    "sort_order": {"A": "asc", "D": "desc"}.get(direction),
+                }
+            )
             if column is None:
                 index["has_expression"] = True
             if index_type and str(index_type).upper() != "BTREE":
                 index["type"] = str(index_type).upper()
-        return sorted(
-            indexes.values(), key=lambda item: (not item["primary"], item["name"])
+        return budget.finish(
+            sorted(indexes.values(), key=lambda item: (not item["primary"], item["name"]))
         )
 
     def get_row_estimate(self, table_name: str) -> int | None:

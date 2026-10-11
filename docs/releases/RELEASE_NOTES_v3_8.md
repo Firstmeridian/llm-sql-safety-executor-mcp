@@ -341,7 +341,9 @@ and, because the data had changed, the misstatement was factually wrong.
 `success=false` + `committed`, `unknown` and MRTR protocol errors cannot be
 produced with the sample Skills and remain covered only by replay.
 
-**Fix.** Token checks run before any Skill code or database write, but the five
+**Fix (scope clarified October 3).** Token rejection precedes the framework write
+boundary. Imperative Skill construction/readiness may run earlier; trusted
+extensions must not write there. The five
 rejection messages ended with "run preview again", conflicting with the rule
 against self-initiated new proposals while the description said an error
 without `execution_outcome` proves nothing. They now end with "rejected before
@@ -406,6 +408,9 @@ and its connection uses `read.mode="all"`); unit tests cover it.
 ### Structured index metadata in describe_table() (v3.8.1, October 3, 2026)
 
 Part of 3.8.1 and of the same change set; the version is unchanged.
+This section records the October 3 implementation and measurements. Current
+key-part fields, the visibility capability probe and collection budgets are
+described in the October 12 review below.
 
 **Why.** Agents could not list a table's indexes. With identical prompts and
 three runs each, a MySQL task (one `va_*` table) failed 3/3 with 2–3 calls and
@@ -423,8 +428,10 @@ WARNINGS contract, would serve MySQL only, and `MAX_EXECUTION_TIME` does not
 apply to SHOW. Raw SHOW is not a planned follow-up; it will be evaluated
 separately only if a concrete compatibility need appears. Kept from that
 proposal: one resolved target for checks and execution, authorization before
-any metadata read, no new capability by default, explicit completeness and
-bounded resources.
+metadata access, explicit completeness and bounded resources. The newer v2
+design deliberately enables index collection by default; it adds metadata work
+and disclosure on already-authorized tables, without opening raw SHOW. Fixed
+collection budgets were added during the October 3–12 review documented below.
 
 **Contract.** A successful `describe_table()` adds `indexes_status`
 (`complete` or `unavailable`) and `indexes`. Each index has `name`, `primary`,
@@ -470,3 +477,18 @@ alias with one call (~28.3k tokens, previously ~28.0k with four connections);
 the UNION-disabled MySQL task 2/2 correct with 2 calls (~44.4k, previously
 ~44.0k). No writes were made. See DRR-2026-077 and the
 [acceptance record](../validation/V3_8_MRTR_NATIVE_2026_10_01_ZH.md).
+
+
+### Five-commit review completion (October 12, 2026)
+
+**Why.** Review of `f50b010` through `09c3b9a`, four external reports and the earlier uncommitted fixes found incomplete standalone MRTR result guidance, relation/CTE scope omissions, metadata identity mismatches and missing index attributes/budgets. GPT-6 Luna replays also found invented rowcounts and malformed-field misinterpretation.
+
+**Decision.** Keep version 3.8.1 and the later approved automatic-index design, without a new switch or raw SHOW. Render one packaged result resource independently into each write tool. Put result validity before outcome and give explicit missing-rowcount wording. SQL scope extraction remains a conservative supported subset; execution grants, token/transaction semantics, configuration and production MRTR enablement are unchanged by this review.
+
+**Contract and implementation.** Quoted built-in PRAGMA objects are checked in relation position while ordinary business names are allowed. CTEs obey definition order and explicit recursion; unsupported relation groups, single-quoted objects, ODBC wrappers and TABLE expressions fail before database access. MySQL readiness uses exact table identity. SQLite metadata uses main; `columns` is retained and `key_parts` adds direction/collation or prefix length, with MySQL optimizer `visible` true/false/null. Visibility capability errors are not weakened into a retry. Whole-index collection is limited to 128 indexes, 2048 key parts and 64 KiB UTF-8; unavailable indexes preserve columns.
+
+**Compromises.** Automatic indexes add default metadata work and disclosure within authorized table scope. Expression text and partial predicates remain unavailable. Collection deadlines are cooperative and cover the index stage; SQLite forward/implicit-recursive CTEs and some equivalent MySQL case variants can be rejected. Final write descriptions are 3,546/2,642 characters (budgets 3,600/2,700); a Host loading both pays both copies of common text. Historical +159-token results do not measure this wording. Guidance remains fallible; no new durable result ledger or authenticated human approval is provided. See DRR-2026-073/075–079.
+
+**Validation.** Final full suite **941 passed, 4 skipped, 6 legacy logging warnings**, Pyright zero errors/warnings, prompt-resource check, sdist/wheel build and outside-repository installed-wheel stdio on modern and legacy protocols passed. The explicit MySQL adapter subset passed 15 tests, including existing real connection checks; other cases use test doubles. Live MySQL 8.0.25/SQLite index comparisons passed and isolated fixtures were removed. Three GPT-6 Luna native runs each completed index, aggregation and preview-only recovery tasks without writing existing rows. Final independent malformed-field replays passed 3/3 ordinary and 3/3 simulated MRTR; earlier failures are retained. There is no matched historical performance comparison or new remote CI result.
+
+After the maintainer restart, the resident Host description matched final source. Malformed-field and missing-rowcount replays using current metadata passed 3/3 each; native index/preview tasks passed 3/3 with no execute. Complete recovery routes were correct 2/3; the omitted confirmed step and later correction are retained, and an actual preview rejected the invalid jump. The new combined-task costs are recorded without a historical performance guarantee. Source was unchanged, so no full-suite rerun was needed. Native MRTR UI gaps remain separate. See the [complete evidence](../validation/V3_8_1_REVIEW_2026_10_12_ZH.md).

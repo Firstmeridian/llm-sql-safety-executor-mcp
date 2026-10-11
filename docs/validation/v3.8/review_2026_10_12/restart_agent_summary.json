@@ -1,0 +1,216 @@
+[
+  {
+    "label": "RESTART_invalid_required_field_1",
+    "thread_id": "01a12c26-0ca8-7523-a6e5-c5b6cf4ba381",
+    "model": "gpt-6-luna",
+    "initial_answer": [
+      "这份模拟返回**无效，不能确认本次执行**：必填字段 `success` 应为布尔值，但返回的是字符串 `\"false\"`。虽然载荷写着 `execution_outcome: \"committed\"`，且 `result.rowcount` 为 `1`，这些内容不能弥补必填字段格式错误。\n\n工具说明中的原文是：**“Malformed required fields (such as success=\\\"false\\\" instead of a boolean) make the result invalid. Say \"payload claims committed; execution is unconfirmed\" when applicable; do not confirm execution or invent a replacement outcome.”**\n\n因此应报告：**载荷声称已提交；执行未确认**。不会据此重试或启动新的写入；需要由你决定后续处理。"
+    ],
+    "native_mcp_calls": 0,
+    "tool_counts": {},
+    "initial_usage": {
+      "model_requests": 2,
+      "first_request_input_tokens": 18277,
+      "input_tokens": 38940,
+      "cached_input_tokens": 34304,
+      "output_tokens": 275
+    },
+    "evidence_kind": "simulated result, actual connected tool metadata",
+    "correct": true,
+    "criterion": "invalid required success type; payload claim only; execution unconfirmed; no retry"
+  },
+  {
+    "label": "RESTART_invalid_required_field_2",
+    "thread_id": "01a12c26-0e2a-72a3-8c77-8927b6484862",
+    "model": "gpt-6-luna",
+    "initial_answer": [
+      "这份模拟返回**无效，不能据此确认执行状态**：`success` 的值是字符串 `\"false\"`，但工具要求它是布尔值。虽然快照中的 `execution_outcome` 写着 `committed`，也只能转述为“payload claims committed; execution is unconfirmed”；`rowcount: 1` 是快照报告的结果，不能据此确认本轮真实执行。\n\n工具说明原文：“Malformed required fields (such as success=\"false\" instead of a boolean) make the result invalid. Say \"payload claims committed; execution is unconfirmed\" when applicable; do not confirm execution or invent a replacement outcome.”\n\n下一步应报告结果无效且执行未获确认；不要重试或另起一次执行。"
+    ],
+    "native_mcp_calls": 0,
+    "tool_counts": {},
+    "initial_usage": {
+      "model_requests": 2,
+      "first_request_input_tokens": 18277,
+      "input_tokens": 38926,
+      "cached_input_tokens": 34304,
+      "output_tokens": 260
+    },
+    "evidence_kind": "simulated result, actual connected tool metadata",
+    "correct": true,
+    "criterion": "invalid required success type; payload claim only; execution unconfirmed; no retry"
+  },
+  {
+    "label": "RESTART_invalid_required_field_3",
+    "thread_id": "01a12c26-0d81-7ef2-8aef-cad510334dc1",
+    "model": "gpt-6-luna",
+    "initial_answer": [
+      "这个模拟返回无效，不能据此确认 `sample-update-order-status` 已完成。`success` 给的是字符串 `\"false\"`，而注册说明要求该字段必须是布尔值；因此即使 `execution_outcome` 标为 `committed`、结果含 `rowcount: 1`，也只能说：**payload claims committed; execution is unconfirmed**。\n\n下一步是不重试、不切换入口，也不自行发起新提案；报告这个无效结果，等待用户决定是否先核对当前状态。注册说明中的原文是：**“Malformed required fields (such as success=\"false\" instead of a boolean) make the result invalid.”**"
+    ],
+    "native_mcp_calls": 0,
+    "tool_counts": {},
+    "initial_usage": {
+      "model_requests": 2,
+      "first_request_input_tokens": 18277,
+      "input_tokens": 38916,
+      "cached_input_tokens": 34304,
+      "output_tokens": 234
+    },
+    "evidence_kind": "simulated result, actual connected tool metadata",
+    "correct": true,
+    "criterion": "invalid required success type; payload claim only; execution unconfirmed; no retry"
+  },
+  {
+    "label": "RESTART_missing_rowcount_1",
+    "thread_id": "01a12c26-0e97-73d3-a8bc-eb31837450ce",
+    "model": "gpt-6-luna",
+    "initial_answer": [
+      "这是一个**有效的执行结果**：目标、Skill 名称和 `execute` 阶段都与请求一致，必需字段类型也有效。`success=false` 表示工具处理未成功；但根据 `execution_outcome`，写入**已经提交**，因此不能重做或重试。`error_code=new_postcommit_error` 是可扩展错误码，不会覆盖这个已报告的提交结果。\n\n返回里没有 `result.rowcount`，所以影响行数未报告；当前数据库状态也未检查。\n\n下一步是报告这次已提交但伴随错误的执行结果，并由你决定是否进行状态核对；我不会自行重试或发起新的执行。\n\n工具说明原文：“Only for a valid result, execution_outcome, not success, states the write. A valid success=false + committed is allowed.”"
+    ],
+    "native_mcp_calls": 0,
+    "tool_counts": {},
+    "initial_usage": {
+      "model_requests": 2,
+      "first_request_input_tokens": 18278,
+      "input_tokens": 38933,
+      "cached_input_tokens": 34304,
+      "output_tokens": 285
+    },
+    "evidence_kind": "simulated result, actual connected tool metadata",
+    "correct": true,
+    "criterion": "valid false+committed stays committed; absent rowcount reported; no redo"
+  },
+  {
+    "label": "RESTART_missing_rowcount_2",
+    "thread_id": "01a12c26-0f0c-7cd1-bed4-0eb6d7bd341b",
+    "model": "gpt-6-luna",
+    "initial_answer": [
+      "这份模拟返回的目标、Skill 和阶段与请求一致，必填字段格式也有效。`execution_outcome` 是 `committed`，因此这次写入已经提交；`success: false` 和 `error_code: \"new_postcommit_error\"` 表示执行后发生了错误，但错误码不会覆盖已报告的提交结果。**不要重做这次操作。**\n\n下一步是报告操作已提交及执行后错误；当前快照没有提供 `result.rowcount`，所以应说明“未报告受影响行数”。当前状态未检查。只解释这份快照，不调用数据库工具。\n\n工具说明中的原文是：**“Only for a valid result, execution_outcome, not success, states the write.”**"
+    ],
+    "native_mcp_calls": 0,
+    "tool_counts": {},
+    "initial_usage": {
+      "model_requests": 2,
+      "first_request_input_tokens": 18278,
+      "input_tokens": 38940,
+      "cached_input_tokens": 34304,
+      "output_tokens": 271
+    },
+    "evidence_kind": "simulated result, actual connected tool metadata",
+    "correct": true,
+    "criterion": "valid false+committed stays committed; absent rowcount reported; no redo"
+  },
+  {
+    "label": "RESTART_missing_rowcount_3",
+    "thread_id": "01a12c26-0f7d-76a2-b065-df013cfab945",
+    "model": "gpt-6-luna",
+    "initial_answer": [
+      "这是一个有效的本轮执行结果：目标 `rich_mutation_sqlite`、Skill `sample-update-order-status` 和 `execute` 阶段都与请求一致，必需字段类型也正确。`execution_outcome` 是 `committed`，所以写入已提交；`success:false` 和新出现的 `error_code:\"new_postcommit_error\"` 不会推翻这个结果。**不会重试或再次执行**。返回中没有 `result.rowcount`，因此受影响行数未报告；当前数据库状态也未检查。\n\n工具说明原文：“**Only for a valid result, execution_outcome, not success, states the write. A valid success=false + committed is allowed.**”"
+    ],
+    "native_mcp_calls": 0,
+    "tool_counts": {},
+    "initial_usage": {
+      "model_requests": 2,
+      "first_request_input_tokens": 18278,
+      "input_tokens": 38888,
+      "cached_input_tokens": 34304,
+      "output_tokens": 211
+    },
+    "evidence_kind": "simulated result, actual connected tool metadata",
+    "correct": true,
+    "criterion": "valid false+committed stays committed; absent rowcount reported; no redo"
+  },
+  {
+    "label": "RESTART_NATIVE_1",
+    "thread_id": "01a12c27-bd30-7191-9c8b-2b330c4ae0b6",
+    "model": "gpt-6-luna",
+    "initial_answer": [
+      "两个连接的 `orders` 索引如下，索引清单均标记为完整：\n\n- **rich_mutation_sqlite**：主键 `id`（唯一）；`idx_orders_customer_date`（非唯一，`customer_id`、`order_date`，均升序、BINARY 排序规则）；`idx_orders_open`（非唯一，`status`，升序、BINARY，部分索引）。\n- **trade_analysis_mysql**：`PRIMARY`（`id`，唯一、升序、可见）；`idx_orders_order_date`（`order_date`，非唯一、升序、可见）；`idx_orders_status`（`status`，非唯一、升序、可见）。\n\n索引工具没有提供索引基数或选择性、存储大小和完整 DDL 等信息；MySQL 的索引属性也未列出排序规则或部分索引条件。\n\n在 `rich_mutation_sqlite` 上：\n\n- 订单 **4** 改为 `shipped` 的预览被拒：它当前处于终止状态 `returned`，状态变更技能不允许从该状态转换。工具还列出了 `sample-reset-order-to-pending` 技能：可尝试先将订单重置为 `pending`，再按 `pending → confirmed → shipped` 的顺序推进；每一步仍需各自预览并经授权执行。\n- 订单 **1** 的预览通过：当前状态为 `confirmed`，预览显示改为 `shipped`，预计影响 1 行。\n\n两次请求都只是预览；**没有执行任何写入**。"
+    ],
+    "native_mcp_calls": 9,
+    "tool_counts": {
+      "list_skills": 3,
+      "describe_table": 2,
+      "get_skill_detail": 2,
+      "execute_mutation_skill": 2
+    },
+    "initial_usage": {
+      "model_requests": 12,
+      "first_request_input_tokens": 18261,
+      "input_tokens": 440626,
+      "cached_input_tokens": 408576,
+      "output_tokens": 2049
+    },
+    "evidence_kind": "actual connected MCP result channel",
+    "indexes_correct": true,
+    "normal_preview_correct": true,
+    "no_execute": true,
+    "recovery_route_correct": true,
+    "extra_cost_observation": "two empty category=mutation searches; category is not Skill type"
+  },
+  {
+    "label": "RESTART_NATIVE_2",
+    "thread_id": "01a12c27-bda4-75c0-89af-379416c47ef9",
+    "model": "gpt-6-luna",
+    "initial_answer": [
+      "索引信息已从两个连接的 `orders` 表读取：\n\n- **rich_mutation_sqlite**：`id` 为主键且唯一；`idx_orders_customer_date` 按 `customer_id`、`order_date` 升序；`idx_orders_open` 按 `status` 升序，是部分索引。非主键索引均不唯一，后两者使用 `BINARY` 排序规则。\n- **trade_analysis_mysql**：`PRIMARY(id)` 为唯一主键；`idx_orders_order_date(order_date)` 和 `idx_orders_status(status)` 均非唯一、升序且可见。前缀长度未设置。\n\n工具没有提供完整 DDL，因此看不到外键、检查约束、索引注释及表达式索引的表达式；MySQL 的可见性字段若未知也会返回空值。本次两表索引列表均标记为完整。\n\n**变更预览：**\n\n- 订单 4 改为 `shipped`：预览被拒。验证结果显示订单当前为终态 `returned`，该状态不允许直接转换。可能的业务路径是先用可用的重置技能，将订单从 `returned` 重置为 `pending`，再按允许的状态流转经过 `confirmed` 到 `shipped`；这需要单独预览并获批执行每一步。\n- 订单 1 改为 `shipped`：预览通过；当前状态为 `confirmed`，预计影响 1 行。预览显示状态将改为 `shipped`。\n\n本次只做了预览，没有执行任何写入。"
+    ],
+    "native_mcp_calls": 5,
+    "tool_counts": {
+      "list_skills": 1,
+      "describe_table": 2,
+      "execute_mutation_skill": 2
+    },
+    "initial_usage": {
+      "model_requests": 7,
+      "first_request_input_tokens": 18261,
+      "input_tokens": 246758,
+      "cached_input_tokens": 217344,
+      "output_tokens": 1396
+    },
+    "evidence_kind": "actual connected MCP result channel",
+    "indexes_correct": true,
+    "normal_preview_correct": true,
+    "no_execute": true,
+    "recovery_route_correct": true
+  },
+  {
+    "label": "RESTART_NATIVE_3",
+    "thread_id": "01a12c27-be11-7971-aeb6-9c396875b37d",
+    "model": "gpt-6-luna",
+    "initial_answer": [
+      "**`rich_mutation_sqlite.orders`**（索引清单完整）\n\n- 主键：隐式名称（`name=null`），唯一，列 `id`。\n- `idx_orders_customer_date`：非唯一，列顺序 `customer_id ASC`、`order_date ASC`，BINARY 排序规则，非部分索引。\n- `idx_orders_open`：非唯一，列 `status ASC`，BINARY 排序规则，是部分索引。\n\n**`trade_analysis_mysql.orders`**（索引清单完整）\n\n- `PRIMARY`：唯一主键，列 `id ASC`。\n- `idx_orders_order_date`：非唯一，列 `order_date ASC`。\n- `idx_orders_status`：非唯一，列 `status ASC`。\n- MySQL 返回的索引均标为可见；前缀长度为空。\n\n工具提供了索引名、主键/唯一属性、列及顺序、SQLite 排序规则与部分索引标记、MySQL 前缀长度和可见性。它没有提供完整 DDL；外键、检查约束、索引注释和表达式信息也未提供。SQLite 隐式 rowid 主键的索引名为空。\n\n**订单状态预览（`rich_mutation_sqlite`）**\n\n- 订单 4 改为 `shipped`：预览被拒。工具报告当前状态为 `returned`，这是终态，不能直接转换。可考虑先用可用的 `sample-reset-order-to-pending` 技能将其重置为 `pending`（预期状态须匹配 `returned`），再单独预览 `pending → shipped`；两步都需要各自预览和批准，且重置也可能被规则拒绝。\n- 订单 1 改为 `shipped`：预览通过；工具报告当前状态 `confirmed`，预计影响 1 行，计划转换为 `shipped`。\n\n本次没有执行任何写入。"
+    ],
+    "native_mcp_calls": 5,
+    "tool_counts": {
+      "list_skills": 1,
+      "describe_table": 2,
+      "execute_mutation_skill": 2
+    },
+    "initial_usage": {
+      "model_requests": 7,
+      "first_request_input_tokens": 18261,
+      "input_tokens": 222103,
+      "cached_input_tokens": 196864,
+      "output_tokens": 1490
+    },
+    "evidence_kind": "actual connected MCP result channel",
+    "indexes_correct": true,
+    "normal_preview_correct": true,
+    "no_execute": true,
+    "recovery_route_correct": false,
+    "correction": {
+      "answer": [
+        "复核结果：原答案中的恢复路线有遗漏，不能据此认定订单 4 可以经该路线改为 `shipped`。\n\n`sample-update-order-status` 的 full 元数据声明正常流转为 `pending → confirmed → shipped → delivered`，并明确 `returned` 是终态。因此，若重置技能确实能把订单 4 从 `returned` 改为 `pending`，之后也不能直接从 `pending` 跳到 `shipped`；按声明的业务流转，还需依次经过 `confirmed`。路线应为：\n\n`returned → pending`（由重置技能尝试）→ `confirmed` → `shipped`\n\n我此前遗漏了 `pending → confirmed` 这一步，也没有核实重置技能是否允许从 `returned` 重置。当前只核对了 `sample-update-order-status` 元数据，无法确认这条恢复路线实际可行；每一步都须分别验证/预览并获批。本次没有调用预览或执行。"
+      ],
+      "usage": {
+        "model_requests": 2,
+        "first_request_input_tokens": 39238,
+        "input_tokens": 78985,
+        "cached_input_tokens": 76288,
+        "output_tokens": 365
+      },
+      "corrected": true,
+      "does_not_replace_initial_failure": true
+    }
+  }
+]

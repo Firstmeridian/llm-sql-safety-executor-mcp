@@ -33,6 +33,9 @@ Guides stay under `docs/guides/` even when their titles identify an earlier vers
 
 ## Releases and validation
 
+- [October 12 v3.8.1 review completion (Chinese)](validation/V3_8_1_REVIEW_2026_10_12_ZH.md): final regressions, installed-wheel/live database checks, GPT-6 Luna traces, retained failures and completed resident-Host refresh checks with a recorded recovery-route misstatement.
+- [October 3 v3.8.1 review (Chinese)](validation/V3_8_1_REVIEW_2026_10_03_ZH.md): five-commit audit, query-policy fixes, bounded index metadata and actual validation limits.
+
 - [October 1 native MRTR acceptance (Chinese)](validation/V3_8_MRTR_NATIVE_2026_10_01_ZH.md): actual commits, delayed-approval rejection, final fixture state and remaining TTL/restart boundaries.
 
 - [v3.8 follow-up review (Chinese)](validation/V3_8_REREVIEW_2026_09_28_ZH.md): confirmed green CI for `139d53a`, Query Skill static-policy discovery fix, regressions and remaining Host acceptance scope.

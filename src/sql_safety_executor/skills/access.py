@@ -209,7 +209,7 @@ def _get_skill_schema_snapshot(
         enabled=True,
         available=True,
         table_names=frozenset(
-            str(table.get("table_name", "")).lower()
+            connection.policy.table_key(str(table.get("table_name", "")))
             for table in tables
             if table.get("table_name")
         ),
@@ -363,7 +363,7 @@ def _skill_availability_state(
             missing_tables = [
                 table
                 for table in meta.tables
-                if table.lower() not in schema_snapshot.table_names
+                if connection.policy.table_key(table) not in schema_snapshot.table_names
             ]
             if missing_tables:
                 schema_ready = False

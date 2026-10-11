@@ -125,7 +125,7 @@ def create_server(config: AppConfig) -> FastMCP:
             server.tool(
                 _handler(function, runtime),
                 name=function.__name__,
-                description=render.text(f"tools/{function.__name__}.md"),
+                description=render.tool_description(function.__name__),
                 annotations=annotations,
                 output_schema=output_schema,
                 timeout=runtime.tool_timeout,

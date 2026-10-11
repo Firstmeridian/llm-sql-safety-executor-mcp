@@ -33,7 +33,7 @@ class DatabaseAdapter(ABC):
 
     @abstractmethod
     def execute(
-        self, sql: str, timeout: int | None = None, params: dict | None = None
+        self, sql: str, timeout: int | float | None = None, params: dict | None = None
     ) -> list | str:
         """
         Execute a SQL query with timeout protection.
@@ -118,13 +118,17 @@ class DatabaseAdapter(ABC):
         Get the table's indexes, primary key first, then by name.
 
         Each dict has name (None for an implicit SQLite rowid key), primary,
-        unique and ordered columns (None for an expression key part), plus
-        optional has_expression and type; SQLite always adds partial.
+        unique, ordered columns (None for an expression key part), and matching
+        key_parts with column and sort_order (asc/desc/None). SQLite key_parts
+        add collation and its indexes add partial. MySQL key_parts instead add
+        prefix_length; visible is True/False/None for optimizer visibility.
+        Optional has_expression and type identify special index forms.
+        Built-in adapters enforce fixed all-or-unavailable collection limits.
         Comments, expressions, partial-index predicates and cardinality are
         not returned.
 
         Raises:
-            MetadataQueryError: If index metadata cannot be read
+            MetadataQueryError: If index metadata cannot be read within budget
         """
         raise MetadataQueryError("reading table indexes")
 
@@ -174,7 +178,7 @@ class DatabaseAdapter(ABC):
         """Close database connection and cleanup resources."""
         pass
 
-    def _handle_error(self, e: Exception, timeout: int | None = None) -> str:
+    def _handle_error(self, e: Exception, timeout: int | float | None = None) -> str:
         """
         Sanitize error messages for security.
 

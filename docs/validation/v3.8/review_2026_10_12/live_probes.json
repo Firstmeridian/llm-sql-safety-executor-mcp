@@ -1,0 +1,547 @@
+{
+  "checked_at_utc": "2026-10-11T16:55:01.916200+00:00",
+  "existing_database_rows_written": false,
+  "registered_description_chars": {
+    "list_connections": 1523,
+    "query": 953,
+    "check_connection": 2436,
+    "list_tables": 842,
+    "describe_table": 1654,
+    "get_full_schema": 893,
+    "list_skills": 527,
+    "get_skill_detail": 418,
+    "execute_query_skill": 509,
+    "execute_mutation_skill": 3113
+  },
+  "live_mcp_orders_metadata": {
+    "trade_analysis_mysql": {
+      "success": true,
+      "table_name": "orders",
+      "db_type": "mysql",
+      "connection_id": "trade_analysis_mysql",
+      "row_count": 8,
+      "row_count_approximate": true,
+      "column_count": 7,
+      "columns": [
+        {
+          "column_name": "id",
+          "data_type": "int",
+          "nullable": "NO",
+          "key_type": "PRI",
+          "default_value": null
+        },
+        {
+          "column_name": "order_date",
+          "data_type": "datetime",
+          "nullable": "NO",
+          "key_type": "MUL",
+          "default_value": null
+        },
+        {
+          "column_name": "amount",
+          "data_type": "decimal",
+          "nullable": "NO",
+          "key_type": "",
+          "default_value": null
+        },
+        {
+          "column_name": "total_amount",
+          "data_type": "decimal",
+          "nullable": "NO",
+          "key_type": "",
+          "default_value": null
+        },
+        {
+          "column_name": "status",
+          "data_type": "varchar",
+          "nullable": "NO",
+          "key_type": "MUL",
+          "default_value": "pending"
+        },
+        {
+          "column_name": "created_at",
+          "data_type": "timestamp",
+          "nullable": "YES",
+          "key_type": "",
+          "default_value": "CURRENT_TIMESTAMP"
+        },
+        {
+          "column_name": "updated_at",
+          "data_type": "timestamp",
+          "nullable": "YES",
+          "key_type": "",
+          "default_value": "CURRENT_TIMESTAMP"
+        }
+      ],
+      "is_large": false,
+      "indexes": [
+        {
+          "name": "PRIMARY",
+          "primary": true,
+          "unique": true,
+          "columns": [
+            "id"
+          ],
+          "key_parts": [
+            {
+              "column": "id",
+              "prefix_length": null,
+              "sort_order": "asc"
+            }
+          ],
+          "visible": true
+        },
+        {
+          "name": "idx_orders_order_date",
+          "primary": false,
+          "unique": false,
+          "columns": [
+            "order_date"
+          ],
+          "key_parts": [
+            {
+              "column": "order_date",
+              "prefix_length": null,
+              "sort_order": "asc"
+            }
+          ],
+          "visible": true
+        },
+        {
+          "name": "idx_orders_status",
+          "primary": false,
+          "unique": false,
+          "columns": [
+            "status"
+          ],
+          "key_parts": [
+            {
+              "column": "status",
+              "prefix_length": null,
+              "sort_order": "asc"
+            }
+          ],
+          "visible": true
+        }
+      ],
+      "indexes_status": "complete"
+    },
+    "rich_mutation_sqlite": {
+      "success": true,
+      "table_name": "orders",
+      "db_type": "sqlite",
+      "connection_id": "rich_mutation_sqlite",
+      "row_count": 80,
+      "row_count_approximate": true,
+      "column_count": 5,
+      "columns": [
+        {
+          "column_name": "id",
+          "data_type": "INTEGER",
+          "nullable": "YES",
+          "key_type": "PRI",
+          "default_value": null
+        },
+        {
+          "column_name": "customer_id",
+          "data_type": "INTEGER",
+          "nullable": "NO",
+          "key_type": "",
+          "default_value": null
+        },
+        {
+          "column_name": "status",
+          "data_type": "TEXT",
+          "nullable": "NO",
+          "key_type": "",
+          "default_value": null
+        },
+        {
+          "column_name": "order_date",
+          "data_type": "TEXT",
+          "nullable": "NO",
+          "key_type": "",
+          "default_value": null
+        },
+        {
+          "column_name": "total_amount",
+          "data_type": "REAL",
+          "nullable": "NO",
+          "key_type": "",
+          "default_value": null
+        }
+      ],
+      "is_large": false,
+      "indexes": [
+        {
+          "name": null,
+          "primary": true,
+          "unique": true,
+          "columns": [
+            "id"
+          ],
+          "key_parts": [
+            {
+              "column": "id",
+              "sort_order": null,
+              "collation": null
+            }
+          ],
+          "partial": false
+        },
+        {
+          "name": "idx_orders_customer_date",
+          "primary": false,
+          "unique": false,
+          "columns": [
+            "customer_id",
+            "order_date"
+          ],
+          "key_parts": [
+            {
+              "column": "customer_id",
+              "sort_order": "asc",
+              "collation": "BINARY"
+            },
+            {
+              "column": "order_date",
+              "sort_order": "asc",
+              "collation": "BINARY"
+            }
+          ],
+          "partial": false
+        },
+        {
+          "name": "idx_orders_open",
+          "primary": false,
+          "unique": false,
+          "columns": [
+            "status"
+          ],
+          "key_parts": [
+            {
+              "column": "status",
+              "sort_order": "asc",
+              "collation": "BINARY"
+            }
+          ],
+          "partial": true
+        }
+      ],
+      "indexes_status": "complete"
+    }
+  },
+  "existing_mysql_native_comparison": true,
+  "read_rejections": [
+    {
+      "target": "rich_mutation_sqlite",
+      "sql": "SELECT name FROM \"pragma_index_list\"('orders')",
+      "error": "SQLite PRAGMA table-valued functions are not allowed in queries; use list_tables() or describe_table() instead (describe_table() also returns indexes)."
+    },
+    {
+      "target": "rich_mutation_sqlite",
+      "sql": "SELECT 1 UNION ALL SELECT 2",
+      "error": "UNION queries disabled for security on this connection. Prefer one permitted query without UNION (scalar subqueries, EXISTS/NOT EXISTS, JOIN or a CTE) when it keeps the task's meaning. If you run separate queries, aggregate in SQL and check truncation, duplicates and ordering before combining; do not switch connections."
+    },
+    {
+      "target": "trade_analysis_mysql",
+      "sql": "SELECT 1 UNION ALL SELECT 2",
+      "error": "UNION queries disabled for security on this connection. Prefer one permitted query without UNION (scalar subqueries, EXISTS/NOT EXISTS, JOIN or a CTE) when it keeps the task's meaning. If you run separate queries, aggregate in SQL and check truncation, duplicates and ordering before combining; do not switch connections."
+    },
+    {
+      "target": "trade_analysis_mysql",
+      "sql": "SHOW INDEX FROM orders",
+      "error": "SHOW statements are not allowed in raw queries. Use list_tables() or describe_table() instead; describe_table() also returns indexes."
+    },
+    {
+      "target": "trade_analysis_mysql",
+      "sql": "SELECT @@hostname IS NOT NULL",
+      "error": "System variables (@@...) are not allowed in queries; they expose server configuration rather than table data."
+    }
+  ],
+  "independent_aggregation_truth": {
+    "mysql_table_count": 5,
+    "mysql_rows": 1023,
+    "mysql_codes": 20,
+    "sqlite_rows": 720,
+    "sqlite_products": 38
+  },
+  "existing_order_states_unchanged": true,
+  "order_states": {
+    "mysql": [
+      [
+        1,
+        "confirmed"
+      ],
+      [
+        2,
+        "confirmed"
+      ],
+      [
+        3,
+        "shipped"
+      ],
+      [
+        4,
+        "delivered"
+      ],
+      [
+        5,
+        "cancelled"
+      ],
+      [
+        6,
+        "pending"
+      ],
+      [
+        7,
+        "confirmed"
+      ],
+      [
+        8,
+        "shipped"
+      ]
+    ],
+    "sqlite": [
+      [
+        1,
+        "confirmed"
+      ],
+      [
+        2,
+        "confirmed"
+      ],
+      [
+        3,
+        "confirmed"
+      ],
+      [
+        4,
+        "returned"
+      ],
+      [
+        5,
+        "returned"
+      ],
+      [
+        6,
+        "returned"
+      ],
+      [
+        7,
+        "confirmed"
+      ],
+      [
+        8,
+        "confirmed"
+      ],
+      [
+        9,
+        "confirmed"
+      ],
+      [
+        10,
+        "returned"
+      ],
+      [
+        11,
+        "returned"
+      ],
+      [
+        12,
+        "returned"
+      ]
+    ]
+  },
+  "mysql_special_indexes": {
+    "indexes": [
+      {
+        "name": "PRIMARY",
+        "primary": true,
+        "unique": true,
+        "columns": [
+          "id"
+        ],
+        "key_parts": [
+          {
+            "column": "id",
+            "prefix_length": null,
+            "sort_order": "asc"
+          }
+        ],
+        "visible": true
+      },
+      {
+        "name": "idx_desc",
+        "primary": false,
+        "unique": false,
+        "columns": [
+          "score",
+          "label"
+        ],
+        "key_parts": [
+          {
+            "column": "score",
+            "prefix_length": null,
+            "sort_order": "desc"
+          },
+          {
+            "column": "label",
+            "prefix_length": null,
+            "sort_order": "asc"
+          }
+        ],
+        "visible": false
+      },
+      {
+        "name": "idx_expression",
+        "primary": false,
+        "unique": false,
+        "columns": [
+          null
+        ],
+        "key_parts": [
+          {
+            "column": null,
+            "prefix_length": null,
+            "sort_order": "asc"
+          }
+        ],
+        "visible": true,
+        "has_expression": true
+      },
+      {
+        "name": "idx_prefix",
+        "primary": false,
+        "unique": false,
+        "columns": [
+          "label"
+        ],
+        "key_parts": [
+          {
+            "column": "label",
+            "prefix_length": 4,
+            "sort_order": "asc"
+          }
+        ],
+        "visible": true
+      },
+      {
+        "name": "uq_label",
+        "primary": false,
+        "unique": true,
+        "columns": [
+          "label"
+        ],
+        "key_parts": [
+          {
+            "column": "label",
+            "prefix_length": null,
+            "sort_order": "asc"
+          }
+        ],
+        "visible": true
+      }
+    ],
+    "native_attribute_comparison_passed": true,
+    "cte_physical_table_count": 4,
+    "original_cte_policy_allowed": true,
+    "current_cte_policy_allowed": false
+  },
+  "mysql_fixture_removed": true,
+  "sqlite_special_indexes": {
+    "indexes": [
+      {
+        "name": null,
+        "primary": true,
+        "unique": true,
+        "columns": [
+          "id"
+        ],
+        "key_parts": [
+          {
+            "column": "id",
+            "sort_order": null,
+            "collation": null
+          }
+        ],
+        "partial": false
+      },
+      {
+        "name": "idx_expression",
+        "primary": false,
+        "unique": false,
+        "columns": [
+          null
+        ],
+        "key_parts": [
+          {
+            "column": null,
+            "sort_order": "asc",
+            "collation": "BINARY"
+          }
+        ],
+        "partial": false,
+        "has_expression": true
+      },
+      {
+        "name": "idx_mixed",
+        "primary": false,
+        "unique": false,
+        "columns": [
+          "label",
+          "score"
+        ],
+        "key_parts": [
+          {
+            "column": "label",
+            "sort_order": "desc",
+            "collation": "NOCASE"
+          },
+          {
+            "column": "score",
+            "sort_order": "asc",
+            "collation": "BINARY"
+          }
+        ],
+        "partial": false
+      },
+      {
+        "name": "idx_partial",
+        "primary": false,
+        "unique": false,
+        "columns": [
+          "score"
+        ],
+        "key_parts": [
+          {
+            "column": "score",
+            "sort_order": "asc",
+            "collation": "BINARY"
+          }
+        ],
+        "partial": true
+      },
+      {
+        "name": "uq_label",
+        "primary": false,
+        "unique": true,
+        "columns": [
+          "label"
+        ],
+        "key_parts": [
+          {
+            "column": "label",
+            "sort_order": "asc",
+            "collation": "BINARY"
+          }
+        ],
+        "partial": false
+      }
+    ],
+    "native_attribute_comparison_passed": true,
+    "quoted_pragma_original_allowed_current_denied": true,
+    "business_pragma_column_original_denied_current_allowed": true
+  },
+  "sqlite_fixture_removed": true
+}

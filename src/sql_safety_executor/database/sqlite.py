@@ -11,6 +11,7 @@ logger = logging.getLogger(__name__)
 
 from .models import DatabaseConfig
 from .base import DatabaseAdapter
+from .indexes import IndexMetadataBudget, MAX_INDEX_KEY_PARTS
 from .outcomes import (
     MetadataQueryError,
     WriteExecutionOutcome,
@@ -135,7 +136,7 @@ class SQLiteAdapter(DatabaseAdapter):
             return False
 
     def execute(
-        self, sql: str, timeout: int | None = None, params: dict | None = None
+        self, sql: str, timeout: int | float | None = None, params: dict | None = None
     ) -> list | str:
         """
         Execute SQL query with timeout protection via set_progress_handler.
@@ -341,7 +342,7 @@ class SQLiteAdapter(DatabaseAdapter):
         _close_write_connection(connection)
         return WriteExecutionResult(rowcount)
 
-    def _handle_error(self, e: Exception, timeout: int | None = None) -> str:
+    def _handle_error(self, e: Exception, timeout: int | float | None = None) -> str:
         """
         Sanitize error messages for security.
 
@@ -376,7 +377,7 @@ class SQLiteAdapter(DatabaseAdapter):
         """
         sql = """
             SELECT name as table_name
-            FROM sqlite_master
+            FROM main.sqlite_master
             WHERE type='table' AND name NOT LIKE 'sqlite_%'
             ORDER BY name
         """
@@ -413,7 +414,7 @@ class SQLiteAdapter(DatabaseAdapter):
             return []
 
         quoted_table_name = _quote_sqlite_identifier(table_name)
-        sql = f"PRAGMA table_info({quoted_table_name})"
+        sql = f"PRAGMA main.table_info({quoted_table_name})"
         result = self.execute(sql)
 
         if isinstance(result, str):
@@ -436,46 +437,60 @@ class SQLiteAdapter(DatabaseAdapter):
         return columns
 
     def get_indexes(self, table_name: str) -> list[dict[str, Any]]:
-        """Get index structure from SQLite PRAGMA table-valued functions."""
+        """Read only main-schema indexes in two bounded metadata queries."""
         if _metadata_identifier_is_rejected(table_name):
             raise MetadataQueryError("reading table indexes")
-
-        index_rows = self.execute(
-            'SELECT name, "unique", origin, partial '
-            "FROM pragma_index_list(:table_name)",
-            params={"table_name": table_name},
-        )
-        pk_rows = self.execute(
-            "SELECT name FROM pragma_table_info(:table_name) "
-            "WHERE pk > 0 ORDER BY pk",
-            params={"table_name": table_name},
-        )
-        if isinstance(index_rows, str) or isinstance(pk_rows, str):
-            logger.error("Failed to read SQLite index metadata")
-            raise MetadataQueryError("reading table indexes")
-
-        indexes: list[dict[str, Any]] = []
-        for name, unique, origin, partial in index_rows:
-            key_rows = self.execute(
-                "SELECT cid, name FROM pragma_index_xinfo(:index_name) "
-                "WHERE key = 1 ORDER BY seqno",
-                params={"index_name": name},
+        budget = IndexMetadataBudget(self._query_timeout_seconds)
+        index_rows = budget.rows(
+            self.execute(
+                'SELECT il.name, il."unique", il.origin, il.partial, '
+                'xi.seqno, xi.cid, xi.name, xi."desc", xi.coll '
+                "FROM pragma_index_list(:table_name, 'main') AS il "
+                "JOIN pragma_index_xinfo(il.name, 'main') AS xi ON xi.key = 1 "
+                "ORDER BY il.name, xi.seqno LIMIT :row_limit",
+                timeout=budget.remaining(),
+                params={"table_name": table_name, "row_limit": MAX_INDEX_KEY_PARTS + 1},
             )
-            if isinstance(key_rows, str):
-                logger.error("Failed to read SQLite index metadata")
-                raise MetadataQueryError("reading table indexes")
-            index: dict[str, Any] = {
-                "name": name,
-                "primary": origin == "pk",
-                "unique": bool(unique),
-                # cid -2 marks an expression key part.
-                "columns": [None if cid == -2 else column for cid, column in key_rows],
-                "partial": bool(partial),
-            }
-            if any(cid == -2 for cid, _ in key_rows):
-                index["has_expression"] = True
-            indexes.append(index)
+        )
+        pk_rows = budget.rows(
+            self.execute(
+                "SELECT name FROM pragma_table_info(:table_name, 'main') "
+                "WHERE pk > 0 ORDER BY pk LIMIT :row_limit",
+                timeout=budget.remaining(),
+                params={"table_name": table_name, "row_limit": MAX_INDEX_KEY_PARTS + 1},
+            )
+        )
 
+        by_name: dict[str, dict[str, Any]] = {}
+        for (
+            name, unique, origin, partial, _seq, cid, column, descending, collation
+        ) in index_rows:
+            index = by_name.setdefault(
+                name,
+                {
+                    "name": name,
+                    "primary": origin == "pk",
+                    "unique": bool(unique),
+                    "columns": [],
+                    "key_parts": [],
+                    "partial": bool(partial),
+                },
+            )
+            # cid -2 marks an expression key part; key=0 auxiliary columns
+            # are excluded by the fixed SQL, not mistaken for key parts.
+            column = None if cid == -2 else column
+            index["columns"].append(column)
+            index["key_parts"].append(
+                {
+                    "column": column,
+                    "sort_order": "desc" if descending else "asc",
+                    "collation": collation,
+                }
+            )
+            if cid == -2:
+                index["has_expression"] = True
+
+        indexes = list(by_name.values())
         # An INTEGER PRIMARY KEY aliases the rowid and has no index entry.
         if pk_rows and not any(index["primary"] for index in indexes):
             indexes.append(
@@ -484,11 +499,16 @@ class SQLiteAdapter(DatabaseAdapter):
                     "primary": True,
                     "unique": True,
                     "columns": [row[0] for row in pk_rows],
+                    # Synthetic keys have no index_xinfo direction/collation.
+                    "key_parts": [
+                        {"column": row[0], "sort_order": None, "collation": None}
+                        for row in pk_rows
+                    ],
                     "partial": False,
                 }
             )
-        return sorted(
-            indexes, key=lambda item: (not item["primary"], item["name"] or "")
+        return budget.finish(
+            sorted(indexes, key=lambda item: (not item["primary"], item["name"] or ""))
         )
 
     def get_row_estimate(self, table_name: str) -> int | None:
@@ -507,7 +527,7 @@ class SQLiteAdapter(DatabaseAdapter):
         # Try sqlite_stat1 first (if ANALYZE has been run)
         # First check if sqlite_stat1 exists to avoid error logging
         check_sql = (
-            "SELECT name FROM sqlite_master WHERE type='table' AND name='sqlite_stat1'"
+            "SELECT name FROM main.sqlite_master WHERE type='table' AND name='sqlite_stat1'"
         )
         check_result = self.execute(check_sql)
 
@@ -517,7 +537,7 @@ class SQLiteAdapter(DatabaseAdapter):
 
         if check_result:
             # sqlite_stat1 exists, query it
-            stat_sql = "SELECT stat FROM sqlite_stat1 WHERE tbl = :table_name LIMIT 1"
+            stat_sql = "SELECT stat FROM main.sqlite_stat1 WHERE tbl = :table_name LIMIT 1"
             stat_result = self.execute(stat_sql, params={"table_name": table_name})
 
             if isinstance(stat_result, str):
@@ -538,7 +558,7 @@ class SQLiteAdapter(DatabaseAdapter):
         # a full COUNT(*) on large tables; exact counts are opt-in elsewhere.
         sample_limit = 10000
         quoted_table_name = _quote_sqlite_identifier(table_name)
-        sample_sql = f"SELECT COUNT(*) FROM (SELECT 1 FROM {quoted_table_name} LIMIT {sample_limit})"
+        sample_sql = f"SELECT COUNT(*) FROM (SELECT 1 FROM main.{quoted_table_name} LIMIT {sample_limit})"
         sample_result = self.execute(sample_sql)
 
         if isinstance(sample_result, str):

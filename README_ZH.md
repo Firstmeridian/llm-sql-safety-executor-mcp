@@ -877,10 +877,12 @@ SQLite 初始化拒绝覆盖已有文件；MySQL 初始化遇到现存 orders �
 - 响应仍只返回绝对期限 `preview_token_expires_at`；试验性恢复的 `preview_token_expires_in_seconds` 已撤回。子代理被问及令牌是否仍可用时仍会按自身日期误判（偏保守，过期始终由 execute 校验）。
 - 写入工具说明新增结果解读规则：以 `execution_outcome` 而非 `success` 判断写入；`success=false` 但 `committed` 不得重做；`unknown` 可能已写入也可能未写入；不带 `execution_outcome` 的错误不证明任何结论；不得自行重试或改走其他入口。回放试验从 12/18 提升到 16/18（MRTR 协议错误 0/3 → 3/3），每次请求输入约增加 159 token；引导不替代服务端控制。
 - 服务端 instructions 现按连接列出读取策略（禁止读取或表范围类型、是否允许 UNION），并写明所有连接都拒绝 FROM 子查询（改用 CTE）；UNION 拒绝提示不再建议在回答中合并结果。禁止 UNION 的 MySQL 任务从 11–15 次调用（58k–78k token）降至 2 次（约 44k）；允许 UNION 的 SQLite 任务从首条被拒变为 1 次调用（约 28k），答案均正确。每次请求固定开销约增加 184 token。
-- 在更丰富的本地 SQLite 库上做真实工具通道复测：`committed` 与 `rolled_back` 均 3/3 报告正确。预览令牌拒绝发生在任何写入之前，其文本由“run preview again”改为说明本次未写入、先核对状态并由用户决定是否重新预览；清楚报告由 0/3 升至 3/3。预览被拒后把预览时状态说成当前状态（0/3）仍是已记录的残余风险。
-- `describe_table()` 现返回结构化索引（名称、是否主键、是否唯一、按序键列；SQLite `partial`；MySQL 非 BTREE 的 `type`）及 `indexes_status`；原始 SHOW 仍被拒绝。列出表索引在 MySQL 与 SQLite 上均由 0/3 变为 3/3，调用由 2–5 次（43.6k–93.5k token）降至 1–2 次（约 28k–29k）；每次请求固定输入约 +68 token。
+- 在更丰富的本地 SQLite 库上做真实工具通道复测：`committed` 与 `rolled_back` 均 3/3 报告正确。预览令牌在框架写入边界前拒绝，其文本由“run preview again”改为说明本次未写入、先核对状态并由用户决定是否重新预览；清楚报告由 0/3 升至 3/3。受信任命令式 Skill 的构造／readiness 可早于令牌校验。预览被拒后把预览时状态说成当前状态（0/3）仍是已记录的残余风险。
+- `describe_table()` 现返回结构化索引（名称、是否主键、是否唯一、按序键列；SQLite `partial`；MySQL 非 BTREE 的 `type`）及 `indexes_status`；原始 SHOW 仍被拒绝。列出表索引在 MySQL 与 SQLite 上均由 0/3 变为 3/3，调用由 2–5 次（43.6k–93.5k token）降至 1–3 次（约 28.4k–43.4k token）；每次请求固定输入约 +68 token。
 - 读取策略现拒绝以 SELECT 读取服务器、账号与文件路径状态（`@@` 系统变量、`CURRENT_USER()` 等函数、SQLite `pragma_*` 函数）；MySQL 白名单按表名大小写精确匹配，因为在 Linux 上 `Orders` 与 `orders` 可能是不同的表。在不区分大小写的 MySQL 服务器上，白名单条目应使用存储名；大小写不同的引用现会被拒绝（DRR-2026-075/076）。
 - 各项更新后全量依次为 796 → 797 → 799 → 820 passed、4 skipped；Pyright 0 errors。子代理测试仅在逐条批准后写入专用本地测试数据。详见[发布说明](docs/releases/RELEASE_NOTES_v3_8.md#v381--skill-rejection-recovery-clue-october-1-2026)。
+
+**10 月 12 日复核：** 修复引用 PRAGMA、CTE／表范围漏查；SQLite 元数据固定 main，结构化索引在固定采集预算内保留方向、collation、前缀长度和可见性。两个写入工具各自携带先核对有效性的结果指导及缺失行数说明。最终 **941 passed、4 skipped**，Pyright 无错误，两库真实对照与两协议仓库外 wheel 验证通过。GPT-6 Luna 原生任务、模拟结果失败及实际用量分开归档；上面的历史 token 数不能代表最终提示成本。维护者重启后，当前 Host 描述与最终源码一致，两类解释各 3/3、原生索引／预览 3/3；完整恢复路线 2/3，一个漏掉 confirmed 的原答案保留，复核后修正，实际预览拒绝该跳转；无执行。详见[评审与证据](docs/validation/V3_8_1_REVIEW_2026_10_12_ZH.md)。
 
 ### v3.8.0 FastMCP 4、TOML 与托管 MRTR（2026年9月）
 
@@ -1421,6 +1423,14 @@ DDL：外键、check 和其它 backend-specific 属性不在结果中。
 `error_code="metadata_query_failed"`，不会伪装为缺表或 0 行结果。
 若只是索引元数据读取失败，响应仍为成功，但 `indexes_status="unavailable"`、
 `indexes=null`；这不表示该表没有索引。
+
+`key_parts` 补充每个键项的 `column`、`sort_order`（`asc`/`desc`/null），SQLite
+另有 `collation`，MySQL 另有 `prefix_length`；MySQL 索引级 `visible` 未知时为 null。
+`complete` 仅表示索引清单完整，不表示完整 DDL。索引采集独立限制为 128 个索引、
+2048 个键项、64 KiB UTF-8 JSON；超限整组不可用，不截半复合索引。这不是
+`limits.result_chars`，也不是整个工具的硬超时。SQLite 元数据显式读取 main；
+`get_full_schema()` 仍不采索引。见[本轮审查与边界](docs/validation/V3_8_1_REVIEW_2026_10_03_ZH.md)。
+
 若 MySQL 返回不可用的估算值，成功响应会使用 `row_count=null`、
 `row_count_approximate=null` 和 `is_large=null`，不会根据未知值生成大表建议。
 
@@ -1447,8 +1457,8 @@ DDL：外键、check 和其它 backend-specific 属性不在结果中。
   "recommendation": "Large table (~1500 rows). Use LIMIT or aggregation (COUNT/GROUP BY).",
   "indexes_status": "complete",
   "indexes": [
-    {"name": "PRIMARY", "primary": true, "unique": true, "columns": ["id"]},
-    {"name": "idx_name", "primary": false, "unique": false, "columns": ["name"]}
+    {"name": "PRIMARY", "primary": true, "unique": true, "columns": ["id"], "key_parts": [{"column": "id", "sort_order": "asc", "prefix_length": null}], "visible": true},
+    {"name": "idx_name", "primary": false, "unique": false, "columns": ["name"], "key_parts": [{"column": "name", "sort_order": "asc", "prefix_length": null}], "visible": true}
   ]
 }
 ```

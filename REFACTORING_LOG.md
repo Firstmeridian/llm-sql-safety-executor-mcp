@@ -2,8 +2,23 @@
 
 English | [中文](REFACTORING_LOG_ZH.md)
 
-**Date:** December 2, 2025 (Updated: October 1, 2026)
+**Date:** December 2, 2025 (Updated: October 12, 2026)
 **Author:** Code Refactoring Session
+
+## v3.8.1 Final acceptance after maintainer restart (October 12, 2026)
+
+- The current Host's registered write description matches final source; malformed-field and missing-rowcount replays using that metadata passed 3/3 each. Production MRTR remains disabled; no native MRTR UI claim is added.
+- Three GPT-6 Luna native tasks correctly read both databases' indexes and made previews without executes. Complete recovery routes were correct 2/3; one skipped confirmed, then acknowledged and corrected it on follow-up. The original failure is retained, and an actual pending-to-shipped preview returned validation_failed/not_executed. Category/type confusion added two empty searches to another run; calls/usage are recorded without a historical cost guarantee.
+- Existing order checkpoints are unchanged. Source hashes still match the previously validated 941-test/wheel snapshot; this continuation changes evidence/docs only. All required checks ran with current permissions, without Full access. See [restart evidence](docs/validation/V3_8_1_REVIEW_2026_10_12_ZH.md#手动重启后的最后检查已完成).
+
+## v3.8.1 Five-commit review completion (October 12, 2026)
+
+- Reviewed `f50b010` through `09c3b9a`, the four external reviews and the existing uncommitted fixes. Version remains 3.8.1. The later approved design keeps automatic indexes without a switch; it adds metadata work and disclosure within authorized table scope.
+- Fixed quoted PRAGMA object checks while allowing ordinary business identifiers; CTE visibility follows declaration order and explicit recursion. Unsupported relation groups, single-quoted objects and ODBC/TABLE forms are rejected before database access. MySQL Skill readiness now uses the connection's exact table identity. These are conservative SQL-subset decisions, with limitations recorded in DRR-2026-075/076/078.
+- Pinned SQLite metadata to main; preserved key direction/collation, MySQL prefix length and optimizer visibility. Whole-index collection is bounded to 128 indexes, 2048 key parts and 64 KiB UTF-8; unavailable indexes do not remove column metadata. Time limits are cooperative. MySQL 5.7 visibility fallback is mocked, while live comparison used 8.0.25 (DRR-2026-077/079).
+- Both write tools independently render one packaged result-guidance resource. Final wording checks validity before outcome and explicitly reports missing row counts. Independent malformed-field replays improved from 0/3 to 3/3 for ordinary writes; simulated MRTR also passed 3/3. Earlier batch failures remain recorded. Descriptions are 3,546/2,642 characters; their added context cost is not represented by the historical +159-token measurement.
+- Final validation: **941 passed, 4 skipped, 6 legacy logging warnings**; Pyright zero errors/warnings; explicit MySQL adapter subset 15 passed (including existing live checks); sdist/wheel build and installed-wheel stdio checks on both protocols. Live MySQL/SQLite index fixtures were cleaned up. Three GPT-6 Luna runs each verified native index, aggregate and preview-only recovery tasks without existing-row writes; usage is reported without an unmatched historical performance claim.
+- At the pre-restart checkpoint, source/package acceptance and documentation were complete, while native prompt refresh/behavior was pending at the maintainer's request. That refresh check is now completed in the preceding restart entry. No new remote CI or native MRTR UI acceptance is claimed. See the [complete evidence and remaining limits](docs/validation/V3_8_1_REVIEW_2026_10_12_ZH.md).
 
 ## v3.8.1 Server-state reads, MySQL table-name case and structured indexes (October 3, 2026)
 

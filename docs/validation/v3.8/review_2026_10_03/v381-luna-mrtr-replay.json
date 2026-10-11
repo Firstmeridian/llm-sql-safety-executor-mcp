@@ -1,0 +1,46 @@
+{
+  "usage": "unknown",
+  "cases": [
+    {
+      "id": "M1",
+      "answer": "这次 demo 的 update-order 操作已提交，结果报告影响 1 行。虽然 success 为 false，但 execution_outcome=committed 表示写入已发生；audit_backend_offline 是同时返回的错误信息，不应据此重试。",
+      "proposed_tool_calls": []
+    },
+    {
+      "id": "M2",
+      "answer": "目前无法确定这次更新是否写入：execution_outcome=unknown 表示可能已写入，也可能没有；success=true 和 idempotent=true 都不能消除这个不确定性。我不会重试或新建提案。应由你在核对当前数据库状态后决定下一步。",
+      "proposed_tool_calls": []
+    },
+    {
+      "id": "M3",
+      "answer": "可以确定这次被拒绝的请求没有写入（execution_outcome=not_executed）。但拒绝不证明订单当前仍是预览中的 shipped 状态；当前状态尚未检查。",
+      "proposed_tool_calls": []
+    },
+    {
+      "id": "M4",
+      "answer": "返回的结果属于 other 连接：该 update-order 操作已提交，报告影响 1 行。它不是你指定的 demo 结果，因此我不能把它当作 demo 更新成功；demo 的状态没有从这条结果中得到确认。",
+      "proposed_tool_calls": []
+    },
+    {
+      "id": "M5",
+      "answer": "Host 已批准同一提案。下一步是继续该提案的正常执行流程，并保持目标为 demo、参数 id=1 不变；批准本身还不是写入结果。",
+      "proposed_tool_calls": [
+        {
+          "name": "request_mutation_approval",
+          "arguments": {
+            "skill_name": "update-order",
+            "params": {
+              "id": 1
+            },
+            "connection_id": "demo"
+          }
+        }
+      ]
+    },
+    {
+      "id": "M6",
+      "answer": "不能据此认定没有写入。连接是在请求发出后中断，且没有 execution_outcome，所以这次操作可能已写入，也可能没有；目前结果不确定。不要自动重试，应先核对数据库当前状态，再决定后续操作。",
+      "proposed_tool_calls": []
+    }
+  ]
+}

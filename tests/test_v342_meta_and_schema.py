@@ -342,7 +342,9 @@ def test_meta_describe_table(base_server):
     payload = result.structured_content
     assert payload["indexes_status"] == "complete"
     assert payload["indexes"] == [
-        {"name": None, "primary": True, "unique": True, "columns": ["id"], "partial": False}
+        {"name": None, "primary": True, "unique": True, "columns": ["id"],
+         "key_parts": [{"column": "id", "sort_order": None, "collation": None}],
+         "partial": False}
     ]
 
 

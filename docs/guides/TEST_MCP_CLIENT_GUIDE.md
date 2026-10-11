@@ -277,9 +277,9 @@ for the 3-run behavior matrix and remaining limits.
 
 ### Reading mutation results and refreshing Host tool definitions (v3.8.1)
 
-The `execute_mutation_skill` description now carries the result rules because
+Both `execute_mutation_skill` and `request_mutation_approval` independently carry the same packaged result rules because
 some Hosts, including Copilot, do not pass `outputSchema` descriptions to the
-model. Read `execution_outcome`, not `success`; treat an error without
+model. First check the result's target, Skill, phase and required-field validity; only for a valid result read `execution_outcome`, not `success`. A malformed required field such as `success="false"` leaves execution unconfirmed even when the payload claims committed. If actual rowcount is absent, report it as unreported instead of borrowing an estimate or another request's count. Treat an error without
 `execution_outcome` as unknown; never retry or switch entry points without a
 new user decision. Replay checks can give recorded results to an Agent in the
 prompt, but that is not the same as the tool channel and should be reported as
@@ -312,3 +312,9 @@ To test reports after a decline, change the row after preview so that a
 statement about current data can be checked. After a restart, server
 instructions were once stale for the first call while tool descriptions were
 not, so confirm both before testing.
+
+### October 12 review evidence and completed refresh
+
+The [final review](../validation/V3_8_1_REVIEW_2026_10_12_ZH.md) separates fresh source/wheel stdio verification, native GPT-6 Luna tool calls and simulated-result replays. A replay that supplies only the MRTR description proves that description is independently useful; it does not prove that a native Host actually hid other tools or rendered approval UI. Use a fresh agent context per critical replay, preserve failures, and count calls and token usage from traces rather than self-reported totals. Compare performance only with matched tasks, models and Hosts.
+
+The maintainer has restarted the resident service. Its actual description now matches final source and contains `first check validity` and `payload claims committed; execution is unconfirmed`. Interpretation checks using current metadata passed 3/3 each; native index/preview tasks passed 3/3 with no execution. Complete recovery routes were correct 2/3, with one omitted confirmed step corrected only on follow-up; preserve that first failure. The actual pending-to-shipped preview was rejected. Category filters select business groups, not query/mutation type; two empty category=mutation searches are included in observed costs. The final package already passes modern and legacy stdio enumeration, including both optional write descriptions under temporary test configuration. Keep production MRTR disabled if that is its configured policy. No further write to existing orders is needed for this refresh check.

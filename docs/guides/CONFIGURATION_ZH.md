@@ -78,7 +78,11 @@ Query Skill 的发现、详情和执行共享无数据库 I/O 的读取准入判
 
 自 v3.8.1 起，服务启动时会把每个连接的读取状态、表范围类型（all 或含表数量的 allowlist）和 UNION 状态写入 MCP instructions，供 Agent 在编写 SQL 前参考；不列表名、主机或路径，超过 12 个连接时只给数量。修改这些字段后需重启服务并刷新 Host 工具定义。该文本只是指导，执行时仍由完整读取策略独立检查。
 
-`read.tables` 的大小写规则（v3.8.1 起）：SQLite 连接不区分大小写；MySQL 连接保留配置中的大小写并精确匹配，因为 `lower_case_table_names=0`（Linux 默认）时 `Orders` 与 `orders` 是不同的表。MySQL 条目应写成数据库中的存储名；在不区分大小写的服务器上，大小写不同的查询引用也会被拒绝。`mode = "all"` 不受影响。见 DRR-2026-076。
+`read.tables` 的大小写规则（v3.8.1 起）：SQLite 连接不区分大小写；MySQL 连接保留配置中的大小写并精确匹配，因为 `lower_case_table_names=0`（Linux 默认）时 `Orders` 与 `orders` 是不同的表。MySQL 条目应写成数据库中的存储名；在不区分大小写的服务器上，大小写不同的查询引用也会被拒绝。`mode = "all"` 不受这项大小写限制影响。Skill schema readiness 也使用对应连接的表身份；它只观察可用性，不授权执行。见 DRR-2026-076。
+
+10 月 12 日复核后的读取子集保守拒绝关系括号组、单引号对象、ODBC 包装和 TABLE 表达式；可用标准标识符引用及受支持的 JOIN／CTE。CTE 名按定义顺序和显式递归生效，SQLite 前向引用／隐式递归在白名单下可能被拒绝。内置 PRAGMA 对象名保留，普通 `pragma_` 列、别名及非保留业务表名允许。`read.mode="all"` 仍执行结构、系统对象等检查，不能绕过这些限制。
+
+`describe_table()` 自动采集已授权表的索引，没有新增 TOML 开关，`get_full_schema()` 不含索引。采集固定限 128 个索引、2048 键项和 64 KiB UTF-8 索引数组，独立于 `limits.result_chars`；时间沿用配置 query timeout，仅索引阶段协作式生效。超限／失败返回 `indexes_status="unavailable"`、`indexes=null`，保留列信息；不能解释为无索引。SQLite 元数据明确读取 main，普通 SQL 会话的临时对象仍由可信扩展负责。索引名等新增披露和采集成本属于已接受取舍，见[最终复核](../validation/V3_8_1_REVIEW_2026_10_12_ZH.md)。
 
 Mutation Skills 的写入权限是五层配置与既有执行检查的交集：
 

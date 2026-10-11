@@ -30,6 +30,7 @@ from sql_safety_executor.skills.access import (
     _ensure_skill_profile_allowed,
 )
 from sql_safety_executor.skills.catalog import validate_name, validate_params
+from sql_safety_executor.prompts.render import tool_description
 
 
 def _require_capabilities(ctx):
@@ -230,7 +231,7 @@ def register_mrtr(server, runtime):
     @server.tool(
         name="request_mutation_approval",
         timeout=runtime.tool_timeout,
-        description="Prepare a managed single-statement mutation and ask the trusted Host for human approval. Requires MCP 2026-07-28 form elicitation. Keep the target and parameters unchanged; never automatically retry an uncertain write. Waiting for or giving approval is not a write result. Read the final result with the execute_mutation_skill result rules; a continuation protocol error carries no execution_outcome and does not show whether the write happened.",
+        description=tool_description("request_mutation_approval"),
         annotations=ToolAnnotations(
             read_only_hint=False,
             destructive_hint=True,

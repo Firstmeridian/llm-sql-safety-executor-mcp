@@ -897,10 +897,12 @@ See [mcp_config.json](mcp_config.json) for the portable template. Private `confi
 - The response keeps only the absolute `preview_token_expires_at`; a trial reintroduction of `preview_token_expires_in_seconds` was withdrawn. Subagents asked whether a token remained usable still misjudged it from their own date (conservative, since execute enforces expiry).
 - The mutation tool description now explains how to read results: `execution_outcome`, not `success`, states the write; `success=false` with `committed` must not be redone; `unknown` may or may not be written; an error without `execution_outcome` proves nothing; never retry or switch entry points on your own. Replay trials improved from 12/18 to 16/18 (MRTR protocol error 0/3 → 3/3) for about 159 extra input tokens per request; guidance does not replace server-side controls.
 - Server instructions now list each connection's configured read policy (reads disabled or scope type, UNION allowed/disabled), add that FROM subqueries are rejected everywhere (use a CTE), and the UNION rejection no longer suggests merging results in the reply. A UNION-disabled MySQL task dropped from 11–15 calls (58k–78k tokens) to 2 calls (~44k); a UNION-allowed SQLite task from a rejected first query to 1 call (~28k), all answers correct. Fixed cost is about 184 input tokens per request.
-- A real tool-channel check on a richer local SQLite database confirmed correct reports for `committed` and `rolled_back` (3/3 each). Preview-token rejections, which happen before any write, now say the request wrote nothing and ask to check state and let the user decide on a new preview, instead of "run preview again"; clear reports rose from 0/3 to 3/3. Reporting preview-time status as current after a declined preview (0/3) remains a recorded residual risk.
-- `describe_table()` now returns structured indexes (name, primary, unique, ordered key columns; SQLite `partial`; MySQL non-BTREE `type`) and `indexes_status`. Raw SHOW stays rejected. Listing a table's indexes went from 0/3 to 3/3 on MySQL and SQLite, from 2–5 calls (43.6k–93.5k tokens) to 1–2 calls (about 28k–29k); fixed cost about +68 input tokens per request.
+- A real tool-channel check on a richer local SQLite database confirmed correct reports for `committed` and `rolled_back` (3/3 each). Preview-token rejections at the framework write boundary now say the request wrote nothing and ask to check state and let the user decide on a new preview, instead of "run preview again"; clear reports rose from 0/3 to 3/3. Trusted imperative Skill construction/readiness can precede token validation. Reporting preview-time status as current after a declined preview (0/3) remains a recorded residual risk.
+- `describe_table()` now returns structured indexes (name, primary, unique, ordered key columns; SQLite `partial`; MySQL non-BTREE `type`) and `indexes_status`. Raw SHOW stays rejected. Listing a table's indexes went from 0/3 to 3/3 on MySQL and SQLite, from 2–5 calls (43.6k–93.5k tokens) to 1–3 calls (about 28.4k–43.4k tokens); fixed cost about +68 input tokens per request.
 - Read policy now rejects SELECT-shaped reads of server, account and file-path state (`@@` system variables, `CURRENT_USER()` and related functions, SQLite `pragma_*` functions), and MySQL allowlists match table-name case exactly because `Orders` and `orders` can be different tables on Linux. On case-insensitive MySQL servers, configure allowlist entries with stored names; differently cased references are now rejected (DRR-2026-075/076).
 - Full suite 796 → 797 → 799 → 820 passed, 4 skipped across the updates; Pyright 0 errors. Subagent checks wrote only to dedicated local test data after per-write approval. See [release notes](docs/releases/RELEASE_NOTES_v3_8.md#v381--skill-rejection-recovery-clue-october-1-2026).
+
+**October 12 review:** quoted PRAGMA and CTE/table-scope omissions are fixed; SQLite metadata is pinned to main, and structured indexes preserve direction, collation, prefix length and visibility under fixed collection budgets. Both write tools independently include validity-first result guidance and missing-rowcount handling. Final validation: **941 passed, 4 skipped**, Pyright clean, live MySQL/SQLite comparisons and installed-wheel checks on both protocols. GPT-6 Luna native tasks and simulated-result failures are recorded separately with actual usage; the historical token figures above do not measure these final descriptions. After the maintainer restart, the resident Host description matched final source; interpretation checks passed 3/3 each and native indexes/previews passed 3/3. Recovery routes were correct 2/3: one omitted confirmed, was corrected on review, and the actual preview rejected that jump; no write executed. See the [review and evidence](docs/validation/V3_8_1_REVIEW_2026_10_12_ZH.md).
 
 ### v3.8.0 FastMCP 4, TOML and Managed MRTR (September 2026)
 
@@ -1510,7 +1512,18 @@ If adapter metadata cannot be read, this tool returns `success=false` with
 `error_code="metadata_query_failed"` rather than a missing-table or zero-row
 result. If only index metadata fails, the response stays successful with
 `indexes_status="unavailable"` and `indexes=null`; this does not mean the table
-has no indexes. If MySQL returns no usable estimate, the successful response uses
+has no indexes.
+
+`key_parts` adds each key's `column` and `sort_order` (`asc`/`desc`/null), plus
+SQLite `collation` or MySQL `prefix_length`. MySQL index-level `visible` is null
+when unknown. `complete` means the index list is complete, not complete DDL.
+Index collection has independent limits: 128 indexes, 2048 key parts and 64 KiB
+of UTF-8 JSON. Exceeding any limit makes the entire index list unavailable;
+composite indexes are not split. This is separate from `limits.result_chars`
+and is not a hard deadline for the whole tool. SQLite metadata targets main;
+`get_full_schema()` still omits indexes. See the [review and boundaries](docs/validation/V3_8_1_REVIEW_2026_10_03_ZH.md).
+
+If MySQL returns no usable estimate, the successful response uses
 `row_count=null`, `row_count_approximate=null`, and `is_large=null`; no
 large-table recommendation is inferred from the unknown value.
 
@@ -1537,8 +1550,8 @@ Output:
   "recommendation": "Large table (~1500 rows). Use LIMIT or aggregation (COUNT/GROUP BY).",
   "indexes_status": "complete",
   "indexes": [
-    {"name": "PRIMARY", "primary": true, "unique": true, "columns": ["id"]},
-    {"name": "idx_name", "primary": false, "unique": false, "columns": ["name"]}
+    {"name": "PRIMARY", "primary": true, "unique": true, "columns": ["id"], "key_parts": [{"column": "id", "sort_order": "asc", "prefix_length": null}], "visible": true},
+    {"name": "idx_name", "primary": false, "unique": false, "columns": ["name"], "key_parts": [{"column": "name", "sort_order": "asc", "prefix_length": null}], "visible": true}
   ]
 }
 ```

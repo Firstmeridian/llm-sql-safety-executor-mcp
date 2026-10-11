@@ -1,0 +1,171 @@
+{
+  "kind": "pre_fix_native_parent_calls",
+  "results": [
+    {
+      "success": true,
+      "table_name": "orders",
+      "db_type": "mysql",
+      "connection_id": "trade_analysis_mysql",
+      "row_count": 8,
+      "row_count_approximate": true,
+      "column_count": 7,
+      "columns": [
+        {
+          "column_name": "id",
+          "data_type": "int",
+          "nullable": "NO",
+          "key_type": "PRI",
+          "default_value": null
+        },
+        {
+          "column_name": "order_date",
+          "data_type": "datetime",
+          "nullable": "NO",
+          "key_type": "MUL",
+          "default_value": null
+        },
+        {
+          "column_name": "amount",
+          "data_type": "decimal",
+          "nullable": "NO",
+          "key_type": "",
+          "default_value": null
+        },
+        {
+          "column_name": "total_amount",
+          "data_type": "decimal",
+          "nullable": "NO",
+          "key_type": "",
+          "default_value": null
+        },
+        {
+          "column_name": "status",
+          "data_type": "varchar",
+          "nullable": "NO",
+          "key_type": "MUL",
+          "default_value": "pending"
+        },
+        {
+          "column_name": "created_at",
+          "data_type": "timestamp",
+          "nullable": "YES",
+          "key_type": "",
+          "default_value": "CURRENT_TIMESTAMP"
+        },
+        {
+          "column_name": "updated_at",
+          "data_type": "timestamp",
+          "nullable": "YES",
+          "key_type": "",
+          "default_value": "CURRENT_TIMESTAMP"
+        }
+      ],
+      "is_large": false,
+      "indexes": [
+        {
+          "name": "PRIMARY",
+          "primary": true,
+          "unique": true,
+          "columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "idx_orders_order_date",
+          "primary": false,
+          "unique": false,
+          "columns": [
+            "order_date"
+          ]
+        },
+        {
+          "name": "idx_orders_status",
+          "primary": false,
+          "unique": false,
+          "columns": [
+            "status"
+          ]
+        }
+      ],
+      "indexes_status": "complete"
+    },
+    {
+      "success": true,
+      "table_name": "orders",
+      "db_type": "sqlite",
+      "connection_id": "rich_mutation_sqlite",
+      "row_count": 80,
+      "row_count_approximate": true,
+      "column_count": 5,
+      "columns": [
+        {
+          "column_name": "id",
+          "data_type": "INTEGER",
+          "nullable": "YES",
+          "key_type": "PRI",
+          "default_value": null
+        },
+        {
+          "column_name": "customer_id",
+          "data_type": "INTEGER",
+          "nullable": "NO",
+          "key_type": "",
+          "default_value": null
+        },
+        {
+          "column_name": "status",
+          "data_type": "TEXT",
+          "nullable": "NO",
+          "key_type": "",
+          "default_value": null
+        },
+        {
+          "column_name": "order_date",
+          "data_type": "TEXT",
+          "nullable": "NO",
+          "key_type": "",
+          "default_value": null
+        },
+        {
+          "column_name": "total_amount",
+          "data_type": "REAL",
+          "nullable": "NO",
+          "key_type": "",
+          "default_value": null
+        }
+      ],
+      "is_large": false,
+      "indexes": [
+        {
+          "name": null,
+          "primary": true,
+          "unique": true,
+          "columns": [
+            "id"
+          ],
+          "partial": false
+        },
+        {
+          "name": "idx_orders_customer_date",
+          "primary": false,
+          "unique": false,
+          "columns": [
+            "customer_id",
+            "order_date"
+          ],
+          "partial": false
+        },
+        {
+          "name": "idx_orders_open",
+          "primary": false,
+          "unique": false,
+          "columns": [
+            "status"
+          ],
+          "partial": true
+        }
+      ],
+      "indexes_status": "complete"
+    }
+  ]
+}

@@ -14,6 +14,14 @@ def text(name: str) -> str:
     )
 
 
+def tool_description(name: str) -> str:
+    """Each write tool carries its own copy of the same result-reading rules."""
+    description = text(f"tools/{name}.md")
+    if name in {"execute_mutation_skill", "request_mutation_approval"}:
+        description = description.rstrip() + "\n\n" + text("mutation_results.md")
+    return description
+
+
 def connection_policies(config) -> str:
     """Summarize each connection's configured read and UNION policy without I/O."""
     lines = []

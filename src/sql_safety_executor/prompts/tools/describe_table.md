@@ -1,6 +1,8 @@
 Get one selected table's full adapter-visible column metadata, indexes and
 row count estimate. Each index lists name, primary, unique and ordered key
-columns (null for an expression part); SQLite adds partial, and its implicit
+columns (null for an expression part). key_parts adds sort_order (asc/desc/null),
+SQLite collation and MySQL prefix_length; MySQL visible is null when unknown.
+SQLite adds partial, and its implicit
 rowid primary key has name null. This is not complete DDL: foreign
 keys, checks, index comments and expressions are absent.
 
@@ -27,4 +29,6 @@ Example arguments (replace the table and alias with the selected target):
 Returns:
     Table structure with columns, indexes, row count, and query recommendations.
     indexes_status is "unavailable" (indexes null) when index metadata could
-    not be read; that does not mean the table has no indexes.
+    not be read or exceeded the fixed 128-index, 2048-key-part or 64-KiB budget;
+    that does not mean the table has no indexes. complete means a complete
+    index list, not complete DDL. No partial index list is returned.

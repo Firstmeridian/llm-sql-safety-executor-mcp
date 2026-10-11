@@ -49,6 +49,7 @@ def test_sqlite_indexes_cover_rowid_composite_unique_partial_and_expression(
         "primary": True,
         "unique": True,
         "columns": ["id"],
+        "key_parts": [{"column": "id", "sort_order": None, "collation": None}],
         "partial": False,
     }
     assert by_name["idx_customer_created"] == {
@@ -56,6 +57,10 @@ def test_sqlite_indexes_cover_rowid_composite_unique_partial_and_expression(
         "primary": False,
         "unique": False,
         "columns": ["customer_id", "created"],
+        "key_parts": [
+            {"column": "customer_id", "sort_order": "asc", "collation": "BINARY"},
+            {"column": "created", "sort_order": "asc", "collation": "BINARY"},
+        ],
         "partial": False,
     }
     assert by_name["idx_open"]["partial"] is True
@@ -76,6 +81,10 @@ def test_sqlite_indexes_use_real_primary_key_and_empty_tables(sqlite_adapter):
             "primary": True,
             "unique": True,
             "columns": ["a", "b"],
+            "key_parts": [
+                {"column": "a", "sort_order": "asc", "collation": "BINARY"},
+                {"column": "b", "sort_order": "asc", "collation": "BINARY"},
+            ],
             "partial": False,
         }
     ]
@@ -91,13 +100,15 @@ def test_mysql_indexes_map_statistics_rows(monkeypatch):
 
     def fake_execute(sql, params=None, **_kwargs):
         calls.append((sql, params))
+        if "INFORMATION_SCHEMA.COLUMNS" in sql:
+            return [("IS_VISIBLE",)]
         return [
-            ("PRIMARY", 0, 1, "id", "BTREE"),
-            ("idx_code_group", 1, 1, "code", "BTREE"),
-            ("idx_code_group", 1, 2, "group_no", "BTREE"),
-            ("ft_note", 1, 1, "note", "FULLTEXT"),
-            ("idx_expr", 1, 1, None, "BTREE"),
-            ("ux_source", 0, 1, "source_file", "BTREE"),
+            ("PRIMARY", 0, 1, "id", "BTREE", None, "A", "YES"),
+            ("idx_code_group", 1, 1, "code", "BTREE", 8, "A", "NO"),
+            ("idx_code_group", 1, 2, "group_no", "BTREE", None, "D", "NO"),
+            ("ft_note", 1, 1, "note", "FULLTEXT", None, None, "YES"),
+            ("idx_expr", 1, 1, None, "BTREE", None, "A", "YES"),
+            ("ux_source", 0, 1, "source_file", "BTREE", None, "A", "YES"),
         ]
 
     monkeypatch.setattr(adapter, "execute", fake_execute)
@@ -116,19 +127,28 @@ def test_mysql_indexes_map_statistics_rows(monkeypatch):
         "primary": True,
         "unique": True,
         "columns": ["id"],
+        "key_parts": [{"column": "id", "prefix_length": None, "sort_order": "asc"}],
+        "visible": True,
     }
     assert by_name["idx_code_group"]["columns"] == ["code", "group_no"]
+    assert by_name["idx_code_group"]["visible"] is False
+    assert by_name["idx_code_group"]["key_parts"] == [
+        {"column": "code", "prefix_length": 8, "sort_order": "asc"},
+        {"column": "group_no", "prefix_length": None, "sort_order": "desc"},
+    ]
     assert by_name["ft_note"]["type"] == "FULLTEXT"
     assert by_name["idx_expr"] == {
         "name": "idx_expr",
         "primary": False,
         "unique": False,
         "columns": [None],
+        "key_parts": [{"column": None, "prefix_length": None, "sort_order": "asc"}],
+        "visible": True,
         "has_expression": True,
     }
     assert by_name["ux_source"]["unique"] is True
-    sql, params = calls[0]
-    assert params == {"table_name": "va_table"}
+    sql, params = calls[1]
+    assert params == {"table_name": "va_table", "row_limit": 2049}
     assert "TABLE_SCHEMA = DATABASE()" in sql and "CARDINALITY" not in sql
 
 

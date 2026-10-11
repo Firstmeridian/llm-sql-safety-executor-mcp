@@ -215,7 +215,7 @@ class TestSQLiteAdapter:
         monkeypatch.setattr(adapter, "execute", fake_execute)
 
         assert adapter.get_row_estimate("users") == 3
-        assert 'FROM "users" LIMIT 10000' in calls[-1][0]
+        assert 'FROM main."users" LIMIT 10000' in calls[-1][0]
 
     def test_get_row_estimate(self, sqlite_adapter):
         """Test getting row count estimate."""

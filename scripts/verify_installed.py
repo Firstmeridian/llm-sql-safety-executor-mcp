@@ -51,6 +51,61 @@ async def check(directory):
             assert "connection_id" in str(await client.get_prompt("sql_assistant"))
             result = await client.call_tool("query", {"sql": "SELECT 1 AS value"})
             assert result.structured_content["data"] == [{"value": 1}]
+
+    # Exercise optional write descriptions from the installed wheel without
+    # opening a database or invoking any preview/execute callback.
+    skill = directory / "wheel-skills" / "wheel-probe"
+    skill.mkdir(parents=True)
+    (skill / "skill_def.md").write_text(
+        "---\nname: wheel-probe\ntype: mutation\nsource: mutation.py\n"
+        "risk: low\nrequires_confirmation: true\nparams: {}\n---\nWheel probe.\n",
+        encoding="utf-8",
+    )
+    (skill / "mutation.py").write_text(
+        "from sql_safety_executor.skills import ManagedMutationBase, ManagedMutationPlan\n"
+        "class Mutation(ManagedMutationBase):\n"
+        "    managed_plan = ManagedMutationPlan(\n"
+        "        sql='INSERT INTO probe VALUES (1)', parameters=(), expected_rowcount=1)\n"
+        "    def validate(self, params): raise AssertionError('enumeration only')\n"
+        "    def preview(self, params): raise AssertionError('enumeration only')\n",
+        encoding="utf-8",
+    )
+    config.write_text(
+        'schema_version=1\n[files]\nconnections="connections.toml"\nskills="skills.toml"\n'
+        '[server]\ndefault_connection="test"\n', encoding="utf-8",
+    )
+    (directory / "connections.toml").write_text(
+        'schema_version=1\n[connections.test]\ntype="sqlite"\n'
+        'sqlite.path="must-not-open.sqlite"\nread.mode="deny"\n'
+        'mutation.enabled=true\nmutation.skills=["wheel-probe"]\n', encoding="utf-8",
+    )
+    (directory / "skills.toml").write_text(
+        'schema_version=1\n[skills]\nenabled=true\ndirectory="wheel-skills"\n'
+        '[skills.audit]\npath="wheel-audit.jsonl"\n'
+        '[skills.mutation]\nenabled=true\nallowed_connections=["test"]\n'
+        '[skills.mutation.mrtr]\nenabled=true\n', encoding="utf-8",
+    )
+    from sql_safety_executor.prompts.render import text
+    shared = text("mutation_results.md")
+    for mode in ("auto", "legacy"):
+        transport = StdioTransport(
+            command=sys.executable,
+            args=["-m", "sql_safety_executor", "serve", "--config", str(config)],
+            cwd=str(directory),
+        )
+        async with Client(transport, mode=mode) as client:
+            tools = {tool.name: tool for tool in await client.list_tools()}
+            for name in ("execute_mutation_skill", "request_mutation_approval"):
+                description = tools[name].description or ""
+                assert shared in description
+                assert "committed: written, even when success=false" in description
+                assert "first check validity, then interpret the outcome" in description
+                assert "payload claims committed; execution is unconfirmed" in description
+                assert "affected row count not reported" in description
+            assert "execute_mutation_skill result rules" not in (
+                tools["request_mutation_approval"].description or ""
+            )
+    assert not (directory / "must-not-open.sqlite").exists()
     print(
         json.dumps(
             {
@@ -58,6 +113,7 @@ async def check(directory):
                 "outside_repository": True,
                 "protocols": ["2026-07-28", "2025-11-25"],
                 "packaged_prompts": True,
+                "independent_mutation_descriptions": True,
             }
         )
     )

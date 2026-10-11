@@ -1,0 +1,82 @@
+{
+  "target": "trade_analysis_mysql",
+  "fixture": "v381_review_87b8da729737",
+  "existing_data_written": false,
+  "mysql_version": "8.0.25",
+  "indexes": [
+    {
+      "name": "PRIMARY",
+      "primary": true,
+      "unique": true,
+      "columns": [
+        "id"
+      ],
+      "key_parts": [
+        {
+          "column": "id",
+          "prefix_length": null,
+          "sort_order": "asc"
+        }
+      ],
+      "visible": true
+    },
+    {
+      "name": "idx_desc",
+      "primary": false,
+      "unique": false,
+      "columns": [
+        "score",
+        "code"
+      ],
+      "key_parts": [
+        {
+          "column": "score",
+          "prefix_length": null,
+          "sort_order": "desc"
+        },
+        {
+          "column": "code",
+          "prefix_length": null,
+          "sort_order": "asc"
+        }
+      ],
+      "visible": false
+    },
+    {
+      "name": "idx_prefix",
+      "primary": false,
+      "unique": false,
+      "columns": [
+        "code"
+      ],
+      "key_parts": [
+        {
+          "column": "code",
+          "prefix_length": 4,
+          "sort_order": "asc"
+        }
+      ],
+      "visible": true
+    },
+    {
+      "name": "uq_code",
+      "primary": false,
+      "unique": true,
+      "columns": [
+        "code"
+      ],
+      "key_parts": [
+        {
+          "column": "code",
+          "prefix_length": null,
+          "sort_order": "asc"
+        }
+      ],
+      "visible": true
+    }
+  ],
+  "native_attribute_comparison_passed": true,
+  "cte_unlisted_physical_table_denied": true,
+  "fixture_rows": 4,
+  "fixture_removed": true
+}

@@ -259,25 +259,60 @@ def _collect_table_references(
     """Walk parsed SQL and collect every FROM/JOIN base-table reference."""
     references: list[str] = []
     tokens = _significant_sql_tokens(token_list)
-    for index, token in enumerate(tokens):
-        normalized = token.normalized.upper()
-        if token.ttype in sql_tokens.Keyword and (
-            normalized == "FROM" or normalized == "JOIN" or normalized.endswith(" JOIN")
-        ):
-            if index + 1 >= len(tokens):
-                if strict:
-                    raise ValueError(f"{normalized} has no table target")
-                continue
-            try:
-                references.extend(
-                    _table_references_from_target(
-                        tokens[index + 1], cte_names, fold=fold
-                    )
-                )
-            except ValueError:
-                if strict:
-                    raise
-
+    with_index = next(
+        (index for index, token in enumerate(tokens)
+         if token.ttype in sql_tokens.Keyword.CTE
+         and token.normalized.upper() == "WITH"),
+        None,
+    )
+    if with_index is not None:
+        # A later CTE is not visible inside an earlier definition in MySQL.
+        # Without RECURSIVE, a definition's own name can resolve to a physical
+        # table. Passing every alias to every body silently authorized those
+        # base tables. Keep the scope local and grow it in declaration order.
+        definition_index = with_index + 1
+        recursive = (
+            definition_index < len(tokens)
+            and tokens[definition_index].normalized.upper() == "RECURSIVE"
+        )
+        if recursive:
+            definition_index += 1
+        try:
+            _cte_names(token_list, fold)  # Validate the supported WITH shape.
+            definitions = tokens[definition_index]
+            entries = (
+                list(definitions.get_identifiers())
+                if isinstance(definitions, IdentifierList) else [definitions]
+            )
+            visible = set(cte_names)
+            for entry in entries:
+                if not isinstance(entry, Identifier) or not entry.get_real_name():
+                    raise ValueError("Unsupported CTE definition")
+                name = fold(_normalize_sql_identifier(entry.get_real_name()))
+                bodies = [child for child in entry.tokens if isinstance(child, Parenthesis)]
+                if len(bodies) != 1:
+                    raise ValueError("Unsupported CTE body")
+                body_scope = visible | {name} if recursive else set(visible)
+                references.extend(_collect_table_references(
+                    bodies[0], body_scope, strict=strict, fold=fold,
+                ))
+                visible.add(name)
+            cte_names = visible
+            # Bodies were traversed once with their own scopes, not again with
+            # the final scope belonging to the outer SELECT.
+            tokens = [token for token in tokens if token is not definitions]
+        except (AttributeError, IndexError, TypeError, ValueError):
+            if strict:
+                raise ValueError("Could not safely resolve CTE scope") from None
+            # Structural system-schema checks still inspect unambiguous FROM
+            # references when restrictive allowlist extraction will reject.
+    for target in _relation_targets(tokens):
+        try:
+            references.extend(_table_references_from_target(target, cte_names, fold=fold))
+        except ValueError:
+            if strict:
+                raise
+    for token in tokens:
         if isinstance(token, TokenList):
             references.extend(
                 _collect_table_references(
@@ -320,7 +355,7 @@ def _extract_tables_from_sql(
         cte_names = set()
     references = _collect_table_references(
         statement,
-        cte_names,
+        set(),
         strict=strict,
         fold=fold,
     )
@@ -505,6 +540,193 @@ _ACCOUNT_FUNCTIONS = frozenset(
     {"USER", "CURRENT_USER", "SESSION_USER", "SYSTEM_USER", "CURRENT_ROLE"}
 )
 
+# Reserve SQLite's documented built-in PRAGMA object names on every backend.
+# Do not reserve the entire prefix: business columns, aliases, and tables such
+# as pragma_orders are ordinary data. Keeping this list explicit also avoids
+# opening a database while validating a Skill template or rendering a prompt.
+# https://sqlite.org/pragma.html#pragma_list
+_SQLITE_PRAGMA_OBJECTS = frozenset(
+    "pragma_" + name
+    for name in """
+    analysis_limit application_id auto_vacuum automatic_index busy_timeout
+    cache_size cache_spill case_sensitive_like cell_size_check checkpoint_fullfsync
+    collation_list compile_options count_changes data_store_directory data_version
+    database_list default_cache_size defer_foreign_keys empty_result_callbacks
+    encoding foreign_key_check foreign_key_list foreign_keys freelist_count
+    full_column_names fullfsync function_list hard_heap_limit ignore_check_constraints
+    incremental_vacuum index_info index_list index_xinfo integrity_check journal_mode
+    journal_size_limit legacy_alter_table legacy_file_format locking_mode max_page_count
+    mmap_size module_list optimize page_count page_size pragma_list query_only quick_check
+    read_uncommitted recursive_triggers reverse_unordered_selects schema_version
+    secure_delete short_column_names shrink_memory soft_heap_limit stats synchronous
+    table_info table_list table_xinfo temp_store temp_store_directory threads
+    trusted_schema user_version vdbe_addoptrace vdbe_debug vdbe_listing vdbe_trace
+    wal_autocheckpoint wal_checkpoint writable_schema
+    """.split()
+)
+
+
+def _relation_object_names(token: Any) -> list[str]:
+    """Read object names only in a FROM/JOIN target, including SQLite quoting.
+
+    sqlparse represents double-quoted function names as an Identifier followed
+    by a Parenthesis, and SQLite also accepts single quotes in table positions.
+    Those tokens are identifiers here, but remain data in SELECT expressions.
+    """
+    if isinstance(token, IdentifierList):
+        return [
+            name
+            for item in token.get_identifiers()
+            for name in _relation_object_names(item)
+        ]
+    if isinstance(token, Parenthesis):
+        inner = _significant_sql_tokens(token)[1:-1]
+        if len(inner) >= 3 and inner[1].value == ".":
+            return _relation_object_names(inner[2])
+        return _relation_object_names(inner[0]) if inner else []
+    if isinstance(token, Identifier):
+        parts = _significant_sql_tokens(token)
+        if not parts:
+            return []
+        # get_real_name() can return the alias for SQLite's single-quoted or
+        # parenthesized table forms. Read the target before the alias instead.
+        target = parts[0]
+        if len(parts) >= 3 and parts[1].value == ".":
+            target = parts[2]
+        return _relation_object_names(target)
+    if isinstance(token, Function):
+        name = token.get_real_name()
+    elif token.ttype in sql_tokens.Name or token.ttype in sql_tokens.String:
+        name = token.value
+    else:
+        return []
+    if not name:
+        return []
+    if len(name) >= 2 and name[0] == name[-1] == "'":
+        name = name[1:-1].replace("''", "'")
+    return [_normalize_sql_identifier(name).lower()]
+
+
+def _relation_targets(tokens: list[Any], *, preserve_qualification: bool = False) -> list[Any]:
+    """Collect relation targets in this query block, including loose commas.
+
+    sqlparse does not consistently group single-quoted qualified names or
+    comma-separated parenthesized targets. Track the FROM clause explicitly
+    instead of assuming every next target is one Identifier/List token.
+    """
+    targets: list[Any] = []
+    in_from = False
+    expect_target = False
+    for index, token in enumerate(tokens):
+        command = token.normalized.upper()
+        if command.startswith("WHERE ") or command in {
+            "WHERE", "GROUP BY", "ORDER BY", "HAVING", "LIMIT", "OFFSET",
+            "UNION", "UNION ALL", "INTERSECT", "EXCEPT", "WINDOW", "FOR", "LOCK",
+        }:
+            in_from = False
+            expect_target = False
+        if token.ttype in sql_tokens.Keyword and (
+            command in {"FROM", "JOIN", "STRAIGHT_JOIN"} or command.endswith(" JOIN")
+        ):
+            in_from = True
+            expect_target = True
+            continue
+        if in_from and token.value == ",":
+            expect_target = True
+            continue
+        if expect_target:
+            items = list(token.get_identifiers()) if isinstance(token, IdentifierList) else [token]
+            if index + 2 < len(tokens) and tokens[index + 1].value == ".":
+                # Only the last item can be the schema prefix when sqlparse
+                # grouped a preceding comma-separated table into this token.
+                if preserve_qualification:
+                    items.append(tokens[index + 2])
+                else:
+                    items[-1] = tokens[index + 2]
+            targets.extend(items)
+            expect_target = False
+        elif in_from and isinstance(token, IdentifierList):
+            # sqlparse may group an ON expression and the following table as
+            # one IdentifierList: ON a.id=b.id, other_table. Only the first
+            # member belongs to the expression; later members are relations.
+            items = list(token.get_identifiers())[1:]
+            if items and index + 2 < len(tokens) and tokens[index + 1].value == ".":
+                if preserve_qualification:
+                    items.append(tokens[index + 2])
+                else:
+                    items[-1] = tokens[index + 2]
+            targets.extend(items)
+    if expect_target and tokens:
+        # Preserve an incomplete FROM/JOIN/comma as an unresolvable target so
+        # strict authorization extraction fails closed instead of finding none.
+        targets.append(tokens[-1])
+    return targets
+
+
+def _has_pragma_object_reference(token_list: TokenList) -> bool:
+    tokens = _significant_sql_tokens(token_list)
+    if any(
+        name in _SQLITE_PRAGMA_OBJECTS
+        for target in _relation_targets(tokens)
+        for name in _relation_object_names(target)
+    ):
+        return True
+    for token in tokens:
+        if isinstance(token, TokenList) and _has_pragma_object_reference(token):
+            return True
+    return False
+
+
+def _is_parenthesized_relation_target(token: Any) -> bool:
+    if isinstance(token, Parenthesis):
+        return True
+    if isinstance(token, IdentifierList):
+        return any(_is_parenthesized_relation_target(item) for item in token.get_identifiers())
+    if isinstance(token, Identifier):
+        parts = _significant_sql_tokens(token)
+        return bool(parts and isinstance(parts[0], Parenthesis))
+    return False
+
+
+def _has_parenthesized_relation_target(token_list: TokenList) -> bool:
+    """Fail closed for grouped JOIN targets, just as for derived FROM tables.
+
+    The conservative table extractor does not resolve a bare table group such
+    as JOIN (mysql.user). With all-table scope there is no restrictive allowlist
+    fallback, so silently ignoring such a group would bypass system-schema
+    checks. Function arguments are not relation groups and are not rejected by
+    this guard; their existing policies still apply.
+    """
+    tokens = _significant_sql_tokens(token_list)
+    if any(_is_parenthesized_relation_target(target) for target in _relation_targets(tokens)):
+        return True
+    for token in tokens:
+        if isinstance(token, TokenList) and _has_parenthesized_relation_target(token):
+            return True
+    return False
+
+
+def _nonstandard_relation_reference(token_list: TokenList) -> bool:
+    """Reject relation quoting/wrappers the authorization extractor cannot map.
+
+    SQLite's legacy single-quoted table names can be mistaken for aliases by
+    sqlparse, and MySQL's ODBC braces hide an entire relation from extraction.
+    Standard identifier quoting and ordinary quoted data remain supported.
+    """
+    tokens = _significant_sql_tokens(token_list)
+    for target in _relation_targets(tokens, preserve_qualification=True):
+        parts = _significant_sql_tokens(target) if isinstance(target, Identifier) else [target]
+        if len(parts) >= 3 and parts[1].value == ".":
+            parts = [parts[0], parts[2]]
+        else:
+            parts = parts[:1]
+        if any(part.ttype in sql_tokens.String.Single or part.value == "{" for part in parts):
+            return True
+    return any(
+        _nonstandard_relation_reference(token)
+        for token in tokens if isinstance(token, TokenList)
+    )
+
 
 def _server_state_reference_error(sql: str) -> str | None:
     """Reject SELECT-shaped reads of server, account or database-file state.
@@ -517,6 +739,12 @@ def _server_state_reference_error(sql: str) -> str | None:
         statements = sqlparse.parse(sql)
     except Exception:
         return "Query could not be parsed for server-state checks"
+    if any(_has_pragma_object_reference(statement) for statement in statements):
+        return (
+            "SQLite PRAGMA table-valued functions are not allowed in "
+            "queries; use list_tables() or describe_table() instead "
+            "(describe_table() also returns indexes)."
+        )
     tokens = [
         token
         for statement in statements
@@ -527,6 +755,8 @@ def _server_state_reference_error(sql: str) -> str | None:
         if token.ttype in sql_tokens.String:
             continue
         value = token.value.upper()
+        if token.ttype in sql_tokens.Keyword and value == "TABLE":
+            return "TABLE query expressions are not supported; use SELECT with FROM instead."
         if token.ttype in sql_tokens.Operator and value == "@@":
             return (
                 "System variables (@@...) are not allowed in queries; they "
@@ -537,14 +767,6 @@ def _server_state_reference_error(sql: str) -> str | None:
             next_value == "(" or value == "CURRENT_USER"
         ):
             return "Account and role functions are not allowed in queries."
-        if token.ttype in sql_tokens.Name and _normalize_sql_identifier(
-            token.value
-        ).upper().startswith("PRAGMA_"):
-            return (
-                "SQLite PRAGMA table-valued functions are not allowed in "
-                "queries; use list_tables() or describe_table() instead "
-                "(describe_table() also returns indexes)."
-            )
     return None
 
 
@@ -588,6 +810,23 @@ def _is_query_safe_extended(
     server_state_error = _server_state_reference_error(normalized_sql)
     if server_state_error:
         return False, server_state_error
+
+    # The existing FROM restriction also applies to JOIN/commalist groups.
+    # These shapes are outside the supported extractor even when read.mode=all.
+    if any(
+        _has_parenthesized_relation_target(statement)
+        for statement in sqlparse.parse(normalized_sql)
+    ):
+        return False, "Parenthesized FROM/JOIN targets are not allowed; use a CTE instead."
+
+    if any(
+        _nonstandard_relation_reference(statement)
+        for statement in sqlparse.parse(normalized_sql)
+    ):
+        return False, (
+            "Single-quoted table names and ODBC relation wrappers are not supported; "
+            "use standard identifier quoting and explicit FROM/JOIN targets."
+        )
 
     # Block access to system schemas using parsed table targets, not a raw-text
     # regex that could mistake a string literal such as 'mysql.user' for a
