@@ -3,6 +3,7 @@
 import sqlite3
 
 import pytest
+from sql_safety_executor.database.errors import DatabaseQueryError
 
 from sql_safety_executor.database.outcomes import MetadataQueryError
 from tests.support_adapters import MySQLAdapter, SQLiteAdapter
@@ -148,13 +149,13 @@ def test_mysql_indexes_map_statistics_rows(monkeypatch):
     }
     assert by_name["ux_source"]["unique"] is True
     sql, params = calls[1]
-    assert params == {"table_name": "va_table", "row_limit": 2049}
-    assert "TABLE_SCHEMA = DATABASE()" in sql and "CARDINALITY" not in sql
+    assert params == {"schema_name": adapter.metadata_schema, "table_name": "va_table", "row_limit": 2049}
+    assert "TABLE_SCHEMA = :schema_name" in sql and "CARDINALITY" not in sql
 
 
 def test_mysql_index_failure_is_not_an_empty_list(monkeypatch):
     adapter = MySQLAdapter()
-    monkeypatch.setattr(adapter, "execute", lambda *_a, **_k: "Error: denied")
+    monkeypatch.setattr(adapter, "execute", lambda *_a, **_k: (_ for _ in ()).throw(DatabaseQueryError("database_access_denied")))
     with pytest.raises(MetadataQueryError):
         adapter.get_indexes("va_table")
     with pytest.raises(MetadataQueryError):

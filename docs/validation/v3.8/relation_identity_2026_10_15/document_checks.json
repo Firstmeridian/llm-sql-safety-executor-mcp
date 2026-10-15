@@ -1,0 +1,7 @@
+{
+  "local_document_link_targets": 593,
+  "bilingual_drr_ids": 90,
+  "diff_check": "passed",
+  "version_and_runtime_dependencies_unchanged": true,
+  "scope": "Local file targets, not all remote URLs/heading anchors"
+}

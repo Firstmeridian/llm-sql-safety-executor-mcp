@@ -2,6 +2,8 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 from pydantic import SecretStr
+from .identifiers import ascii_identifier_lower
+from .relations import RelationReference
 
 logger = logging.getLogger(__name__)
 
@@ -17,14 +19,38 @@ class ConnectionPolicy:
     mutation_skills: frozenset[str] = frozenset()
     # MySQL table identity may be case-sensitive (lower_case_table_names=0).
     case_sensitive_tables: bool = False
+    _relation_grants: frozenset[RelationReference] = field(init=False, repr=False)
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_relation_grants", frozenset(
+            self.relation_key(RelationReference.from_declaration(name))
+            for name in self.allowed_tables or () if name != "*"
+        ))
 
     def table_key(self, name: str) -> str:
-        return name if self.case_sensitive_tables else name.lower()
+        return name if self.case_sensitive_tables else ascii_identifier_lower(name)
 
     def allows_table(self, name: str) -> bool:
-        if "*" in self.allowed_tables:
+        """Check a configured/declarative name, not a decoded SQL token."""
+        return self.allows_relation(RelationReference.from_declaration(name))
+
+    def relation_key(self, relation: RelationReference) -> RelationReference:
+        return relation.key(case_sensitive=self.case_sensitive_tables)
+
+    def allows_relation(self, relation: RelationReference) -> bool:
+        if self.allowed_tables is None or "*" in self.allowed_tables:
             return True
-        return self.table_key(name) in self.allowed_tables
+        return self.relation_key(relation) in self._relation_grants
+
+    def allows_metadata_table(self, name: str, schema: str | None) -> bool:
+        """Metadata is bound to a known schema; names here are already decoded."""
+        return self.allows_metadata_relation(RelationReference(name, schema))
+
+    def allows_metadata_relation(self, relation: RelationReference) -> bool:
+        """A bare declaration can authorize metadata in its fixed schema."""
+        return self.allows_relation(RelationReference(relation.name)) or (
+            relation.schema is not None and self.allows_relation(relation)
+        )
 
 
 @dataclass(frozen=True)

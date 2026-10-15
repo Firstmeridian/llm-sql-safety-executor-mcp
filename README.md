@@ -7,6 +7,7 @@
 ![AutoGen](https://img.shields.io/badge/Framework-AutoGen-blueviolet?logo=microsoft)
 
 English | [中文](README_ZH.md)
+
 > [Introduction](#introduction) | 
 > [Quick Start](#quick-start) | 
 > [Best Practices](#best-practices) | 
@@ -16,7 +17,7 @@ English | [中文](README_ZH.md)
 > [Other Documentation](#other-documentation)  
 > [Roadmap](#roadmap) · **v3.8 Update:** FastMCP 4, TOML configuration and optional MRTR approval  
 
-> **v3.8 deployment update**: FastMCP 4, explicit three-file TOML, an installed package and instance-owned state; optional managed MRTR is disabled by default. Legacy `.env` configuration and root launch scripts are retired. See [migration](docs/guides/CONFIGURATION_ZH.md), [implementation decisions](docs/architecture/V3_8_IMPLEMENTATION_ZH.md) and [validation scope](docs/validation/V3_8_VALIDATION_ZH.md).
+> **v3.8 deployment update**: FastMCP 4, explicit three-file TOML, an installed package and instance-owned state; optional managed MRTR is disabled by default. Legacy `.env` configuration and root launch scripts are retired. See [migration](docs/guides/CONFIGURATION_ZH.md), [implementation decisions](docs/architecture/V3_8_IMPLEMENTATION_ZH.md) and [validation scope](docs/validation/v3.8/V3_8_VALIDATION_ZH.md).
 
 ## introduction
 
@@ -184,7 +185,7 @@ Skills Scenario: unknown Skill → list_skills(search=..., detail_level="compact
   | L2 | Mutations enabled | `true` | `true` | + execute_mutation_skill | + Controlled writes after target authorization (two-phase preview/execute gate) |
 
 - **MRTR (optional)**: The full configuration exposes up to 13 tools. Approval waiting returns `InputRequiredResult`; telemetry records `phase=awaiting_approval`, `success=null`. Continuations share the same proposal/execution service; waiting is not business success.
-- **Default approval workflow**: Keep preview/execute as the default and `skills.mutation.mrtr.enabled=false`. October 1 tests verified the main native Codex IDE interactions, while the tested Copilot session failed the protocol gate; this is evidence of uneven support among tested clients, not a survey of all Hosts. Enable MRTR per deployment after verifying its actual Host. Neither flow independently authenticates a human, and enabling MRTR leaves the legacy write entry point available. See [acceptance and remaining gaps](docs/validation/V3_8_MRTR_NATIVE_2026_10_01_ZH.md) and [approval boundaries](docs/security/V3_8_SECURITY.md#where-approval-is-enforced).
+- **Default approval workflow**: Keep preview/execute as the default and `skills.mutation.mrtr.enabled=false`. October 1 tests verified the main native Codex IDE interactions, while the tested Copilot session failed the protocol gate; this is evidence of uneven support among tested clients, not a survey of all Hosts. Enable MRTR per deployment after verifying its actual Host. Neither flow independently authenticates a human, and enabling MRTR leaves the legacy write entry point available. See [acceptance and remaining gaps](docs/validation/v3.8/V3_8_MRTR_NATIVE_2026_10_01_ZH.md) and [approval boundaries](docs/security/V3_8_SECURITY.md#where-approval-is-enforced).
 - **Skills Two-Phase Preview/Execute Gate**: Write operations require a matching server-issued preview token; this prevents replay and drift but is not proof of human approval without a trusted client workflow
 - **Skills Audit Logging**: Mutation preview/execute paths attempt best-effort JSONL audit logging; normal tool results report `audit_logged`
 
@@ -281,7 +282,7 @@ Standard Agent Skills assume the Agent has a code execution environment and file
 **2. Different Trust Boundaries**
 
 Standard Agent Skills trust the Agent to correctly follow instructions [1] — e.g., SKILL.md says "use pdfplumber to open file", and the Agent writes Python code to do so [2]. This project deals with database write operations and cannot trust the Agent to act freely:
-- SQL must pass `is_sql_safe()` validation
+- Read SQL must pass the shared structured policy, including statement shape and target connection scope
 - Parameters must be validated by strong typing (type/min/max/enum), not natural language understanding
 - Mutations (INSERT/UPDATE/DELETE) use reviewed Skill classes: declarative
   `ManagedMutationBase` for one framework-executed statement, or trusted
@@ -344,15 +345,15 @@ flowchart TB
         direction TB
 
         subgraph S1["Layer 1: Input Validation"]
-            V1["is_sql_safe()<br/>Read forms only; no EXPLAIN ANALYZE"]
-            V2["_is_query_safe_extended()<br/>Block system tables/UNION/subqueries"]
+            V1["classify_sql_statement()<br/>Read forms only; no EXPLAIN ANALYZE"]
+            V2["_is_query_safe_extended()<br/>Block system state; apply UNION and relation rules"]
             V3["_check_table_allowlist()<br/>Table-level access control"]
             V4["validate_name()<br/>^a-z0-9- prevents path traversal"]
             V5["validate_params()<br/>type/range/enum constraints"]
         end
 
         subgraph S2["Layer 2: Execution Control"]
-            E1["query.sql template<br/>Pre-validated at startup via is_sql_safe()"]
+            E1["query.sql template<br/>Startup structured policy validation"]
             E2["Parameterized binding<br/>SQLAlchemy text() + params"]
             E3["mutation: validate()<br/>Business rule validation"]
             E4["mutation: preview()<br/>Dry-run preview"]
@@ -432,7 +433,7 @@ If the standard Agent Skills model were adopted, it would mean letting the Agent
 
 | Security Mechanism | This Project's Implementation | Under Standard Skills |
 |---|---|---|
-| **SQL Allowlist Validation** | `is_sql_safe()` validates at startup; unsafe skills are rejected from registration | Agent reads SQL files at runtime and executes them, bypassing validation |
+| **SQL Allowlist Validation** | Shared structural policy validates at startup; target scope is checked before execution | Agent reads SQL files at runtime and executes them, bypassing validation |
 | **Strong Parameter Validation** | `validate_params()` enforces type/min/max/enum | Agent understands parameters from natural language, no hard constraints |
 | **Anti-Parameter Injection** | Rejects parameters outside schema (`unexpected` check) | Agent decides what parameters to pass |
 | **TOCTOU Protection** | Loaded into memory at startup, no runtime reread of cached definitions | Agent reads files via bash each time, files may have been tampered with |
@@ -485,7 +486,7 @@ In recent updates, multiple efficiency optimizations have been carried out for t
     ![todo](readme_pic/todo.png)
 
 - In recent modifications (as of Jan 7, 2026), multiple security optimizations have been made, such as truncation for large data volumes, use of special keywords (like union), table allowlist settings, and dynamic prompts for different configurations. However, **higher security means lower performance/efficiency and higher consumption (e.g., more request parameters and Token consumption), so please configure security settings as appropriate.**
-- In practice, AI clients such as Claude Code, Codex, and Gemini CLI are similar to GitHub Copilot, but **be aware that AI calls may generate substantial token costs.** Earlier testing, including capability testing, mainly used GitHub Copilot. v3.8 reference Client results, actual Codex behavior and pending Copilot validation are recorded separately in [validation](docs/validation/V3_8_VALIDATION_ZH.md).
+- In practice, AI clients such as Claude Code, Codex, and Gemini CLI are similar to GitHub Copilot, but **be aware that AI calls may generate substantial token costs.** Earlier testing, including capability testing, mainly used GitHub Copilot. v3.8 reference Client results, actual Codex behavior and pending Copilot validation are recorded separately in [validation](docs/validation/v3.8/V3_8_VALIDATION_ZH.md).
 
 ## Quick Start
 
@@ -552,7 +553,7 @@ The guided flow lets you choose workspace or user scope; verify the saved locati
 
     ![answer](readme_pic/answer_en.png)
 
-Note: start with a disposable database and choose a model within your current account allowance. A user-supplied Copilot trial was rejected by the MCP 2026-07-28 requirement before any form appeared; interactive MRTR remains unverified, and tool visibility does not prove support. See [validation](docs/validation/V3_8_VALIDATION_ZH.md).
+Note: start with a disposable database and choose a model within your current account allowance. A user-supplied Copilot trial was rejected by the MCP 2026-07-28 requirement before any form appeared; interactive MRTR remains unverified, and tool visibility does not prove support. See [validation](docs/validation/v3.8/V3_8_VALIDATION_ZH.md).
 
 #### Common Issues
 *   **Cannot find tools?** Check the `Output` panel, switch to "GitHub Copilot" to see if there are errors.
@@ -829,7 +830,7 @@ agent_id = "unknown"
 
 MRTR holds the same review snapshot (at most 64 KiB) and uses framework-sealed continuation state. Missing answers resend the review without rerunning preview or extending the original expiry. Only accept plus strict boolean approve=true executes. Decline/cancel closes the proposal; a local denial in the retained preview Host does not revoke its server token before TTL. Neither flow automatically retries uncertain writes.
 
-Both reference Host flows enforce an outer approval deadline, check that the displayed review was not altered, and recheck expiry before accepting approval. Telemetry uses the validated target for MRTR waiting/repeated rounds and records `approval_declined` / `approval_cancelled`; calls without validated identity leave target fields null. SDK rejections before middleware may have no telemetry event. See the [review fixes and validation](docs/validation/V3_8_REVIEW_FIXES_2026_09_27_ZH.md).
+Both reference Host flows enforce an outer approval deadline, check that the displayed review was not altered, and recheck expiry before accepting approval. Telemetry uses the validated target for MRTR waiting/repeated rounds and records `approval_declined` / `approval_cancelled`; calls without validated identity leave target fields null. SDK rejections before middleware may have no telemetry event. See the [review fixes and validation](docs/validation/v3.8/V3_8_REVIEW_FIXES_2026_09_27_ZH.md).
 
 Approval trusts the Host rather than independently authenticating a human. Review/terminal output can contain business data, and sealed state is sensitive. The child inherits exported process variables; a productized Host should restrict that environment as appropriate. This does not restore dotenv configuration.
 
@@ -890,6 +891,13 @@ See [mcp_config.json](mcp_config.json) for the portable template. Private `confi
 
 ## Changelog
 
+### v3.8.1 Review corrections and task validation (October 2026)
+
+- Preserve scoped relation identity across reads, Skill readiness and metadata; preserve contextual table names and Unicode identity; recognize reserved PRAGMA/account/file calls across standard quoting.
+- Keep reserved-function checks active inside CTE bodies while treating declaration names and column lists as identifiers.
+- Shared CTE structure analysis supports contextual/Unicode names, quoted column lists, harmless comments and SQLite materialization hints; read policy, Skill dependencies and readiness agree. Unresolved shapes retain read-query recovery guidance.
+- Dated changes and decisions are in the [refactoring log](REFACTORING_LOG.md); detailed tests, complete Agent tasks and limits are in the [validation index](docs/README.md#releases-and-validation) and [release notes](docs/releases/RELEASE_NOTES_v3_8.md).
+
 ### v3.8.1 Skill Rejection Recovery Clue (October 1, 2026)
 
 - On `validation_failed`, `execute_mutation_skill` may return `related_available_skills`: declared related mutation Skills currently executable on the same connection. Names only; not advice, authorization or approval, and every alternative write still needs its own preview and approval. Lookup failure omits the field without changing the original failure.
@@ -902,7 +910,18 @@ See [mcp_config.json](mcp_config.json) for the portable template. Private `confi
 - Read policy now rejects SELECT-shaped reads of server, account and file-path state (`@@` system variables, `CURRENT_USER()` and related functions, SQLite `pragma_*` functions), and MySQL allowlists match table-name case exactly because `Orders` and `orders` can be different tables on Linux. On case-insensitive MySQL servers, configure allowlist entries with stored names; differently cased references are now rejected (DRR-2026-075/076).
 - Full suite 796 → 797 → 799 → 820 passed, 4 skipped across the updates; Pyright 0 errors. Subagent checks wrote only to dedicated local test data after per-write approval. See [release notes](docs/releases/RELEASE_NOTES_v3_8.md#v381--skill-rejection-recovery-clue-october-1-2026).
 
-**October 12 review:** quoted PRAGMA and CTE/table-scope omissions are fixed; SQLite metadata is pinned to main, and structured indexes preserve direction, collation, prefix length and visibility under fixed collection budgets. Both write tools independently include validity-first result guidance and missing-rowcount handling. Final validation: **941 passed, 4 skipped**, Pyright clean, live MySQL/SQLite comparisons and installed-wheel checks on both protocols. GPT-6 Luna native tasks and simulated-result failures are recorded separately with actual usage; the historical token figures above do not measure these final descriptions. After the maintainer restart, the resident Host description matched final source; interpretation checks passed 3/3 each and native indexes/previews passed 3/3. Recovery routes were correct 2/3: one omitted confirmed, was corrected on review, and the actual preview rejected that jump; no write executed. See the [review and evidence](docs/validation/V3_8_1_REVIEW_2026_10_12_ZH.md).
+**October 12 review:** quoted PRAGMA and CTE/table-scope omissions are fixed; SQLite metadata is pinned to main, and structured indexes preserve direction, collation, prefix length and visibility under fixed collection budgets. Both write tools independently include validity-first result guidance and missing-rowcount handling. Final validation: **941 passed, 4 skipped**, Pyright clean, live MySQL/SQLite comparisons and installed-wheel checks on both protocols. GPT-6 Luna native tasks and simulated-result failures are recorded separately with actual usage; the historical token figures above do not measure these final descriptions. After the maintainer restart, the resident Host description matched final source; interpretation checks passed 3/3 each and native indexes/previews passed 3/3. Recovery routes were correct 2/3: one omitted confirmed, was corrected on review, and the actual preview rejected that jump; no write executed. See the [review and evidence](docs/validation/v3.8/V3_8_1_REVIEW_2026_10_12_ZH.md).
+
+
+**October 14 matrix/function/AST follow-up:** current SQLite/MySQL CTE truth and matched cost baselines are recorded; raw reads and Query Skills reject real GET_LOCK/RELEASE_LOCK/RELEASE_ALL_LOCKS/SLEEP/BENCHMARK calls before I/O. Literal text, ordinary columns and CTE declarations remain supported. Unsafe templates are skipped offline at startup. SQLGlot 30.22.0 was evaluated in isolation; production AST/authorizer adoption is deferred. **1089 passed, 4 skipped**, Pyright/prompt contracts and 12 installed-wheel stdio calls passed. After the maintainer restart, 13 primary Host native checks passed; initial tool-visibility failures are retained, and required native CLI A/B passed 3/3 per stage. See [decisions and evidence](docs/validation/v3.8/V3_8_1_PHASE123_2026_10_14_ZH.md).
+
+**Final pre-commit follow-up:** preserve repeated quoted whitespace and decode lexical identifier components once, preventing physical names from being mistaken for CTEs/grants and escaped names from causing false dependencies. Final regression: **1114 passed, 4 skipped**, clean type/prompt checks and 22 installed-wheel stdio calls; prior model results remain attached to their source snapshot. After the final maintainer restart, **11/11 primary Host native checks passed**. See [the final supplement](docs/validation/v3.8/V3_8_1_PHASE123_2026_10_14_ZH.md#提交前完整复核与补修2026-10-14).
+
+**October 14 CTE repair:** declared and target-inferred Query Skill dependencies are separate; discovery, table search, readiness and execution agree. MySQL CTE case is measured by a cached constant-only probe, with conservative fallback. SQLite identity folds ASCII and preserves significant quoted/declared whitespace. New full Query Skill fields show dependency origins. Current-source verification and completed resident checks are distinguished from the October 13 model snapshot in the same acceptance record; version remains 3.8.1. Validation: **1042 passed, 4 skipped**, plus four separately opted-in MySQL tests; Pyright and both-protocol installed-wheel checks passed.
+
+**October 13 follow-up:** SQLite IN/NOT IN relations now share table/PRAGMA checks; token checks preserve literal UNION/FROM text. Structured read-policy decisions and typed adapter query failures provide fixed error_code and recovery hints. Query Skill dependencies share scoped parsing, with policy checked before readiness; SQL/policy failures return business success=false. Validation: **1002 passed, 4 skipped**, Pyright clean and both-protocol installed-wheel checks passed. Version remains 3.8.1; unreleased legacy configuration/SDK compatibility is outside this round. Post-restart native checks and identical-prompt Luna trials passed 3/3, with 4→3 MCP calls per task; measured input-token mean +2.7% and median +5.4% do not establish a cost improvement. See [decisions and final validation](docs/validation/v3.8/V3_8_1_FOLLOWUP_2026_10_13_ZH.md).
+
+October 13 supplemental checks passed all four opt-in MySQL tests and verified removal of the isolated race table. They reproduced a SQLite F/f CTE false dependency in Skill discovery/execution, including all-mode readiness. The October 14 repair closes that reproduced boundary; ten latest native Host calls passed. See the same acceptance record for normalized new evidence and fixed-cost limits.
 
 ### v3.8.0 FastMCP 4, TOML and Managed MRTR (September 2026)
 
@@ -911,9 +930,9 @@ See [mcp_config.json](mcp_config.json) for the portable template. Private `confi
 - Three strict TOMLs, mandatory `--config`, explicit secrets and offline `config check/explain`. Reads default to deny; all write gates are required. Remove default-only grants and partial-policy `execute_sql()`.
 - Default-off `request_mutation_approval` for managed single statements: sealed state, 64 KiB review cap, strict approval, original expiry and atomic consumption; no retry of uncertain writes.
 - Migrate public Skill SDK imports, trusted external directories, clients, isolated AutoGen examples, documentation, dependency lock and CI.
-- Earlier local automation recorded 744 passed, 4 skipped. The submitted `1be44b4` later failed CI on a stale description assertion; see [review fixes and current validation](docs/validation/V3_8_REVIEW_FIXES_2026_09_27_ZH.md). Live checks verified MySQL connectivity/basic reads, native Codex SQLite preview/execute with fixture restoration, and three isolated Luna six-turn routing trials. The subsequent [October 1 MRTR update](REFACTORING_LOG.md#v380-mrtr-approval-form-default-october-1-2026) records native Codex IDE approval, cancellation and unchecked refusal; [later native testing](docs/validation/V3_8_MRTR_NATIVE_2026_10_01_ZH.md) verified framework rejection after delayed approval with no database change. Separate real-process restart acceptance passed with a fresh-approval control; business-TTL checks have simulated-clock coverage. Native business-TTL/restart UI cases and MySQL writes remain unverified. A user-supplied Copilot trial hit the protocol gate before a form appeared; its MRTR UI remains unverified. The earlier MRTR dispatch refusal is preserved.
+- Earlier local automation recorded 744 passed, 4 skipped. The submitted `1be44b4` later failed CI on a stale description assertion; see [review fixes and current validation](docs/validation/v3.8/V3_8_REVIEW_FIXES_2026_09_27_ZH.md). Live checks verified MySQL connectivity/basic reads, native Codex SQLite preview/execute with fixture restoration, and three isolated Luna six-turn routing trials. The subsequent [October 1 MRTR update](REFACTORING_LOG.md#v380-mrtr-approval-form-default-october-1-2026) records native Codex IDE approval, cancellation and unchecked refusal; [later native testing](docs/validation/v3.8/V3_8_MRTR_NATIVE_2026_10_01_ZH.md) verified framework rejection after delayed approval with no database change. Separate real-process restart acceptance passed with a fresh-approval control; business-TTL checks have simulated-clock coverage. Native business-TTL/restart UI cases and MySQL writes remain unverified. A user-supplied Copilot trial hit the protocol gate before a form appeared; its MRTR UI remains unverified. The earlier MRTR dispatch refusal is preserved.
 
-See [release notes](docs/releases/RELEASE_NOTES_v3_8.md) and [validation](docs/validation/V3_8_VALIDATION_ZH.md). Historical entries below retain their original configuration, paths and conclusions; they are not v3.8 deployment instructions.
+See [release notes](docs/releases/RELEASE_NOTES_v3_8.md) and [validation](docs/validation/v3.8/V3_8_VALIDATION_ZH.md). Historical entries below retain their original configuration, paths and conclusions; they are not v3.8 deployment instructions.
 
 
 Historical version entries retain their original Skill names. Current names
@@ -1340,6 +1359,13 @@ SELECT, DESCRIBE, or non-ANALYZE EXPLAIN on the supported MySQL/SQLite adapters.
 Raw SHOW is rejected; use `list_tables()` or `describe_table()` for metadata
 discovery.
 
+SQL/policy failures return ordinary structured results with `success=false`,
+`error_code`, `error`, and an optional recovery `hint`; MCP `isError` can be
+false. For example, `unknown_column` directs you to `describe_table()` on
+the same connection. MySQL/SQLite driver exceptions are mapped to fixed safe
+messages rather than echoed. Policy errors may identify the configured table
+scope. A hint does not grant access or approval.
+
 Input:
 ```json
 {
@@ -1521,7 +1547,7 @@ Index collection has independent limits: 128 indexes, 2048 key parts and 64 KiB
 of UTF-8 JSON. Exceeding any limit makes the entire index list unavailable;
 composite indexes are not split. This is separate from `limits.result_chars`
 and is not a hard deadline for the whole tool. SQLite metadata targets main;
-`get_full_schema()` still omits indexes. See the [review and boundaries](docs/validation/V3_8_1_REVIEW_2026_10_03_ZH.md).
+`get_full_schema()` still omits indexes. See the [review and boundaries](docs/validation/v3.8/V3_8_1_REVIEW_2026_10_03_ZH.md).
 
 If MySQL returns no usable estimate, the successful response uses
 `row_count=null`, `row_count_approximate=null`, and `is_large=null`; no
@@ -1566,6 +1592,8 @@ Usage: Retrieve sample data from a specified table.
 than silently clamped. Direct Python calls receive the same explicit rejection,
 so both entry paths share one range contract.
 
+For SQLite, sampling and exact counts explicitly read `main`, so a same-name `temp` object cannot replace it and a missing main object does not fall back to an attached schema. For MySQL, generated reads and metadata bind the configured database; a temporary table in the same session can still hide its permanent counterpart. Session cleanup or isolation requires a separate design. The following example uses SQLite.
+
 Input:
 ```json
 {
@@ -1584,7 +1612,7 @@ Output:
     {"id": 2, "name": "Bob"}
   ],
   "row_count": 2,
-  "query": "SELECT * FROM `users` LIMIT 5"
+  "query": "SELECT * FROM \"main\".\"users\" LIMIT 5"
 }
 ```
 
@@ -1634,8 +1662,8 @@ This cost warning is also part of the machine-visible parameter description.
 If adapter row-estimate metadata (`exact_count=false`) or column metadata in
 either mode cannot be read, the tool returns `success=false` with
 `error_code="metadata_query_failed"` rather than an empty, missing, or zero-row
-result. An explicit `COUNT(*)` execution failure uses its existing query-error
-response instead. If MySQL returns an unavailable estimate without a query
+result. An explicit `COUNT(*)` execution failure returns a typed, sanitized business
+error such as `unknown_table` or `query_timeout`. If MySQL returns an unavailable estimate without a query
 failure, the approximate response preserves `row_count=null`,
 `row_count_approximate=null`, and `is_large=null`; `exact_count=true` retains
 integer row counts and boolean classification fields.
@@ -1779,7 +1807,7 @@ Output:
 ### 10. `execute_query_skill` (Skills Extension, Optional)
 Usage: Execute a pre-defined query skill with parameterized SQL.
 
-**Note**: Requires `skills.enabled=true`. Query Skills are reviewed SQL templates that are validated at startup for read-only/structural safety and re-checked at runtime against the resolved target connection, including per-connection table allowlists. They no longer rely on a pure startup-only trust path.
+**Note**: Requires `skills.enabled=true`. Query Skills are reviewed SQL templates that are validated at startup for read-only/structural safety and re-checked at runtime against the resolved target connection, including per-connection table allowlists. They no longer rely on a pure startup-only trust path. SQL/policy failures return `success=false`, `error_code`, `error`, optional `hint`, `skill_name`, `connection_id` and `db_type`; parameter, target, Skill-scope, profile and schema-readiness errors may remain protocol ToolErrors. Policy refusals happen before readiness reads.
 
 Input:
 ```json
@@ -1877,7 +1905,7 @@ The first round returns `InputRequiredResult` with target, Skill, normalized par
 
 Only a valid accept with strict boolean `approve=true` reaches shared execution. Decline/cancel closes the proposal. Original expiry, binding and atomic single consumption remain authoritative. Waiting holds no transaction or row lock; repeated continuation cannot authorize another execution. Failures after consumption never restore the token, and missing state or a lost response does not prove no prior write occurred. Inspect `success` and `execution_outcome`; never automatically retry an uncertain write.
 
-This verifies the trusted Host's decision against a proposal, not an independently authenticated human. Reference Host `--flow mrtr` and protocol tests cover the flow; actual Codex/Copilot limits are recorded in [validation](docs/validation/V3_8_VALIDATION_ZH.md).
+This verifies the trusted Host's decision against a proposal, not an independently authenticated human. Reference Host `--flow mrtr` and protocol tests cover the flow; actual Codex/Copilot limits are recorded in [validation](docs/validation/v3.8/V3_8_VALIDATION_ZH.md).
 
 ### Skills Extension Details (Since v3.0)
 
@@ -1936,7 +1964,7 @@ ORDER BY date ASC
 {"skill_name": "sample-monthly-sales-report", "params": {"year": 2026, "month": 1}}
 ```
 
-**How it works**: On server startup, `sql_safety_executor.skills.catalog.SkillCatalog` scans the `skills/` directory, parses the YAML frontmatter from `skill_def.md`, reads the source file declared by the `source` field, and validates it via `is_sql_safe()`. At runtime, the Agent passes `year` and `month` parameters, and the server executes the query safely using SQLAlchemy's parameterized binding (`:year`, `:month`), preventing SQL injection.
+**How it works**: On server startup, `sql_safety_executor.skills.catalog.SkillCatalog` scans the `skills/` directory, parses the YAML frontmatter from `skill_def.md`, reads the source file declared by the `source` field, and validates it with the shared structural policy. At execution, the full structured policy checks the target connection and declared dependencies before schema readiness. At runtime, the Agent passes `year` and `month` parameters, and the server executes the query safely using SQLAlchemy's parameterized binding (`:year`, `:month`), preventing SQL injection.
 
 #### SQLite counterpart: `sample-monthly-sales-report-sqlite`
 
@@ -2206,7 +2234,7 @@ flowchart LR
     subgraph Startup["Phase 2: Server Startup — discover()"]
         S1["Scan skills/ directory"]
         S2["Parse YAML frontmatter"]
-        S3["SQL safety check\nis_sql_safe()"]
+        S3["Structured SQL policy\nPolicyDecision"]
         S4["Import allowed Mutation classes\nimportlib.util"]
         S5["Write to instance catalog\nSkillCatalog"]
         S6["Optional overview export"]
@@ -2350,11 +2378,11 @@ uv run pyright
 uv build
 ```
 
-Remote [CI for `139d53a`](https://github.com/Firstmeridian/llm-sql-safety-executor-mcp/actions/runs/36330541822) passed completely: **786 passed, 4 skipped**, clean type checks, build and installed-wheel verification. The earlier `1be44b4` failure and local results remain in the [September 27 record](docs/validation/V3_8_REVIEW_FIXES_2026_09_27_ZH.md). The [September 28 follow-up](docs/validation/V3_8_REREVIEW_2026_09_28_ZH.md) fixes Query Skill static-policy discovery and records **792 passed, 4 skipped** in a clean local copy; this new patch still awaits remote CI. Four live MySQL tests remain disabled, and native MRTR UI acceptance remains separate.
+Remote [CI for `139d53a`](https://github.com/Firstmeridian/llm-sql-safety-executor-mcp/actions/runs/36330541822) passed completely: **786 passed, 4 skipped**, clean type checks, build and installed-wheel verification. The earlier `1be44b4` failure and local results remain in the [September 27 record](docs/validation/v3.8/V3_8_REVIEW_FIXES_2026_09_27_ZH.md). The [September 28 follow-up](docs/validation/v3.8/V3_8_REREVIEW_2026_09_28_ZH.md) fixes Query Skill static-policy discovery and records **792 passed, 4 skipped** in a clean local copy; this new patch still awaits remote CI. Four live MySQL tests remain disabled, and native MRTR UI acceptance remains separate.
 
-Later [live review and native reconnection tests](docs/validation/V3_8_LIVE_REVIEW_2026_09_26_ZH.md) verified MySQL connection/basic read probes and a native SQLite preview/execute/compensation cycle. Three isolated GPT-6 Luna agents completed six rounds each (22 calls, no observed wrong-target access); the host-directed write fixture was restored. These are separate from the four skipped MySQL integration tests and do not establish native MRTR, human approval UI or MySQL write behavior. Native subagent usage/protocol were not exposed; no cost or negotiated-version claims are inferred.
+Later [live review and native reconnection tests](docs/validation/v3.8/V3_8_LIVE_REVIEW_2026_09_26_ZH.md) verified MySQL connection/basic read probes and a native SQLite preview/execute/compensation cycle. Three isolated GPT-6 Luna agents completed six rounds each (22 calls, no observed wrong-target access); the host-directed write fixture was restored. These are separate from the four skipped MySQL integration tests and do not establish native MRTR, human approval UI or MySQL write behavior. Native subagent usage/protocol were not exposed; no cost or negotiated-version claims are inferred.
 
-**October 1 pre-commit check:** the complete pending v3.8.0 change passed clean-copy, frozen-dependency validation: **793 passed, 4 skipped**, with three existing legacy logging warnings. Pyright, sdist/wheel build and installed-wheel checks outside the repository passed. Version stays **3.8.0**; remote CI for the new commit and the remaining native UI cases are separate. See the [final local verification](docs/validation/V3_8_MRTR_NATIVE_2026_10_01_ZH.md).
+**October 1 pre-commit check:** the complete pending v3.8.0 change passed clean-copy, frozen-dependency validation: **793 passed, 4 skipped**, with three existing legacy logging warnings. Pyright, sdist/wheel build and installed-wheel checks outside the repository passed. Version stays **3.8.0**; remote CI for the new commit and the remaining native UI cases are separate. See the [final local verification](docs/validation/v3.8/V3_8_MRTR_NATIVE_2026_10_01_ZH.md).
 
 **v3.8.1 check (October 1):** after adding the rejection recovery clue, the full local suite recorded **796 passed, 4 skipped** and Pyright 0 errors. After the later result-interpretation guidance it recorded **797 passed, 4 skipped**, and after the per-connection read policy guidance **799 passed, 4 skipped**, and after the server-state, MySQL table-case and structured-index updates **820 passed, 4 skipped**. These were run in the existing development environment, not a clean copy, and no build or remote CI result is claimed. See the [v3.8.1 notes](docs/releases/RELEASE_NOTES_v3_8.md#v381--skill-rejection-recovery-clue-october-1-2026).
 
@@ -2386,7 +2414,7 @@ Startup still discovers enabled trusted Skills. For offline configuration only, 
 - [v3.8 configuration and migration](docs/guides/CONFIGURATION_ZH.md): TOML, permissions, SDK imports and cutover
 - [v3.8 implementation decisions](docs/architecture/V3_8_IMPLEMENTATION_ZH.md): package structure, state and reference-plan review
 - [v3.8 security boundaries](docs/security/V3_8_SECURITY.md): trusted Python/Host, MRTR, audit and unknown outcomes
-- [v3.8 release notes](docs/releases/RELEASE_NOTES_v3_8.md) and [validation](docs/validation/V3_8_VALIDATION_ZH.md)
+- [v3.8 release notes](docs/releases/RELEASE_NOTES_v3_8.md) and [validation](docs/validation/v3.8/V3_8_VALIDATION_ZH.md)
 - [Documentation index](docs/README.md): current contracts and historical material
 
 - [Skills Design](docs/architecture/MCP_AGENTS_SKILLS_DESIGN.md): v3.0 Skills extension layer architecture and design decisions

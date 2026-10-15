@@ -47,7 +47,7 @@ class ConnectionRegistry:
             raise ValueError("Invalid connection_id")
         alias = alias.strip().lower()
         if alias not in self.configs:
-            raise ValueError(f"Unknown connection_id '{alias}'")
+            raise ValueError(f"Unknown connection_id '{alias}'. Call list_connections() to discover configured aliases.")
         return self.configs[alias]
 
     def list_configs(self) -> list[DatabaseConfig]:

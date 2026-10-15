@@ -60,7 +60,7 @@ async def assert_policy_contract(server, mode, reason, expected_data, monkeypatc
 
     for alias in ("denied", "allowed"):
         adapter = server.gateway_runtime.registry.get_adapter(alias)
-        monkeypatch.setattr(adapter, "get_tables", unexpected_io)
+        monkeypatch.setattr(adapter, "get_read_relations", unexpected_io)
         if alias == "denied":
             monkeypatch.setattr(adapter, "execute", unexpected_io)
 
@@ -91,7 +91,8 @@ async def assert_policy_contract(server, mode, reason, expected_data, monkeypatc
             result = await client.call_tool("execute_query_skill", {
                 "skill_name": SKILL, "params": {}, "connection_id": alias,
             }, raise_on_error=False)
-            assert result.is_error is not allowed
+            assert result.is_error is False
+            assert result.structured_content["success"] is allowed
             if allowed:
                 assert result.structured_content["data"] == expected_data
                 assert result.structured_content["connection_id"] == alias
@@ -120,9 +121,11 @@ async def test_discovery_reuses_parsed_table_policy_not_only_union(policy_server
         {"mode": "allowlist", "tables": ["other"]},
         {"mode": "allowlist", "tables": ["items"]},
     )
-    # Metadata extraction is intentionally only a catalog heuristic. The full
-    # SQL policy must still check a quoted table it does not enumerate.
-    assert server.gateway_runtime.catalog.get_skills_cache()[SKILL].tables == []
+    # Catalog dependencies and authorization now share scoped extraction;
+    # execution still independently checks the target connection policy.
+    meta = server.gateway_runtime.catalog.get_skills_cache()[SKILL]
+    assert meta.tables == []  # No declared dependencies; inference is separate.
+    assert [table.display_name for table in meta._inferred_tables[False]] == ["items"]
     await assert_policy_contract(
         server, "auto", "Access denied to table(s): items", [{"value": 7}], monkeypatch
     )

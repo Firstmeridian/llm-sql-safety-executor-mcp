@@ -1,0 +1,13 @@
+{
+  "connection": "trade_analysis_mysql",
+  "cte_case_sensitive": false,
+  "cold_probe_including_engine_and_connection_ms": 146.40147399950365,
+  "cached_lookup_ms": 0.006118998499005102,
+  "native_mixed_case_rows": [
+    [
+      7
+    ]
+  ],
+  "probe_physical_tables_read": false,
+  "writes": false
+}

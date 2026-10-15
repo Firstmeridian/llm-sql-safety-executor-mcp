@@ -1,0 +1,21 @@
+{
+  "date": "2026-10-15",
+  "arguments": {
+    "connection_id": "analytics_demo_sqlite",
+    "sql": "SELECT 7 FROM \"information_schema.orders\""
+  },
+  "result": {
+    "isError": false,
+    "structuredContent": {
+      "success": false,
+      "error_code": "system_schema_denied",
+      "error": "Access to system databases not allowed.",
+      "hint": "Use list_tables() or describe_table(); describe_table() also returns indexes.",
+      "query": "SELECT 7 FROM \"information_schema.orders\"",
+      "connection_id": "analytics_demo_sqlite",
+      "db_type": "sqlite"
+    }
+  },
+  "expected_after_restart": "table_access_denied",
+  "root_cause": "Undetermined; old resident result alone does not establish cache causation"
+}

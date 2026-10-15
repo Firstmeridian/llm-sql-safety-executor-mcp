@@ -1,0 +1,42 @@
+{
+  "captured_utc": "2026-10-14T11:02:42.588Z",
+  "cli_version": "0.162.1",
+  "configured_sql_server": {
+    "enabled": true,
+    "enabled_tools": null,
+    "disabled_tools": null
+  },
+  "internal_subagent_probe": {
+    "agent_id": "01a13a0e-42fd-7ad0-8f08-6bb8531a55fe",
+    "model": "gpt-6-luna",
+    "fork_context": true,
+    "sql_tools": 0
+  },
+  "independent_task_probe": {
+    "thread_id": "01a13a11-ba71-7ab2-b02d-b1386a084dea",
+    "model": "gpt-6-luna",
+    "observed_sql_tools": 10,
+    "list_connections_success": true
+  },
+  "conclusion": "Initial missing tools are not model incapability. Startup grace/config snapshot is a supported explanation; exact internal race or MCP client binding failure is not proven. required=true avoids silent absence in controlled tasks.",
+  "official_sources": [
+    "https://learn.chatgpt.com/docs/agent-configuration/subagents?surface=cli",
+    "https://learn.chatgpt.com/docs/extend/mcp?surface=cli"
+  ],
+  "comparison_limit": "Availability probe is not a controlled model baseline; separate tasks are peer tasks, not the failed internal subagent path.",
+  "later_internal_probe": {
+    "agent_id": "01a13a0e-42fd-7ad0-8f08-6bb8531a55fe",
+    "sql_tools": 10,
+    "real_query_success": true,
+    "sleep_error_code": "expensive_function_denied"
+  },
+  "independent_task_result": "2 passed, 1 initially lacked callable SQL MCP",
+  "configured_required": "unset",
+  "configured_optional_grace": "unset; documented default 1000ms",
+  "required_override_result": "Six controlled CLI tasks, all tool-ready and passed; task-local overrides only",
+  "startup_evidence": "mcp_startup.json; three initialize+tools samples about 3.87–5.69s",
+  "failed_public_error": "TypeError: tools.mcp__sql_safety_executor_mcp__query is not a function",
+  "error_stage": "Local Host tool orchestration before a query request reached the MCP server",
+  "diagnostic_limit": "No concurrent observation proves a visible tool name with an unready or unbound MCP client. Startup failure, scheduling/snapshot timing and client binding cannot be separated from these public traces.",
+  "mitigation_scope": "Verified task-local required=true and startup_timeout_sec=60 in all six controlled native Luna trials. No global Codex configuration change or Host implementation fix."
+}

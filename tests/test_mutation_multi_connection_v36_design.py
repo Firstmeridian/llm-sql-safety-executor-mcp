@@ -304,7 +304,7 @@ def test_schema_metadata_failure_blocks_query_and_mutation_before_execution(
         raise module.MetadataQueryError("listing tables")
 
     try:
-        monkeypatch.setattr(adapter, "get_tables", fail_metadata)
+        monkeypatch.setattr(adapter, "get_read_relations", fail_metadata)
         monkeypatch.setattr(
             adapter,
             "execute",

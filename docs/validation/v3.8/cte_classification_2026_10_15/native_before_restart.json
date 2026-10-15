@@ -1,0 +1,246 @@
+{
+  "observed_at": "2026-10-15 12:16:14 UTC",
+  "scope": "Current Codex Host native observations before diagnostic-only patch; four exact reviewer CTE examples quoted/bare. These results match current source; existing functional limitation, not evidence of stale MCP.",
+  "records": [
+    {
+      "id": "unıon-bare",
+      "name": "unıon",
+      "quoted": false,
+      "args": {
+        "connection_id": "analytics_demo_sqlite",
+        "sql": "WITH unıon AS (SELECT 7 AS n)\nSELECT n FROM unıon;"
+      },
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":false,\"error_code\":\"read_only_required\",\"error\":\"Only read-only queries allowed (SELECT, DESCRIBE, non-ANALYZE EXPLAIN)\",\"hint\":\"For an intended write, discover reviewed mutation Skills with list_skills(); preview and obtain explicit approval before execution. Discovery does not authorize a write.\",\"query\":\"WITH unıon AS (SELECT 7 AS n)\\nSELECT n FROM unıon;\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": false,
+          "error_code": "read_only_required",
+          "error": "Only read-only queries allowed (SELECT, DESCRIBE, non-ANALYZE EXPLAIN)",
+          "hint": "For an intended write, discover reviewed mutation Skills with list_skills(); preview and obtain explicit approval before execution. Discovery does not authorize a write.",
+          "query": "WITH unıon AS (SELECT 7 AS n)\nSELECT n FROM unıon;",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      }
+    },
+    {
+      "id": "unıon-quoted",
+      "name": "unıon",
+      "quoted": true,
+      "args": {
+        "connection_id": "analytics_demo_sqlite",
+        "sql": "WITH \"unıon\" AS (SELECT 7 AS n)\nSELECT n FROM \"unıon\";"
+      },
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":true,\"data\":[{\"n\":7}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null,\"query\":\"WITH \\\"unıon\\\" AS (SELECT 7 AS n)\\nSELECT n FROM \\\"unıon\\\";\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": true,
+          "data": [
+            {
+              "n": 7
+            }
+          ],
+          "row_count": 1,
+          "total_rows": 1,
+          "truncated": false,
+          "truncation_note": null,
+          "query": "WITH \"unıon\" AS (SELECT 7 AS n)\nSELECT n FROM \"unıon\";",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      }
+    },
+    {
+      "id": "offſet-bare",
+      "name": "offſet",
+      "quoted": false,
+      "args": {
+        "connection_id": "analytics_demo_sqlite",
+        "sql": "WITH offſet AS (SELECT 7 AS n)\nSELECT n FROM offſet;"
+      },
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":false,\"error_code\":\"read_only_required\",\"error\":\"Only read-only queries allowed (SELECT, DESCRIBE, non-ANALYZE EXPLAIN)\",\"hint\":\"For an intended write, discover reviewed mutation Skills with list_skills(); preview and obtain explicit approval before execution. Discovery does not authorize a write.\",\"query\":\"WITH offſet AS (SELECT 7 AS n)\\nSELECT n FROM offſet;\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": false,
+          "error_code": "read_only_required",
+          "error": "Only read-only queries allowed (SELECT, DESCRIBE, non-ANALYZE EXPLAIN)",
+          "hint": "For an intended write, discover reviewed mutation Skills with list_skills(); preview and obtain explicit approval before execution. Discovery does not authorize a write.",
+          "query": "WITH offſet AS (SELECT 7 AS n)\nSELECT n FROM offſet;",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      }
+    },
+    {
+      "id": "offſet-quoted",
+      "name": "offſet",
+      "quoted": true,
+      "args": {
+        "connection_id": "analytics_demo_sqlite",
+        "sql": "WITH \"offſet\" AS (SELECT 7 AS n)\nSELECT n FROM \"offſet\";"
+      },
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":true,\"data\":[{\"n\":7}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null,\"query\":\"WITH \\\"offſet\\\" AS (SELECT 7 AS n)\\nSELECT n FROM \\\"offſet\\\";\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": true,
+          "data": [
+            {
+              "n": 7
+            }
+          ],
+          "row_count": 1,
+          "total_rows": 1,
+          "truncated": false,
+          "truncation_note": null,
+          "query": "WITH \"offſet\" AS (SELECT 7 AS n)\nSELECT n FROM \"offſet\";",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      }
+    },
+    {
+      "id": "wındow-bare",
+      "name": "wındow",
+      "quoted": false,
+      "args": {
+        "connection_id": "analytics_demo_sqlite",
+        "sql": "WITH wındow AS (SELECT 7 AS n)\nSELECT n FROM wındow;"
+      },
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":false,\"error_code\":\"read_only_required\",\"error\":\"Only read-only queries allowed (SELECT, DESCRIBE, non-ANALYZE EXPLAIN)\",\"hint\":\"For an intended write, discover reviewed mutation Skills with list_skills(); preview and obtain explicit approval before execution. Discovery does not authorize a write.\",\"query\":\"WITH wındow AS (SELECT 7 AS n)\\nSELECT n FROM wındow;\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": false,
+          "error_code": "read_only_required",
+          "error": "Only read-only queries allowed (SELECT, DESCRIBE, non-ANALYZE EXPLAIN)",
+          "hint": "For an intended write, discover reviewed mutation Skills with list_skills(); preview and obtain explicit approval before execution. Discovery does not authorize a write.",
+          "query": "WITH wındow AS (SELECT 7 AS n)\nSELECT n FROM wındow;",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      }
+    },
+    {
+      "id": "wındow-quoted",
+      "name": "wındow",
+      "quoted": true,
+      "args": {
+        "connection_id": "analytics_demo_sqlite",
+        "sql": "WITH \"wındow\" AS (SELECT 7 AS n)\nSELECT n FROM \"wındow\";"
+      },
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":true,\"data\":[{\"n\":7}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null,\"query\":\"WITH \\\"wındow\\\" AS (SELECT 7 AS n)\\nSELECT n FROM \\\"wındow\\\";\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": true,
+          "data": [
+            {
+              "n": 7
+            }
+          ],
+          "row_count": 1,
+          "total_rows": 1,
+          "truncated": false,
+          "truncation_note": null,
+          "query": "WITH \"wındow\" AS (SELECT 7 AS n)\nSELECT n FROM \"wındow\";",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      }
+    },
+    {
+      "id": "window-bare",
+      "name": "window",
+      "quoted": false,
+      "args": {
+        "connection_id": "analytics_demo_sqlite",
+        "sql": "WITH window AS (SELECT 7 AS n)\nSELECT n FROM window;"
+      },
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":false,\"error_code\":\"read_only_required\",\"error\":\"Only read-only queries allowed (SELECT, DESCRIBE, non-ANALYZE EXPLAIN)\",\"hint\":\"For an intended write, discover reviewed mutation Skills with list_skills(); preview and obtain explicit approval before execution. Discovery does not authorize a write.\",\"query\":\"WITH window AS (SELECT 7 AS n)\\nSELECT n FROM window;\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": false,
+          "error_code": "read_only_required",
+          "error": "Only read-only queries allowed (SELECT, DESCRIBE, non-ANALYZE EXPLAIN)",
+          "hint": "For an intended write, discover reviewed mutation Skills with list_skills(); preview and obtain explicit approval before execution. Discovery does not authorize a write.",
+          "query": "WITH window AS (SELECT 7 AS n)\nSELECT n FROM window;",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      }
+    },
+    {
+      "id": "window-quoted",
+      "name": "window",
+      "quoted": true,
+      "args": {
+        "connection_id": "analytics_demo_sqlite",
+        "sql": "WITH \"window\" AS (SELECT 7 AS n)\nSELECT n FROM \"window\";"
+      },
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":true,\"data\":[{\"n\":7}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null,\"query\":\"WITH \\\"window\\\" AS (SELECT 7 AS n)\\nSELECT n FROM \\\"window\\\";\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": true,
+          "data": [
+            {
+              "n": 7
+            }
+          ],
+          "row_count": 1,
+          "total_rows": 1,
+          "truncated": false,
+          "truncation_note": null,
+          "query": "WITH \"window\" AS (SELECT 7 AS n)\nSELECT n FROM \"window\";",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      }
+    }
+  ]
+}

@@ -1,0 +1,124 @@
+{
+  "installation": "non-editable --target /tmp; existing venv dependencies reused; server cwd outside repository",
+  "source": "/tmp/v381-wheel-installed/sql_safety_executor",
+  "calls": [
+    {
+      "protocol": "2025-11-25",
+      "sql": "SELECT id,'union' AS label FROM allowed",
+      "result": {
+        "success": true,
+        "data": [
+          {
+            "id": 1,
+            "label": "union"
+          }
+        ],
+        "row_count": 1,
+        "total_rows": 1,
+        "truncated": false,
+        "truncation_note": null,
+        "query": "SELECT id,'union' AS label FROM allowed",
+        "connection_id": "demo",
+        "db_type": "sqlite"
+      }
+    },
+    {
+      "protocol": "2025-11-25",
+      "sql": "SELECT missing FROM allowed",
+      "result": {
+        "success": false,
+        "error_code": "unknown_column",
+        "error": "Column not found.",
+        "hint": "Use describe_table() to check columns on the same connection.",
+        "query": "SELECT missing FROM allowed",
+        "connection_id": "demo",
+        "db_type": "sqlite"
+      }
+    },
+    {
+      "protocol": "2025-11-25",
+      "sql": "SELECT id FROM allowed WHERE 1 IN blocked",
+      "result": {
+        "success": false,
+        "error_code": "table_access_denied",
+        "error": "Access denied to table(s): blocked. Only allowed tables: allowed",
+        "hint": "Keep the same connection and use authorized tables. For a CTE reference, use the declaration's exact case on MySQL connections.",
+        "query": "SELECT id FROM allowed WHERE 1 IN blocked",
+        "connection_id": "demo",
+        "db_type": "sqlite"
+      }
+    },
+    {
+      "protocol": "2025-11-25",
+      "sql": "SELECT 1; SELECT 2",
+      "result": {
+        "success": false,
+        "error_code": "multiple_statements",
+        "error": "Exactly one SQL statement is allowed per call.",
+        "hint": "Send each statement in a separate call.",
+        "query": "SELECT 1; SELECT 2",
+        "connection_id": "demo",
+        "db_type": "sqlite"
+      }
+    },
+    {
+      "protocol": "2026-07-28",
+      "sql": "SELECT id,'union' AS label FROM allowed",
+      "result": {
+        "success": true,
+        "data": [
+          {
+            "id": 1,
+            "label": "union"
+          }
+        ],
+        "row_count": 1,
+        "total_rows": 1,
+        "truncated": false,
+        "truncation_note": null,
+        "query": "SELECT id,'union' AS label FROM allowed",
+        "connection_id": "demo",
+        "db_type": "sqlite"
+      }
+    },
+    {
+      "protocol": "2026-07-28",
+      "sql": "SELECT missing FROM allowed",
+      "result": {
+        "success": false,
+        "error_code": "unknown_column",
+        "error": "Column not found.",
+        "hint": "Use describe_table() to check columns on the same connection.",
+        "query": "SELECT missing FROM allowed",
+        "connection_id": "demo",
+        "db_type": "sqlite"
+      }
+    },
+    {
+      "protocol": "2026-07-28",
+      "sql": "SELECT id FROM allowed WHERE 1 IN blocked",
+      "result": {
+        "success": false,
+        "error_code": "table_access_denied",
+        "error": "Access denied to table(s): blocked. Only allowed tables: allowed",
+        "hint": "Keep the same connection and use authorized tables. For a CTE reference, use the declaration's exact case on MySQL connections.",
+        "query": "SELECT id FROM allowed WHERE 1 IN blocked",
+        "connection_id": "demo",
+        "db_type": "sqlite"
+      }
+    },
+    {
+      "protocol": "2026-07-28",
+      "sql": "SELECT 1; SELECT 2",
+      "result": {
+        "success": false,
+        "error_code": "multiple_statements",
+        "error": "Exactly one SQL statement is allowed per call.",
+        "hint": "Send each statement in a separate call.",
+        "query": "SELECT 1; SELECT 2",
+        "connection_id": "demo",
+        "db_type": "sqlite"
+      }
+    }
+  ]
+}

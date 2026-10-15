@@ -18,6 +18,7 @@ from sql_safety_executor.skills.mutation import (
     resolve_managed_plan_values,
     run_managed_mutation,
     validate_managed_preview,
+    normalize_mutation_validation,
 )
 
 logger = logging.getLogger(__name__)
@@ -151,7 +152,7 @@ async def execute_mutation_skill(
                 raise RuntimeError(
                     "Mutation framework did not instantiate the preview Skill."
                 )
-            validation = mutation.validate(validated_params)
+            validation = normalize_mutation_validation(mutation.validate(validated_params))
             if not validation.get("valid", False):
                 errors = validation.get("errors", ["Validation failed"])
                 await ctx.warning(f"Validation failed: {errors}")
@@ -346,7 +347,7 @@ async def execute_mutation_skill(
         except ToolError:
             raise
         except Exception as e:
-            sanitized = adapter._handle_error(e)
+            sanitized = str(adapter._handle_error(e))
             raise ToolError(sanitized) from e
     else:
         # Phase 2: consume, then use the managed plan or imperative callback
@@ -377,7 +378,7 @@ async def execute_mutation_skill(
                     "Mutation framework did not instantiate the imperative Skill."
                 )
             try:
-                validation = mutation.validate(validated_params)
+                validation = normalize_mutation_validation(mutation.validate(validated_params))
             except ToolError as validation_error:
                 validation = {
                     "valid": False,
@@ -386,13 +387,7 @@ async def execute_mutation_skill(
             except Exception as validation_error:
                 validation = {
                     "valid": False,
-                    "errors": [adapter._handle_error(validation_error)],
-                }
-
-            if not isinstance(validation, dict):
-                validation = {
-                    "valid": False,
-                    "errors": ["Mutation validation returned an invalid result."],
+                    "errors": [str(adapter._handle_error(validation_error))],
                 }
 
         if not validation.get("valid", False):
@@ -497,7 +492,7 @@ async def execute_mutation_skill(
                 # bypasses subclass dispatch. This final guard covers a
                 # framework fault or base-level runtime tampering; after
                 # a write, neither can justify a rollback claim.
-                sanitized = adapter._handle_error(execution_error)
+                sanitized = str(adapter._handle_error(execution_error))
                 try:
                     failure_audit_logged = runtime.audit.log(
                         skill_name=skill_name,

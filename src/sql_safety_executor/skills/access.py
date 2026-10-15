@@ -1,4 +1,5 @@
 from __future__ import annotations
+from sql_safety_executor.core.decisions import PolicyDecision
 import logging
 from typing import Any
 from sql_safety_executor.core.types import (
@@ -7,6 +8,7 @@ from sql_safety_executor.core.types import (
     SkillSchemaSnapshot as _SkillSchemaSnapshot,
 )
 from sql_safety_executor.database.models import DatabaseConfig
+from sql_safety_executor.database.relations import RelationReference
 from sql_safety_executor.database.outcomes import MetadataQueryError
 from sql_safety_executor.core.connections import read_access_enabled
 from sql_safety_executor.core.policy import _validate_sql_query_policy
@@ -196,7 +198,7 @@ def _get_skill_schema_snapshot(
         )
 
     try:
-        tables = connection.adapter.get_tables()
+        relations = connection.adapter.get_read_relations()
     except MetadataQueryError as exc:
         logger.warning("Skills schema readiness check unavailable: %s", exc)
         return _SkillSchemaSnapshot(
@@ -207,12 +209,12 @@ def _get_skill_schema_snapshot(
 
     return _SkillSchemaSnapshot(
         enabled=True,
-        available=True,
+        available=connection.default_schema is not None,
         table_names=frozenset(
-            connection.policy.table_key(str(table.get("table_name", "")))
-            for table in tables
-            if table.get("table_name")
+            connection.policy.relation_key(relation.reference)
+            for relation in relations
         ),
+        schema_name=connection.default_schema,
     )
 
 
@@ -227,6 +229,39 @@ def _query_skill_blocked_tables(
     if allowed_tables is None or "*" in allowed_tables:
         return []
     return [table for table in meta.tables if not connection.policy.allows_table(table)]
+
+
+def _inferred_skill_relations(meta: SkillMetadata, connection: ConnectionContext) -> list[RelationReference]:
+    """Keep independently inferred dependencies distinct from declarations."""
+    if meta.type == "query" and meta._sql_template is not None:
+        from sql_safety_executor.skills.catalog import _extract_table_references
+        sensitive = connection.policy.case_sensitive_tables
+        if sensitive and "WITH" in meta._sql_template.upper():
+            sensitive = connection.adapter.cte_case_sensitive is not False
+        if sensitive not in meta._inferred_tables:
+            meta._inferred_tables[sensitive] = _extract_table_references(
+                meta._sql_template, cte_case_sensitive=sensitive,
+            )
+        return meta._inferred_tables[sensitive]
+    return []
+
+
+def _required_skill_relations(meta: SkillMetadata, connection: ConnectionContext) -> list[RelationReference]:
+    """Resolve inference for this target, without changing declared restrictions."""
+    inferred = _inferred_skill_relations(meta, connection)
+    required: dict[RelationReference, RelationReference] = {}
+    declared = [RelationReference.from_declaration(table) for table in meta.tables]
+    for table in [*declared, *inferred]:
+        required.setdefault(connection.policy.relation_key(table), table)
+    return list(required.values())
+
+
+def _inferred_skill_tables(meta: SkillMetadata, connection: ConnectionContext) -> list[str]:
+    return [table.display_name for table in _inferred_skill_relations(meta, connection)]
+
+
+def _required_skill_tables(meta: SkillMetadata, connection: ConnectionContext) -> list[str]:
+    return [table.display_name for table in _required_skill_relations(meta, connection)]
 
 
 def _mutation_connection_policy_state(
@@ -283,6 +318,7 @@ def _skill_availability_state(
     """Describe whether a discovered skill can execute in the current state."""
     reasons: list[str] = []
     missing_tables: list[str] = []
+    unverified_tables: list[str] = []
     blocked_tables: list[str] = []
     excluded_profiles = _skill_excluded_profiles(runtime, meta)
     connection_scope = _skill_connection_scope_state(runtime, meta, connection)
@@ -324,35 +360,25 @@ def _skill_availability_state(
         reasons.append(mutation_policy_reason)
         policy_allowed = False
 
-    if meta.type == "query" and not read_access_enabled(connection.policy):
-        policy_allowed = False
-        reasons.append("Reading is disabled by the target connection read policy.")
-
     blocked_tables = _query_skill_blocked_tables(meta, connection)
-    if blocked_tables:
-        policy_allowed = False
-        reasons.append(
-            "Required query skill table(s) are blocked by the target "
-            f"connection allowlist: {blocked_tables}."
-        )
-
-    if meta.type == "query" and policy_allowed:
-        # Preflight the same startup snapshot and explicit target policy used
-        # by execution. Never re-read SQL or share a verdict across targets.
+    if meta.type == "query":
         if meta._sql_template is None:
             policy_allowed = False
             reasons.append("Query skill SQL template is not cached (internal error).")
         else:
-            sql_allowed, sql_reason = _validate_sql_query_policy(
-                runtime, meta._sql_template, connection.policy
-            )
-            if not sql_allowed:
-                policy_allowed = False
-                reasons.append(
-                    f"Skill '{meta.name}' failed SQL safety policy: {sql_reason}"
+            decision = _query_skill_policy_decision(meta, connection)
+            if decision.allowed:
+                decision = _validate_sql_query_policy(
+                    runtime, meta._sql_template, connection.policy,
+                    adapter=connection.adapter if profile_allowed and db_compatible and connection_scope["connection_scope_allowed"] else None,
                 )
+            if not decision.allowed:
+                policy_allowed = False
+                reasons.append(f"Skill '{meta.name}' failed SQL safety policy: {decision.message}")
 
-    if schema_snapshot.enabled and meta.tables:
+    required_relations = _required_skill_relations(meta, connection)
+    required_tables = [table.display_name for table in required_relations]
+    if schema_snapshot.enabled and required_tables:
         if not schema_snapshot.available:
             schema_ready = False
             reasons.append(
@@ -360,10 +386,25 @@ def _skill_availability_state(
                 "database metadata is unavailable for the target connection."
             )
         else:
+            scope = connection.policy.table_key(schema_snapshot.schema_name) if schema_snapshot.schema_name is not None else None
+            unverified_relations = [
+                table for table in required_relations
+                if table.schema is not None
+                and connection.policy.relation_key(table).schema != scope
+            ]
+            unverified_tables = [table.display_name for table in unverified_relations]
+            if unverified_tables:
+                schema_ready = False
+                reasons.append(
+                    "Schema readiness does not cover required table(s): "
+                    f"{unverified_tables}."
+                )
             missing_tables = [
-                table
-                for table in meta.tables
-                if connection.policy.table_key(table) not in schema_snapshot.table_names
+                table.display_name
+                for table in required_relations
+                if table not in unverified_relations
+                and connection.policy.relation_key(table.in_schema(schema_snapshot.schema_name))
+                not in schema_snapshot.table_names
             ]
             if missing_tables:
                 schema_ready = False
@@ -387,8 +428,12 @@ def _skill_availability_state(
         "blocked_tables": blocked_tables,
         "schema_ready": schema_ready,
         "schema_check_enabled": schema_snapshot.enabled,
-        "schema_check_available": schema_snapshot.available,
+        "schema_check_available": schema_snapshot.available and not unverified_tables,
         "missing_tables": missing_tables,
+        "unverified_tables": unverified_tables,
+        "required_tables": required_tables,
+        "declared_tables": list(meta.tables),
+        "inferred_tables": list(_inferred_skill_tables(meta, connection)),
     }
 
 
@@ -422,7 +467,7 @@ def _ensure_skill_schema_ready(
     runtime, meta: SkillMetadata, connection: ConnectionContext
 ) -> None:
     """Raise a ToolError if the current database is missing required tables."""
-    if not runtime.config.skills.readiness.check_schema or not meta.tables:
+    if not runtime.config.skills.readiness.check_schema or not _required_skill_tables(meta, connection):
         return
 
     schema_snapshot = _get_skill_schema_snapshot(runtime, connection)
@@ -433,6 +478,11 @@ def _ensure_skill_schema_ready(
         )
 
     availability = _skill_availability_state(runtime, meta, schema_snapshot, connection)
+    if availability["unverified_tables"]:
+        raise ToolError(
+            f"Skill '{meta.name}' schema readiness could not verify table(s): "
+            f"{availability['unverified_tables']}"
+        )
     if availability["missing_tables"]:
         raise ToolError(
             f"Skill '{meta.name}' requires table(s) not found in the "
@@ -440,20 +490,18 @@ def _ensure_skill_schema_ready(
         )
 
 
-def _ensure_query_skill_policy_ready(
-    meta: SkillMetadata,
-    connection: ConnectionContext,
-) -> None:
-    """Raise a ToolError if target connection policy blocks query skill tables."""
-    from sql_safety_executor.core.connections import require_read_access
-
-    require_read_access(connection)
-    blocked_tables = _query_skill_blocked_tables(meta, connection)
-    if blocked_tables:
-        raise ToolError(
-            f"Skill '{meta.name}' requires table(s) blocked by target "
-            f"connection policy: {blocked_tables}"
+def _query_skill_policy_decision(meta: SkillMetadata, connection: ConnectionContext) -> PolicyDecision:
+    """Declared dependencies constrain execution independently of SQL references."""
+    if not read_access_enabled(connection.policy):
+        return PolicyDecision.deny("read_disabled", "Reading is disabled by the target connection read policy.")
+    blocked = _query_skill_blocked_tables(meta, connection)
+    if blocked:
+        return PolicyDecision.deny(
+            "table_access_denied",
+            f"Skill '{meta.name}' requires table(s) blocked by target connection policy: {blocked}",
+            "Use a Skill whose declared dependencies are authorized on the same connection.",
         )
+    return PolicyDecision.allow()
 
 
 def _ensure_skill_profile_allowed(runtime, meta: SkillMetadata) -> None:
@@ -470,6 +518,7 @@ def _skill_matches(
     meta: SkillMetadata,
     search: str | None,
     category: str | None,
+    *, required_tables: list[str] | None = None,
 ) -> bool:
     """Case-insensitive deterministic matching for skill discovery."""
     if category and _skill_category(meta).lower() != category.lower():
@@ -485,7 +534,7 @@ def _skill_matches(
         meta.description,
         _skill_category(meta),
         *meta.profiles,
-        *meta.tables,
+        *(meta.tables if required_tables is None else required_tables),
         *meta.triggers,
         *meta.related_skills,
     ]
@@ -527,6 +576,8 @@ def _project_skill_meta(
         projected["excluded_profiles"] = availability["excluded_profiles"]
     if availability["missing_tables"]:
         projected["missing_tables"] = availability["missing_tables"]
+    if availability["unverified_tables"]:
+        projected["unverified_tables"] = availability["unverified_tables"]
     if availability["blocked_tables"]:
         projected["blocked_tables"] = availability["blocked_tables"]
     if detail_level in {"summary", "full"}:
@@ -557,9 +608,18 @@ def _project_skill_meta(
                 "version": meta.version,
                 "requires_confirmation": meta.requires_confirmation,
                 "related_skills": meta.related_skills,
-                "tables": meta.tables,
+                "tables": availability["required_tables"],
+                "schema_check_enabled": availability["schema_check_enabled"],
+                "schema_check_available": availability["schema_check_available"],
+                "missing_tables": availability["missing_tables"],
+                "unverified_tables": availability["unverified_tables"],
             }
         )
+        if meta.type == "query":
+            projected.update({
+                "declared_tables": availability["declared_tables"],
+                "inferred_tables": availability["inferred_tables"],
+            })
 
     return projected
 

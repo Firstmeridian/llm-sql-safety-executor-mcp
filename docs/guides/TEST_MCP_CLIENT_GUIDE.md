@@ -1,5 +1,7 @@
 # MCP Client verification · v3.8
 
+> October 14, 2026: target-specific CTE dependencies and measured MySQL ASCII CTE rules are covered in the [latest dated checks](../validation/v3.8/V3_8_1_FOLLOWUP_2026_10_13_ZH.md#cte-依赖与实际名称规则修复2026-10-14). Reload the resident server before attributing results to new source; full Query Skill declared_tables/inferred_tables mark this implementation. Earlier model trials remain separate snapshots.
+
 This guide uses the installed `sql_safety_executor` package and explicit TOML
 configuration. Run repository scripts from the repository root after
 `uv sync --frozen --group dev`. The previous script-based instructions remain in
@@ -77,7 +79,7 @@ database work.
 Preview/execute remains the recommended default as of October 1, with MRTR
 opt-in per verified Host. The tested Codex IDE handled the main native approval
 interactions; the tested Copilot session failed the protocol gate. This is not
-a claim about all current clients. The [acceptance audit](../validation/V3_8_MRTR_NATIVE_2026_10_01_ZH.md)
+a claim about all current clients. The [acceptance audit](../validation/v3.8/V3_8_MRTR_NATIVE_2026_10_01_ZH.md)
 separates native coverage, automated coverage and outstanding evidence.
 
 Do not automatically fall back to another write entry point after an MRTR
@@ -133,7 +135,7 @@ committed steps: delivered -> pending -> confirmed -> shipped. A later preview
 with expiry 20:44:01 UTC had no execute; that result does not erase the earlier
 writes. Final state equality is not evidence of no intervening mutation or a
 transaction rollback. Recorded approval choices do not establish visible review.
-See the [dated trial and evidence boundaries](../validation/V3_8_MRTR_NATIVE_2026_10_01_ZH.md).
+See the [dated trial and evidence boundaries](../validation/v3.8/V3_8_MRTR_NATIVE_2026_10_01_ZH.md).
 
 The default flow is `preview`. For MRTR, first set
 `skills.mutation.mrtr.enabled = true` in the selected Skills TOML, then use
@@ -178,7 +180,7 @@ Reference Client success does not establish Codex or Copilot compatibility.
 For each native Host, record the actual version, negotiated protocol, visible
 tools, approval UI/decision, call trace, resulting database state and actual
 usage. An unsupported protocol/capability or Host policy refusal is a recorded
-limitation, never an MRTR pass. See the [v3.8 validation record](../validation/V3_8_VALIDATION_ZH.md)
+limitation, never an MRTR pass. See the [v3.8 validation record](../validation/v3.8/V3_8_VALIDATION_ZH.md)
 and the [Agent evaluation method](MCP_AGENT_BEHAVIOR_VALIDATION_ZH.md).
 
 
@@ -209,7 +211,7 @@ regression run and pending native expiry/restart cases.
 
 Capture the proposal's `expires_at` and timezone before waiting. Approve only after that timestamp plus at least ten seconds; an early approval can commit a real test write. Distinguish Host timeout, framework `invalid_request_state`, and business proposal expiry. A framework error may have no `execution_outcome`; independently read database state instead of inventing a business result or retrying the write.
 
-The user confirmed approving after more than ten minutes in the long-wait MRTR trial. It returned `Invalid or expired requestState` and the database stayed unchanged. Earlier MRTR approvals committed orders 1 and 2 without compensation in that trial; orders 1–3 were then all shipped. A separate later Copilot preview/execute trial committed a change and three restoration steps, as recorded above; do not merge these scopes. See the [dated evidence](../validation/V3_8_MRTR_NATIVE_2026_10_01_ZH.md).
+The user confirmed approving after more than ten minutes in the long-wait MRTR trial. It returned `Invalid or expired requestState` and the database stayed unchanged. Earlier MRTR approvals committed orders 1 and 2 without compensation in that trial; orders 1–3 were then all shipped. A separate later Copilot preview/execute trial committed a change and three restoration steps, as recorded above; do not merge these scopes. See the [dated evidence](../validation/v3.8/V3_8_MRTR_NATIVE_2026_10_01_ZH.md).
 
 For restart acceptance, establish that the server process actually changed and that the old proposal was submitted afterward. `approval_declined` alone does not establish a restart. The current Agent cannot reconnect the Codex-owned stdio child through its available tools, so native restart acceptance is pending. An independent client may control real server shutdown/startup, initialize a new session, submit the saved old continuation, and verify rejection and unchanged data. That test is now implemented in `tests/test_v38_mrtr_restart.py` and passed with the related 131-test suite. It verifies different PIDs, rejection before the original expiry, unchanged temporary SQLite data, and successful approval of a fresh proposal. It remains separate from native UI acceptance. Do not terminate the active Host's child without a recovery path.
 
@@ -217,7 +219,7 @@ For restart acceptance, establish that the server process actually changed and t
 
 The review retains the question on the first line and complete JSON afterward, now with two-space indentation and readable Unicode. Reference Hosts must parse the entire remainder with a JSON parser, not assume single-line JSON. Formatting uses only the saved snapshot; missing-answer re-asks show the same review. The 64 KiB stored-review cap does not cap the expanded presentation message.
 
-After restarting the service, verify the target, Skill, full SQL, bound values and expiry remain visible in the actual Host. For a presentation-only check in this Codex version, use the top-right close button (not Skip) to test cancellation without approving a write. New formatting has passed protocol/Host regressions and a post-restart screenshot in the tested Codex IDE; the close-button call returned `approval_cancelled` without a database change. Other clients still need their own rendering check. See the [current acceptance matrix](../validation/V3_8_MRTR_NATIVE_2026_10_01_ZH.md).
+After restarting the service, verify the target, Skill, full SQL, bound values and expiry remain visible in the actual Host. For a presentation-only check in this Codex version, use the top-right close button (not Skip) to test cancellation without approving a write. New formatting has passed protocol/Host regressions and a post-restart screenshot in the tested Codex IDE; the close-button call returned `approval_cancelled` without a database change. Other clients still need their own rendering check. See the [current acceptance matrix](../validation/v3.8/V3_8_MRTR_NATIVE_2026_10_01_ZH.md).
 
 ### Verify the running service after a presentation change
 
@@ -239,13 +241,13 @@ protocol-gate rejection separately from UI acceptance. “Latest” was reported
 but exact client/extension versions and the negotiated protocol were not
 captured. Obtain initialization evidence before attributing a particular
 protocol version or form capability; do not reuse Codex-specific feature flags
-as Copilot settings. Full scope: [acceptance record](../validation/V3_8_MRTR_NATIVE_2026_10_01_ZH.md).
+as Copilot settings. Full scope: [acceptance record](../validation/v3.8/V3_8_MRTR_NATIVE_2026_10_01_ZH.md).
 
 ### Version capture for built-in Copilot
 
 As checked on October 1, 2026, the [official Stable release](https://code.visualstudio.com/updates/v1_140) is VS Code 1.140.0. The local VS Code Server matches that version/commit, and its `extensions/copilot/package.json` identifies `GitHub.copilot-chat` 0.68.0. Copilot Chat has been [built in since 1.116](https://code.visualstudio.com/updates/v1_116#_github-copilot-is-now-builtin); checking only the user extensions directory or the old standalone Marketplace listing misses this component.
 
-Record release channel, editor/server version, bundled or overriding extension version, session harness and actual MCP initialization separately. Local package metadata establishes installation, not the protocol negotiated by a previous chat. See the [dated version supplement](../validation/V3_8_MRTR_NATIVE_2026_10_01_ZH.md) for exact paths and source boundaries. The earlier “versions not captured” statement describes the transcript-only stage.
+Record release channel, editor/server version, bundled or overriding extension version, session harness and actual MCP initialization separately. Local package metadata establishes installation, not the protocol negotiated by a previous chat. See the [dated version supplement](../validation/v3.8/V3_8_MRTR_NATIVE_2026_10_01_ZH.md) for exact paths and source boundaries. The earlier “versions not captured” statement describes the transcript-only stage.
 
 Later inspection of the same Copilot session log records VS Code 1.140.0 and
 Copilot 0.68.0, and corroborates the approval tool's protocol-gate error. The
@@ -272,7 +274,7 @@ if a Skill rejects it, for example: "If it is rejected, explain how the goal
 could still be achieved, but do not execute anything." Do not ask a subagent
 whether a preview token is still usable. Report `preview_token_expires_at` as
 returned; execute alone decides validity, and any Host-side countdown should be
-computed from the current clock. See the [acceptance record](../validation/V3_8_MRTR_NATIVE_2026_10_01_ZH.md)
+computed from the current clock. See the [acceptance record](../validation/v3.8/V3_8_MRTR_NATIVE_2026_10_01_ZH.md)
 for the 3-run behavior matrix and remaining limits.
 
 ### Reading mutation results and refreshing Host tool definitions (v3.8.1)
@@ -315,6 +317,39 @@ not, so confirm both before testing.
 
 ### October 12 review evidence and completed refresh
 
-The [final review](../validation/V3_8_1_REVIEW_2026_10_12_ZH.md) separates fresh source/wheel stdio verification, native GPT-6 Luna tool calls and simulated-result replays. A replay that supplies only the MRTR description proves that description is independently useful; it does not prove that a native Host actually hid other tools or rendered approval UI. Use a fresh agent context per critical replay, preserve failures, and count calls and token usage from traces rather than self-reported totals. Compare performance only with matched tasks, models and Hosts.
+The [final review](../validation/v3.8/V3_8_1_REVIEW_2026_10_12_ZH.md) separates fresh source/wheel stdio verification, native GPT-6 Luna tool calls and simulated-result replays. A replay that supplies only the MRTR description proves that description is independently useful; it does not prove that a native Host actually hid other tools or rendered approval UI. Use a fresh agent context per critical replay, preserve failures, and count calls and token usage from traces rather than self-reported totals. Compare performance only with matched tasks, models and Hosts.
 
 The maintainer has restarted the resident service. Its actual description now matches final source and contains `first check validity` and `payload claims committed; execution is unconfirmed`. Interpretation checks using current metadata passed 3/3 each; native index/preview tasks passed 3/3 with no execution. Complete recovery routes were correct 2/3, with one omitted confirmed step corrected only on follow-up; preserve that first failure. The actual pending-to-shipped preview was rejected. Category filters select business groups, not query/mutation type; two empty category=mutation searches are included in observed costs. The final package already passes modern and legacy stdio enumeration, including both optional write descriptions under temporary test configuration. Keep production MRTR disabled if that is its configured policy. No further write to existing orders is needed for this refresh check.
+
+## Read failure contract (v3.8.1, October 13)
+
+For raw query and Query Skill SQL/policy failures, inspect structured_content.success and error_code, not only the MCP isError flag. An ordinary business failure can have isError=false and success=false. Database error text is fixed and safe; policy errors can describe configured table scope. hint is optional and does not authorize an action. Unknown-column/function/incomplete-SQL errors now carry distinct categories. Parameter, target, Skill scope and readiness errors may remain ToolErrors.
+
+Python adapter callers receive list rows or DatabaseQueryError; SQL validators return PolicyDecision. Update current callers directly. The unreleased project excludes hypothetical old env/launch/SDK compatibility from this round. After server changes, restart and refresh the actual Host tool cache before native behavior comparison. See [acceptance and evidence](../validation/v3.8/V3_8_1_FOLLOWUP_2026_10_13_ZH.md).
+
+## Evidence recording profiles (October 14, 2026)
+
+Keep historical records unchanged. New manifests identify source/environment, recording level, omissions and cleanup. Store captured raw logs compressed, metadata once per phase/protocol, and reference its digest from the ordered case records. Application-level inputs/content/structuredContent/isError/meta and timestamps are not complete JSON-RPC byte captures; protocol debugging may require IDs, notifications and original frames. Model-cost trials additionally retain the full task, all actual model-visible discovery/instructions/results, public answers and provider usage/cache categories, including discovery for unused tools. Exclude secrets and internal model reasoning, and state what was omitted. Compression and deduplication preserve collected information; they cannot restore information never recorded.
+
+## October 14 CTE/cost/SQLGlot probes
+
+Use scripts/review_v381/measure_policy.py and measure_client.py with explicit --source/--stage; freeze the before source before editing. --mysql reads the configured test orders and safe version/settings only; lock/delay calls are never run in native truth. Private SQLite covers unusual identifiers and both actual Client protocols. Record exploratory overlapping runs separately; serialize final A/B/A after regression, distinguish policy time, metadata/text/structured sizes and model usage. SQLGlot fetch_sqlglot.py pins 30.22.0, verifies its official wheel, and only extracts to /tmp; verify_sqlglot.py does not authorize or rewrite production SQL.
+
+Subagent tools must be checked before counting model trials. Initial missing-tool attempts are retained; task-local required startup subsequently yielded six passed native CLI A/B tasks. Do not mix failure attempts, xhigh peers and medium CLI profiles or claim billing savings. Full frames are additional protocol evidence, not inferred from application results. See [acceptance](../validation/v3.8/V3_8_1_PHASE123_2026_10_14_ZH.md).
+
+## Final quoted-identity acceptance (October 14, 2026)
+
+The complete pending patch now passes 1114 tests with four optional MySQL skips, clean type/prompt checks and 22 installed-wheel stdio calls across both protocols. Twenty-five new regressions verify native SQLite identity for whitespace and quoted delimiters, including raw/Skill discovery/readiness/execution parity. After the final maintainer restart, 11/11 primary Host native checks passed; the old-policy probe is retained separately in the [final supplement](../validation/v3.8/V3_8_1_PHASE123_2026_10_14_ZH.md#提交前完整复核与补修2026-10-14). Earlier model usage remains attributed to its tested source.
+
+
+## October 15 structured relation and revalidation checks
+
+The latest source adds 48 cases: a qualified main.orders grant must refuse a distinct literal "main.orders" table, current-schema raw/Skill/metadata must agree, other schemas must be unverified rather than missing, and post-token validate exceptions must return validation_failed/not_executed with consumed-token metadata, zero writes and replay refusal. Full regression: 1162 passed/four skipped; 36 non-editable installed stdio calls and 12 real MySQL read-only calls passed. Final primary Host acceptance passed 18/18 native read-only checks after the maintainer restart; earlier mismatch evidence remains separate.
+
+Keep independent Client/install/live snapshots separate from the resident Host and dated model trials. legacy Client can expose no initialize_result; record the protocol as unobserved rather than infer it. New public evidence includes redacted application results and compressed logs, not full transport frames. [Current acceptance and manifest](../validation/v3.8/V3_8_1_RELATION_IDENTITY_2026_10_15_ZH.md).
+
+## October 15 schema-binding acceptance
+
+For sample/exact counts, use a private server connection with main.orders=7 and temp.orders=99/100; verify the SQL explicitly selects main and count agrees with main columns. Repeat with a temp view and with main absent while temp/aux exists. Qualified raw refusal alone does not cover generated metadata SQL. A second fixture uses an authorized main view: verify discovery, detail and execution, plus dotted-name false matches. Validate malformed Mutation returns both before token issuance and after token consumption; verify safe result, no write and replay refusal.
+
+The installed-wheel fixture bootstrap establishes its private temporary object in the serving connection; the product handlers are unchanged. Current batch: 1210 full passes/four skips, 60 installed stdio and 18 real MySQL read-only calls passed; 20/20 native checks on existing configured read paths passed after the maintainer restart. This Host disables sample/table_summary and has no view/failing-validator fixture, so those cases retain matched-source isolated/wheel evidence; native checks do not attest loaded code-object hashes. Earlier native 18/18 retains its prior-source attribution. Application records are not complete JSON-RPC frames; see [evidence](../validation/v3.8/V3_8_1_SCHEMA_BINDING_2026_10_15_ZH.md).

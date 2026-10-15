@@ -5,6 +5,7 @@ from types import SimpleNamespace
 
 from fastmcp import Client
 import pytest
+from sql_safety_executor.database.relations import ReadRelation, RelationReference
 
 from sql_safety_executor import create_server, load_config
 from sql_safety_executor.core.policy import (
@@ -85,7 +86,9 @@ def test_actual_pragma_relations_rejected_for_all_quote_forms(sql):
     with sqlite3.connect(":memory:") as db:
         db.execute("CREATE TABLE orders(id INTEGER)")
         db.execute(sql).fetchall()
-    allowed, error = _validate_sql_query_policy(None, sql, policy)
+    decision = _validate_sql_query_policy(None, sql, policy)
+    allowed = decision.allowed
+    error = decision.message
     assert not allowed and "PRAGMA" in error
 
 
@@ -107,7 +110,7 @@ def test_ordinary_pragma_prefix_names_remain_readable(sql, case_sensitive):
         read_mode="all", allowed_tables=frozenset({"*"}),
         case_sensitive_tables=case_sensitive,
     )
-    assert _validate_sql_query_policy(None, sql, policy) == (True, None)
+    assert _validate_sql_query_policy(None, sql, policy).allowed
 
 
 def test_reserved_pragma_names_cover_runtime_sqlite_builtins():
@@ -192,10 +195,11 @@ def test_skill_readiness_uses_connection_table_identity(case_sensitive, required
     config = DatabaseConfig(
         connection_id="analytics", db_type="mysql" if case_sensitive else "sqlite",
         query_timeout_seconds=30, connect_timeout_seconds=10, policy=policy,
+        mysql_database="business" if case_sensitive else None,
     )
     connection = ConnectionContext(
         "analytics", config,
-        SimpleNamespace(get_tables=lambda: [{"table_name": "Orders"}]), policy,
+        SimpleNamespace(get_read_relations=lambda: [ReadRelation(RelationReference("Orders", "business" if case_sensitive else "main"), "table")]), policy,
     )
     runtime = SimpleNamespace(config=SimpleNamespace(
         skills=SimpleNamespace(
@@ -227,7 +231,9 @@ def test_cte_names_do_not_authorize_invisible_base_tables(sql):
     policy = ConnectionPolicy(
         allowed_tables=frozenset({"allowed"}), case_sensitive_tables=True,
     )
-    allowed, error = _validate_sql_query_policy(None, sql, policy)
+    decision = _validate_sql_query_policy(None, sql, policy)
+    allowed = decision.allowed
+    error = decision.message
     assert not allowed and "secret" in error
 
 
@@ -243,7 +249,7 @@ def test_visible_and_recursive_ctes_keep_working(sql):
         allowed_tables=frozenset({"allowed"}), case_sensitive_tables=True,
         allow_union=True,
     )
-    assert _validate_sql_query_policy(None, sql, policy) == (True, None)
+    assert _validate_sql_query_policy(None, sql, policy).allowed
 
 
 @pytest.mark.parametrize("target", [
@@ -262,20 +268,24 @@ def test_grouped_join_cannot_hide_system_schema(target):
         db.execute("CREATE TABLE mysql.user(secret TEXT)")
         db.execute(f"SELECT * FROM orders JOIN {target}").fetchall()
     policy = ConnectionPolicy(read_mode="all", allowed_tables=frozenset({"*"}))
-    allowed, error = _validate_sql_query_policy(None, f"SELECT * FROM orders JOIN {target}", policy)
+    decision = _validate_sql_query_policy(None, f"SELECT * FROM orders JOIN {target}", policy)
+    allowed = decision.allowed
+    error = decision.message
     assert not allowed and "Parenthesized FROM/JOIN" in error
 
 
 def test_plain_grouped_business_join_has_explicit_conservative_rejection():
     policy = ConnectionPolicy(read_mode="all", allowed_tables=frozenset({"*"}))
-    allowed, error = _validate_sql_query_policy(None, "SELECT * FROM orders JOIN (orders AS o)", policy)
+    decision = _validate_sql_query_policy(None, "SELECT * FROM orders JOIN (orders AS o)", policy)
+    allowed = decision.allowed
+    error = decision.message
     assert not allowed and "use a CTE" in error
     assert _validate_sql_query_policy(
         None, "SELECT * FROM orders JOIN orders AS o ON orders.id=o.id", policy,
-    ) == (True, None)
+    ).allowed
     assert _validate_sql_query_policy(
         None, "SELECT 'JOIN (mysql.user)' AS note FROM orders", policy,
-    ) == (True, None)
+    ).allowed
 
 
 async def test_grouped_join_rejected_before_database_call(tmp_path, monkeypatch):
@@ -312,7 +322,9 @@ def test_sqlite_table_alias_and_loose_comma_cannot_hide_base_table(sql):
         db.execute("CREATE TABLE secret(id INTEGER)")
         db.execute(sql).fetchall()
     policy = ConnectionPolicy(allowed_tables=frozenset({"allowed"}))
-    allowed, error = _validate_sql_query_policy(None, sql, policy)
+    decision = _validate_sql_query_policy(None, sql, policy)
+    allowed = decision.allowed
+    error = decision.message
     assert not allowed and error
 
 
@@ -326,14 +338,16 @@ def test_mysql_alternative_relation_syntax_does_not_skip_authorization(sql, reas
     policy = ConnectionPolicy(
         allowed_tables=frozenset({"allowed"}), allow_union=True, case_sensitive_tables=True,
     )
-    allowed, error = _validate_sql_query_policy(None, sql, policy)
+    decision = _validate_sql_query_policy(None, sql, policy)
+    allowed = decision.allowed
+    error = decision.message
     assert not allowed and reason in error
 
 
 def test_alternative_syntax_words_in_data_and_quoted_columns_are_not_commands():
     policy = ConnectionPolicy(allowed_tables=frozenset({"allowed"}))
     sql = "SELECT 'TABLE secret', '{ OJ secret }', `table` FROM allowed AS 'ordinary_alias'"
-    assert _validate_sql_query_policy(None, sql, policy) == (True, None)
+    assert _validate_sql_query_policy(None, sql, policy).allowed
 
 
 @pytest.mark.parametrize("sql", [
@@ -348,5 +362,7 @@ def test_alternative_syntax_words_in_data_and_quoted_columns_are_not_commands():
 ])
 def test_alternative_relation_forms_cannot_hide_system_schema_in_all_scope(sql):
     policy = ConnectionPolicy(read_mode="all", allowed_tables=frozenset({"*"}))
-    allowed, error = _validate_sql_query_policy(None, sql, policy)
+    decision = _validate_sql_query_policy(None, sql, policy)
+    allowed = decision.allowed
+    error = decision.message
     assert not allowed and error

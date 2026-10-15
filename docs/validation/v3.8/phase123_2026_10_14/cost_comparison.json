@@ -1,0 +1,198 @@
+{
+  "policy": [
+    {
+      "sql": "WITH F AS (SELECT 7 AS n) SELECT n FROM f",
+      "before": {
+        "sql": "WITH F AS (SELECT 7 AS n) SELECT n FROM f",
+        "samples": 80,
+        "median_ms": 10.155061,
+        "p95_ms": 15.921143,
+        "min_ms": 8.510936
+      },
+      "after": {
+        "sql": "WITH F AS (SELECT 7 AS n) SELECT n FROM f",
+        "samples": 80,
+        "median_ms": 10.5914915,
+        "p95_ms": 14.8427,
+        "min_ms": 8.86479
+      },
+      "returned": {
+        "sql": "WITH F AS (SELECT 7 AS n) SELECT n FROM f",
+        "samples": 80,
+        "median_ms": 10.666717,
+        "p95_ms": 16.080949,
+        "min_ms": 8.716895
+      },
+      "p95_delta_ms": -1.078443,
+      "exploratory_gate": "passed"
+    },
+    {
+      "sql": "WITH first_cte AS (SELECT COUNT(*) AS n FROM orders), second_cte AS (SELECT n FROM first_cte) SELECT n FROM second_cte",
+      "before": {
+        "sql": "WITH first_cte AS (SELECT COUNT(*) AS n FROM orders), second_cte AS (SELECT n FROM first_cte) SELECT n FROM second_cte",
+        "samples": 80,
+        "median_ms": 21.2672195,
+        "p95_ms": 30.101052,
+        "min_ms": 17.504969
+      },
+      "after": {
+        "sql": "WITH first_cte AS (SELECT COUNT(*) AS n FROM orders), second_cte AS (SELECT n FROM first_cte) SELECT n FROM second_cte",
+        "samples": 80,
+        "median_ms": 21.455369,
+        "p95_ms": 27.561793,
+        "min_ms": 17.981929
+      },
+      "returned": {
+        "sql": "WITH first_cte AS (SELECT COUNT(*) AS n FROM orders), second_cte AS (SELECT n FROM first_cte) SELECT n FROM second_cte",
+        "samples": 80,
+        "median_ms": 20.9498215,
+        "p95_ms": 26.553377,
+        "min_ms": 17.153572
+      },
+      "p95_delta_ms": -2.5392589999999977,
+      "exploratory_gate": "passed"
+    },
+    {
+      "sql": "WITH f AS (SELECT 7 AS n) SELECT n FROM main.f",
+      "before": {
+        "sql": "WITH f AS (SELECT 7 AS n) SELECT n FROM main.f",
+        "samples": 80,
+        "median_ms": 11.583177,
+        "p95_ms": 15.670064,
+        "min_ms": 9.352783
+      },
+      "after": {
+        "sql": "WITH f AS (SELECT 7 AS n) SELECT n FROM main.f",
+        "samples": 80,
+        "median_ms": 11.5114145,
+        "p95_ms": 14.579129,
+        "min_ms": 9.441369
+      },
+      "returned": {
+        "sql": "WITH f AS (SELECT 7 AS n) SELECT n FROM main.f",
+        "samples": 80,
+        "median_ms": 11.845071,
+        "p95_ms": 14.83144,
+        "min_ms": 8.889159
+      },
+      "p95_delta_ms": -1.090935,
+      "exploratory_gate": "passed"
+    },
+    {
+      "sql": "SELECT 'GET_LOCK(1), SLEEP(9), BENCHMARK(2,3)' AS label",
+      "before": {
+        "sql": "SELECT 'GET_LOCK(1), SLEEP(9), BENCHMARK(2,3)' AS label",
+        "samples": 80,
+        "median_ms": 3.9245710000000003,
+        "p95_ms": 6.84143,
+        "min_ms": 3.143304
+      },
+      "after": {
+        "sql": "SELECT 'GET_LOCK(1), SLEEP(9), BENCHMARK(2,3)' AS label",
+        "samples": 80,
+        "median_ms": 3.9274354999999996,
+        "p95_ms": 6.241555,
+        "min_ms": 3.342603
+      },
+      "returned": {
+        "sql": "SELECT 'GET_LOCK(1), SLEEP(9), BENCHMARK(2,3)' AS label",
+        "samples": 80,
+        "median_ms": 3.851568,
+        "p95_ms": 5.866082,
+        "min_ms": 3.101944
+      },
+      "p95_delta_ms": -0.5998749999999999,
+      "exploratory_gate": "passed"
+    },
+    {
+      "sql": "SELECT ABS(-7) AS n",
+      "before": {
+        "sql": "SELECT ABS(-7) AS n",
+        "samples": 80,
+        "median_ms": 6.537597,
+        "p95_ms": 9.014748,
+        "min_ms": 5.511683
+      },
+      "after": {
+        "sql": "SELECT ABS(-7) AS n",
+        "samples": 80,
+        "median_ms": 6.799966,
+        "p95_ms": 9.468497,
+        "min_ms": 5.640755
+      },
+      "returned": {
+        "sql": "SELECT ABS(-7) AS n",
+        "samples": 80,
+        "median_ms": 6.560169,
+        "p95_ms": 9.358795,
+        "min_ms": 5.458217
+      },
+      "p95_delta_ms": 0.4537489999999984,
+      "exploratory_gate": "passed"
+    },
+    {
+      "sql": "SELECT SLEEP(0) AS n",
+      "before": {
+        "sql": "SELECT SLEEP(0) AS n",
+        "samples": 80,
+        "median_ms": 6.613564500000001,
+        "p95_ms": 11.050865,
+        "min_ms": 5.370932
+      },
+      "after": {
+        "sql": "SELECT SLEEP(0) AS n",
+        "samples": 80,
+        "median_ms": 3.4356695,
+        "p95_ms": 5.101782,
+        "min_ms": 2.897188
+      },
+      "returned": {
+        "sql": "SELECT SLEEP(0) AS n",
+        "samples": 80,
+        "median_ms": 6.5458655,
+        "p95_ms": 9.873032,
+        "min_ms": 5.531272
+      },
+      "p95_delta_ms": -5.949083,
+      "exploratory_gate": "passed"
+    }
+  ],
+  "client": [
+    {
+      "protocol": "2026-07-28",
+      "fixed_metadata_characters": 22681,
+      "structured_result_character_deltas": [
+        0,
+        0,
+        86,
+        86,
+        -257
+      ],
+      "trace_medians_ms": [
+        81.58135899999999,
+        49.42827,
+        64.427476
+      ],
+      "note": "Last operation becomes unknown-Skill after startup quarantine; latency drift and different failure outcomes prevent equivalent-completion cost claims"
+    },
+    {
+      "protocol": "2025-11-25",
+      "fixed_metadata_characters": 22681,
+      "structured_result_character_deltas": [
+        0,
+        0,
+        86,
+        86,
+        -257
+      ],
+      "trace_medians_ms": [
+        104.484999,
+        80.206313,
+        283.84074499999997
+      ],
+      "note": "Last operation becomes unknown-Skill after startup quarantine; latency drift and different failure outcomes prevent equivalent-completion cost claims"
+    }
+  ],
+  "gate_scope": "Exploratory local policy p95 delta <= max(0.5ms,25% of baseline); no machine exclusivity or end-to-end guarantee",
+  "model_cost": "Controlled native CLI A/B measured; see luna_cli_comparison.json. Initial missing-tool attempts and peer runs remain separate."
+}

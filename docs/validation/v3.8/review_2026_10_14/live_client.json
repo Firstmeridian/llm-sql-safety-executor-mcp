@@ -1,0 +1,2177 @@
+{
+  "version": "3.8.1",
+  "recording_profile": "Application CallToolResult content/structuredContent/isError/meta plus timestamps, not a full JSON-RPC transport capture",
+  "metadata": [
+    {
+      "protocol": "2025-11-25",
+      "path": "live-metadata-2025-11-25.json.gz",
+      "sha256": "fe55e9cc6bd75db3b54a6dd8a1d386e84e665c256918cdb3a32eb29c2eecc843"
+    },
+    {
+      "protocol": "2026-07-28",
+      "path": "live-metadata-2026-07-28.json.gz",
+      "sha256": "1be6ed714e9f697cca7ad246bcccbc4934c48804c61bfb45d4b91c47b0d1bbf9"
+    }
+  ],
+  "records": [
+    {
+      "protocol": "2025-11-25",
+      "target": "mysql_denied",
+      "requests": [
+        {
+          "tool": "query",
+          "arguments": {
+            "sql": "WITH F AS (SELECT COUNT(*) AS n FROM orders) SELECT n FROM f",
+            "connection_id": "mysql_denied"
+          }
+        },
+        {
+          "tool": "execute_query_skill",
+          "arguments": {
+            "skill_name": "case-probe",
+            "params": {},
+            "connection_id": "mysql_denied"
+          }
+        }
+      ],
+      "responses": [
+        {
+          "started_utc": "2026-10-13T17:39:10.204838+00:00",
+          "elapsed_ms": 35.346995002328185,
+          "result": {
+            "isError": false,
+            "structuredContent": {
+              "success": false,
+              "error_code": "table_access_denied",
+              "error": "Access denied to table(s): f, orders. Only allowed tables: other",
+              "hint": "Keep the same connection and use authorized tables. If CTE name rules are unknown or case-sensitive, match the declaration's exact case.",
+              "query": "WITH F AS (SELECT COUNT(*) AS n FROM orders) SELECT n FROM f",
+              "connection_id": "mysql_denied",
+              "db_type": "mysql"
+            },
+            "content": [
+              {
+                "type": "text",
+                "text": "{\"success\":false,\"error_code\":\"table_access_denied\",\"error\":\"Access denied to table(s): f, orders. Only allowed tables: other\",\"hint\":\"Keep the same connection and use authorized tables. If CTE name rules are unknown or case-sensitive, match the declaration's exact case.\",\"query\":\"WITH F AS (SELECT COUNT(*) AS n FROM orders) SELECT n FROM f\",\"connection_id\":\"mysql_denied\",\"db_type\":\"mysql\"}"
+              }
+            ],
+            "meta": {
+              "tool_name": "query",
+              "db_type": "mysql",
+              "connection_id": "mysql_denied",
+              "execution_ms": 26.541,
+              "success": false
+            }
+          }
+        },
+        {
+          "started_utc": "2026-10-13T17:39:10.240193+00:00",
+          "elapsed_ms": 80.68815000297036,
+          "result": {
+            "isError": false,
+            "structuredContent": {
+              "success": false,
+              "error_code": "table_access_denied",
+              "error": "Access denied to table(s): f, orders. Only allowed tables: other",
+              "hint": "Keep the same connection and use authorized tables. If CTE name rules are unknown or case-sensitive, match the declaration's exact case.",
+              "skill_name": "case-probe",
+              "connection_id": "mysql_denied",
+              "db_type": "mysql"
+            },
+            "content": [
+              {
+                "type": "text",
+                "text": "{\"success\":false,\"error_code\":\"table_access_denied\",\"error\":\"Access denied to table(s): f, orders. Only allowed tables: other\",\"hint\":\"Keep the same connection and use authorized tables. If CTE name rules are unknown or case-sensitive, match the declaration's exact case.\",\"skill_name\":\"case-probe\",\"connection_id\":\"mysql_denied\",\"db_type\":\"mysql\"}"
+              }
+            ],
+            "meta": {
+              "tool_name": "execute_query_skill",
+              "db_type": "mysql",
+              "connection_id": "mysql_denied",
+              "execution_ms": 14.514,
+              "success": false
+            }
+          }
+        }
+      ]
+    },
+    {
+      "protocol": "2025-11-25",
+      "target": "mysql_ci",
+      "requests": [
+        {
+          "tool": "query",
+          "arguments": {
+            "sql": "WITH F AS (SELECT COUNT(*) AS n FROM orders) SELECT n FROM f",
+            "connection_id": "mysql_ci"
+          }
+        },
+        {
+          "tool": "list_skills",
+          "arguments": {
+            "connection_id": "mysql_ci",
+            "detail_level": "full"
+          }
+        },
+        {
+          "tool": "get_skill_detail",
+          "arguments": {
+            "skill_name": "case-probe",
+            "connection_id": "mysql_ci",
+            "detail_level": "full"
+          }
+        },
+        {
+          "tool": "execute_query_skill",
+          "arguments": {
+            "skill_name": "case-probe",
+            "params": {},
+            "connection_id": "mysql_ci"
+          }
+        },
+        {
+          "tool": "query",
+          "arguments": {
+            "sql": "WITH F AS (SELECT COUNT(*) AS n FROM orders) SELECT n FROM f",
+            "connection_id": "mysql_ci"
+          }
+        }
+      ],
+      "responses": [
+        {
+          "started_utc": "2026-10-13T17:39:10.320930+00:00",
+          "elapsed_ms": 425.97132100127055,
+          "result": {
+            "isError": false,
+            "structuredContent": {
+              "success": true,
+              "data": [
+                {
+                  "n": 8
+                }
+              ],
+              "row_count": 1,
+              "total_rows": 1,
+              "truncated": false,
+              "truncation_note": null,
+              "query": "WITH F AS (SELECT COUNT(*) AS n FROM orders) SELECT n FROM f",
+              "connection_id": "mysql_ci",
+              "db_type": "mysql"
+            },
+            "content": [
+              {
+                "type": "text",
+                "text": "{\"success\":true,\"data\":[{\"n\":8}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null,\"query\":\"WITH F AS (SELECT COUNT(*) AS n FROM orders) SELECT n FROM f\",\"connection_id\":\"mysql_ci\",\"db_type\":\"mysql\"}"
+              }
+            ],
+            "meta": {
+              "tool_name": "query",
+              "db_type": "mysql",
+              "connection_id": "mysql_ci",
+              "execution_ms": 421.423,
+              "success": true,
+              "row_count": 1,
+              "total_rows": 1,
+              "truncated": false
+            }
+          }
+        },
+        {
+          "started_utc": "2026-10-13T17:39:10.746912+00:00",
+          "elapsed_ms": 77.37734399779583,
+          "result": {
+            "isError": false,
+            "structuredContent": {
+              "success": true,
+              "skills": [
+                {
+                  "name": "case-probe",
+                  "type": "query",
+                  "description": "Real CTE inference check",
+                  "risk": "low",
+                  "category": "uncategorized",
+                  "executable": true,
+                  "profile_allowed": true,
+                  "db_compatible": true,
+                  "connection_scope_allowed": true,
+                  "policy_allowed": true,
+                  "schema_ready": true,
+                  "source": "query.sql",
+                  "triggers": [],
+                  "idempotent": false,
+                  "databases": null,
+                  "connection_ids": null,
+                  "configured_connection_ids": [],
+                  "unconfigured_connection_ids": [],
+                  "connection_type_conflicts": [],
+                  "profiles": [],
+                  "params": {},
+                  "version": "1.0",
+                  "requires_confirmation": false,
+                  "related_skills": [],
+                  "tables": [
+                    "orders"
+                  ],
+                  "declared_tables": [],
+                  "inferred_tables": [
+                    "orders"
+                  ]
+                }
+              ],
+              "total_skills": 1,
+              "matched_skills": 1,
+              "matched_catalog_skills": 1,
+              "available_skills": 1,
+              "unavailable_skills": 0,
+              "filtered_unavailable_skills": 0,
+              "schema_unready_skills": 0,
+              "policy_blocked_skills": 0,
+              "connection_scope_blocked_skills": 0,
+              "connection_type_conflict_skills": 0,
+              "profile_excluded_skills": 0,
+              "query_skills": 1,
+              "mutation_skills": 0,
+              "mutations_enabled": false,
+              "schema_check_enabled": true,
+              "schema_check_available": true,
+              "excluded_profiles": [],
+              "detail_level": "full",
+              "available_only": true,
+              "current_database_type": "mysql",
+              "connection_id": "mysql_ci",
+              "search": null,
+              "category": null,
+              "categories": [
+                {
+                  "category": "uncategorized",
+                  "count": 1
+                }
+              ]
+            },
+            "content": [
+              {
+                "type": "text",
+                "text": "{\"success\":true,\"skills\":[{\"name\":\"case-probe\",\"type\":\"query\",\"description\":\"Real CTE inference check\",\"risk\":\"low\",\"category\":\"uncategorized\",\"executable\":true,\"profile_allowed\":true,\"db_compatible\":true,\"connection_scope_allowed\":true,\"policy_allowed\":true,\"schema_ready\":true,\"source\":\"query.sql\",\"triggers\":[],\"idempotent\":false,\"databases\":null,\"connection_ids\":null,\"configured_connection_ids\":[],\"unconfigured_connection_ids\":[],\"connection_type_conflicts\":[],\"profiles\":[],\"params\":{},\"version\":\"1.0\",\"requires_confirmation\":false,\"related_skills\":[],\"tables\":[\"orders\"],\"declared_tables\":[],\"inferred_tables\":[\"orders\"]}],\"total_skills\":1,\"matched_skills\":1,\"matched_catalog_skills\":1,\"available_skills\":1,\"unavailable_skills\":0,\"filtered_unavailable_skills\":0,\"schema_unready_skills\":0,\"policy_blocked_skills\":0,\"connection_scope_blocked_skills\":0,\"connection_type_conflict_skills\":0,\"profile_excluded_skills\":0,\"query_skills\":1,\"mutation_skills\":0,\"mutations_enabled\":false,\"schema_check_enabled\":true,\"schema_check_available\":true,\"excluded_profiles\":[],\"detail_level\":\"full\",\"available_only\":true,\"current_database_type\":\"mysql\",\"connection_id\":\"mysql_ci\",\"search\":null,\"category\":null,\"categories\":[{\"category\":\"uncategorized\",\"count\":1}]}"
+              }
+            ],
+            "meta": {
+              "tool_name": "list_skills",
+              "db_type": "mysql",
+              "connection_id": "mysql_ci",
+              "execution_ms": 72.187,
+              "success": true,
+              "matched_skills": 1,
+              "available_skills": 1,
+              "total_skills": 1
+            }
+          }
+        },
+        {
+          "started_utc": "2026-10-13T17:39:10.824296+00:00",
+          "elapsed_ms": 29.951699001685483,
+          "result": {
+            "isError": false,
+            "structuredContent": {
+              "success": true,
+              "skill": {
+                "name": "case-probe",
+                "type": "query",
+                "description": "Real CTE inference check",
+                "risk": "low",
+                "category": "uncategorized",
+                "executable": true,
+                "profile_allowed": true,
+                "db_compatible": true,
+                "connection_scope_allowed": true,
+                "policy_allowed": true,
+                "schema_ready": true,
+                "source": "query.sql",
+                "triggers": [],
+                "idempotent": false,
+                "databases": null,
+                "connection_ids": null,
+                "configured_connection_ids": [],
+                "unconfigured_connection_ids": [],
+                "connection_type_conflicts": [],
+                "profiles": [],
+                "params": {},
+                "version": "1.0",
+                "requires_confirmation": false,
+                "related_skills": [],
+                "tables": [
+                  "orders"
+                ],
+                "declared_tables": [],
+                "inferred_tables": [
+                  "orders"
+                ]
+              },
+              "connection_id": "mysql_ci",
+              "current_database_type": "mysql",
+              "usage_hint": "Call execute_query_skill(skill_name, params, connection_id) with this same target connection and params matching the schema.",
+              "mutations_enabled": false,
+              "schema_check_enabled": true,
+              "schema_check_available": true
+            },
+            "content": [
+              {
+                "type": "text",
+                "text": "{\"success\":true,\"skill\":{\"name\":\"case-probe\",\"type\":\"query\",\"description\":\"Real CTE inference check\",\"risk\":\"low\",\"category\":\"uncategorized\",\"executable\":true,\"profile_allowed\":true,\"db_compatible\":true,\"connection_scope_allowed\":true,\"policy_allowed\":true,\"schema_ready\":true,\"source\":\"query.sql\",\"triggers\":[],\"idempotent\":false,\"databases\":null,\"connection_ids\":null,\"configured_connection_ids\":[],\"unconfigured_connection_ids\":[],\"connection_type_conflicts\":[],\"profiles\":[],\"params\":{},\"version\":\"1.0\",\"requires_confirmation\":false,\"related_skills\":[],\"tables\":[\"orders\"],\"declared_tables\":[],\"inferred_tables\":[\"orders\"]},\"connection_id\":\"mysql_ci\",\"current_database_type\":\"mysql\",\"usage_hint\":\"Call execute_query_skill(skill_name, params, connection_id) with this same target connection and params matching the schema.\",\"mutations_enabled\":false,\"schema_check_enabled\":true,\"schema_check_available\":true}"
+              }
+            ],
+            "meta": {
+              "tool_name": "get_skill_detail",
+              "db_type": "mysql",
+              "connection_id": "mysql_ci",
+              "execution_ms": 25.911,
+              "success": true,
+              "skill_name": "case-probe",
+              "skill_type": "query"
+            }
+          }
+        },
+        {
+          "started_utc": "2026-10-13T17:39:10.854260+00:00",
+          "elapsed_ms": 68.62365300185047,
+          "result": {
+            "isError": false,
+            "structuredContent": {
+              "success": true,
+              "skill_name": "case-probe",
+              "connection_id": "mysql_ci",
+              "db_type": "mysql",
+              "data": [
+                {
+                  "n": 8
+                }
+              ],
+              "row_count": 1,
+              "total_rows": 1,
+              "truncated": false,
+              "truncation_note": null
+            },
+            "content": [
+              {
+                "type": "text",
+                "text": "{\"success\":true,\"skill_name\":\"case-probe\",\"connection_id\":\"mysql_ci\",\"db_type\":\"mysql\",\"data\":[{\"n\":8}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null}"
+              }
+            ],
+            "meta": {
+              "tool_name": "execute_query_skill",
+              "skill_name": "case-probe",
+              "skill_type": "query",
+              "skill_version": "1.0",
+              "mode": "query",
+              "db_type": "mysql",
+              "connection_id": "mysql_ci",
+              "execution_ms": 62.817,
+              "success": true,
+              "idempotent": false,
+              "row_count": 1,
+              "total_rows": 1,
+              "truncated": false,
+              "audit_logged": true
+            }
+          }
+        },
+        {
+          "started_utc": "2026-10-13T17:39:10.922902+00:00",
+          "elapsed_ms": 37.50882000167621,
+          "result": {
+            "isError": false,
+            "structuredContent": {
+              "success": true,
+              "data": [
+                {
+                  "n": 8
+                }
+              ],
+              "row_count": 1,
+              "total_rows": 1,
+              "truncated": false,
+              "truncation_note": null,
+              "query": "WITH F AS (SELECT COUNT(*) AS n FROM orders) SELECT n FROM f",
+              "connection_id": "mysql_ci",
+              "db_type": "mysql"
+            },
+            "content": [
+              {
+                "type": "text",
+                "text": "{\"success\":true,\"data\":[{\"n\":8}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null,\"query\":\"WITH F AS (SELECT COUNT(*) AS n FROM orders) SELECT n FROM f\",\"connection_id\":\"mysql_ci\",\"db_type\":\"mysql\"}"
+              }
+            ],
+            "meta": {
+              "tool_name": "query",
+              "db_type": "mysql",
+              "connection_id": "mysql_ci",
+              "execution_ms": 32.624,
+              "success": true,
+              "row_count": 1,
+              "total_rows": 1,
+              "truncated": false
+            }
+          }
+        }
+      ]
+    },
+    {
+      "protocol": "2025-11-25",
+      "target": "sqlite_allow",
+      "requests": [
+        {
+          "tool": "query",
+          "arguments": {
+            "sql": "WITH F AS (SELECT COUNT(*) AS n FROM orders) SELECT n FROM f",
+            "connection_id": "sqlite_allow"
+          }
+        },
+        {
+          "tool": "list_skills",
+          "arguments": {
+            "connection_id": "sqlite_allow",
+            "detail_level": "full"
+          }
+        },
+        {
+          "tool": "get_skill_detail",
+          "arguments": {
+            "skill_name": "case-probe",
+            "connection_id": "sqlite_allow",
+            "detail_level": "full"
+          }
+        },
+        {
+          "tool": "execute_query_skill",
+          "arguments": {
+            "skill_name": "case-probe",
+            "params": {},
+            "connection_id": "sqlite_allow"
+          }
+        },
+        {
+          "tool": "query",
+          "arguments": {
+            "sql": "WITH F AS (SELECT COUNT(*) AS n FROM orders) SELECT n FROM f",
+            "connection_id": "sqlite_allow"
+          }
+        }
+      ],
+      "responses": [
+        {
+          "started_utc": "2026-10-13T17:39:10.981705+00:00",
+          "elapsed_ms": 29.426184999465477,
+          "result": {
+            "isError": false,
+            "structuredContent": {
+              "success": true,
+              "data": [
+                {
+                  "n": 1
+                }
+              ],
+              "row_count": 1,
+              "total_rows": 1,
+              "truncated": false,
+              "truncation_note": null,
+              "query": "WITH F AS (SELECT COUNT(*) AS n FROM orders) SELECT n FROM f",
+              "connection_id": "sqlite_allow",
+              "db_type": "sqlite"
+            },
+            "content": [
+              {
+                "type": "text",
+                "text": "{\"success\":true,\"data\":[{\"n\":1}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null,\"query\":\"WITH F AS (SELECT COUNT(*) AS n FROM orders) SELECT n FROM f\",\"connection_id\":\"sqlite_allow\",\"db_type\":\"sqlite\"}"
+              }
+            ],
+            "meta": {
+              "tool_name": "query",
+              "db_type": "sqlite",
+              "connection_id": "sqlite_allow",
+              "execution_ms": 25.378,
+              "success": true,
+              "row_count": 1,
+              "total_rows": 1,
+              "truncated": false
+            }
+          }
+        },
+        {
+          "started_utc": "2026-10-13T17:39:11.011139+00:00",
+          "elapsed_ms": 21.339450002415106,
+          "result": {
+            "isError": false,
+            "structuredContent": {
+              "success": true,
+              "skills": [
+                {
+                  "name": "case-probe",
+                  "type": "query",
+                  "description": "Real CTE inference check",
+                  "risk": "low",
+                  "category": "uncategorized",
+                  "executable": true,
+                  "profile_allowed": true,
+                  "db_compatible": true,
+                  "connection_scope_allowed": true,
+                  "policy_allowed": true,
+                  "schema_ready": true,
+                  "source": "query.sql",
+                  "triggers": [],
+                  "idempotent": false,
+                  "databases": null,
+                  "connection_ids": null,
+                  "configured_connection_ids": [],
+                  "unconfigured_connection_ids": [],
+                  "connection_type_conflicts": [],
+                  "profiles": [],
+                  "params": {},
+                  "version": "1.0",
+                  "requires_confirmation": false,
+                  "related_skills": [],
+                  "tables": [
+                    "orders"
+                  ],
+                  "declared_tables": [],
+                  "inferred_tables": [
+                    "orders"
+                  ]
+                }
+              ],
+              "total_skills": 1,
+              "matched_skills": 1,
+              "matched_catalog_skills": 1,
+              "available_skills": 1,
+              "unavailable_skills": 0,
+              "filtered_unavailable_skills": 0,
+              "schema_unready_skills": 0,
+              "policy_blocked_skills": 0,
+              "connection_scope_blocked_skills": 0,
+              "connection_type_conflict_skills": 0,
+              "profile_excluded_skills": 0,
+              "query_skills": 1,
+              "mutation_skills": 0,
+              "mutations_enabled": false,
+              "schema_check_enabled": true,
+              "schema_check_available": true,
+              "excluded_profiles": [],
+              "detail_level": "full",
+              "available_only": true,
+              "current_database_type": "sqlite",
+              "connection_id": "sqlite_allow",
+              "search": null,
+              "category": null,
+              "categories": [
+                {
+                  "category": "uncategorized",
+                  "count": 1
+                }
+              ]
+            },
+            "content": [
+              {
+                "type": "text",
+                "text": "{\"success\":true,\"skills\":[{\"name\":\"case-probe\",\"type\":\"query\",\"description\":\"Real CTE inference check\",\"risk\":\"low\",\"category\":\"uncategorized\",\"executable\":true,\"profile_allowed\":true,\"db_compatible\":true,\"connection_scope_allowed\":true,\"policy_allowed\":true,\"schema_ready\":true,\"source\":\"query.sql\",\"triggers\":[],\"idempotent\":false,\"databases\":null,\"connection_ids\":null,\"configured_connection_ids\":[],\"unconfigured_connection_ids\":[],\"connection_type_conflicts\":[],\"profiles\":[],\"params\":{},\"version\":\"1.0\",\"requires_confirmation\":false,\"related_skills\":[],\"tables\":[\"orders\"],\"declared_tables\":[],\"inferred_tables\":[\"orders\"]}],\"total_skills\":1,\"matched_skills\":1,\"matched_catalog_skills\":1,\"available_skills\":1,\"unavailable_skills\":0,\"filtered_unavailable_skills\":0,\"schema_unready_skills\":0,\"policy_blocked_skills\":0,\"connection_scope_blocked_skills\":0,\"connection_type_conflict_skills\":0,\"profile_excluded_skills\":0,\"query_skills\":1,\"mutation_skills\":0,\"mutations_enabled\":false,\"schema_check_enabled\":true,\"schema_check_available\":true,\"excluded_profiles\":[],\"detail_level\":\"full\",\"available_only\":true,\"current_database_type\":\"sqlite\",\"connection_id\":\"sqlite_allow\",\"search\":null,\"category\":null,\"categories\":[{\"category\":\"uncategorized\",\"count\":1}]}"
+              }
+            ],
+            "meta": {
+              "tool_name": "list_skills",
+              "db_type": "sqlite",
+              "connection_id": "sqlite_allow",
+              "execution_ms": 16.907,
+              "success": true,
+              "matched_skills": 1,
+              "available_skills": 1,
+              "total_skills": 1
+            }
+          }
+        },
+        {
+          "started_utc": "2026-10-13T17:39:11.032489+00:00",
+          "elapsed_ms": 15.324774001783226,
+          "result": {
+            "isError": false,
+            "structuredContent": {
+              "success": true,
+              "skill": {
+                "name": "case-probe",
+                "type": "query",
+                "description": "Real CTE inference check",
+                "risk": "low",
+                "category": "uncategorized",
+                "executable": true,
+                "profile_allowed": true,
+                "db_compatible": true,
+                "connection_scope_allowed": true,
+                "policy_allowed": true,
+                "schema_ready": true,
+                "source": "query.sql",
+                "triggers": [],
+                "idempotent": false,
+                "databases": null,
+                "connection_ids": null,
+                "configured_connection_ids": [],
+                "unconfigured_connection_ids": [],
+                "connection_type_conflicts": [],
+                "profiles": [],
+                "params": {},
+                "version": "1.0",
+                "requires_confirmation": false,
+                "related_skills": [],
+                "tables": [
+                  "orders"
+                ],
+                "declared_tables": [],
+                "inferred_tables": [
+                  "orders"
+                ]
+              },
+              "connection_id": "sqlite_allow",
+              "current_database_type": "sqlite",
+              "usage_hint": "Call execute_query_skill(skill_name, params, connection_id) with this same target connection and params matching the schema.",
+              "mutations_enabled": false,
+              "schema_check_enabled": true,
+              "schema_check_available": true
+            },
+            "content": [
+              {
+                "type": "text",
+                "text": "{\"success\":true,\"skill\":{\"name\":\"case-probe\",\"type\":\"query\",\"description\":\"Real CTE inference check\",\"risk\":\"low\",\"category\":\"uncategorized\",\"executable\":true,\"profile_allowed\":true,\"db_compatible\":true,\"connection_scope_allowed\":true,\"policy_allowed\":true,\"schema_ready\":true,\"source\":\"query.sql\",\"triggers\":[],\"idempotent\":false,\"databases\":null,\"connection_ids\":null,\"configured_connection_ids\":[],\"unconfigured_connection_ids\":[],\"connection_type_conflicts\":[],\"profiles\":[],\"params\":{},\"version\":\"1.0\",\"requires_confirmation\":false,\"related_skills\":[],\"tables\":[\"orders\"],\"declared_tables\":[],\"inferred_tables\":[\"orders\"]},\"connection_id\":\"sqlite_allow\",\"current_database_type\":\"sqlite\",\"usage_hint\":\"Call execute_query_skill(skill_name, params, connection_id) with this same target connection and params matching the schema.\",\"mutations_enabled\":false,\"schema_check_enabled\":true,\"schema_check_available\":true}"
+              }
+            ],
+            "meta": {
+              "tool_name": "get_skill_detail",
+              "db_type": "sqlite",
+              "connection_id": "sqlite_allow",
+              "execution_ms": 11.693,
+              "success": true,
+              "skill_name": "case-probe",
+              "skill_type": "query"
+            }
+          }
+        },
+        {
+          "started_utc": "2026-10-13T17:39:11.047827+00:00",
+          "elapsed_ms": 29.50909699939075,
+          "result": {
+            "isError": false,
+            "structuredContent": {
+              "success": true,
+              "skill_name": "case-probe",
+              "connection_id": "sqlite_allow",
+              "db_type": "sqlite",
+              "data": [
+                {
+                  "n": 1
+                }
+              ],
+              "row_count": 1,
+              "total_rows": 1,
+              "truncated": false,
+              "truncation_note": null
+            },
+            "content": [
+              {
+                "type": "text",
+                "text": "{\"success\":true,\"skill_name\":\"case-probe\",\"connection_id\":\"sqlite_allow\",\"db_type\":\"sqlite\",\"data\":[{\"n\":1}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null}"
+              }
+            ],
+            "meta": {
+              "tool_name": "execute_query_skill",
+              "skill_name": "case-probe",
+              "skill_type": "query",
+              "skill_version": "1.0",
+              "mode": "query",
+              "db_type": "sqlite",
+              "connection_id": "sqlite_allow",
+              "execution_ms": 25.153,
+              "success": true,
+              "idempotent": false,
+              "row_count": 1,
+              "total_rows": 1,
+              "truncated": false,
+              "audit_logged": true
+            }
+          }
+        },
+        {
+          "started_utc": "2026-10-13T17:39:11.077345+00:00",
+          "elapsed_ms": 23.88153100037016,
+          "result": {
+            "isError": false,
+            "structuredContent": {
+              "success": true,
+              "data": [
+                {
+                  "n": 1
+                }
+              ],
+              "row_count": 1,
+              "total_rows": 1,
+              "truncated": false,
+              "truncation_note": null,
+              "query": "WITH F AS (SELECT COUNT(*) AS n FROM orders) SELECT n FROM f",
+              "connection_id": "sqlite_allow",
+              "db_type": "sqlite"
+            },
+            "content": [
+              {
+                "type": "text",
+                "text": "{\"success\":true,\"data\":[{\"n\":1}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null,\"query\":\"WITH F AS (SELECT COUNT(*) AS n FROM orders) SELECT n FROM f\",\"connection_id\":\"sqlite_allow\",\"db_type\":\"sqlite\"}"
+              }
+            ],
+            "meta": {
+              "tool_name": "query",
+              "db_type": "sqlite",
+              "connection_id": "sqlite_allow",
+              "execution_ms": 19.502,
+              "success": true,
+              "row_count": 1,
+              "total_rows": 1,
+              "truncated": false
+            }
+          }
+        }
+      ]
+    },
+    {
+      "protocol": "2025-11-25",
+      "target": "sqlite_all",
+      "requests": [
+        {
+          "tool": "query",
+          "arguments": {
+            "sql": "WITH F AS (SELECT COUNT(*) AS n FROM orders) SELECT n FROM f",
+            "connection_id": "sqlite_all"
+          }
+        },
+        {
+          "tool": "list_skills",
+          "arguments": {
+            "connection_id": "sqlite_all",
+            "detail_level": "full"
+          }
+        },
+        {
+          "tool": "get_skill_detail",
+          "arguments": {
+            "skill_name": "case-probe",
+            "connection_id": "sqlite_all",
+            "detail_level": "full"
+          }
+        },
+        {
+          "tool": "execute_query_skill",
+          "arguments": {
+            "skill_name": "case-probe",
+            "params": {},
+            "connection_id": "sqlite_all"
+          }
+        },
+        {
+          "tool": "query",
+          "arguments": {
+            "sql": "WITH F AS (SELECT COUNT(*) AS n FROM orders) SELECT n FROM f",
+            "connection_id": "sqlite_all"
+          }
+        }
+      ],
+      "responses": [
+        {
+          "started_utc": "2026-10-13T17:39:11.101634+00:00",
+          "elapsed_ms": 15.97868200042285,
+          "result": {
+            "isError": false,
+            "structuredContent": {
+              "success": true,
+              "data": [
+                {
+                  "n": 1
+                }
+              ],
+              "row_count": 1,
+              "total_rows": 1,
+              "truncated": false,
+              "truncation_note": null,
+              "query": "WITH F AS (SELECT COUNT(*) AS n FROM orders) SELECT n FROM f",
+              "connection_id": "sqlite_all",
+              "db_type": "sqlite"
+            },
+            "content": [
+              {
+                "type": "text",
+                "text": "{\"success\":true,\"data\":[{\"n\":1}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null,\"query\":\"WITH F AS (SELECT COUNT(*) AS n FROM orders) SELECT n FROM f\",\"connection_id\":\"sqlite_all\",\"db_type\":\"sqlite\"}"
+              }
+            ],
+            "meta": {
+              "tool_name": "query",
+              "db_type": "sqlite",
+              "connection_id": "sqlite_all",
+              "execution_ms": 11.892,
+              "success": true,
+              "row_count": 1,
+              "total_rows": 1,
+              "truncated": false
+            }
+          }
+        },
+        {
+          "started_utc": "2026-10-13T17:39:11.117623+00:00",
+          "elapsed_ms": 17.720034000376472,
+          "result": {
+            "isError": false,
+            "structuredContent": {
+              "success": true,
+              "skills": [
+                {
+                  "name": "case-probe",
+                  "type": "query",
+                  "description": "Real CTE inference check",
+                  "risk": "low",
+                  "category": "uncategorized",
+                  "executable": true,
+                  "profile_allowed": true,
+                  "db_compatible": true,
+                  "connection_scope_allowed": true,
+                  "policy_allowed": true,
+                  "schema_ready": true,
+                  "source": "query.sql",
+                  "triggers": [],
+                  "idempotent": false,
+                  "databases": null,
+                  "connection_ids": null,
+                  "configured_connection_ids": [],
+                  "unconfigured_connection_ids": [],
+                  "connection_type_conflicts": [],
+                  "profiles": [],
+                  "params": {},
+                  "version": "1.0",
+                  "requires_confirmation": false,
+                  "related_skills": [],
+                  "tables": [
+                    "orders"
+                  ],
+                  "declared_tables": [],
+                  "inferred_tables": [
+                    "orders"
+                  ]
+                }
+              ],
+              "total_skills": 1,
+              "matched_skills": 1,
+              "matched_catalog_skills": 1,
+              "available_skills": 1,
+              "unavailable_skills": 0,
+              "filtered_unavailable_skills": 0,
+              "schema_unready_skills": 0,
+              "policy_blocked_skills": 0,
+              "connection_scope_blocked_skills": 0,
+              "connection_type_conflict_skills": 0,
+              "profile_excluded_skills": 0,
+              "query_skills": 1,
+              "mutation_skills": 0,
+              "mutations_enabled": false,
+              "schema_check_enabled": true,
+              "schema_check_available": true,
+              "excluded_profiles": [],
+              "detail_level": "full",
+              "available_only": true,
+              "current_database_type": "sqlite",
+              "connection_id": "sqlite_all",
+              "search": null,
+              "category": null,
+              "categories": [
+                {
+                  "category": "uncategorized",
+                  "count": 1
+                }
+              ]
+            },
+            "content": [
+              {
+                "type": "text",
+                "text": "{\"success\":true,\"skills\":[{\"name\":\"case-probe\",\"type\":\"query\",\"description\":\"Real CTE inference check\",\"risk\":\"low\",\"category\":\"uncategorized\",\"executable\":true,\"profile_allowed\":true,\"db_compatible\":true,\"connection_scope_allowed\":true,\"policy_allowed\":true,\"schema_ready\":true,\"source\":\"query.sql\",\"triggers\":[],\"idempotent\":false,\"databases\":null,\"connection_ids\":null,\"configured_connection_ids\":[],\"unconfigured_connection_ids\":[],\"connection_type_conflicts\":[],\"profiles\":[],\"params\":{},\"version\":\"1.0\",\"requires_confirmation\":false,\"related_skills\":[],\"tables\":[\"orders\"],\"declared_tables\":[],\"inferred_tables\":[\"orders\"]}],\"total_skills\":1,\"matched_skills\":1,\"matched_catalog_skills\":1,\"available_skills\":1,\"unavailable_skills\":0,\"filtered_unavailable_skills\":0,\"schema_unready_skills\":0,\"policy_blocked_skills\":0,\"connection_scope_blocked_skills\":0,\"connection_type_conflict_skills\":0,\"profile_excluded_skills\":0,\"query_skills\":1,\"mutation_skills\":0,\"mutations_enabled\":false,\"schema_check_enabled\":true,\"schema_check_available\":true,\"excluded_profiles\":[],\"detail_level\":\"full\",\"available_only\":true,\"current_database_type\":\"sqlite\",\"connection_id\":\"sqlite_all\",\"search\":null,\"category\":null,\"categories\":[{\"category\":\"uncategorized\",\"count\":1}]}"
+              }
+            ],
+            "meta": {
+              "tool_name": "list_skills",
+              "db_type": "sqlite",
+              "connection_id": "sqlite_all",
+              "execution_ms": 13.377,
+              "success": true,
+              "matched_skills": 1,
+              "available_skills": 1,
+              "total_skills": 1
+            }
+          }
+        },
+        {
+          "started_utc": "2026-10-13T17:39:11.135359+00:00",
+          "elapsed_ms": 12.790294000296853,
+          "result": {
+            "isError": false,
+            "structuredContent": {
+              "success": true,
+              "skill": {
+                "name": "case-probe",
+                "type": "query",
+                "description": "Real CTE inference check",
+                "risk": "low",
+                "category": "uncategorized",
+                "executable": true,
+                "profile_allowed": true,
+                "db_compatible": true,
+                "connection_scope_allowed": true,
+                "policy_allowed": true,
+                "schema_ready": true,
+                "source": "query.sql",
+                "triggers": [],
+                "idempotent": false,
+                "databases": null,
+                "connection_ids": null,
+                "configured_connection_ids": [],
+                "unconfigured_connection_ids": [],
+                "connection_type_conflicts": [],
+                "profiles": [],
+                "params": {},
+                "version": "1.0",
+                "requires_confirmation": false,
+                "related_skills": [],
+                "tables": [
+                  "orders"
+                ],
+                "declared_tables": [],
+                "inferred_tables": [
+                  "orders"
+                ]
+              },
+              "connection_id": "sqlite_all",
+              "current_database_type": "sqlite",
+              "usage_hint": "Call execute_query_skill(skill_name, params, connection_id) with this same target connection and params matching the schema.",
+              "mutations_enabled": false,
+              "schema_check_enabled": true,
+              "schema_check_available": true
+            },
+            "content": [
+              {
+                "type": "text",
+                "text": "{\"success\":true,\"skill\":{\"name\":\"case-probe\",\"type\":\"query\",\"description\":\"Real CTE inference check\",\"risk\":\"low\",\"category\":\"uncategorized\",\"executable\":true,\"profile_allowed\":true,\"db_compatible\":true,\"connection_scope_allowed\":true,\"policy_allowed\":true,\"schema_ready\":true,\"source\":\"query.sql\",\"triggers\":[],\"idempotent\":false,\"databases\":null,\"connection_ids\":null,\"configured_connection_ids\":[],\"unconfigured_connection_ids\":[],\"connection_type_conflicts\":[],\"profiles\":[],\"params\":{},\"version\":\"1.0\",\"requires_confirmation\":false,\"related_skills\":[],\"tables\":[\"orders\"],\"declared_tables\":[],\"inferred_tables\":[\"orders\"]},\"connection_id\":\"sqlite_all\",\"current_database_type\":\"sqlite\",\"usage_hint\":\"Call execute_query_skill(skill_name, params, connection_id) with this same target connection and params matching the schema.\",\"mutations_enabled\":false,\"schema_check_enabled\":true,\"schema_check_available\":true}"
+              }
+            ],
+            "meta": {
+              "tool_name": "get_skill_detail",
+              "db_type": "sqlite",
+              "connection_id": "sqlite_all",
+              "execution_ms": 9.658,
+              "success": true,
+              "skill_name": "case-probe",
+              "skill_type": "query"
+            }
+          }
+        },
+        {
+          "started_utc": "2026-10-13T17:39:11.148158+00:00",
+          "elapsed_ms": 24.818036999931792,
+          "result": {
+            "isError": false,
+            "structuredContent": {
+              "success": true,
+              "skill_name": "case-probe",
+              "connection_id": "sqlite_all",
+              "db_type": "sqlite",
+              "data": [
+                {
+                  "n": 1
+                }
+              ],
+              "row_count": 1,
+              "total_rows": 1,
+              "truncated": false,
+              "truncation_note": null
+            },
+            "content": [
+              {
+                "type": "text",
+                "text": "{\"success\":true,\"skill_name\":\"case-probe\",\"connection_id\":\"sqlite_all\",\"db_type\":\"sqlite\",\"data\":[{\"n\":1}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null}"
+              }
+            ],
+            "meta": {
+              "tool_name": "execute_query_skill",
+              "skill_name": "case-probe",
+              "skill_type": "query",
+              "skill_version": "1.0",
+              "mode": "query",
+              "db_type": "sqlite",
+              "connection_id": "sqlite_all",
+              "execution_ms": 21.005,
+              "success": true,
+              "idempotent": false,
+              "row_count": 1,
+              "total_rows": 1,
+              "truncated": false,
+              "audit_logged": true
+            }
+          }
+        },
+        {
+          "started_utc": "2026-10-13T17:39:11.172984+00:00",
+          "elapsed_ms": 17.06175599974813,
+          "result": {
+            "isError": false,
+            "structuredContent": {
+              "success": true,
+              "data": [
+                {
+                  "n": 1
+                }
+              ],
+              "row_count": 1,
+              "total_rows": 1,
+              "truncated": false,
+              "truncation_note": null,
+              "query": "WITH F AS (SELECT COUNT(*) AS n FROM orders) SELECT n FROM f",
+              "connection_id": "sqlite_all",
+              "db_type": "sqlite"
+            },
+            "content": [
+              {
+                "type": "text",
+                "text": "{\"success\":true,\"data\":[{\"n\":1}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null,\"query\":\"WITH F AS (SELECT COUNT(*) AS n FROM orders) SELECT n FROM f\",\"connection_id\":\"sqlite_all\",\"db_type\":\"sqlite\"}"
+              }
+            ],
+            "meta": {
+              "tool_name": "query",
+              "db_type": "sqlite",
+              "connection_id": "sqlite_all",
+              "execution_ms": 11.055,
+              "success": true,
+              "row_count": 1,
+              "total_rows": 1,
+              "truncated": false
+            }
+          }
+        }
+      ]
+    },
+    {
+      "protocol": "2026-07-28",
+      "target": "mysql_denied",
+      "requests": [
+        {
+          "tool": "query",
+          "arguments": {
+            "sql": "WITH F AS (SELECT COUNT(*) AS n FROM orders) SELECT n FROM f",
+            "connection_id": "mysql_denied"
+          }
+        },
+        {
+          "tool": "execute_query_skill",
+          "arguments": {
+            "skill_name": "case-probe",
+            "params": {},
+            "connection_id": "mysql_denied"
+          }
+        }
+      ],
+      "responses": [
+        {
+          "started_utc": "2026-10-13T17:39:11.235934+00:00",
+          "elapsed_ms": 14.306565000879345,
+          "result": {
+            "isError": false,
+            "structuredContent": {
+              "success": false,
+              "error_code": "table_access_denied",
+              "error": "Access denied to table(s): f, orders. Only allowed tables: other",
+              "hint": "Keep the same connection and use authorized tables. If CTE name rules are unknown or case-sensitive, match the declaration's exact case.",
+              "query": "WITH F AS (SELECT COUNT(*) AS n FROM orders) SELECT n FROM f",
+              "connection_id": "mysql_denied",
+              "db_type": "mysql"
+            },
+            "content": [
+              {
+                "type": "text",
+                "text": "{\"success\":false,\"error_code\":\"table_access_denied\",\"error\":\"Access denied to table(s): f, orders. Only allowed tables: other\",\"hint\":\"Keep the same connection and use authorized tables. If CTE name rules are unknown or case-sensitive, match the declaration's exact case.\",\"query\":\"WITH F AS (SELECT COUNT(*) AS n FROM orders) SELECT n FROM f\",\"connection_id\":\"mysql_denied\",\"db_type\":\"mysql\"}"
+              }
+            ],
+            "meta": {
+              "tool_name": "query",
+              "db_type": "mysql",
+              "connection_id": "mysql_denied",
+              "execution_ms": 11.423,
+              "success": false,
+              "io.modelcontextprotocol/serverInfo": {
+                "name": "sql-safety-executor",
+                "version": "3.8.1"
+              }
+            }
+          }
+        },
+        {
+          "started_utc": "2026-10-13T17:39:11.250249+00:00",
+          "elapsed_ms": 22.298003001196776,
+          "result": {
+            "isError": false,
+            "structuredContent": {
+              "success": false,
+              "error_code": "table_access_denied",
+              "error": "Access denied to table(s): f, orders. Only allowed tables: other",
+              "hint": "Keep the same connection and use authorized tables. If CTE name rules are unknown or case-sensitive, match the declaration's exact case.",
+              "skill_name": "case-probe",
+              "connection_id": "mysql_denied",
+              "db_type": "mysql"
+            },
+            "content": [
+              {
+                "type": "text",
+                "text": "{\"success\":false,\"error_code\":\"table_access_denied\",\"error\":\"Access denied to table(s): f, orders. Only allowed tables: other\",\"hint\":\"Keep the same connection and use authorized tables. If CTE name rules are unknown or case-sensitive, match the declaration's exact case.\",\"skill_name\":\"case-probe\",\"connection_id\":\"mysql_denied\",\"db_type\":\"mysql\"}"
+              }
+            ],
+            "meta": {
+              "tool_name": "execute_query_skill",
+              "db_type": "mysql",
+              "connection_id": "mysql_denied",
+              "execution_ms": 13.805,
+              "success": false,
+              "io.modelcontextprotocol/serverInfo": {
+                "name": "sql-safety-executor",
+                "version": "3.8.1"
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "protocol": "2026-07-28",
+      "target": "mysql_ci",
+      "requests": [
+        {
+          "tool": "query",
+          "arguments": {
+            "sql": "WITH F AS (SELECT COUNT(*) AS n FROM orders) SELECT n FROM f",
+            "connection_id": "mysql_ci"
+          }
+        },
+        {
+          "tool": "list_skills",
+          "arguments": {
+            "connection_id": "mysql_ci",
+            "detail_level": "full"
+          }
+        },
+        {
+          "tool": "get_skill_detail",
+          "arguments": {
+            "skill_name": "case-probe",
+            "connection_id": "mysql_ci",
+            "detail_level": "full"
+          }
+        },
+        {
+          "tool": "execute_query_skill",
+          "arguments": {
+            "skill_name": "case-probe",
+            "params": {},
+            "connection_id": "mysql_ci"
+          }
+        },
+        {
+          "tool": "query",
+          "arguments": {
+            "sql": "WITH F AS (SELECT COUNT(*) AS n FROM orders) SELECT n FROM f",
+            "connection_id": "mysql_ci"
+          }
+        }
+      ],
+      "responses": [
+        {
+          "started_utc": "2026-10-13T17:39:11.272588+00:00",
+          "elapsed_ms": 151.31140000084997,
+          "result": {
+            "isError": false,
+            "structuredContent": {
+              "success": true,
+              "data": [
+                {
+                  "n": 8
+                }
+              ],
+              "row_count": 1,
+              "total_rows": 1,
+              "truncated": false,
+              "truncation_note": null,
+              "query": "WITH F AS (SELECT COUNT(*) AS n FROM orders) SELECT n FROM f",
+              "connection_id": "mysql_ci",
+              "db_type": "mysql"
+            },
+            "content": [
+              {
+                "type": "text",
+                "text": "{\"success\":true,\"data\":[{\"n\":8}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null,\"query\":\"WITH F AS (SELECT COUNT(*) AS n FROM orders) SELECT n FROM f\",\"connection_id\":\"mysql_ci\",\"db_type\":\"mysql\"}"
+              }
+            ],
+            "meta": {
+              "tool_name": "query",
+              "db_type": "mysql",
+              "connection_id": "mysql_ci",
+              "execution_ms": 149.439,
+              "success": true,
+              "row_count": 1,
+              "total_rows": 1,
+              "truncated": false,
+              "io.modelcontextprotocol/serverInfo": {
+                "name": "sql-safety-executor",
+                "version": "3.8.1"
+              }
+            }
+          }
+        },
+        {
+          "started_utc": "2026-10-13T17:39:11.423908+00:00",
+          "elapsed_ms": 42.8048409994517,
+          "result": {
+            "isError": false,
+            "structuredContent": {
+              "success": true,
+              "skills": [
+                {
+                  "name": "case-probe",
+                  "type": "query",
+                  "description": "Real CTE inference check",
+                  "risk": "low",
+                  "category": "uncategorized",
+                  "executable": true,
+                  "profile_allowed": true,
+                  "db_compatible": true,
+                  "connection_scope_allowed": true,
+                  "policy_allowed": true,
+                  "schema_ready": true,
+                  "source": "query.sql",
+                  "triggers": [],
+                  "idempotent": false,
+                  "databases": null,
+                  "connection_ids": null,
+                  "configured_connection_ids": [],
+                  "unconfigured_connection_ids": [],
+                  "connection_type_conflicts": [],
+                  "profiles": [],
+                  "params": {},
+                  "version": "1.0",
+                  "requires_confirmation": false,
+                  "related_skills": [],
+                  "tables": [
+                    "orders"
+                  ],
+                  "declared_tables": [],
+                  "inferred_tables": [
+                    "orders"
+                  ]
+                }
+              ],
+              "total_skills": 1,
+              "matched_skills": 1,
+              "matched_catalog_skills": 1,
+              "available_skills": 1,
+              "unavailable_skills": 0,
+              "filtered_unavailable_skills": 0,
+              "schema_unready_skills": 0,
+              "policy_blocked_skills": 0,
+              "connection_scope_blocked_skills": 0,
+              "connection_type_conflict_skills": 0,
+              "profile_excluded_skills": 0,
+              "query_skills": 1,
+              "mutation_skills": 0,
+              "mutations_enabled": false,
+              "schema_check_enabled": true,
+              "schema_check_available": true,
+              "excluded_profiles": [],
+              "detail_level": "full",
+              "available_only": true,
+              "current_database_type": "mysql",
+              "connection_id": "mysql_ci",
+              "search": null,
+              "category": null,
+              "categories": [
+                {
+                  "category": "uncategorized",
+                  "count": 1
+                }
+              ]
+            },
+            "content": [
+              {
+                "type": "text",
+                "text": "{\"success\":true,\"skills\":[{\"name\":\"case-probe\",\"type\":\"query\",\"description\":\"Real CTE inference check\",\"risk\":\"low\",\"category\":\"uncategorized\",\"executable\":true,\"profile_allowed\":true,\"db_compatible\":true,\"connection_scope_allowed\":true,\"policy_allowed\":true,\"schema_ready\":true,\"source\":\"query.sql\",\"triggers\":[],\"idempotent\":false,\"databases\":null,\"connection_ids\":null,\"configured_connection_ids\":[],\"unconfigured_connection_ids\":[],\"connection_type_conflicts\":[],\"profiles\":[],\"params\":{},\"version\":\"1.0\",\"requires_confirmation\":false,\"related_skills\":[],\"tables\":[\"orders\"],\"declared_tables\":[],\"inferred_tables\":[\"orders\"]}],\"total_skills\":1,\"matched_skills\":1,\"matched_catalog_skills\":1,\"available_skills\":1,\"unavailable_skills\":0,\"filtered_unavailable_skills\":0,\"schema_unready_skills\":0,\"policy_blocked_skills\":0,\"connection_scope_blocked_skills\":0,\"connection_type_conflict_skills\":0,\"profile_excluded_skills\":0,\"query_skills\":1,\"mutation_skills\":0,\"mutations_enabled\":false,\"schema_check_enabled\":true,\"schema_check_available\":true,\"excluded_profiles\":[],\"detail_level\":\"full\",\"available_only\":true,\"current_database_type\":\"mysql\",\"connection_id\":\"mysql_ci\",\"search\":null,\"category\":null,\"categories\":[{\"category\":\"uncategorized\",\"count\":1}]}"
+              }
+            ],
+            "meta": {
+              "tool_name": "list_skills",
+              "db_type": "mysql",
+              "connection_id": "mysql_ci",
+              "execution_ms": 38.628,
+              "success": true,
+              "matched_skills": 1,
+              "available_skills": 1,
+              "total_skills": 1,
+              "io.modelcontextprotocol/serverInfo": {
+                "name": "sql-safety-executor",
+                "version": "3.8.1"
+              }
+            }
+          }
+        },
+        {
+          "started_utc": "2026-10-13T17:39:11.466724+00:00",
+          "elapsed_ms": 64.55222099975799,
+          "result": {
+            "isError": false,
+            "structuredContent": {
+              "success": true,
+              "skill": {
+                "name": "case-probe",
+                "type": "query",
+                "description": "Real CTE inference check",
+                "risk": "low",
+                "category": "uncategorized",
+                "executable": true,
+                "profile_allowed": true,
+                "db_compatible": true,
+                "connection_scope_allowed": true,
+                "policy_allowed": true,
+                "schema_ready": true,
+                "source": "query.sql",
+                "triggers": [],
+                "idempotent": false,
+                "databases": null,
+                "connection_ids": null,
+                "configured_connection_ids": [],
+                "unconfigured_connection_ids": [],
+                "connection_type_conflicts": [],
+                "profiles": [],
+                "params": {},
+                "version": "1.0",
+                "requires_confirmation": false,
+                "related_skills": [],
+                "tables": [
+                  "orders"
+                ],
+                "declared_tables": [],
+                "inferred_tables": [
+                  "orders"
+                ]
+              },
+              "connection_id": "mysql_ci",
+              "current_database_type": "mysql",
+              "usage_hint": "Call execute_query_skill(skill_name, params, connection_id) with this same target connection and params matching the schema.",
+              "mutations_enabled": false,
+              "schema_check_enabled": true,
+              "schema_check_available": true
+            },
+            "content": [
+              {
+                "type": "text",
+                "text": "{\"success\":true,\"skill\":{\"name\":\"case-probe\",\"type\":\"query\",\"description\":\"Real CTE inference check\",\"risk\":\"low\",\"category\":\"uncategorized\",\"executable\":true,\"profile_allowed\":true,\"db_compatible\":true,\"connection_scope_allowed\":true,\"policy_allowed\":true,\"schema_ready\":true,\"source\":\"query.sql\",\"triggers\":[],\"idempotent\":false,\"databases\":null,\"connection_ids\":null,\"configured_connection_ids\":[],\"unconfigured_connection_ids\":[],\"connection_type_conflicts\":[],\"profiles\":[],\"params\":{},\"version\":\"1.0\",\"requires_confirmation\":false,\"related_skills\":[],\"tables\":[\"orders\"],\"declared_tables\":[],\"inferred_tables\":[\"orders\"]},\"connection_id\":\"mysql_ci\",\"current_database_type\":\"mysql\",\"usage_hint\":\"Call execute_query_skill(skill_name, params, connection_id) with this same target connection and params matching the schema.\",\"mutations_enabled\":false,\"schema_check_enabled\":true,\"schema_check_available\":true}"
+              }
+            ],
+            "meta": {
+              "tool_name": "get_skill_detail",
+              "db_type": "mysql",
+              "connection_id": "mysql_ci",
+              "execution_ms": 61.102,
+              "success": true,
+              "skill_name": "case-probe",
+              "skill_type": "query",
+              "io.modelcontextprotocol/serverInfo": {
+                "name": "sql-safety-executor",
+                "version": "3.8.1"
+              }
+            }
+          }
+        },
+        {
+          "started_utc": "2026-10-13T17:39:11.531294+00:00",
+          "elapsed_ms": 97.73682999730227,
+          "result": {
+            "isError": false,
+            "structuredContent": {
+              "success": true,
+              "skill_name": "case-probe",
+              "connection_id": "mysql_ci",
+              "db_type": "mysql",
+              "data": [
+                {
+                  "n": 8
+                }
+              ],
+              "row_count": 1,
+              "total_rows": 1,
+              "truncated": false,
+              "truncation_note": null
+            },
+            "content": [
+              {
+                "type": "text",
+                "text": "{\"success\":true,\"skill_name\":\"case-probe\",\"connection_id\":\"mysql_ci\",\"db_type\":\"mysql\",\"data\":[{\"n\":8}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null}"
+              }
+            ],
+            "meta": {
+              "tool_name": "execute_query_skill",
+              "skill_name": "case-probe",
+              "skill_type": "query",
+              "skill_version": "1.0",
+              "mode": "query",
+              "db_type": "mysql",
+              "connection_id": "mysql_ci",
+              "execution_ms": 93.972,
+              "success": true,
+              "idempotent": false,
+              "row_count": 1,
+              "total_rows": 1,
+              "truncated": false,
+              "audit_logged": true,
+              "io.modelcontextprotocol/serverInfo": {
+                "name": "sql-safety-executor",
+                "version": "3.8.1"
+              }
+            }
+          }
+        },
+        {
+          "started_utc": "2026-10-13T17:39:11.629046+00:00",
+          "elapsed_ms": 24.3436409982678,
+          "result": {
+            "isError": false,
+            "structuredContent": {
+              "success": true,
+              "data": [
+                {
+                  "n": 8
+                }
+              ],
+              "row_count": 1,
+              "total_rows": 1,
+              "truncated": false,
+              "truncation_note": null,
+              "query": "WITH F AS (SELECT COUNT(*) AS n FROM orders) SELECT n FROM f",
+              "connection_id": "mysql_ci",
+              "db_type": "mysql"
+            },
+            "content": [
+              {
+                "type": "text",
+                "text": "{\"success\":true,\"data\":[{\"n\":8}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null,\"query\":\"WITH F AS (SELECT COUNT(*) AS n FROM orders) SELECT n FROM f\",\"connection_id\":\"mysql_ci\",\"db_type\":\"mysql\"}"
+              }
+            ],
+            "meta": {
+              "tool_name": "query",
+              "db_type": "mysql",
+              "connection_id": "mysql_ci",
+              "execution_ms": 22.289,
+              "success": true,
+              "row_count": 1,
+              "total_rows": 1,
+              "truncated": false,
+              "io.modelcontextprotocol/serverInfo": {
+                "name": "sql-safety-executor",
+                "version": "3.8.1"
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "protocol": "2026-07-28",
+      "target": "sqlite_allow",
+      "requests": [
+        {
+          "tool": "query",
+          "arguments": {
+            "sql": "WITH F AS (SELECT COUNT(*) AS n FROM orders) SELECT n FROM f",
+            "connection_id": "sqlite_allow"
+          }
+        },
+        {
+          "tool": "list_skills",
+          "arguments": {
+            "connection_id": "sqlite_allow",
+            "detail_level": "full"
+          }
+        },
+        {
+          "tool": "get_skill_detail",
+          "arguments": {
+            "skill_name": "case-probe",
+            "connection_id": "sqlite_allow",
+            "detail_level": "full"
+          }
+        },
+        {
+          "tool": "execute_query_skill",
+          "arguments": {
+            "skill_name": "case-probe",
+            "params": {},
+            "connection_id": "sqlite_allow"
+          }
+        },
+        {
+          "tool": "query",
+          "arguments": {
+            "sql": "WITH F AS (SELECT COUNT(*) AS n FROM orders) SELECT n FROM f",
+            "connection_id": "sqlite_allow"
+          }
+        }
+      ],
+      "responses": [
+        {
+          "started_utc": "2026-10-13T17:39:11.667887+00:00",
+          "elapsed_ms": 14.136114001303213,
+          "result": {
+            "isError": false,
+            "structuredContent": {
+              "success": true,
+              "data": [
+                {
+                  "n": 1
+                }
+              ],
+              "row_count": 1,
+              "total_rows": 1,
+              "truncated": false,
+              "truncation_note": null,
+              "query": "WITH F AS (SELECT COUNT(*) AS n FROM orders) SELECT n FROM f",
+              "connection_id": "sqlite_allow",
+              "db_type": "sqlite"
+            },
+            "content": [
+              {
+                "type": "text",
+                "text": "{\"success\":true,\"data\":[{\"n\":1}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null,\"query\":\"WITH F AS (SELECT COUNT(*) AS n FROM orders) SELECT n FROM f\",\"connection_id\":\"sqlite_allow\",\"db_type\":\"sqlite\"}"
+              }
+            ],
+            "meta": {
+              "tool_name": "query",
+              "db_type": "sqlite",
+              "connection_id": "sqlite_allow",
+              "execution_ms": 11.454,
+              "success": true,
+              "row_count": 1,
+              "total_rows": 1,
+              "truncated": false,
+              "io.modelcontextprotocol/serverInfo": {
+                "name": "sql-safety-executor",
+                "version": "3.8.1"
+              }
+            }
+          }
+        },
+        {
+          "started_utc": "2026-10-13T17:39:11.682028+00:00",
+          "elapsed_ms": 14.28086400119355,
+          "result": {
+            "isError": false,
+            "structuredContent": {
+              "success": true,
+              "skills": [
+                {
+                  "name": "case-probe",
+                  "type": "query",
+                  "description": "Real CTE inference check",
+                  "risk": "low",
+                  "category": "uncategorized",
+                  "executable": true,
+                  "profile_allowed": true,
+                  "db_compatible": true,
+                  "connection_scope_allowed": true,
+                  "policy_allowed": true,
+                  "schema_ready": true,
+                  "source": "query.sql",
+                  "triggers": [],
+                  "idempotent": false,
+                  "databases": null,
+                  "connection_ids": null,
+                  "configured_connection_ids": [],
+                  "unconfigured_connection_ids": [],
+                  "connection_type_conflicts": [],
+                  "profiles": [],
+                  "params": {},
+                  "version": "1.0",
+                  "requires_confirmation": false,
+                  "related_skills": [],
+                  "tables": [
+                    "orders"
+                  ],
+                  "declared_tables": [],
+                  "inferred_tables": [
+                    "orders"
+                  ]
+                }
+              ],
+              "total_skills": 1,
+              "matched_skills": 1,
+              "matched_catalog_skills": 1,
+              "available_skills": 1,
+              "unavailable_skills": 0,
+              "filtered_unavailable_skills": 0,
+              "schema_unready_skills": 0,
+              "policy_blocked_skills": 0,
+              "connection_scope_blocked_skills": 0,
+              "connection_type_conflict_skills": 0,
+              "profile_excluded_skills": 0,
+              "query_skills": 1,
+              "mutation_skills": 0,
+              "mutations_enabled": false,
+              "schema_check_enabled": true,
+              "schema_check_available": true,
+              "excluded_profiles": [],
+              "detail_level": "full",
+              "available_only": true,
+              "current_database_type": "sqlite",
+              "connection_id": "sqlite_allow",
+              "search": null,
+              "category": null,
+              "categories": [
+                {
+                  "category": "uncategorized",
+                  "count": 1
+                }
+              ]
+            },
+            "content": [
+              {
+                "type": "text",
+                "text": "{\"success\":true,\"skills\":[{\"name\":\"case-probe\",\"type\":\"query\",\"description\":\"Real CTE inference check\",\"risk\":\"low\",\"category\":\"uncategorized\",\"executable\":true,\"profile_allowed\":true,\"db_compatible\":true,\"connection_scope_allowed\":true,\"policy_allowed\":true,\"schema_ready\":true,\"source\":\"query.sql\",\"triggers\":[],\"idempotent\":false,\"databases\":null,\"connection_ids\":null,\"configured_connection_ids\":[],\"unconfigured_connection_ids\":[],\"connection_type_conflicts\":[],\"profiles\":[],\"params\":{},\"version\":\"1.0\",\"requires_confirmation\":false,\"related_skills\":[],\"tables\":[\"orders\"],\"declared_tables\":[],\"inferred_tables\":[\"orders\"]}],\"total_skills\":1,\"matched_skills\":1,\"matched_catalog_skills\":1,\"available_skills\":1,\"unavailable_skills\":0,\"filtered_unavailable_skills\":0,\"schema_unready_skills\":0,\"policy_blocked_skills\":0,\"connection_scope_blocked_skills\":0,\"connection_type_conflict_skills\":0,\"profile_excluded_skills\":0,\"query_skills\":1,\"mutation_skills\":0,\"mutations_enabled\":false,\"schema_check_enabled\":true,\"schema_check_available\":true,\"excluded_profiles\":[],\"detail_level\":\"full\",\"available_only\":true,\"current_database_type\":\"sqlite\",\"connection_id\":\"sqlite_allow\",\"search\":null,\"category\":null,\"categories\":[{\"category\":\"uncategorized\",\"count\":1}]}"
+              }
+            ],
+            "meta": {
+              "tool_name": "list_skills",
+              "db_type": "sqlite",
+              "connection_id": "sqlite_allow",
+              "execution_ms": 11.919,
+              "success": true,
+              "matched_skills": 1,
+              "available_skills": 1,
+              "total_skills": 1,
+              "io.modelcontextprotocol/serverInfo": {
+                "name": "sql-safety-executor",
+                "version": "3.8.1"
+              }
+            }
+          }
+        },
+        {
+          "started_utc": "2026-10-13T17:39:11.696321+00:00",
+          "elapsed_ms": 18.284020999999484,
+          "result": {
+            "isError": false,
+            "structuredContent": {
+              "success": true,
+              "skill": {
+                "name": "case-probe",
+                "type": "query",
+                "description": "Real CTE inference check",
+                "risk": "low",
+                "category": "uncategorized",
+                "executable": true,
+                "profile_allowed": true,
+                "db_compatible": true,
+                "connection_scope_allowed": true,
+                "policy_allowed": true,
+                "schema_ready": true,
+                "source": "query.sql",
+                "triggers": [],
+                "idempotent": false,
+                "databases": null,
+                "connection_ids": null,
+                "configured_connection_ids": [],
+                "unconfigured_connection_ids": [],
+                "connection_type_conflicts": [],
+                "profiles": [],
+                "params": {},
+                "version": "1.0",
+                "requires_confirmation": false,
+                "related_skills": [],
+                "tables": [
+                  "orders"
+                ],
+                "declared_tables": [],
+                "inferred_tables": [
+                  "orders"
+                ]
+              },
+              "connection_id": "sqlite_allow",
+              "current_database_type": "sqlite",
+              "usage_hint": "Call execute_query_skill(skill_name, params, connection_id) with this same target connection and params matching the schema.",
+              "mutations_enabled": false,
+              "schema_check_enabled": true,
+              "schema_check_available": true
+            },
+            "content": [
+              {
+                "type": "text",
+                "text": "{\"success\":true,\"skill\":{\"name\":\"case-probe\",\"type\":\"query\",\"description\":\"Real CTE inference check\",\"risk\":\"low\",\"category\":\"uncategorized\",\"executable\":true,\"profile_allowed\":true,\"db_compatible\":true,\"connection_scope_allowed\":true,\"policy_allowed\":true,\"schema_ready\":true,\"source\":\"query.sql\",\"triggers\":[],\"idempotent\":false,\"databases\":null,\"connection_ids\":null,\"configured_connection_ids\":[],\"unconfigured_connection_ids\":[],\"connection_type_conflicts\":[],\"profiles\":[],\"params\":{},\"version\":\"1.0\",\"requires_confirmation\":false,\"related_skills\":[],\"tables\":[\"orders\"],\"declared_tables\":[],\"inferred_tables\":[\"orders\"]},\"connection_id\":\"sqlite_allow\",\"current_database_type\":\"sqlite\",\"usage_hint\":\"Call execute_query_skill(skill_name, params, connection_id) with this same target connection and params matching the schema.\",\"mutations_enabled\":false,\"schema_check_enabled\":true,\"schema_check_available\":true}"
+              }
+            ],
+            "meta": {
+              "tool_name": "get_skill_detail",
+              "db_type": "sqlite",
+              "connection_id": "sqlite_allow",
+              "execution_ms": 14.984,
+              "success": true,
+              "skill_name": "case-probe",
+              "skill_type": "query",
+              "io.modelcontextprotocol/serverInfo": {
+                "name": "sql-safety-executor",
+                "version": "3.8.1"
+              }
+            }
+          }
+        },
+        {
+          "started_utc": "2026-10-13T17:39:11.714617+00:00",
+          "elapsed_ms": 88.79902999979095,
+          "result": {
+            "isError": false,
+            "structuredContent": {
+              "success": true,
+              "skill_name": "case-probe",
+              "connection_id": "sqlite_allow",
+              "db_type": "sqlite",
+              "data": [
+                {
+                  "n": 1
+                }
+              ],
+              "row_count": 1,
+              "total_rows": 1,
+              "truncated": false,
+              "truncation_note": null
+            },
+            "content": [
+              {
+                "type": "text",
+                "text": "{\"success\":true,\"skill_name\":\"case-probe\",\"connection_id\":\"sqlite_allow\",\"db_type\":\"sqlite\",\"data\":[{\"n\":1}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null}"
+              }
+            ],
+            "meta": {
+              "tool_name": "execute_query_skill",
+              "skill_name": "case-probe",
+              "skill_type": "query",
+              "skill_version": "1.0",
+              "mode": "query",
+              "db_type": "sqlite",
+              "connection_id": "sqlite_allow",
+              "execution_ms": 86.302,
+              "success": true,
+              "idempotent": false,
+              "row_count": 1,
+              "total_rows": 1,
+              "truncated": false,
+              "audit_logged": true,
+              "io.modelcontextprotocol/serverInfo": {
+                "name": "sql-safety-executor",
+                "version": "3.8.1"
+              }
+            }
+          }
+        },
+        {
+          "started_utc": "2026-10-13T17:39:11.803424+00:00",
+          "elapsed_ms": 12.641935998544795,
+          "result": {
+            "isError": false,
+            "structuredContent": {
+              "success": true,
+              "data": [
+                {
+                  "n": 1
+                }
+              ],
+              "row_count": 1,
+              "total_rows": 1,
+              "truncated": false,
+              "truncation_note": null,
+              "query": "WITH F AS (SELECT COUNT(*) AS n FROM orders) SELECT n FROM f",
+              "connection_id": "sqlite_allow",
+              "db_type": "sqlite"
+            },
+            "content": [
+              {
+                "type": "text",
+                "text": "{\"success\":true,\"data\":[{\"n\":1}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null,\"query\":\"WITH F AS (SELECT COUNT(*) AS n FROM orders) SELECT n FROM f\",\"connection_id\":\"sqlite_allow\",\"db_type\":\"sqlite\"}"
+              }
+            ],
+            "meta": {
+              "tool_name": "query",
+              "db_type": "sqlite",
+              "connection_id": "sqlite_allow",
+              "execution_ms": 10.601,
+              "success": true,
+              "row_count": 1,
+              "total_rows": 1,
+              "truncated": false,
+              "io.modelcontextprotocol/serverInfo": {
+                "name": "sql-safety-executor",
+                "version": "3.8.1"
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "protocol": "2026-07-28",
+      "target": "sqlite_all",
+      "requests": [
+        {
+          "tool": "query",
+          "arguments": {
+            "sql": "WITH F AS (SELECT COUNT(*) AS n FROM orders) SELECT n FROM f",
+            "connection_id": "sqlite_all"
+          }
+        },
+        {
+          "tool": "list_skills",
+          "arguments": {
+            "connection_id": "sqlite_all",
+            "detail_level": "full"
+          }
+        },
+        {
+          "tool": "get_skill_detail",
+          "arguments": {
+            "skill_name": "case-probe",
+            "connection_id": "sqlite_all",
+            "detail_level": "full"
+          }
+        },
+        {
+          "tool": "execute_query_skill",
+          "arguments": {
+            "skill_name": "case-probe",
+            "params": {},
+            "connection_id": "sqlite_all"
+          }
+        },
+        {
+          "tool": "query",
+          "arguments": {
+            "sql": "WITH F AS (SELECT COUNT(*) AS n FROM orders) SELECT n FROM f",
+            "connection_id": "sqlite_all"
+          }
+        }
+      ],
+      "responses": [
+        {
+          "started_utc": "2026-10-13T17:39:11.817176+00:00",
+          "elapsed_ms": 12.81904400093481,
+          "result": {
+            "isError": false,
+            "structuredContent": {
+              "success": true,
+              "data": [
+                {
+                  "n": 1
+                }
+              ],
+              "row_count": 1,
+              "total_rows": 1,
+              "truncated": false,
+              "truncation_note": null,
+              "query": "WITH F AS (SELECT COUNT(*) AS n FROM orders) SELECT n FROM f",
+              "connection_id": "sqlite_all",
+              "db_type": "sqlite"
+            },
+            "content": [
+              {
+                "type": "text",
+                "text": "{\"success\":true,\"data\":[{\"n\":1}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null,\"query\":\"WITH F AS (SELECT COUNT(*) AS n FROM orders) SELECT n FROM f\",\"connection_id\":\"sqlite_all\",\"db_type\":\"sqlite\"}"
+              }
+            ],
+            "meta": {
+              "tool_name": "query",
+              "db_type": "sqlite",
+              "connection_id": "sqlite_all",
+              "execution_ms": 10.366,
+              "success": true,
+              "row_count": 1,
+              "total_rows": 1,
+              "truncated": false,
+              "io.modelcontextprotocol/serverInfo": {
+                "name": "sql-safety-executor",
+                "version": "3.8.1"
+              }
+            }
+          }
+        },
+        {
+          "started_utc": "2026-10-13T17:39:11.830001+00:00",
+          "elapsed_ms": 11.236966998694697,
+          "result": {
+            "isError": false,
+            "structuredContent": {
+              "success": true,
+              "skills": [
+                {
+                  "name": "case-probe",
+                  "type": "query",
+                  "description": "Real CTE inference check",
+                  "risk": "low",
+                  "category": "uncategorized",
+                  "executable": true,
+                  "profile_allowed": true,
+                  "db_compatible": true,
+                  "connection_scope_allowed": true,
+                  "policy_allowed": true,
+                  "schema_ready": true,
+                  "source": "query.sql",
+                  "triggers": [],
+                  "idempotent": false,
+                  "databases": null,
+                  "connection_ids": null,
+                  "configured_connection_ids": [],
+                  "unconfigured_connection_ids": [],
+                  "connection_type_conflicts": [],
+                  "profiles": [],
+                  "params": {},
+                  "version": "1.0",
+                  "requires_confirmation": false,
+                  "related_skills": [],
+                  "tables": [
+                    "orders"
+                  ],
+                  "declared_tables": [],
+                  "inferred_tables": [
+                    "orders"
+                  ]
+                }
+              ],
+              "total_skills": 1,
+              "matched_skills": 1,
+              "matched_catalog_skills": 1,
+              "available_skills": 1,
+              "unavailable_skills": 0,
+              "filtered_unavailable_skills": 0,
+              "schema_unready_skills": 0,
+              "policy_blocked_skills": 0,
+              "connection_scope_blocked_skills": 0,
+              "connection_type_conflict_skills": 0,
+              "profile_excluded_skills": 0,
+              "query_skills": 1,
+              "mutation_skills": 0,
+              "mutations_enabled": false,
+              "schema_check_enabled": true,
+              "schema_check_available": true,
+              "excluded_profiles": [],
+              "detail_level": "full",
+              "available_only": true,
+              "current_database_type": "sqlite",
+              "connection_id": "sqlite_all",
+              "search": null,
+              "category": null,
+              "categories": [
+                {
+                  "category": "uncategorized",
+                  "count": 1
+                }
+              ]
+            },
+            "content": [
+              {
+                "type": "text",
+                "text": "{\"success\":true,\"skills\":[{\"name\":\"case-probe\",\"type\":\"query\",\"description\":\"Real CTE inference check\",\"risk\":\"low\",\"category\":\"uncategorized\",\"executable\":true,\"profile_allowed\":true,\"db_compatible\":true,\"connection_scope_allowed\":true,\"policy_allowed\":true,\"schema_ready\":true,\"source\":\"query.sql\",\"triggers\":[],\"idempotent\":false,\"databases\":null,\"connection_ids\":null,\"configured_connection_ids\":[],\"unconfigured_connection_ids\":[],\"connection_type_conflicts\":[],\"profiles\":[],\"params\":{},\"version\":\"1.0\",\"requires_confirmation\":false,\"related_skills\":[],\"tables\":[\"orders\"],\"declared_tables\":[],\"inferred_tables\":[\"orders\"]}],\"total_skills\":1,\"matched_skills\":1,\"matched_catalog_skills\":1,\"available_skills\":1,\"unavailable_skills\":0,\"filtered_unavailable_skills\":0,\"schema_unready_skills\":0,\"policy_blocked_skills\":0,\"connection_scope_blocked_skills\":0,\"connection_type_conflict_skills\":0,\"profile_excluded_skills\":0,\"query_skills\":1,\"mutation_skills\":0,\"mutations_enabled\":false,\"schema_check_enabled\":true,\"schema_check_available\":true,\"excluded_profiles\":[],\"detail_level\":\"full\",\"available_only\":true,\"current_database_type\":\"sqlite\",\"connection_id\":\"sqlite_all\",\"search\":null,\"category\":null,\"categories\":[{\"category\":\"uncategorized\",\"count\":1}]}"
+              }
+            ],
+            "meta": {
+              "tool_name": "list_skills",
+              "db_type": "sqlite",
+              "connection_id": "sqlite_all",
+              "execution_ms": 9.171,
+              "success": true,
+              "matched_skills": 1,
+              "available_skills": 1,
+              "total_skills": 1,
+              "io.modelcontextprotocol/serverInfo": {
+                "name": "sql-safety-executor",
+                "version": "3.8.1"
+              }
+            }
+          }
+        },
+        {
+          "started_utc": "2026-10-13T17:39:11.841248+00:00",
+          "elapsed_ms": 12.00584799880744,
+          "result": {
+            "isError": false,
+            "structuredContent": {
+              "success": true,
+              "skill": {
+                "name": "case-probe",
+                "type": "query",
+                "description": "Real CTE inference check",
+                "risk": "low",
+                "category": "uncategorized",
+                "executable": true,
+                "profile_allowed": true,
+                "db_compatible": true,
+                "connection_scope_allowed": true,
+                "policy_allowed": true,
+                "schema_ready": true,
+                "source": "query.sql",
+                "triggers": [],
+                "idempotent": false,
+                "databases": null,
+                "connection_ids": null,
+                "configured_connection_ids": [],
+                "unconfigured_connection_ids": [],
+                "connection_type_conflicts": [],
+                "profiles": [],
+                "params": {},
+                "version": "1.0",
+                "requires_confirmation": false,
+                "related_skills": [],
+                "tables": [
+                  "orders"
+                ],
+                "declared_tables": [],
+                "inferred_tables": [
+                  "orders"
+                ]
+              },
+              "connection_id": "sqlite_all",
+              "current_database_type": "sqlite",
+              "usage_hint": "Call execute_query_skill(skill_name, params, connection_id) with this same target connection and params matching the schema.",
+              "mutations_enabled": false,
+              "schema_check_enabled": true,
+              "schema_check_available": true
+            },
+            "content": [
+              {
+                "type": "text",
+                "text": "{\"success\":true,\"skill\":{\"name\":\"case-probe\",\"type\":\"query\",\"description\":\"Real CTE inference check\",\"risk\":\"low\",\"category\":\"uncategorized\",\"executable\":true,\"profile_allowed\":true,\"db_compatible\":true,\"connection_scope_allowed\":true,\"policy_allowed\":true,\"schema_ready\":true,\"source\":\"query.sql\",\"triggers\":[],\"idempotent\":false,\"databases\":null,\"connection_ids\":null,\"configured_connection_ids\":[],\"unconfigured_connection_ids\":[],\"connection_type_conflicts\":[],\"profiles\":[],\"params\":{},\"version\":\"1.0\",\"requires_confirmation\":false,\"related_skills\":[],\"tables\":[\"orders\"],\"declared_tables\":[],\"inferred_tables\":[\"orders\"]},\"connection_id\":\"sqlite_all\",\"current_database_type\":\"sqlite\",\"usage_hint\":\"Call execute_query_skill(skill_name, params, connection_id) with this same target connection and params matching the schema.\",\"mutations_enabled\":false,\"schema_check_enabled\":true,\"schema_check_available\":true}"
+              }
+            ],
+            "meta": {
+              "tool_name": "get_skill_detail",
+              "db_type": "sqlite",
+              "connection_id": "sqlite_all",
+              "execution_ms": 9.842,
+              "success": true,
+              "skill_name": "case-probe",
+              "skill_type": "query",
+              "io.modelcontextprotocol/serverInfo": {
+                "name": "sql-safety-executor",
+                "version": "3.8.1"
+              }
+            }
+          }
+        },
+        {
+          "started_utc": "2026-10-13T17:39:11.853263+00:00",
+          "elapsed_ms": 21.237914999801433,
+          "result": {
+            "isError": false,
+            "structuredContent": {
+              "success": true,
+              "skill_name": "case-probe",
+              "connection_id": "sqlite_all",
+              "db_type": "sqlite",
+              "data": [
+                {
+                  "n": 1
+                }
+              ],
+              "row_count": 1,
+              "total_rows": 1,
+              "truncated": false,
+              "truncation_note": null
+            },
+            "content": [
+              {
+                "type": "text",
+                "text": "{\"success\":true,\"skill_name\":\"case-probe\",\"connection_id\":\"sqlite_all\",\"db_type\":\"sqlite\",\"data\":[{\"n\":1}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null}"
+              }
+            ],
+            "meta": {
+              "tool_name": "execute_query_skill",
+              "skill_name": "case-probe",
+              "skill_type": "query",
+              "skill_version": "1.0",
+              "mode": "query",
+              "db_type": "sqlite",
+              "connection_id": "sqlite_all",
+              "execution_ms": 19.189,
+              "success": true,
+              "idempotent": false,
+              "row_count": 1,
+              "total_rows": 1,
+              "truncated": false,
+              "audit_logged": true,
+              "io.modelcontextprotocol/serverInfo": {
+                "name": "sql-safety-executor",
+                "version": "3.8.1"
+              }
+            }
+          }
+        },
+        {
+          "started_utc": "2026-10-13T17:39:11.874510+00:00",
+          "elapsed_ms": 10.954712000966538,
+          "result": {
+            "isError": false,
+            "structuredContent": {
+              "success": true,
+              "data": [
+                {
+                  "n": 1
+                }
+              ],
+              "row_count": 1,
+              "total_rows": 1,
+              "truncated": false,
+              "truncation_note": null,
+              "query": "WITH F AS (SELECT COUNT(*) AS n FROM orders) SELECT n FROM f",
+              "connection_id": "sqlite_all",
+              "db_type": "sqlite"
+            },
+            "content": [
+              {
+                "type": "text",
+                "text": "{\"success\":true,\"data\":[{\"n\":1}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null,\"query\":\"WITH F AS (SELECT COUNT(*) AS n FROM orders) SELECT n FROM f\",\"connection_id\":\"sqlite_all\",\"db_type\":\"sqlite\"}"
+              }
+            ],
+            "meta": {
+              "tool_name": "query",
+              "db_type": "sqlite",
+              "connection_id": "sqlite_all",
+              "execution_ms": 8.924,
+              "success": true,
+              "row_count": 1,
+              "total_rows": 1,
+              "truncated": false,
+              "io.modelcontextprotocol/serverInfo": {
+                "name": "sql-safety-executor",
+                "version": "3.8.1"
+              }
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "tool_calls": 34,
+  "probe_events": [
+    {
+      "adapter": "mysql_adapter.mysql_ci",
+      "statement": "WITH `mcp_Cte_Case_A` AS (SELECT 1 AS n), `mcp_cte_case_a` AS (SELECT 2 AS n) SELECT 1 AS n"
+    },
+    {
+      "adapter": "mysql_adapter.mysql_ci",
+      "statement": "WITH `mcp_Cte_Case_A` AS (SELECT 1 AS n), `mcp_cte_case_a` AS (SELECT 2 AS n) SELECT 1 AS n"
+    }
+  ],
+  "local_TOML_modified": false,
+  "writes_to_existing_databases": false,
+  "sqlite_fixture_removed": true,
+  "resident_Host": "Not used; these are real in-process Client calls against new source"
+}

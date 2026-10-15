@@ -1,0 +1,1732 @@
+{
+  "stage": "after",
+  "version": "3.8.1",
+  "policy_source_sha256": "ab25a08c17f2307078f82fded19eff03e20954868f00eebd808286bb293885dd",
+  "sqlite_version": "3.45.1",
+  "import_ms": 839.1247919998932,
+  "peak_rss_kib": 60728,
+  "matrix": [
+    {
+      "case": "cte_exact",
+      "dialect": "sqlite",
+      "sql": "WITH F AS (SELECT 7 AS n) SELECT n FROM F",
+      "policy": {
+        "allowed": true,
+        "error_code": null,
+        "message": null,
+        "hint": null
+      },
+      "policy_ms": 52.58608199983428,
+      "current_dependencies": [],
+      "native": {
+        "success": true,
+        "rows": [
+          [
+            7
+          ]
+        ]
+      }
+    },
+    {
+      "case": "cte_ascii_case",
+      "dialect": "sqlite",
+      "sql": "WITH F AS (SELECT 7 AS n) SELECT n FROM f",
+      "policy": {
+        "allowed": true,
+        "error_code": null,
+        "message": null,
+        "hint": null
+      },
+      "policy_ms": 21.0454629996093,
+      "current_dependencies": [],
+      "native": {
+        "success": true,
+        "rows": [
+          [
+            7
+          ]
+        ]
+      }
+    },
+    {
+      "case": "cte_column_list",
+      "dialect": "sqlite",
+      "sql": "WITH F(n) AS (SELECT 7) SELECT n FROM f",
+      "policy": {
+        "allowed": true,
+        "error_code": null,
+        "message": null,
+        "hint": null
+      },
+      "policy_ms": 22.331751999900007,
+      "current_dependencies": [],
+      "native": {
+        "success": true,
+        "rows": [
+          [
+            7
+          ]
+        ]
+      }
+    },
+    {
+      "case": "cte_physical_shadow",
+      "dialect": "sqlite",
+      "sql": "WITH orders AS (SELECT 7 AS n) SELECT n FROM orders",
+      "policy": {
+        "allowed": true,
+        "error_code": null,
+        "message": null,
+        "hint": null
+      },
+      "policy_ms": 22.504701999878307,
+      "current_dependencies": [],
+      "native": {
+        "success": true,
+        "rows": [
+          [
+            7
+          ]
+        ]
+      }
+    },
+    {
+      "case": "cte_nonrecursive_self",
+      "dialect": "sqlite",
+      "sql": "WITH orders AS (SELECT COUNT(*) AS n FROM orders) SELECT n FROM orders",
+      "policy": {
+        "allowed": true,
+        "error_code": null,
+        "message": null,
+        "hint": null
+      },
+      "policy_ms": 35.515918000328384,
+      "current_dependencies": [
+        "orders"
+      ],
+      "native": {
+        "success": false,
+        "error_class": "OperationalError",
+        "error": "circular reference: orders"
+      }
+    },
+    {
+      "case": "cte_forward",
+      "dialect": "sqlite",
+      "sql": "WITH first_cte AS (SELECT COUNT(*) AS n FROM orders), orders AS (SELECT 7 AS n) SELECT n FROM first_cte",
+      "policy": {
+        "allowed": true,
+        "error_code": null,
+        "message": null,
+        "hint": null
+      },
+      "policy_ms": 69.90263499983485,
+      "current_dependencies": [
+        "orders"
+      ],
+      "native": {
+        "success": true,
+        "rows": [
+          [
+            1
+          ]
+        ]
+      }
+    },
+    {
+      "case": "cte_nested_shadow",
+      "dialect": "sqlite",
+      "sql": "WITH F AS (SELECT 7 AS n) SELECT (WITH F AS (SELECT 9 AS n) SELECT n FROM f) AS n FROM F",
+      "policy": {
+        "allowed": true,
+        "error_code": null,
+        "message": null,
+        "hint": null
+      },
+      "policy_ms": 37.03604899965285,
+      "current_dependencies": [],
+      "native": {
+        "success": true,
+        "rows": [
+          [
+            9
+          ]
+        ]
+      }
+    },
+    {
+      "case": "cte_recursive",
+      "dialect": "sqlite",
+      "sql": "WITH RECURSIVE F(n) AS (SELECT 1 UNION ALL SELECT n+1 FROM f WHERE n<3) SELECT MAX(n) AS n FROM F",
+      "policy": {
+        "allowed": true,
+        "error_code": null,
+        "message": null,
+        "hint": null
+      },
+      "policy_ms": 44.2015700000411,
+      "current_dependencies": [],
+      "native": {
+        "success": true,
+        "rows": [
+          [
+            3
+          ]
+        ]
+      }
+    },
+    {
+      "case": "cte_recursive_implicit",
+      "dialect": "sqlite",
+      "sql": "WITH F(n) AS (SELECT 1 UNION ALL SELECT n+1 FROM f WHERE n<3) SELECT MAX(n) AS n FROM F",
+      "policy": {
+        "allowed": false,
+        "error_code": "table_access_denied",
+        "message": "Access denied to table(s): f. Only allowed tables: orders",
+        "hint": "Keep the same connection and use authorized tables. If CTE name rules are unknown or case-sensitive, match the declaration's exact case."
+      },
+      "policy_ms": 36.742482999670756,
+      "current_dependencies": [
+        "f"
+      ],
+      "native": {
+        "success": true,
+        "rows": [
+          [
+            3
+          ]
+        ]
+      }
+    },
+    {
+      "case": "cte_ordered_dependencies",
+      "dialect": "sqlite",
+      "sql": "WITH first_cte AS (SELECT COUNT(*) AS n FROM orders), second_cte AS (SELECT n FROM first_cte) SELECT n FROM second_cte",
+      "policy": {
+        "allowed": true,
+        "error_code": null,
+        "message": null,
+        "hint": null
+      },
+      "policy_ms": 54.00694399986605,
+      "current_dependencies": [
+        "orders"
+      ],
+      "native": {
+        "success": true,
+        "rows": [
+          [
+            3
+          ]
+        ]
+      }
+    },
+    {
+      "case": "cte_quoted_space_alias",
+      "dialect": "sqlite",
+      "sql": "WITH \" F \" AS (SELECT 7 AS n) SELECT n FROM \" f \"",
+      "policy": {
+        "allowed": true,
+        "error_code": null,
+        "message": null,
+        "hint": null
+      },
+      "policy_ms": 20.7075570001507,
+      "current_dependencies": [],
+      "native": {
+        "success": true,
+        "rows": [
+          [
+            7
+          ]
+        ]
+      }
+    },
+    {
+      "case": "cte_quoted_space_physical",
+      "dialect": "sqlite",
+      "sql": "WITH F AS (SELECT 7 AS n) SELECT n FROM \" f \"",
+      "policy": {
+        "allowed": false,
+        "error_code": "table_access_denied",
+        "message": "Access denied to table(s):  f . Only allowed tables: orders",
+        "hint": "Keep the same connection and use authorized tables. If CTE name rules are unknown or case-sensitive, match the declaration's exact case."
+      },
+      "policy_ms": 14.736898999672121,
+      "current_dependencies": [
+        " f "
+      ],
+      "native": {
+        "success": true,
+        "rows": [
+          [
+            555
+          ]
+        ]
+      }
+    },
+    {
+      "case": "cte_unicode_identity",
+      "dialect": "sqlite",
+      "sql": "WITH K AS (SELECT 7 AS n) SELECT n FROM \"K\"",
+      "policy": {
+        "allowed": false,
+        "error_code": "table_access_denied",
+        "message": "Access denied to table(s): K. Only allowed tables: orders",
+        "hint": "Keep the same connection and use authorized tables. If CTE name rules are unknown or case-sensitive, match the declaration's exact case."
+      },
+      "policy_ms": 14.698557999963668,
+      "current_dependencies": [
+        "K"
+      ],
+      "native": {
+        "success": true,
+        "rows": [
+          [
+            777
+          ]
+        ]
+      }
+    },
+    {
+      "case": "cte_qualified_physical",
+      "dialect": "sqlite",
+      "sql": "WITH f AS (SELECT 7 AS n) SELECT n FROM main.f",
+      "policy": {
+        "allowed": false,
+        "error_code": "table_access_denied",
+        "message": "Access denied to table(s): main.f. Only allowed tables: orders",
+        "hint": "Keep the same connection and use authorized tables. If CTE name rules are unknown or case-sensitive, match the declaration's exact case."
+      },
+      "policy_ms": 21.424636999654467,
+      "current_dependencies": [
+        "main.f"
+      ],
+      "native": {
+        "success": true,
+        "rows": [
+          [
+            999
+          ]
+        ]
+      }
+    },
+    {
+      "case": "sqlite_in_table",
+      "dialect": "sqlite",
+      "sql": "SELECT 7 IN f AS n",
+      "policy": {
+        "allowed": false,
+        "error_code": "table_access_denied",
+        "message": "Access denied to table(s): f. Only allowed tables: orders",
+        "hint": "Keep the same connection and use authorized tables. If CTE name rules are unknown or case-sensitive, match the declaration's exact case."
+      },
+      "policy_ms": 9.170724999876256,
+      "current_dependencies": [
+        "f"
+      ],
+      "native": {
+        "success": true,
+        "rows": [
+          [
+            0
+          ]
+        ]
+      }
+    },
+    {
+      "case": "sqlite_not_in_table",
+      "dialect": "sqlite",
+      "sql": "SELECT 7 NOT IN f AS n",
+      "policy": {
+        "allowed": false,
+        "error_code": "table_access_denied",
+        "message": "Access denied to table(s): f. Only allowed tables: orders",
+        "hint": "Keep the same connection and use authorized tables. If CTE name rules are unknown or case-sensitive, match the declaration's exact case."
+      },
+      "policy_ms": 8.204737999676581,
+      "current_dependencies": [
+        "f"
+      ],
+      "native": {
+        "success": true,
+        "rows": [
+          [
+            1
+          ]
+        ]
+      }
+    },
+    {
+      "case": "sqlite_pragma_object",
+      "dialect": "sqlite",
+      "sql": "SELECT COUNT(*) AS n FROM pragma_table_info('orders')",
+      "policy": {
+        "allowed": false,
+        "error_code": "server_state_denied",
+        "message": "SQLite PRAGMA table-valued functions are not allowed in queries; use list_tables() or describe_table() instead (describe_table() also returns indexes).",
+        "hint": null
+      },
+      "policy_ms": 11.971204000019497,
+      "current_dependencies": null,
+      "native": {
+        "success": true,
+        "rows": [
+          [
+            3
+          ]
+        ]
+      }
+    },
+    {
+      "case": "literal_function_names",
+      "dialect": "sqlite",
+      "sql": "SELECT 'GET_LOCK(1), SLEEP(9), BENCHMARK(2,3)' AS label",
+      "policy": {
+        "allowed": true,
+        "error_code": null,
+        "message": null,
+        "hint": null
+      },
+      "policy_ms": 4.90067500004443,
+      "current_dependencies": [],
+      "native": {
+        "success": true,
+        "rows": [
+          [
+            "GET_LOCK(1), SLEEP(9), BENCHMARK(2,3)"
+          ]
+        ]
+      }
+    },
+    {
+      "case": "quoted_function_columns",
+      "dialect": "sqlite",
+      "sql": "SELECT \"SLEEP\", \"BENCHMARK\" FROM orders",
+      "policy": {
+        "allowed": true,
+        "error_code": null,
+        "message": null,
+        "hint": null
+      },
+      "policy_ms": 6.975756999963778,
+      "current_dependencies": [
+        "orders"
+      ],
+      "native": {
+        "success": true,
+        "rows": [
+          [
+            1,
+            2
+          ],
+          [
+            3,
+            4
+          ],
+          [
+            5,
+            6
+          ]
+        ]
+      }
+    },
+    {
+      "case": "ordinary_function",
+      "dialect": "sqlite",
+      "sql": "SELECT ABS(-7) AS n",
+      "policy": {
+        "allowed": true,
+        "error_code": null,
+        "message": null,
+        "hint": null
+      },
+      "policy_ms": 13.824859999658656,
+      "current_dependencies": [],
+      "native": {
+        "success": true,
+        "rows": [
+          [
+            7
+          ]
+        ]
+      }
+    },
+    {
+      "case": "comment_function_name",
+      "dialect": "sqlite",
+      "sql": "SELECT 7 AS n /* SLEEP(99) */",
+      "policy": {
+        "allowed": true,
+        "error_code": null,
+        "message": null,
+        "hint": null
+      },
+      "policy_ms": 5.373494000195933,
+      "current_dependencies": [],
+      "native": {
+        "success": true,
+        "rows": [
+          [
+            7
+          ]
+        ]
+      }
+    },
+    {
+      "case": "function_sleep",
+      "dialect": "sqlite",
+      "sql": "SELECT SLEEP(0) AS n",
+      "policy": {
+        "allowed": false,
+        "error_code": "expensive_function_denied",
+        "message": "Delay or benchmark function SLEEP() is not allowed in read queries.",
+        "hint": "Keep the same connection and use ordinary SQL expressions, filters and aggregates; remove deliberate sleeps and benchmarking calls."
+      },
+      "policy_ms": 8.137086999795429,
+      "current_dependencies": [],
+      "native": {
+        "executed": false,
+        "reason": "No live lock/function side effects or multi-statement execution"
+      }
+    },
+    {
+      "case": "function_benchmark",
+      "dialect": "sqlite",
+      "sql": "SELECT BENCHMARK(0, 1) AS n",
+      "policy": {
+        "allowed": false,
+        "error_code": "expensive_function_denied",
+        "message": "Delay or benchmark function BENCHMARK() is not allowed in read queries.",
+        "hint": "Keep the same connection and use ordinary SQL expressions, filters and aggregates; remove deliberate sleeps and benchmarking calls."
+      },
+      "policy_ms": 13.283655000122963,
+      "current_dependencies": [],
+      "native": {
+        "executed": false,
+        "reason": "No live lock/function side effects or multi-statement execution"
+      }
+    },
+    {
+      "case": "function_get_lock",
+      "dialect": "sqlite",
+      "sql": "SELECT GET_LOCK('probe', 0) AS n",
+      "policy": {
+        "allowed": false,
+        "error_code": "lock_function_denied",
+        "message": "Lock function GET_LOCK() is not allowed in read queries.",
+        "hint": "Keep the same connection and use ordinary reads. Lock coordination requires a trusted operation managing acquisition and release on one connection."
+      },
+      "policy_ms": 9.318310000253405,
+      "current_dependencies": [],
+      "native": {
+        "executed": false,
+        "reason": "No live lock/function side effects or multi-statement execution"
+      }
+    },
+    {
+      "case": "function_release_lock",
+      "dialect": "sqlite",
+      "sql": "SELECT RELEASE_LOCK('probe') AS n",
+      "policy": {
+        "allowed": false,
+        "error_code": "lock_function_denied",
+        "message": "Lock function RELEASE_LOCK() is not allowed in read queries.",
+        "hint": "Keep the same connection and use ordinary reads. Lock coordination requires a trusted operation managing acquisition and release on one connection."
+      },
+      "policy_ms": 10.326490999887028,
+      "current_dependencies": [],
+      "native": {
+        "executed": false,
+        "reason": "No live lock/function side effects or multi-statement execution"
+      }
+    },
+    {
+      "case": "function_release_all",
+      "dialect": "sqlite",
+      "sql": "SELECT RELEASE_ALL_LOCKS() AS n",
+      "policy": {
+        "allowed": false,
+        "error_code": "lock_function_denied",
+        "message": "Lock function RELEASE_ALL_LOCKS() is not allowed in read queries.",
+        "hint": "Keep the same connection and use ordinary reads. Lock coordination requires a trusted operation managing acquisition and release on one connection."
+      },
+      "policy_ms": 4.121811999993952,
+      "current_dependencies": [],
+      "native": {
+        "executed": false,
+        "reason": "No live lock/function side effects or multi-statement execution"
+      }
+    },
+    {
+      "case": "derived_from",
+      "dialect": "sqlite",
+      "sql": "SELECT n FROM (SELECT 7 AS n) t",
+      "policy": {
+        "allowed": false,
+        "error_code": "relation_group_unsupported",
+        "message": "Parenthesized FROM/JOIN targets are not allowed; use a CTE instead.",
+        "hint": null
+      },
+      "policy_ms": 11.734954000075959,
+      "current_dependencies": null,
+      "native": {
+        "success": true,
+        "rows": [
+          [
+            7
+          ]
+        ]
+      }
+    },
+    {
+      "case": "explain_read",
+      "dialect": "sqlite",
+      "sql": "EXPLAIN SELECT COUNT(*) FROM orders",
+      "policy": {
+        "allowed": true,
+        "error_code": null,
+        "message": null,
+        "hint": null
+      },
+      "policy_ms": 22.339335000197025,
+      "current_dependencies": [
+        "orders"
+      ],
+      "native": {
+        "success": true,
+        "rows": [
+          [
+            0,
+            "Init",
+            0,
+            7,
+            0,
+            null,
+            0,
+            null
+          ],
+          [
+            1,
+            "OpenRead",
+            1,
+            2,
+            0,
+            "1",
+            0,
+            null
+          ],
+          [
+            2,
+            "Count",
+            1,
+            1,
+            0,
+            null,
+            0,
+            null
+          ],
+          [
+            3,
+            "Close",
+            1,
+            0,
+            0,
+            null,
+            0,
+            null
+          ],
+          [
+            4,
+            "Copy",
+            1,
+            2,
+            0,
+            null,
+            0,
+            null
+          ],
+          [
+            5,
+            "ResultRow",
+            2,
+            1,
+            0,
+            null,
+            0,
+            null
+          ],
+          [
+            6,
+            "Halt",
+            0,
+            0,
+            0,
+            null,
+            0,
+            null
+          ],
+          [
+            7,
+            "Transaction",
+            0,
+            0,
+            4,
+            "0",
+            1,
+            null
+          ],
+          [
+            8,
+            "Goto",
+            0,
+            1,
+            0,
+            null,
+            0,
+            null
+          ]
+        ]
+      }
+    },
+    {
+      "case": "bound_parameter",
+      "dialect": "sqlite",
+      "sql": "SELECT :value AS n",
+      "policy": {
+        "allowed": true,
+        "error_code": null,
+        "message": null,
+        "hint": null
+      },
+      "policy_ms": 8.7061829999584,
+      "current_dependencies": [],
+      "native": {
+        "success": true,
+        "rows": [
+          [
+            7
+          ]
+        ]
+      }
+    },
+    {
+      "case": "multiple_statements",
+      "dialect": "sqlite",
+      "sql": "SELECT 1; SELECT 2",
+      "policy": {
+        "allowed": false,
+        "error_code": "multiple_statements",
+        "message": "Exactly one SQL statement is allowed per call.",
+        "hint": "Send each statement in a separate call."
+      },
+      "policy_ms": 1.6910079998524452,
+      "current_dependencies": null,
+      "native": {
+        "executed": false,
+        "reason": "No live lock/function side effects or multi-statement execution"
+      }
+    },
+    {
+      "case": "cte_exact",
+      "dialect": "mysql",
+      "sql": "WITH F AS (SELECT 7 AS n) SELECT n FROM F",
+      "policy": {
+        "allowed": true,
+        "error_code": null,
+        "message": null,
+        "hint": null
+      },
+      "policy_ms": 32.80521899978339,
+      "current_dependencies": [],
+      "native": {
+        "success": true,
+        "rows": [
+          [
+            7
+          ]
+        ]
+      }
+    },
+    {
+      "case": "cte_ascii_case",
+      "dialect": "mysql",
+      "sql": "WITH F AS (SELECT 7 AS n) SELECT n FROM f",
+      "policy": {
+        "allowed": true,
+        "error_code": null,
+        "message": null,
+        "hint": null
+      },
+      "policy_ms": 22.757595000257425,
+      "current_dependencies": [],
+      "native": {
+        "success": true,
+        "rows": [
+          [
+            7
+          ]
+        ]
+      }
+    },
+    {
+      "case": "cte_column_list",
+      "dialect": "mysql",
+      "sql": "WITH F(n) AS (SELECT 7) SELECT n FROM f",
+      "policy": {
+        "allowed": true,
+        "error_code": null,
+        "message": null,
+        "hint": null
+      },
+      "policy_ms": 38.23409400001765,
+      "current_dependencies": [],
+      "native": {
+        "success": true,
+        "rows": [
+          [
+            7
+          ]
+        ]
+      }
+    },
+    {
+      "case": "cte_physical_shadow",
+      "dialect": "mysql",
+      "sql": "WITH orders AS (SELECT 7 AS n) SELECT n FROM orders",
+      "policy": {
+        "allowed": true,
+        "error_code": null,
+        "message": null,
+        "hint": null
+      },
+      "policy_ms": 26.031058999706147,
+      "current_dependencies": [],
+      "native": {
+        "success": true,
+        "rows": [
+          [
+            7
+          ]
+        ]
+      }
+    },
+    {
+      "case": "cte_nonrecursive_self",
+      "dialect": "mysql",
+      "sql": "WITH orders AS (SELECT COUNT(*) AS n FROM orders) SELECT n FROM orders",
+      "policy": {
+        "allowed": true,
+        "error_code": null,
+        "message": null,
+        "hint": null
+      },
+      "policy_ms": 56.00461899985021,
+      "current_dependencies": [
+        "orders"
+      ],
+      "native": {
+        "success": true,
+        "rows": [
+          [
+            8
+          ]
+        ]
+      }
+    },
+    {
+      "case": "cte_forward",
+      "dialect": "mysql",
+      "sql": "WITH first_cte AS (SELECT COUNT(*) AS n FROM orders), orders AS (SELECT 7 AS n) SELECT n FROM first_cte",
+      "policy": {
+        "allowed": true,
+        "error_code": null,
+        "message": null,
+        "hint": null
+      },
+      "policy_ms": 55.70960000022751,
+      "current_dependencies": [
+        "orders"
+      ],
+      "native": {
+        "success": true,
+        "rows": [
+          [
+            8
+          ]
+        ]
+      }
+    },
+    {
+      "case": "cte_nested_shadow",
+      "dialect": "mysql",
+      "sql": "WITH F AS (SELECT 7 AS n) SELECT (WITH F AS (SELECT 9 AS n) SELECT n FROM f) AS n FROM F",
+      "policy": {
+        "allowed": true,
+        "error_code": null,
+        "message": null,
+        "hint": null
+      },
+      "policy_ms": 49.258062000262726,
+      "current_dependencies": [],
+      "native": {
+        "success": true,
+        "rows": [
+          [
+            9
+          ]
+        ]
+      }
+    },
+    {
+      "case": "cte_recursive",
+      "dialect": "mysql",
+      "sql": "WITH RECURSIVE F(n) AS (SELECT 1 UNION ALL SELECT n+1 FROM f WHERE n<3) SELECT MAX(n) AS n FROM F",
+      "policy": {
+        "allowed": true,
+        "error_code": null,
+        "message": null,
+        "hint": null
+      },
+      "policy_ms": 42.62944299989613,
+      "current_dependencies": [],
+      "native": {
+        "success": true,
+        "rows": [
+          [
+            3
+          ]
+        ]
+      }
+    },
+    {
+      "case": "cte_recursive_implicit",
+      "dialect": "mysql",
+      "sql": "WITH F(n) AS (SELECT 1 UNION ALL SELECT n+1 FROM f WHERE n<3) SELECT MAX(n) AS n FROM F",
+      "policy": {
+        "allowed": false,
+        "error_code": "table_access_denied",
+        "message": "Access denied to table(s): f. Only allowed tables: orders",
+        "hint": "Keep the same connection and use authorized tables. If CTE name rules are unknown or case-sensitive, match the declaration's exact case."
+      },
+      "policy_ms": 41.694544999700156,
+      "current_dependencies": [
+        "f"
+      ],
+      "native": {
+        "success": false,
+        "error_class": "DatabaseQueryError"
+      }
+    },
+    {
+      "case": "cte_ordered_dependencies",
+      "dialect": "mysql",
+      "sql": "WITH first_cte AS (SELECT COUNT(*) AS n FROM orders), second_cte AS (SELECT n FROM first_cte) SELECT n FROM second_cte",
+      "policy": {
+        "allowed": true,
+        "error_code": null,
+        "message": null,
+        "hint": null
+      },
+      "policy_ms": 34.80503399987356,
+      "current_dependencies": [
+        "orders"
+      ],
+      "native": {
+        "success": true,
+        "rows": [
+          [
+            8
+          ]
+        ]
+      }
+    },
+    {
+      "case": "literal_function_names",
+      "dialect": "mysql",
+      "sql": "SELECT 'GET_LOCK(1), SLEEP(9), BENCHMARK(2,3)' AS label",
+      "policy": {
+        "allowed": true,
+        "error_code": null,
+        "message": null,
+        "hint": null
+      },
+      "policy_ms": 6.0001639999427425,
+      "current_dependencies": [],
+      "native": {
+        "success": true,
+        "rows": [
+          [
+            "GET_LOCK(1), SLEEP(9), BENCHMARK(2,3)"
+          ]
+        ]
+      }
+    },
+    {
+      "case": "ordinary_function",
+      "dialect": "mysql",
+      "sql": "SELECT ABS(-7) AS n",
+      "policy": {
+        "allowed": true,
+        "error_code": null,
+        "message": null,
+        "hint": null
+      },
+      "policy_ms": 9.119004000240238,
+      "current_dependencies": [],
+      "native": {
+        "success": true,
+        "rows": [
+          [
+            7
+          ]
+        ]
+      }
+    },
+    {
+      "case": "comment_function_name",
+      "dialect": "mysql",
+      "sql": "SELECT 7 AS n /* SLEEP(99) */",
+      "policy": {
+        "allowed": true,
+        "error_code": null,
+        "message": null,
+        "hint": null
+      },
+      "policy_ms": 5.186236999634275,
+      "current_dependencies": [],
+      "native": {
+        "success": true,
+        "rows": [
+          [
+            7
+          ]
+        ]
+      }
+    },
+    {
+      "case": "function_sleep",
+      "dialect": "mysql",
+      "sql": "SELECT SLEEP(0) AS n",
+      "policy": {
+        "allowed": false,
+        "error_code": "expensive_function_denied",
+        "message": "Delay or benchmark function SLEEP() is not allowed in read queries.",
+        "hint": "Keep the same connection and use ordinary SQL expressions, filters and aggregates; remove deliberate sleeps and benchmarking calls."
+      },
+      "policy_ms": 5.178245000024617,
+      "current_dependencies": [],
+      "native": {
+        "executed": false,
+        "reason": "No live lock/function side effects or multi-statement execution"
+      }
+    },
+    {
+      "case": "function_benchmark",
+      "dialect": "mysql",
+      "sql": "SELECT BENCHMARK(0, 1) AS n",
+      "policy": {
+        "allowed": false,
+        "error_code": "expensive_function_denied",
+        "message": "Delay or benchmark function BENCHMARK() is not allowed in read queries.",
+        "hint": "Keep the same connection and use ordinary SQL expressions, filters and aggregates; remove deliberate sleeps and benchmarking calls."
+      },
+      "policy_ms": 6.090255999879446,
+      "current_dependencies": [],
+      "native": {
+        "executed": false,
+        "reason": "No live lock/function side effects or multi-statement execution"
+      }
+    },
+    {
+      "case": "function_get_lock",
+      "dialect": "mysql",
+      "sql": "SELECT GET_LOCK('probe', 0) AS n",
+      "policy": {
+        "allowed": false,
+        "error_code": "lock_function_denied",
+        "message": "Lock function GET_LOCK() is not allowed in read queries.",
+        "hint": "Keep the same connection and use ordinary reads. Lock coordination requires a trusted operation managing acquisition and release on one connection."
+      },
+      "policy_ms": 4.994837000140251,
+      "current_dependencies": [],
+      "native": {
+        "executed": false,
+        "reason": "No live lock/function side effects or multi-statement execution"
+      }
+    },
+    {
+      "case": "function_release_lock",
+      "dialect": "mysql",
+      "sql": "SELECT RELEASE_LOCK('probe') AS n",
+      "policy": {
+        "allowed": false,
+        "error_code": "lock_function_denied",
+        "message": "Lock function RELEASE_LOCK() is not allowed in read queries.",
+        "hint": "Keep the same connection and use ordinary reads. Lock coordination requires a trusted operation managing acquisition and release on one connection."
+      },
+      "policy_ms": 8.0876070001068,
+      "current_dependencies": [],
+      "native": {
+        "executed": false,
+        "reason": "No live lock/function side effects or multi-statement execution"
+      }
+    },
+    {
+      "case": "function_release_all",
+      "dialect": "mysql",
+      "sql": "SELECT RELEASE_ALL_LOCKS() AS n",
+      "policy": {
+        "allowed": false,
+        "error_code": "lock_function_denied",
+        "message": "Lock function RELEASE_ALL_LOCKS() is not allowed in read queries.",
+        "hint": "Keep the same connection and use ordinary reads. Lock coordination requires a trusted operation managing acquisition and release on one connection."
+      },
+      "policy_ms": 4.8781930004224705,
+      "current_dependencies": [],
+      "native": {
+        "executed": false,
+        "reason": "No live lock/function side effects or multi-statement execution"
+      }
+    },
+    {
+      "case": "derived_from",
+      "dialect": "mysql",
+      "sql": "SELECT n FROM (SELECT 7 AS n) t",
+      "policy": {
+        "allowed": false,
+        "error_code": "relation_group_unsupported",
+        "message": "Parenthesized FROM/JOIN targets are not allowed; use a CTE instead.",
+        "hint": null
+      },
+      "policy_ms": 10.66909500013935,
+      "current_dependencies": null,
+      "native": {
+        "success": true,
+        "rows": [
+          [
+            7
+          ]
+        ]
+      }
+    },
+    {
+      "case": "explain_read",
+      "dialect": "mysql",
+      "sql": "EXPLAIN SELECT COUNT(*) FROM orders",
+      "policy": {
+        "allowed": true,
+        "error_code": null,
+        "message": null,
+        "hint": null
+      },
+      "policy_ms": 8.936959999573446,
+      "current_dependencies": [
+        "orders"
+      ],
+      "native": {
+        "success": true,
+        "rows": [
+          [
+            1,
+            "SIMPLE",
+            "orders",
+            null,
+            "index",
+            null,
+            "idx_orders_order_date",
+            "5",
+            null,
+            8,
+            100.0,
+            "Using index"
+          ]
+        ]
+      }
+    },
+    {
+      "case": "bound_parameter",
+      "dialect": "mysql",
+      "sql": "SELECT :value AS n",
+      "policy": {
+        "allowed": true,
+        "error_code": null,
+        "message": null,
+        "hint": null
+      },
+      "policy_ms": 6.99581999970178,
+      "current_dependencies": [],
+      "native": {
+        "success": true,
+        "rows": [
+          [
+            7
+          ]
+        ]
+      }
+    },
+    {
+      "case": "multiple_statements",
+      "dialect": "mysql",
+      "sql": "SELECT 1; SELECT 2",
+      "policy": {
+        "allowed": false,
+        "error_code": "multiple_statements",
+        "message": "Exactly one SQL statement is allowed per call.",
+        "hint": "Send each statement in a separate call."
+      },
+      "policy_ms": 1.6649889998916478,
+      "current_dependencies": null,
+      "native": {
+        "executed": false,
+        "reason": "No live lock/function side effects or multi-statement execution"
+      }
+    }
+  ],
+  "timings": [
+    {
+      "sql": "WITH F AS (SELECT 7 AS n) SELECT n FROM f",
+      "samples": 80,
+      "median_ms": 14.373339999999999,
+      "p95_ms": 24.221556,
+      "min_ms": 10.534206,
+      "raw_ms": [
+        14.089115,
+        12.813318,
+        12.569008,
+        11.945504,
+        16.563241,
+        26.435985,
+        15.804731,
+        15.786541,
+        14.021341,
+        14.018793,
+        30.225006,
+        21.644547,
+        14.440673,
+        13.275535,
+        20.16365,
+        20.255818,
+        15.295204,
+        24.221556,
+        16.280986,
+        12.722943,
+        14.044318,
+        15.00529,
+        16.259019,
+        13.629799,
+        15.392883,
+        12.581898,
+        12.062397,
+        12.894368,
+        16.490129,
+        15.858782,
+        15.009109,
+        11.907755,
+        15.569866,
+        17.559332,
+        17.309009,
+        13.313027,
+        11.719785,
+        16.6681,
+        14.311544,
+        14.744109,
+        14.432946,
+        13.31703,
+        11.462617,
+        11.698885,
+        11.73524,
+        11.65593,
+        20.405335,
+        16.865847,
+        14.34127,
+        13.852952,
+        15.967214,
+        12.35168,
+        12.414057,
+        11.964991,
+        11.022371,
+        14.032757,
+        12.790952,
+        13.869542,
+        14.630496,
+        11.381551,
+        11.325227,
+        10.611984,
+        13.459556,
+        13.944391,
+        14.863057,
+        10.575344,
+        16.304234,
+        10.534206,
+        10.883555,
+        17.696445,
+        15.958777,
+        13.804415,
+        14.40541,
+        22.807442,
+        17.086746,
+        16.430935,
+        29.267543,
+        30.523504,
+        17.76301,
+        14.706018
+      ]
+    },
+    {
+      "sql": "WITH first_cte AS (SELECT COUNT(*) AS n FROM orders), second_cte AS (SELECT n FROM first_cte) SELECT n FROM second_cte",
+      "samples": 80,
+      "median_ms": 28.446599999999997,
+      "p95_ms": 39.984662,
+      "min_ms": 21.252241,
+      "raw_ms": [
+        28.410655,
+        32.759109,
+        25.463211,
+        29.60038,
+        27.635226,
+        30.081855,
+        29.130625,
+        34.88767,
+        25.583899,
+        26.947426,
+        36.348074,
+        33.841576,
+        27.471663,
+        36.963095,
+        42.359144,
+        28.259737,
+        36.409846,
+        40.772225,
+        34.326785,
+        37.066352,
+        37.283631,
+        35.044028,
+        29.048274,
+        24.344695,
+        29.948982,
+        28.482545,
+        25.915146,
+        29.669246,
+        27.343766,
+        23.852384,
+        30.401829,
+        24.484223,
+        33.262876,
+        27.843408,
+        37.559791,
+        31.558323,
+        30.21412,
+        34.159844,
+        32.647124,
+        24.01392,
+        25.225644,
+        33.394873,
+        25.394033,
+        23.844489,
+        26.539005,
+        23.359353,
+        30.381552,
+        24.700719,
+        29.28972,
+        26.630981,
+        23.935058,
+        39.984662,
+        27.79253,
+        26.393969,
+        24.036423,
+        28.141647,
+        22.491785,
+        21.963377,
+        23.214914,
+        21.252241,
+        21.57947,
+        23.381566,
+        21.751959,
+        22.658765,
+        27.786134,
+        23.645764,
+        28.392464,
+        23.920486,
+        31.509737,
+        30.276013,
+        31.409749,
+        27.604592,
+        26.520937,
+        37.214403,
+        28.593865,
+        45.803343,
+        45.071656,
+        32.781485,
+        37.786947,
+        29.321518
+      ]
+    },
+    {
+      "sql": "WITH f AS (SELECT 7 AS n) SELECT n FROM main.f",
+      "samples": 80,
+      "median_ms": 15.314584499999999,
+      "p95_ms": 23.433759,
+      "min_ms": 10.703714,
+      "raw_ms": [
+        13.852333,
+        13.613589,
+        16.544561,
+        12.985564,
+        19.754068,
+        17.126167,
+        21.620875,
+        16.039752,
+        22.365418,
+        13.775232,
+        16.956243,
+        13.700858,
+        14.081282,
+        16.218123,
+        15.790164,
+        17.949521,
+        21.355482,
+        15.949593,
+        21.842365,
+        23.433759,
+        23.656371,
+        20.403017,
+        14.916036,
+        15.043409,
+        14.348186,
+        13.960657,
+        18.567571,
+        12.903357,
+        15.783589,
+        16.002774,
+        14.999978,
+        16.329548,
+        21.390617,
+        13.9573,
+        13.991331,
+        15.131321,
+        13.0772,
+        17.274667,
+        18.663362,
+        16.227938,
+        12.139949,
+        12.46136,
+        13.902927,
+        13.081258,
+        13.402976,
+        11.744152,
+        15.063462,
+        15.221922,
+        14.721884,
+        11.933969,
+        12.046559,
+        14.473309,
+        13.48401,
+        16.523421,
+        11.964589,
+        16.367337,
+        17.107786,
+        15.164283,
+        14.624068,
+        15.407247,
+        10.703714,
+        12.672104,
+        15.201873,
+        12.864396,
+        12.55598,
+        11.705129,
+        17.116951,
+        16.847479,
+        18.045613,
+        14.206982,
+        17.615861,
+        18.116283,
+        14.770744,
+        15.976843,
+        19.740187,
+        28.680057,
+        17.10999,
+        33.778222,
+        25.003084,
+        18.617993
+      ]
+    },
+    {
+      "sql": "SELECT 'GET_LOCK(1), SLEEP(9), BENCHMARK(2,3)' AS label",
+      "samples": 80,
+      "median_ms": 5.3743965,
+      "p95_ms": 9.175923,
+      "min_ms": 3.586888,
+      "raw_ms": [
+        4.720382,
+        4.294175,
+        4.769566,
+        5.937618,
+        6.756297,
+        5.26534,
+        6.291112,
+        5.304491,
+        4.791412,
+        4.567161,
+        6.141955,
+        4.460913,
+        5.704861,
+        5.349549,
+        5.388295,
+        5.401625,
+        8.421641,
+        9.370686,
+        5.483712,
+        9.516032,
+        5.360498,
+        7.175226,
+        5.750532,
+        4.500023,
+        5.262197,
+        4.36762,
+        5.902986,
+        5.90499,
+        4.388935,
+        5.662755,
+        4.448889,
+        7.442073,
+        11.01805,
+        6.575301,
+        4.926059,
+        4.437635,
+        4.437911,
+        8.835335,
+        6.707568,
+        4.638466,
+        4.525434,
+        4.858617,
+        5.53044,
+        4.234901,
+        4.585293,
+        5.883241,
+        5.45376,
+        4.546939,
+        4.131602,
+        4.268948,
+        4.357499,
+        3.910544,
+        5.63263,
+        6.103107,
+        7.823697,
+        3.97076,
+        6.000859,
+        4.330913,
+        4.495273,
+        4.578491,
+        3.899975,
+        3.918211,
+        4.67323,
+        4.960981,
+        4.892948,
+        3.586888,
+        8.482595,
+        6.49221,
+        4.531541,
+        9.175923,
+        4.72625,
+        6.350107,
+        7.026519,
+        6.310531,
+        8.960612,
+        10.060656,
+        8.916321,
+        8.659942,
+        5.94077,
+        7.8457
+      ]
+    },
+    {
+      "sql": "SELECT ABS(-7) AS n",
+      "samples": 80,
+      "median_ms": 9.1349035,
+      "p95_ms": 14.340903,
+      "min_ms": 6.052025,
+      "raw_ms": [
+        7.400399,
+        10.155009,
+        9.149853,
+        7.85938,
+        11.019492,
+        8.330159,
+        11.738557,
+        9.634322,
+        7.396939,
+        11.693937,
+        10.328569,
+        10.929141,
+        10.919465,
+        14.539777,
+        9.697747,
+        9.98713,
+        14.340903,
+        9.313332,
+        10.510835,
+        8.869499,
+        11.009194,
+        10.087616,
+        8.463518,
+        11.653807,
+        7.859971,
+        8.002106,
+        12.281265,
+        8.228568,
+        8.345484,
+        9.713587,
+        9.451775,
+        12.63254,
+        11.651112,
+        8.277559,
+        8.337828,
+        7.837565,
+        10.348638,
+        9.274671,
+        9.070707,
+        8.823178,
+        7.530781,
+        10.684617,
+        10.174373,
+        7.353774,
+        7.327167,
+        9.405262,
+        7.160111,
+        7.396833,
+        7.405965,
+        11.317607,
+        9.119954,
+        8.422125,
+        8.130041,
+        7.622203,
+        6.545964,
+        7.349116,
+        7.660717,
+        6.72785,
+        8.725341,
+        6.924174,
+        6.107772,
+        6.953973,
+        7.598706,
+        7.024038,
+        8.123256,
+        6.052025,
+        10.319656,
+        8.126732,
+        10.349168,
+        15.436259,
+        9.535379,
+        13.682108,
+        9.110176,
+        14.682581,
+        8.361366,
+        12.229036,
+        12.968031,
+        17.202011,
+        10.127691,
+        10.497137
+      ]
+    },
+    {
+      "sql": "SELECT SLEEP(0) AS n",
+      "samples": 80,
+      "median_ms": 4.618724,
+      "p95_ms": 8.011416,
+      "min_ms": 3.341894,
+      "raw_ms": [
+        5.390623,
+        3.819526,
+        4.608441,
+        4.708579,
+        8.458456,
+        4.035619,
+        8.011416,
+        4.152958,
+        5.966078,
+        7.658516,
+        4.586348,
+        6.096055,
+        3.984509,
+        7.191688,
+        5.129671,
+        4.540221,
+        5.955657,
+        4.24694,
+        4.44977,
+        4.203834,
+        6.005197,
+        4.325302,
+        4.261746,
+        5.1584,
+        5.622491,
+        5.335111,
+        5.071937,
+        4.79403,
+        6.067352,
+        5.046601,
+        5.031535,
+        4.463369,
+        6.992842,
+        4.240116,
+        4.609855,
+        5.225737,
+        4.627593,
+        8.3117,
+        5.619061,
+        6.864031,
+        6.255743,
+        4.356846,
+        3.449862,
+        3.60877,
+        3.679205,
+        6.904843,
+        4.240464,
+        4.121602,
+        3.77608,
+        5.586427,
+        4.425068,
+        4.109683,
+        4.45863,
+        3.791769,
+        3.67545,
+        3.62613,
+        3.659559,
+        3.494442,
+        3.341894,
+        4.646173,
+        4.285531,
+        3.45419,
+        6.866565,
+        4.294308,
+        5.161509,
+        9.047891,
+        3.86315,
+        3.40736,
+        4.353502,
+        3.824311,
+        7.831048,
+        4.465962,
+        6.878869,
+        6.642732,
+        5.401271,
+        6.085923,
+        10.118007,
+        5.517946,
+        6.395001,
+        4.30464
+      ]
+    }
+  ],
+  "not_measured": [
+    "Independent MySQL settings 0/2 and MariaDB unavailable",
+    "No protocol/model cost inferred from policy timings"
+  ],
+  "database_changes": "Only private in-memory SQLite fixtures; MySQL reads existing orders, no writes",
+  "mysql_cte_exact": false,
+  "mysql_version": "8.0.25",
+  "mysql_lower_case_table_names": 1,
+  "mysql_cold_capability_ms": 338.61071299998,
+  "mysql_identity": "Existing configured Oracle MySQL instance; no credentials/host/account exported"
+}

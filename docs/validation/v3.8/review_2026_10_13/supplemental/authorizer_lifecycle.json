@@ -1,0 +1,69 @@
+{
+  "sqlite_version": "3.45.1",
+  "production_callback_installed": false,
+  "cache_lifecycle": {
+    "first_rows": [
+      [
+        1
+      ]
+    ],
+    "first_read_callbacks": 1,
+    "state_changed_cached_rows": [
+      [
+        1
+      ]
+    ],
+    "cached_read_callbacks": 1,
+    "reregistered_denied": true
+  },
+  "view_only_grant": {
+    "grants": [
+      "visible"
+    ],
+    "denied": true,
+    "reads": [
+      {
+        "table": "protected",
+        "column": "id",
+        "origin": "visible"
+      }
+    ]
+  },
+  "view_and_base_grants": {
+    "grants": [
+      "protected",
+      "visible"
+    ],
+    "rows": [
+      [
+        1
+      ]
+    ],
+    "reads": [
+      {
+        "table": "protected",
+        "column": "id",
+        "origin": "visible"
+      },
+      {
+        "table": "visible",
+        "column": "id",
+        "origin": null
+      }
+    ]
+  },
+  "count_star": {
+    "rows": [
+      [
+        1
+      ]
+    ],
+    "reads": [
+      {
+        "table": "protected",
+        "column": "",
+        "origin": null
+      }
+    ]
+  }
+}

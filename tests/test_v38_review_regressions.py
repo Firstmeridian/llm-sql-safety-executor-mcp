@@ -133,7 +133,7 @@ def test_invalid_profile_entries_fail_in_production_loader(bundle, profiles):
 async def test_tableless_query_discovery_matches_execution(reviewed_server, read, allowed, monkeypatch):
     server = reviewed_server(read=read)
     adapter = server.gateway_runtime.registry.get_adapter("demo")
-    monkeypatch.setattr(adapter, "get_tables", lambda: pytest.fail("unexpected metadata I/O"))
+    monkeypatch.setattr(adapter, "get_read_relations", lambda: pytest.fail("unexpected metadata I/O"))
     if not allowed:
         monkeypatch.setattr(adapter, "execute", lambda *a, **k: pytest.fail("denied SQL ran"))
     async with Client(server) as client:
@@ -149,7 +149,8 @@ async def test_tableless_query_discovery_matches_execution(reviewed_server, read
         result = await client.call_tool(
             "execute_query_skill", {"skill_name": QUERY, "params": {}}, raise_on_error=False
         )
-        assert result.is_error is not allowed
+        assert result.is_error is False
+        assert result.structured_content["success"] is allowed
         # Independent explicit write gates still authorize this Mutation Skill.
         mutation = await client.call_tool("get_skill_detail", {"skill_name": MUTATION})
         assert mutation.structured_content["skill"]["executable"] is True

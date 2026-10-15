@@ -1,6 +1,6 @@
 # 连接范围与参数示例修复方案
 
-> **v3.8 对照入口（2026-09-26）：** 本修复方案继续作为路由决策参考，原评分不回改。当前包入口、TOML 和实例状态见[配置迁移](CONFIGURATION_ZH.md)及[实施记录](../architecture/V3_8_IMPLEMENTATION_ZH.md)，新一轮实际验收见[v3.8 记录](../validation/V3_8_VALIDATION_ZH.md)。
+> **v3.8 对照入口（2026-09-26）：** 本修复方案继续作为路由决策参考，原评分不回改。当前包入口、TOML 和实例状态见[配置迁移](CONFIGURATION_ZH.md)及[实施记录](../architecture/V3_8_IMPLEMENTATION_ZH.md)，新一轮实际验收见[v3.8 记录](../validation/v3.8/V3_8_VALIDATION_ZH.md)。
 
 > 历史方案说明：本文保留 2026-09-13 至 09-15 的双工具接口、评审与评分。
 > 2026-09-22 起的当前统一诊断接口及破坏性迁移，见

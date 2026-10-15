@@ -20,6 +20,7 @@ import logging
 from typing import cast
 
 import pytest
+from sql_safety_executor.database.errors import DatabaseQueryError
 from sqlalchemy.engine import Engine
 from unittest.mock import MagicMock
 
@@ -79,11 +80,9 @@ class TestSQLiteAdapter:
 
     def test_execute_with_error(self, sqlite_adapter):
         """Test that errors return sanitized error strings."""
-        result = sqlite_adapter.execute("SELECT * FROM nonexistent_table")
-
-        assert isinstance(result, str)
-        assert result.startswith("Error:")
-        assert "Table or column not found" in result
+        with pytest.raises(DatabaseQueryError) as raised:
+            sqlite_adapter.execute("SELECT * FROM nonexistent_table")
+        assert raised.value.error_code == "unknown_table"
 
     def test_handle_error_logs_exception_class_not_values(self, caplog):
         """Adapter logs should not include SQL text or bound parameter values."""
@@ -95,17 +94,17 @@ class TestSQLiteAdapter:
                 Exception("SELECT * FROM users WHERE token='super-secret-token'")
             )
 
-        assert result == "Error: Database query failed"
+        assert isinstance(result, DatabaseQueryError)
+        assert result.error_code == "database_query_failed"
         assert "Exception" in caplog.text
         assert "super-secret-token" not in caplog.text
         assert "SELECT * FROM users" not in caplog.text
 
     def test_execute_syntax_error(self, sqlite_adapter):
         """Test that syntax errors return appropriate message."""
-        result = sqlite_adapter.execute("SLECT * FROM users")  # Typo
-
-        assert isinstance(result, str)
-        assert result.startswith("Error:")
+        with pytest.raises(DatabaseQueryError) as raised:
+            sqlite_adapter.execute("SLECT * FROM users")
+        assert raised.value.error_code == "sql_syntax_error"
 
     def test_get_tables(self, sqlite_adapter):
         """Test getting list of tables."""
@@ -150,7 +149,7 @@ class TestSQLiteAdapter:
         monkeypatch.setattr(
             adapter,
             "execute",
-            lambda *_a, **_k: "Error: Database query failed",
+            lambda *_a, **_k: (_ for _ in ()).throw(DatabaseQueryError()),
         )
 
         with pytest.raises(MetadataQueryError, match="listing tables"):
@@ -246,7 +245,7 @@ class TestSQLiteAdapter:
             if "sqlite_master" in sql:
                 return []
             if "COUNT(*)" in sql:
-                return "Error: Table or column not found"
+                raise DatabaseQueryError("unknown_table")
             return []
 
         monkeypatch.setattr(adapter, "execute", fake_execute)
@@ -308,19 +307,20 @@ class TestSQLiteAdapterTimeout:
 
     def test_timeout_interrupted_query_returns_timeout_error(self, sqlite_memory_adapter):
         """Interrupted SQLite queries should be reported as timeout errors."""
-        result = sqlite_memory_adapter.execute(
-            """
-            WITH RECURSIVE counter(value) AS (
-                SELECT 1
-                UNION ALL
-                SELECT value + 1 FROM counter WHERE value < 10000000
+        with pytest.raises(DatabaseQueryError) as raised:
+            sqlite_memory_adapter.execute(
+                """
+                WITH RECURSIVE counter(value) AS (
+                    SELECT 1
+                    UNION ALL
+                    SELECT value + 1 FROM counter WHERE value < 10000000
+                )
+                SELECT max(value) FROM counter
+                """,
+                timeout=0,
             )
-            SELECT max(value) FROM counter
-            """,
-            timeout=0,
-        )
+        assert raised.value.error_code == "query_timeout"
 
-        assert result == "Error: Query timeout exceeded (0s limit)"
 
 
 class TestSQLiteAdapterLargeTable:
@@ -424,7 +424,8 @@ class TestMySQLAdapter:
                 Exception("SELECT * FROM users WHERE token='super-secret-token'")
             )
 
-        assert result == "Error: Database query failed"
+        assert isinstance(result, DatabaseQueryError)
+        assert result.error_code == "database_query_failed"
         assert "Exception" in caplog.text
         assert "super-secret-token" not in caplog.text
         assert "SELECT * FROM users" not in caplog.text
@@ -449,8 +450,8 @@ class TestMySQLAdapter:
 
         assert columns[0]["column_name"] == "id"
         assert row_count == 7
-        assert calls[0][1] == {"table_name": "users"}
-        assert calls[1][1] == {"table_name": "users"}
+        assert calls[0][1] == {"schema_name": adapter.metadata_schema, "table_name": "users"}
+        assert calls[1][1] == {"schema_name": adapter.metadata_schema, "table_name": "users"}
         assert "TABLE_NAME = :table_name" in calls[0][0]
         assert "TABLE_NAME = 'users'" not in calls[0][0]
 
@@ -462,7 +463,7 @@ class TestMySQLAdapter:
         monkeypatch.setattr(
             adapter,
             "execute",
-            lambda *_a, **_k: "Error: Database query failed",
+            lambda *_a, **_k: (_ for _ in ()).throw(DatabaseQueryError()),
         )
 
         with pytest.raises(MetadataQueryError, match="listing tables"):

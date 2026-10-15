@@ -1,0 +1,31 @@
+{
+  "first_focused": {
+    "failed": 45,
+    "passed": 60,
+    "warnings": 3,
+    "seconds": 5.27,
+    "full_log_saved": false,
+    "scope": "Summary only: empty allowlist test setup, discovery metadata sentinel/readiness assumptions, unsupported bare-IN assumptions and an account-like CTE-header false refusal"
+  },
+  "intermediate_focused": {
+    "failed": 2,
+    "passed": 103,
+    "warnings": 3,
+    "seconds": 4.97,
+    "log": "v381-lexical-focused-intermediate.log.gz",
+    "cause": "Discovery schema observation was incorrectly included in execution-denial I/O sentinel scope"
+  },
+  "early_focused_pass": {
+    "passed": 105,
+    "warnings": 3,
+    "seconds": 4.52,
+    "log": "v381-lexical-focused-initial-pass.log.gz",
+    "scope": "Before two explicit conservative-IN/recovery tests and final formatting; final full run includes all 107"
+  },
+  "initial_after_client": {
+    "complete_result_set": false,
+    "cause": "schema_ready was incorrectly assumed to equal policy_allowed",
+    "full_log_saved": false,
+    "final_same_requests_completed": 68
+  }
+}

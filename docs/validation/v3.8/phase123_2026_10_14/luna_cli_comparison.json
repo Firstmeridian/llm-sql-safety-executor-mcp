@@ -1,0 +1,386 @@
+{
+  "model": "gpt-6-luna",
+  "reasoning_effort": "medium",
+  "prompt": "在 analytics_demo_sqlite 上完成只读核验：运行 SELECT SLEEP(0) AS n；若此语句不能执行，请说明服务返回的原因，并在同一连接用普通常量查询取得 n=0。随后执行 WITH F AS (SELECT COUNT(*) AS n FROM orders) SELECT n FROM f，并报告订单数。不要改写第二条 CTE 的标识符大小写，不访问其他连接，不写入数据库。使用原生 MCP 工具，不使用终端或文件。最终简要报告每项结果与依据。",
+  "records": [
+    {
+      "stage": "baseline",
+      "trial": 1,
+      "native_mcp_calls": 3,
+      "passed": true,
+      "public_results": [
+        {
+          "success": false,
+          "error_code": "unknown_function",
+          "error": "SQL function not found for this database dialect.",
+          "hint": "Use a function supported by the returned db_type; check the SQL dialect.",
+          "query": "SELECT SLEEP(0) AS n",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        {
+          "success": true,
+          "data": [
+            {
+              "n": 0
+            }
+          ],
+          "row_count": 1,
+          "total_rows": 1,
+          "truncated": false,
+          "truncation_note": null,
+          "query": "SELECT 0 AS n",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        {
+          "success": true,
+          "data": [
+            {
+              "n": 5
+            }
+          ],
+          "row_count": 1,
+          "total_rows": 1,
+          "truncated": false,
+          "truncation_note": null,
+          "query": "WITH F AS (SELECT COUNT(*) AS n FROM orders) SELECT n FROM f",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        }
+      ],
+      "usage": {
+        "input_tokens": 113082,
+        "cached_input_tokens": 97024,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 348,
+        "reasoning_output_tokens": 0
+      },
+      "final_answer": "只读核验已在 `analytics_demo_sqlite` 完成，未访问其他连接或写入数据库。\n\n- `SELECT SLEEP(0) AS n` 未执行成功：服务返回 `unknown_function`，说明 SQLite 方言不支持该 SQL 函数。\n- 随后执行普通常量查询 `SELECT 0 AS n`，返回 `n=0`。\n- 原样执行 `WITH F AS (SELECT COUNT(*) AS n FROM orders) SELECT n FROM f`，返回订单数 `n=5`。",
+      "source_policy_sha256": "7d2a311b0dd08ed1dc51f84bb22b24a0a5d01d23c7931f67cb128ee3b7a71db2"
+    },
+    {
+      "stage": "baseline",
+      "trial": 2,
+      "native_mcp_calls": 3,
+      "passed": true,
+      "public_results": [
+        {
+          "success": false,
+          "error_code": "unknown_function",
+          "error": "SQL function not found for this database dialect.",
+          "hint": "Use a function supported by the returned db_type; check the SQL dialect.",
+          "query": "SELECT SLEEP(0) AS n",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        {
+          "success": true,
+          "data": [
+            {
+              "n": 0
+            }
+          ],
+          "row_count": 1,
+          "total_rows": 1,
+          "truncated": false,
+          "truncation_note": null,
+          "query": "SELECT 0 AS n",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        {
+          "success": true,
+          "data": [
+            {
+              "n": 5
+            }
+          ],
+          "row_count": 1,
+          "total_rows": 1,
+          "truncated": false,
+          "truncation_note": null,
+          "query": "WITH F AS (SELECT COUNT(*) AS n FROM orders) SELECT n FROM f",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        }
+      ],
+      "usage": {
+        "input_tokens": 131476,
+        "cached_input_tokens": 114176,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 402,
+        "reasoning_output_tokens": 0
+      },
+      "final_answer": "已在 `analytics_demo_sqlite` 上完成只读核验，三次查询都使用同一连接，未写入数据库。\n\n- `SELECT SLEEP(0) AS n` 未执行成功：服务返回 `unknown_function`，说明 SQLite 方言中找不到该 SQL 函数。\n- 随后普通常量查询 `SELECT 0 AS n` 成功，结果为 `n=0`。\n- 原样执行 `WITH F AS (SELECT COUNT(*) AS n FROM orders) SELECT n FROM f` 成功，订单数为 **5**。",
+      "source_policy_sha256": "7d2a311b0dd08ed1dc51f84bb22b24a0a5d01d23c7931f67cb128ee3b7a71db2"
+    },
+    {
+      "stage": "baseline",
+      "trial": 3,
+      "native_mcp_calls": 3,
+      "passed": true,
+      "public_results": [
+        {
+          "success": false,
+          "error_code": "unknown_function",
+          "error": "SQL function not found for this database dialect.",
+          "hint": "Use a function supported by the returned db_type; check the SQL dialect.",
+          "query": "SELECT SLEEP(0) AS n",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        {
+          "success": true,
+          "data": [
+            {
+              "n": 0
+            }
+          ],
+          "row_count": 1,
+          "total_rows": 1,
+          "truncated": false,
+          "truncation_note": null,
+          "query": "SELECT 0 AS n",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        {
+          "success": true,
+          "data": [
+            {
+              "n": 5
+            }
+          ],
+          "row_count": 1,
+          "total_rows": 1,
+          "truncated": false,
+          "truncation_note": null,
+          "query": "WITH F AS (SELECT COUNT(*) AS n FROM orders) SELECT n FROM f",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        }
+      ],
+      "usage": {
+        "input_tokens": 103946,
+        "cached_input_tokens": 80640,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 431,
+        "reasoning_output_tokens": 52
+      },
+      "final_answer": "只读核验完成，所有查询均使用 `analytics_demo_sqlite`：\n\n- `SELECT SLEEP(0) AS n` 未执行成功。服务返回 `unknown_function`，原因是该数据库方言不支持此 SQL 函数。\n- 同一连接执行常量查询 `SELECT 0 AS n`，成功返回 `n=0`。\n- 按原样执行 `WITH F AS (SELECT COUNT(*) AS n FROM orders) SELECT n FROM f`，成功返回 `n=5`，即订单数为 **5**。\n\n未访问其他连接，也未写入数据库。",
+      "source_policy_sha256": "7d2a311b0dd08ed1dc51f84bb22b24a0a5d01d23c7931f67cb128ee3b7a71db2"
+    },
+    {
+      "stage": "after",
+      "trial": 1,
+      "native_mcp_calls": 3,
+      "passed": true,
+      "public_results": [
+        {
+          "success": false,
+          "error_code": "expensive_function_denied",
+          "error": "Delay or benchmark function SLEEP() is not allowed in read queries.",
+          "hint": "Keep the same connection and use ordinary SQL expressions, filters and aggregates; remove deliberate sleeps and benchmarking calls.",
+          "query": "SELECT SLEEP(0) AS n",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        {
+          "success": true,
+          "data": [
+            {
+              "n": 0
+            }
+          ],
+          "row_count": 1,
+          "total_rows": 1,
+          "truncated": false,
+          "truncation_note": null,
+          "query": "SELECT 0 AS n",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        {
+          "success": true,
+          "data": [
+            {
+              "n": 5
+            }
+          ],
+          "row_count": 1,
+          "total_rows": 1,
+          "truncated": false,
+          "truncation_note": null,
+          "query": "WITH F AS (SELECT COUNT(*) AS n FROM orders) SELECT n FROM f",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        }
+      ],
+      "usage": {
+        "input_tokens": 113210,
+        "cached_input_tokens": 97024,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 372,
+        "reasoning_output_tokens": 0
+      },
+      "final_answer": "- `SELECT SLEEP(0) AS n`：未执行，服务以 `expensive_function_denied` 拒绝，原因是只读查询不允许 `SLEEP()` 延时或基准测试函数。\n- 同一连接执行 `SELECT 0 AS n`：成功，返回 `n=0`。\n- 按原样执行 `WITH F AS (SELECT COUNT(*) AS n FROM orders) SELECT n FROM f`：成功，返回订单数 `n=5`。\n\n三次调用均指定 `analytics_demo_sqlite`，未访问其他连接，也未写入数据库。",
+      "source_policy_sha256": "ab25a08c17f2307078f82fded19eff03e20954868f00eebd808286bb293885dd"
+    },
+    {
+      "stage": "after",
+      "trial": 2,
+      "native_mcp_calls": 3,
+      "passed": true,
+      "public_results": [
+        {
+          "success": false,
+          "error_code": "expensive_function_denied",
+          "error": "Delay or benchmark function SLEEP() is not allowed in read queries.",
+          "hint": "Keep the same connection and use ordinary SQL expressions, filters and aggregates; remove deliberate sleeps and benchmarking calls.",
+          "query": "SELECT SLEEP(0) AS n",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        {
+          "success": true,
+          "data": [
+            {
+              "n": 0
+            }
+          ],
+          "row_count": 1,
+          "total_rows": 1,
+          "truncated": false,
+          "truncation_note": null,
+          "query": "SELECT 0 AS n",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        {
+          "success": true,
+          "data": [
+            {
+              "n": 5
+            }
+          ],
+          "row_count": 1,
+          "total_rows": 1,
+          "truncated": false,
+          "truncation_note": null,
+          "query": "WITH F AS (SELECT COUNT(*) AS n FROM orders) SELECT n FROM f",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        }
+      ],
+      "usage": {
+        "input_tokens": 88617,
+        "cached_input_tokens": 72704,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 411,
+        "reasoning_output_tokens": 33
+      },
+      "final_answer": "- `SELECT SLEEP(0) AS n` 未执行成功：服务返回 `expensive_function_denied`，原因是只读查询不允许 `SLEEP()` 延迟或基准测试函数。\n- 同一连接执行常量查询 `SELECT 0 AS n`，返回 `n=0`。\n- 按原样执行 CTE 查询，返回订单数 `n=5`。\n\n以上均通过 `analytics_demo_sqlite` 的原生 MCP 查询工具完成；未访问其他连接，也未写入数据库。",
+      "source_policy_sha256": "ab25a08c17f2307078f82fded19eff03e20954868f00eebd808286bb293885dd"
+    },
+    {
+      "stage": "after",
+      "trial": 3,
+      "native_mcp_calls": 3,
+      "passed": true,
+      "public_results": [
+        {
+          "success": false,
+          "error_code": "expensive_function_denied",
+          "error": "Delay or benchmark function SLEEP() is not allowed in read queries.",
+          "hint": "Keep the same connection and use ordinary SQL expressions, filters and aggregates; remove deliberate sleeps and benchmarking calls.",
+          "query": "SELECT SLEEP(0) AS n",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        {
+          "success": true,
+          "data": [
+            {
+              "n": 0
+            }
+          ],
+          "row_count": 1,
+          "total_rows": 1,
+          "truncated": false,
+          "truncation_note": null,
+          "query": "SELECT 0 AS n",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        {
+          "success": true,
+          "data": [
+            {
+              "n": 5
+            }
+          ],
+          "row_count": 1,
+          "total_rows": 1,
+          "truncated": false,
+          "truncation_note": null,
+          "query": "WITH F AS (SELECT COUNT(*) AS n FROM orders) SELECT n FROM f",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        }
+      ],
+      "usage": {
+        "input_tokens": 103987,
+        "cached_input_tokens": 77568,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 467,
+        "reasoning_output_tokens": 27
+      },
+      "final_answer": "只读核验已在 `analytics_demo_sqlite` 同一连接完成，未访问其他连接，也未写入数据库。\n\n- `SELECT SLEEP(0) AS n`：未能执行。服务返回 `expensive_function_denied`，原因是只读查询中禁止使用延时或基准测试函数。\n- 后续常量查询 `SELECT 0 AS n`：成功，返回 `n=0`。\n- 原样执行 `WITH F AS (SELECT COUNT(*) AS n FROM orders) SELECT n FROM f`：成功，返回 `n=5`，即订单数为 **5**。",
+      "source_policy_sha256": "ab25a08c17f2307078f82fded19eff03e20954868f00eebd808286bb293885dd"
+    }
+  ],
+  "statistics": {
+    "baseline": {
+      "passed": 3,
+      "native_calls_each": [
+        3,
+        3,
+        3
+      ],
+      "mean_total_input": 116168,
+      "median_total_input": 113082,
+      "mean_cached_input": 97280,
+      "mean_uncached_input": 18888,
+      "mean_output": 393.6666666666667
+    },
+    "after": {
+      "passed": 3,
+      "native_calls_each": [
+        3,
+        3,
+        3
+      ],
+      "mean_total_input": 101938,
+      "median_total_input": 103987,
+      "mean_cached_input": 82432,
+      "mean_uncached_input": 19506,
+      "mean_output": 416.6666666666667
+    }
+  },
+  "percent_change": {
+    "mean_total_input": -12.249500723090701,
+    "median_total_input": -8.042836171981394,
+    "mean_uncached_input": 3.2719186785260534,
+    "mean_output": 5.842506350550392
+  },
+  "order": "A1,B1,A2,B2,A3,B3",
+  "config": "Task-local required stdio MCP, only query and one existing SQLite alias; no global configuration changes",
+  "limits": [
+    "Three samples per stage; no overall accuracy/cost guarantee",
+    "CLI profile differs from full IDE tool exposure and xhigh peer tasks",
+    "Provider usage is actual; full initial system/developer input and outer programmatic-tool orchestration not exposed by CLI events",
+    "Cached inputs already included in total; do not add twice",
+    "Uncached/output increase despite total-input reduction; no billing saving or no-regression claim"
+  ]
+}

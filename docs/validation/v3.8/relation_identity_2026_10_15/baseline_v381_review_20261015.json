@@ -1,0 +1,1186 @@
+{
+  "date": "2026-10-15",
+  "version": "3.8.1",
+  "scope": "Isolated SQLite plus in-process FastMCP Client legacy/auto; no live database writes or primary Host restart claim",
+  "source_sha256": {
+    "src/sql_safety_executor/__init__.py": "ecc38d1c7bac19d27df3181049521f8d164ce1fed16a81cad58cbe8c88cf2168",
+    "src/sql_safety_executor/__main__.py": "935a1c1166b0c1ea35a82256345000bf2c73ded718d77773bc27a71ecce28f7d",
+    "src/sql_safety_executor/cli.py": "aed9bec845995da77b4f7deb7194e7bcc48b8effa45a00e75341d389386fbc6f",
+    "src/sql_safety_executor/config/__init__.py": "29695a85fa871068c9246eb0098866f03564ca5f8b436be1ae8d78f9c54bd52b",
+    "src/sql_safety_executor/config/loader.py": "5ad09d5764a733b0cb7e44b84302f7ea8f6e981dce50aa75ae382081d101b722",
+    "src/sql_safety_executor/config/models.py": "5a38fca378b8d1fc460951a0f6facdbefe34fc4c790dfbd5a13ab25af6c53272",
+    "src/sql_safety_executor/core/__init__.py": "c7c458557f173e203bcd11eb83f3d41e8f293ccf04befd01464e6d000956bad3",
+    "src/sql_safety_executor/core/connections.py": "eabda3481eaae966700354082314f00a54f5696aea3d6dff231b8f516f4a0b48",
+    "src/sql_safety_executor/core/constants.py": "7f9e3d73002d119f1d39c8b2d34a2aa0f45313870477c2a184f62e3dfe3a5b2c",
+    "src/sql_safety_executor/core/decisions.py": "428d7699592c2e1e63dcdff28cfcc9b0ae3ec82b22875f92ddbf920d08165584",
+    "src/sql_safety_executor/core/diagnostics.py": "2070de4f726a59632c1ddf7e0e65ef724a1ff82fb5ffcec09ff40ae0fa8c2ab0",
+    "src/sql_safety_executor/core/mutation_service.py": "1972b67be648bbefb6a74d62211b7e69a3892913fd4aac701250634abd175578",
+    "src/sql_safety_executor/core/mutations.py": "8972b3d97d55155ff18473028be87c7bedffd66785ceedd098af63afbd9351a4",
+    "src/sql_safety_executor/core/policy.py": "a14529b17d7ecd8c22e55f55cf58fba8a9aa9d69af9d2565ed88f03672fd3265",
+    "src/sql_safety_executor/core/preview_tokens.py": "6ba3d30d12ad755435d695e73e8e264f1fb3b85c50756e31c64012d6a1d74f1d",
+    "src/sql_safety_executor/core/proposals.py": "965a3813bf7812a625f88c977c68b72a53e8c9f153b8b6016cd51b87e953aea8",
+    "src/sql_safety_executor/core/queries.py": "2cae7f7bd462da3de3a1a4ca0bd03caec3f16ec8c2cb0b7ff3de55306256c599",
+    "src/sql_safety_executor/core/results.py": "d81dd852fcb535f608f3cb0b36f328d8fdd6c1de3b5ced18cf5cf5e8ecb8ca9e",
+    "src/sql_safety_executor/core/runtime.py": "8ae3961031c59da0964958b66502ed06e832d86223cd83683aa21a1835cbc4de",
+    "src/sql_safety_executor/core/schema.py": "2d11d5dac074aeb62e29251bbee5ca0530244919c85ad8b1c1ffdbda5515d14a",
+    "src/sql_safety_executor/core/sql.py": "c7aa405658be6fa01366b09b1f78fcc74ea9854d40b54f1e1e715c3ae2ee5915",
+    "src/sql_safety_executor/core/types.py": "eeeceb5f2e08d64a43251fb12fde23e6496d3fe86dff7cd3359128490630cdaa",
+    "src/sql_safety_executor/database/__init__.py": "cfcecb95fef6113b844f9dc9911c53ccb139f792d0097a2ca094d2476ea7accf",
+    "src/sql_safety_executor/database/base.py": "150947cc49d3a29200b6102e51db63400d308830d82ac79eb01846ed199422b0",
+    "src/sql_safety_executor/database/diagnostics.py": "5de2792a42ff81429ea0a9c926c72f9fbffa7221aea98cfe5becd8a373f4cb8c",
+    "src/sql_safety_executor/database/errors.py": "e7314eef0551ac3241d0b9ebe23998f0b5c2678f61dc0f9550f392b41d57015f",
+    "src/sql_safety_executor/database/identifiers.py": "f1f973311e7bedd2cc04a95f6adf034e0203380feda04c13200d11f024bf9108",
+    "src/sql_safety_executor/database/indexes.py": "4f8fa747d07decb7d4688cd731df660efd80f6d7c879888dbd4ace0a7c29f47f",
+    "src/sql_safety_executor/database/models.py": "7a88a406f4dd6f86d75097302904258cd95545a12b847fdcd49124501a644553",
+    "src/sql_safety_executor/database/mysql.py": "f7a677dd0c76add093daab2da46fe307b4a234f9b955e462b8e2d16f11824aa9",
+    "src/sql_safety_executor/database/outcomes.py": "b509f03bd6d299c378cdb337ffe300ab9a37f6159224946c451739b4ca47ad0c",
+    "src/sql_safety_executor/database/registry.py": "1617a9d1c3ac0997f0c8e9e1be8b59dd90e839fdf6928f5dae6da779d0b847e9",
+    "src/sql_safety_executor/database/sqlite.py": "d09e94e32a40c187475c7b35af618c034d143670b84ff6000fe2ddcdd4ddb4ec",
+    "src/sql_safety_executor/mcp/__init__.py": "51f8c29c6d00edc4b90b50b674dddc3e69f88bdbdc46c6d1ec73ed996ee9fdb7",
+    "src/sql_safety_executor/mcp/bootstrap.py": "614e88df3e0e8ff60d4d0b6c9f142334ea77a6cee0a61c33e15c6c02fb023494",
+    "src/sql_safety_executor/mcp/context.py": "6cce4cbf8dcd72e8893205148ed279e1d84cc7da4f212cb0a1008e0da418c457",
+    "src/sql_safety_executor/mcp/contracts.py": "194cd9931db5d6ed685d5a1b1a3856001053f2388a9da2ae3047125bbb4cc19e",
+    "src/sql_safety_executor/mcp/mrtr.py": "b52ab1367f8058c247c34ea8174354155c2ea23564077994466356d245d41955",
+    "src/sql_safety_executor/mcp/server.py": "b5e010344ef8c4f33688cfaaf0920464e0a3dd48d3e9620b4c320ef139972700",
+    "src/sql_safety_executor/observability/__init__.py": "d9dc733b9dcdd7507c65e12b0eabee01cca228c977f05940907c5e9e6060247b",
+    "src/sql_safety_executor/observability/audit.py": "dc3aed21adea2fa646404ba1e16f29ce69ef28cf60f3be8f8cfd4d102b7c4e02",
+    "src/sql_safety_executor/observability/telemetry.py": "5c7192f564b30201321a869731e93a0c2324b58783c5998f3aee7eecef32ecdf",
+    "src/sql_safety_executor/prompts/__init__.py": "5a4cb64e9972a6048701789c5eea0f3ade333732716b02e3b664d8f267c6d0f2",
+    "src/sql_safety_executor/prompts/assistant.md": "64392577ff400bb4f03a09a9d5f1e07f6fd515117a77cfc0e67b78d93687a372",
+    "src/sql_safety_executor/prompts/mrtr.md": "b6e3e9d758800930dee1d25b526a0fa2292c089316fe936e2589ca205218b73d",
+    "src/sql_safety_executor/prompts/mutation_results.md": "e201460c3f67ee62f3a83e103b0334493ef3967a28ab97f95078b08be86853a2",
+    "src/sql_safety_executor/prompts/read_policy.md": "7d91258da832b0029e48caeae94e0c54746766a3a0444224325e50a3b8139716",
+    "src/sql_safety_executor/prompts/render.py": "4494f337da54c7a795a6b7f54c5034527746b79511119fef3fd3f352e536d7d8",
+    "src/sql_safety_executor/prompts/routing.md": "6baec6f319ffeae4113ea90fc4da58843b3a099836e20eac641011df13897713",
+    "src/sql_safety_executor/prompts/server.md": "ec5e00d7b7a68a7019e3d726fe6f4c468ba46978d2568ba5667b2fc8f482c869",
+    "src/sql_safety_executor/prompts/tools/check_connection.md": "c859a8c2c6990ed58b0184a3270f7dc51b47deeb65b8faf7c9de5da114e8bf90",
+    "src/sql_safety_executor/prompts/tools/describe_table.md": "a5599c141b5e5ddfbc31b987b2feb12c89dd5c9f03615cb9c12cc571abbf2609",
+    "src/sql_safety_executor/prompts/tools/execute_mutation_skill.md": "fd56bbcc03197017616aeb814976c99613d7b1366f66ddba42c727a51a6ccef4",
+    "src/sql_safety_executor/prompts/tools/execute_query_skill.md": "6ddc7ce6af1589f96de86fb4bf5c558ee2f30a85794f660edb8953d60e5c0bea",
+    "src/sql_safety_executor/prompts/tools/get_full_schema.md": "5db1ad990215212e99a32e5ed898ec728b64f6173e55eea1f98737e07470d3f5",
+    "src/sql_safety_executor/prompts/tools/get_skill_detail.md": "b54e516e3e6a0d66aba5ab4873996ea57a7e7fc338bca31ffe60fd66a75ec0f1",
+    "src/sql_safety_executor/prompts/tools/get_table_summary.md": "b8f09a505fabbcd0ba9417e66fdd2b606c3be0934921963a081999310832e7cc",
+    "src/sql_safety_executor/prompts/tools/list_connections.md": "9d8d7badc95e1b609de1178f47f8c0d8b575a152ac086d9dc2872ced1f4650d5",
+    "src/sql_safety_executor/prompts/tools/list_skills.md": "6e99d48453781ce476ea36c3b26f9fbfac2f8acf8fccb13bdef250cdff15430b",
+    "src/sql_safety_executor/prompts/tools/list_tables.md": "d0e2becf2c03e301d536d00295d9c0421aa7cb864556921694db529dca236ec5",
+    "src/sql_safety_executor/prompts/tools/query.md": "9162aa659bcef9f49d87ad674140bb634e411297bbc6798eccf4c62e9ad95285",
+    "src/sql_safety_executor/prompts/tools/request_mutation_approval.md": "dc2a707458236bda76ad0f55e9c4be96161bd230d92ca21f405e92be990af4a3",
+    "src/sql_safety_executor/prompts/tools/sample.md": "97f034ef60f57334a029c5dc41b91883025708a312ca97e7adf29521fbd0f9dc",
+    "src/sql_safety_executor/skills/__init__.py": "43b88ba025119e682f31d70639f47b1b7b3eb541c728815be1d6b86b0eedb650",
+    "src/sql_safety_executor/skills/access.py": "6aeab638c7c9bac794fabe71141b5ec36abf9731c0a69dccf84221dc8b378c59",
+    "src/sql_safety_executor/skills/catalog.py": "71036c789411963e97b9701653012bfefbf869403f90e4069369864db09c66e0",
+    "src/sql_safety_executor/skills/mutation.py": "eca2b8ab666adb42559588ced961c8f9d102ed84462ca95a3c6b63db0d3250e9",
+    "src/sql_safety_executor/skills/tools.py": "d93ffeb8a2654584f60e7d54eb764d38e2cf7aaccb24e888511086f01dad6209"
+  },
+  "modes": [
+    {
+      "mode": "legacy",
+      "read": [
+        {
+          "sql": "SELECT n FROM main.orders",
+          "is_error": false,
+          "structured": {
+            "success": true,
+            "data": [
+              {
+                "n": 7
+              }
+            ],
+            "row_count": 1,
+            "total_rows": 1,
+            "truncated": false,
+            "truncation_note": null,
+            "query": "SELECT n FROM main.orders",
+            "connection_id": "demo",
+            "db_type": "sqlite"
+          },
+          "text": [
+            "{\"success\":true,\"data\":[{\"n\":7}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null,\"query\":\"SELECT n FROM main.orders\",\"connection_id\":\"demo\",\"db_type\":\"sqlite\"}"
+          ]
+        },
+        {
+          "sql": "SELECT n FROM \"main\".\"orders\"",
+          "is_error": false,
+          "structured": {
+            "success": true,
+            "data": [
+              {
+                "n": 7
+              }
+            ],
+            "row_count": 1,
+            "total_rows": 1,
+            "truncated": false,
+            "truncation_note": null,
+            "query": "SELECT n FROM \"main\".\"orders\"",
+            "connection_id": "demo",
+            "db_type": "sqlite"
+          },
+          "text": [
+            "{\"success\":true,\"data\":[{\"n\":7}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null,\"query\":\"SELECT n FROM \\\"main\\\".\\\"orders\\\"\",\"connection_id\":\"demo\",\"db_type\":\"sqlite\"}"
+          ]
+        },
+        {
+          "sql": "SELECT n FROM \"main.orders\"",
+          "is_error": false,
+          "structured": {
+            "success": true,
+            "data": [
+              {
+                "n": 99
+              }
+            ],
+            "row_count": 1,
+            "total_rows": 1,
+            "truncated": false,
+            "truncation_note": null,
+            "query": "SELECT n FROM \"main.orders\"",
+            "connection_id": "demo",
+            "db_type": "sqlite"
+          },
+          "text": [
+            "{\"success\":true,\"data\":[{\"n\":99}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null,\"query\":\"SELECT n FROM \\\"main.orders\\\"\",\"connection_id\":\"demo\",\"db_type\":\"sqlite\"}"
+          ]
+        },
+        {
+          "sql": "SELECT n FROM main.\"main.orders\"",
+          "is_error": false,
+          "structured": {
+            "success": false,
+            "error_code": "table_access_denied",
+            "error": "Access denied to table(s): main.main.orders. Only allowed tables: main.orders",
+            "hint": "Keep the same connection and use authorized tables. If CTE name rules are unknown or case-sensitive, match the declaration's exact case.",
+            "query": "SELECT n FROM main.\"main.orders\"",
+            "connection_id": "demo",
+            "db_type": "sqlite"
+          },
+          "text": [
+            "{\"success\":false,\"error_code\":\"table_access_denied\",\"error\":\"Access denied to table(s): main.main.orders. Only allowed tables: main.orders\",\"hint\":\"Keep the same connection and use authorized tables. If CTE name rules are unknown or case-sensitive, match the declaration's exact case.\",\"query\":\"SELECT n FROM main.\\\"main.orders\\\"\",\"connection_id\":\"demo\",\"db_type\":\"sqlite\"}"
+          ]
+        }
+      ],
+      "mutation": [
+        {
+          "exception": "typed",
+          "preview_success": true,
+          "tokens_before": 1,
+          "tokens_after": 0,
+          "execution_response": {
+            "is_error": true,
+            "structured": null,
+            "text": [
+              "Error calling tool 'execute_mutation_skill'"
+            ]
+          },
+          "replay_response": {
+            "is_error": true,
+            "structured": null,
+            "text": [
+              "Invalid preview_token, has already been used, or was not issued by this server process; rejected before execution, so this request wrote nothing. Check the current state and let the user decide whether to preview again."
+            ]
+          },
+          "execute_callback_count": 0,
+          "adapter_write_attempts": 0,
+          "database_unchanged": true
+        },
+        {
+          "exception": "generic",
+          "preview_success": true,
+          "tokens_before": 1,
+          "tokens_after": 0,
+          "execution_response": {
+            "is_error": true,
+            "structured": null,
+            "text": [
+              "Error calling tool 'execute_mutation_skill'"
+            ]
+          },
+          "replay_response": {
+            "is_error": true,
+            "structured": null,
+            "text": [
+              "Invalid preview_token, has already been used, or was not issued by this server process; rejected before execution, so this request wrote nothing. Check the current state and let the user decide whether to preview again."
+            ]
+          },
+          "execute_callback_count": 0,
+          "adapter_write_attempts": 0,
+          "database_unchanged": true
+        }
+      ],
+      "skill": {
+        "default": {
+          "is_error": false,
+          "structured": {
+            "success": true,
+            "skills": [
+              {
+                "name": "qualified-read",
+                "type": "query",
+                "description": "Isolated review probe",
+                "risk": "low",
+                "category": "uncategorized",
+                "executable": true,
+                "profile_allowed": true,
+                "db_compatible": true,
+                "connection_scope_allowed": true,
+                "policy_allowed": true,
+                "schema_ready": true,
+                "source": "query.sql",
+                "triggers": [],
+                "idempotent": false,
+                "databases": null,
+                "connection_ids": null,
+                "configured_connection_ids": [],
+                "unconfigured_connection_ids": [],
+                "connection_type_conflicts": [],
+                "profiles": []
+              }
+            ],
+            "total_skills": 1,
+            "matched_skills": 1,
+            "matched_catalog_skills": 1,
+            "available_skills": 1,
+            "unavailable_skills": 0,
+            "filtered_unavailable_skills": 0,
+            "schema_unready_skills": 0,
+            "policy_blocked_skills": 0,
+            "connection_scope_blocked_skills": 0,
+            "connection_type_conflict_skills": 0,
+            "profile_excluded_skills": 0,
+            "query_skills": 1,
+            "mutation_skills": 0,
+            "mutations_enabled": false,
+            "schema_check_enabled": true,
+            "schema_check_available": true,
+            "excluded_profiles": [],
+            "detail_level": "summary",
+            "available_only": true,
+            "current_database_type": "sqlite",
+            "connection_id": "demo",
+            "search": null,
+            "category": null,
+            "categories": [
+              {
+                "category": "uncategorized",
+                "count": 1
+              }
+            ],
+            "hint": "If params are not already known, call get_skill_detail(skill_name, connection_id, detail_level='execution') with the same target connection before execution."
+          },
+          "text": [
+            "{\"success\":true,\"skills\":[{\"name\":\"qualified-read\",\"type\":\"query\",\"description\":\"Isolated review probe\",\"risk\":\"low\",\"category\":\"uncategorized\",\"executable\":true,\"profile_allowed\":true,\"db_compatible\":true,\"connection_scope_allowed\":true,\"policy_allowed\":true,\"schema_ready\":true,\"source\":\"query.sql\",\"triggers\":[],\"idempotent\":false,\"databases\":null,\"connection_ids\":null,\"configured_connection_ids\":[],\"unconfigured_connection_ids\":[],\"connection_type_conflicts\":[],\"profiles\":[]}],\"total_skills\":1,\"matched_skills\":1,\"matched_catalog_skills\":1,\"available_skills\":1,\"unavailable_skills\":0,\"filtered_unavailable_skills\":0,\"schema_unready_skills\":0,\"policy_blocked_skills\":0,\"connection_scope_blocked_skills\":0,\"connection_type_conflict_skills\":0,\"profile_excluded_skills\":0,\"query_skills\":1,\"mutation_skills\":0,\"mutations_enabled\":false,\"schema_check_enabled\":true,\"schema_check_available\":true,\"excluded_profiles\":[],\"detail_level\":\"summary\",\"available_only\":true,\"current_database_type\":\"sqlite\",\"connection_id\":\"demo\",\"search\":null,\"category\":null,\"categories\":[{\"category\":\"uncategorized\",\"count\":1}],\"hint\":\"If params are not already known, call get_skill_detail(skill_name, connection_id, detail_level='execution') with the same target connection before execution.\"}"
+          ]
+        },
+        "full": {
+          "is_error": false,
+          "structured": {
+            "success": true,
+            "skills": [
+              {
+                "name": "qualified-read",
+                "type": "query",
+                "description": "Isolated review probe",
+                "risk": "low",
+                "category": "uncategorized",
+                "executable": true,
+                "profile_allowed": true,
+                "db_compatible": true,
+                "connection_scope_allowed": true,
+                "policy_allowed": true,
+                "schema_ready": true,
+                "source": "query.sql",
+                "triggers": [],
+                "idempotent": false,
+                "databases": null,
+                "connection_ids": null,
+                "configured_connection_ids": [],
+                "unconfigured_connection_ids": [],
+                "connection_type_conflicts": [],
+                "profiles": [],
+                "params": {},
+                "version": "1.0",
+                "requires_confirmation": false,
+                "related_skills": [],
+                "tables": [
+                  "main.orders"
+                ],
+                "declared_tables": [],
+                "inferred_tables": [
+                  "main.orders"
+                ]
+              }
+            ],
+            "total_skills": 1,
+            "matched_skills": 1,
+            "matched_catalog_skills": 1,
+            "available_skills": 1,
+            "unavailable_skills": 0,
+            "filtered_unavailable_skills": 0,
+            "schema_unready_skills": 0,
+            "policy_blocked_skills": 0,
+            "connection_scope_blocked_skills": 0,
+            "connection_type_conflict_skills": 0,
+            "profile_excluded_skills": 0,
+            "query_skills": 1,
+            "mutation_skills": 0,
+            "mutations_enabled": false,
+            "schema_check_enabled": true,
+            "schema_check_available": true,
+            "excluded_profiles": [],
+            "detail_level": "full",
+            "available_only": false,
+            "current_database_type": "sqlite",
+            "connection_id": "demo",
+            "search": null,
+            "category": null,
+            "categories": [
+              {
+                "category": "uncategorized",
+                "count": 1
+              }
+            ]
+          },
+          "text": [
+            "{\"success\":true,\"skills\":[{\"name\":\"qualified-read\",\"type\":\"query\",\"description\":\"Isolated review probe\",\"risk\":\"low\",\"category\":\"uncategorized\",\"executable\":true,\"profile_allowed\":true,\"db_compatible\":true,\"connection_scope_allowed\":true,\"policy_allowed\":true,\"schema_ready\":true,\"source\":\"query.sql\",\"triggers\":[],\"idempotent\":false,\"databases\":null,\"connection_ids\":null,\"configured_connection_ids\":[],\"unconfigured_connection_ids\":[],\"connection_type_conflicts\":[],\"profiles\":[],\"params\":{},\"version\":\"1.0\",\"requires_confirmation\":false,\"related_skills\":[],\"tables\":[\"main.orders\"],\"declared_tables\":[],\"inferred_tables\":[\"main.orders\"]}],\"total_skills\":1,\"matched_skills\":1,\"matched_catalog_skills\":1,\"available_skills\":1,\"unavailable_skills\":0,\"filtered_unavailable_skills\":0,\"schema_unready_skills\":0,\"policy_blocked_skills\":0,\"connection_scope_blocked_skills\":0,\"connection_type_conflict_skills\":0,\"profile_excluded_skills\":0,\"query_skills\":1,\"mutation_skills\":0,\"mutations_enabled\":false,\"schema_check_enabled\":true,\"schema_check_available\":true,\"excluded_profiles\":[],\"detail_level\":\"full\",\"available_only\":false,\"current_database_type\":\"sqlite\",\"connection_id\":\"demo\",\"search\":null,\"category\":null,\"categories\":[{\"category\":\"uncategorized\",\"count\":1}]}"
+          ]
+        },
+        "detail": {
+          "is_error": false,
+          "structured": {
+            "success": true,
+            "skill": {
+              "name": "qualified-read",
+              "type": "query",
+              "description": "Isolated review probe",
+              "risk": "low",
+              "category": "uncategorized",
+              "executable": true,
+              "profile_allowed": true,
+              "db_compatible": true,
+              "connection_scope_allowed": true,
+              "policy_allowed": true,
+              "schema_ready": true,
+              "source": "query.sql",
+              "triggers": [],
+              "idempotent": false,
+              "databases": null,
+              "connection_ids": null,
+              "configured_connection_ids": [],
+              "unconfigured_connection_ids": [],
+              "connection_type_conflicts": [],
+              "profiles": [],
+              "params": {},
+              "version": "1.0",
+              "requires_confirmation": false,
+              "related_skills": [],
+              "tables": [
+                "main.orders"
+              ],
+              "declared_tables": [],
+              "inferred_tables": [
+                "main.orders"
+              ]
+            },
+            "connection_id": "demo",
+            "current_database_type": "sqlite",
+            "usage_hint": "Call execute_query_skill(skill_name, params, connection_id) with this same target connection and params matching the schema.",
+            "mutations_enabled": false,
+            "schema_check_enabled": true,
+            "schema_check_available": true
+          },
+          "text": [
+            "{\"success\":true,\"skill\":{\"name\":\"qualified-read\",\"type\":\"query\",\"description\":\"Isolated review probe\",\"risk\":\"low\",\"category\":\"uncategorized\",\"executable\":true,\"profile_allowed\":true,\"db_compatible\":true,\"connection_scope_allowed\":true,\"policy_allowed\":true,\"schema_ready\":true,\"source\":\"query.sql\",\"triggers\":[],\"idempotent\":false,\"databases\":null,\"connection_ids\":null,\"configured_connection_ids\":[],\"unconfigured_connection_ids\":[],\"connection_type_conflicts\":[],\"profiles\":[],\"params\":{},\"version\":\"1.0\",\"requires_confirmation\":false,\"related_skills\":[],\"tables\":[\"main.orders\"],\"declared_tables\":[],\"inferred_tables\":[\"main.orders\"]},\"connection_id\":\"demo\",\"current_database_type\":\"sqlite\",\"usage_hint\":\"Call execute_query_skill(skill_name, params, connection_id) with this same target connection and params matching the schema.\",\"mutations_enabled\":false,\"schema_check_enabled\":true,\"schema_check_available\":true}"
+          ]
+        },
+        "execution": {
+          "is_error": false,
+          "structured": {
+            "success": true,
+            "skill_name": "qualified-read",
+            "connection_id": "demo",
+            "db_type": "sqlite",
+            "data": [
+              {
+                "n": 7
+              }
+            ],
+            "row_count": 1,
+            "total_rows": 1,
+            "truncated": false,
+            "truncation_note": null
+          },
+          "text": [
+            "{\"success\":true,\"skill_name\":\"qualified-read\",\"connection_id\":\"demo\",\"db_type\":\"sqlite\",\"data\":[{\"n\":7}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null}"
+          ]
+        }
+      },
+      "qualified_readiness_without_dotted_table": {
+        "raw": {
+          "is_error": false,
+          "structured": {
+            "success": true,
+            "data": [
+              {
+                "n": 7
+              }
+            ],
+            "row_count": 1,
+            "total_rows": 1,
+            "truncated": false,
+            "truncation_note": null,
+            "query": "SELECT n FROM main.orders",
+            "connection_id": "demo",
+            "db_type": "sqlite"
+          },
+          "text": [
+            "{\"success\":true,\"data\":[{\"n\":7}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null,\"query\":\"SELECT n FROM main.orders\",\"connection_id\":\"demo\",\"db_type\":\"sqlite\"}"
+          ]
+        },
+        "default": {
+          "is_error": false,
+          "structured": {
+            "success": true,
+            "skills": [],
+            "total_skills": 1,
+            "matched_skills": 0,
+            "matched_catalog_skills": 1,
+            "available_skills": 0,
+            "unavailable_skills": 1,
+            "filtered_unavailable_skills": 1,
+            "schema_unready_skills": 1,
+            "policy_blocked_skills": 0,
+            "connection_scope_blocked_skills": 0,
+            "connection_type_conflict_skills": 0,
+            "profile_excluded_skills": 0,
+            "query_skills": 0,
+            "mutation_skills": 0,
+            "mutations_enabled": false,
+            "schema_check_enabled": true,
+            "schema_check_available": true,
+            "excluded_profiles": [],
+            "detail_level": "summary",
+            "available_only": true,
+            "current_database_type": "sqlite",
+            "connection_id": "demo",
+            "search": null,
+            "category": null,
+            "categories": [],
+            "hint": "If params are not already known, call get_skill_detail(skill_name, connection_id, detail_level='execution') with the same target connection before execution."
+          },
+          "text": [
+            "{\"success\":true,\"skills\":[],\"total_skills\":1,\"matched_skills\":0,\"matched_catalog_skills\":1,\"available_skills\":0,\"unavailable_skills\":1,\"filtered_unavailable_skills\":1,\"schema_unready_skills\":1,\"policy_blocked_skills\":0,\"connection_scope_blocked_skills\":0,\"connection_type_conflict_skills\":0,\"profile_excluded_skills\":0,\"query_skills\":0,\"mutation_skills\":0,\"mutations_enabled\":false,\"schema_check_enabled\":true,\"schema_check_available\":true,\"excluded_profiles\":[],\"detail_level\":\"summary\",\"available_only\":true,\"current_database_type\":\"sqlite\",\"connection_id\":\"demo\",\"search\":null,\"category\":null,\"categories\":[],\"hint\":\"If params are not already known, call get_skill_detail(skill_name, connection_id, detail_level='execution') with the same target connection before execution.\"}"
+          ]
+        },
+        "full": {
+          "is_error": false,
+          "structured": {
+            "success": true,
+            "skills": [
+              {
+                "name": "qualified-read",
+                "type": "query",
+                "description": "Isolated review probe",
+                "risk": "low",
+                "category": "uncategorized",
+                "executable": false,
+                "profile_allowed": true,
+                "db_compatible": true,
+                "connection_scope_allowed": true,
+                "policy_allowed": true,
+                "schema_ready": false,
+                "disabled_reason": "Required table(s) are missing from the current database schema: ['main.orders'].",
+                "missing_tables": [
+                  "main.orders"
+                ],
+                "source": "query.sql",
+                "triggers": [],
+                "idempotent": false,
+                "databases": null,
+                "connection_ids": null,
+                "configured_connection_ids": [],
+                "unconfigured_connection_ids": [],
+                "connection_type_conflicts": [],
+                "profiles": [],
+                "params": {},
+                "version": "1.0",
+                "requires_confirmation": false,
+                "related_skills": [],
+                "tables": [
+                  "main.orders"
+                ],
+                "declared_tables": [],
+                "inferred_tables": [
+                  "main.orders"
+                ]
+              }
+            ],
+            "total_skills": 1,
+            "matched_skills": 1,
+            "matched_catalog_skills": 1,
+            "available_skills": 0,
+            "unavailable_skills": 1,
+            "filtered_unavailable_skills": 0,
+            "schema_unready_skills": 1,
+            "policy_blocked_skills": 0,
+            "connection_scope_blocked_skills": 0,
+            "connection_type_conflict_skills": 0,
+            "profile_excluded_skills": 0,
+            "query_skills": 1,
+            "mutation_skills": 0,
+            "mutations_enabled": false,
+            "schema_check_enabled": true,
+            "schema_check_available": true,
+            "excluded_profiles": [],
+            "detail_level": "full",
+            "available_only": false,
+            "current_database_type": "sqlite",
+            "connection_id": "demo",
+            "search": null,
+            "category": null,
+            "categories": [
+              {
+                "category": "uncategorized",
+                "count": 1
+              }
+            ]
+          },
+          "text": [
+            "{\"success\":true,\"skills\":[{\"name\":\"qualified-read\",\"type\":\"query\",\"description\":\"Isolated review probe\",\"risk\":\"low\",\"category\":\"uncategorized\",\"executable\":false,\"profile_allowed\":true,\"db_compatible\":true,\"connection_scope_allowed\":true,\"policy_allowed\":true,\"schema_ready\":false,\"disabled_reason\":\"Required table(s) are missing from the current database schema: ['main.orders'].\",\"missing_tables\":[\"main.orders\"],\"source\":\"query.sql\",\"triggers\":[],\"idempotent\":false,\"databases\":null,\"connection_ids\":null,\"configured_connection_ids\":[],\"unconfigured_connection_ids\":[],\"connection_type_conflicts\":[],\"profiles\":[],\"params\":{},\"version\":\"1.0\",\"requires_confirmation\":false,\"related_skills\":[],\"tables\":[\"main.orders\"],\"declared_tables\":[],\"inferred_tables\":[\"main.orders\"]}],\"total_skills\":1,\"matched_skills\":1,\"matched_catalog_skills\":1,\"available_skills\":0,\"unavailable_skills\":1,\"filtered_unavailable_skills\":0,\"schema_unready_skills\":1,\"policy_blocked_skills\":0,\"connection_scope_blocked_skills\":0,\"connection_type_conflict_skills\":0,\"profile_excluded_skills\":0,\"query_skills\":1,\"mutation_skills\":0,\"mutations_enabled\":false,\"schema_check_enabled\":true,\"schema_check_available\":true,\"excluded_profiles\":[],\"detail_level\":\"full\",\"available_only\":false,\"current_database_type\":\"sqlite\",\"connection_id\":\"demo\",\"search\":null,\"category\":null,\"categories\":[{\"category\":\"uncategorized\",\"count\":1}]}"
+          ]
+        },
+        "detail": {
+          "is_error": false,
+          "structured": {
+            "success": true,
+            "skill": {
+              "name": "qualified-read",
+              "type": "query",
+              "description": "Isolated review probe",
+              "risk": "low",
+              "category": "uncategorized",
+              "executable": false,
+              "profile_allowed": true,
+              "db_compatible": true,
+              "connection_scope_allowed": true,
+              "policy_allowed": true,
+              "schema_ready": false,
+              "disabled_reason": "Required table(s) are missing from the current database schema: ['main.orders'].",
+              "missing_tables": [
+                "main.orders"
+              ],
+              "source": "query.sql",
+              "triggers": [],
+              "idempotent": false,
+              "databases": null,
+              "connection_ids": null,
+              "configured_connection_ids": [],
+              "unconfigured_connection_ids": [],
+              "connection_type_conflicts": [],
+              "profiles": [],
+              "params": {},
+              "version": "1.0",
+              "requires_confirmation": false,
+              "related_skills": [],
+              "tables": [
+                "main.orders"
+              ],
+              "declared_tables": [],
+              "inferred_tables": [
+                "main.orders"
+              ]
+            },
+            "connection_id": "demo",
+            "current_database_type": "sqlite",
+            "usage_hint": "Required table(s) are missing from the current database schema: ['main.orders'].",
+            "mutations_enabled": false,
+            "schema_check_enabled": true,
+            "schema_check_available": true
+          },
+          "text": [
+            "{\"success\":true,\"skill\":{\"name\":\"qualified-read\",\"type\":\"query\",\"description\":\"Isolated review probe\",\"risk\":\"low\",\"category\":\"uncategorized\",\"executable\":false,\"profile_allowed\":true,\"db_compatible\":true,\"connection_scope_allowed\":true,\"policy_allowed\":true,\"schema_ready\":false,\"disabled_reason\":\"Required table(s) are missing from the current database schema: ['main.orders'].\",\"missing_tables\":[\"main.orders\"],\"source\":\"query.sql\",\"triggers\":[],\"idempotent\":false,\"databases\":null,\"connection_ids\":null,\"configured_connection_ids\":[],\"unconfigured_connection_ids\":[],\"connection_type_conflicts\":[],\"profiles\":[],\"params\":{},\"version\":\"1.0\",\"requires_confirmation\":false,\"related_skills\":[],\"tables\":[\"main.orders\"],\"declared_tables\":[],\"inferred_tables\":[\"main.orders\"]},\"connection_id\":\"demo\",\"current_database_type\":\"sqlite\",\"usage_hint\":\"Required table(s) are missing from the current database schema: ['main.orders'].\",\"mutations_enabled\":false,\"schema_check_enabled\":true,\"schema_check_available\":true}"
+          ]
+        },
+        "execution": {
+          "is_error": true,
+          "structured": null,
+          "text": [
+            "Skill 'qualified-read' requires table(s) not found in the target connection schema: ['main.orders']"
+          ]
+        }
+      }
+    },
+    {
+      "mode": "auto",
+      "read": [
+        {
+          "sql": "SELECT n FROM main.orders",
+          "is_error": false,
+          "structured": {
+            "success": true,
+            "data": [
+              {
+                "n": 7
+              }
+            ],
+            "row_count": 1,
+            "total_rows": 1,
+            "truncated": false,
+            "truncation_note": null,
+            "query": "SELECT n FROM main.orders",
+            "connection_id": "demo",
+            "db_type": "sqlite"
+          },
+          "text": [
+            "{\"success\":true,\"data\":[{\"n\":7}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null,\"query\":\"SELECT n FROM main.orders\",\"connection_id\":\"demo\",\"db_type\":\"sqlite\"}"
+          ]
+        },
+        {
+          "sql": "SELECT n FROM \"main\".\"orders\"",
+          "is_error": false,
+          "structured": {
+            "success": true,
+            "data": [
+              {
+                "n": 7
+              }
+            ],
+            "row_count": 1,
+            "total_rows": 1,
+            "truncated": false,
+            "truncation_note": null,
+            "query": "SELECT n FROM \"main\".\"orders\"",
+            "connection_id": "demo",
+            "db_type": "sqlite"
+          },
+          "text": [
+            "{\"success\":true,\"data\":[{\"n\":7}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null,\"query\":\"SELECT n FROM \\\"main\\\".\\\"orders\\\"\",\"connection_id\":\"demo\",\"db_type\":\"sqlite\"}"
+          ]
+        },
+        {
+          "sql": "SELECT n FROM \"main.orders\"",
+          "is_error": false,
+          "structured": {
+            "success": true,
+            "data": [
+              {
+                "n": 99
+              }
+            ],
+            "row_count": 1,
+            "total_rows": 1,
+            "truncated": false,
+            "truncation_note": null,
+            "query": "SELECT n FROM \"main.orders\"",
+            "connection_id": "demo",
+            "db_type": "sqlite"
+          },
+          "text": [
+            "{\"success\":true,\"data\":[{\"n\":99}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null,\"query\":\"SELECT n FROM \\\"main.orders\\\"\",\"connection_id\":\"demo\",\"db_type\":\"sqlite\"}"
+          ]
+        },
+        {
+          "sql": "SELECT n FROM main.\"main.orders\"",
+          "is_error": false,
+          "structured": {
+            "success": false,
+            "error_code": "table_access_denied",
+            "error": "Access denied to table(s): main.main.orders. Only allowed tables: main.orders",
+            "hint": "Keep the same connection and use authorized tables. If CTE name rules are unknown or case-sensitive, match the declaration's exact case.",
+            "query": "SELECT n FROM main.\"main.orders\"",
+            "connection_id": "demo",
+            "db_type": "sqlite"
+          },
+          "text": [
+            "{\"success\":false,\"error_code\":\"table_access_denied\",\"error\":\"Access denied to table(s): main.main.orders. Only allowed tables: main.orders\",\"hint\":\"Keep the same connection and use authorized tables. If CTE name rules are unknown or case-sensitive, match the declaration's exact case.\",\"query\":\"SELECT n FROM main.\\\"main.orders\\\"\",\"connection_id\":\"demo\",\"db_type\":\"sqlite\"}"
+          ]
+        }
+      ],
+      "mutation": [
+        {
+          "exception": "typed",
+          "preview_success": true,
+          "tokens_before": 1,
+          "tokens_after": 0,
+          "execution_response": {
+            "is_error": true,
+            "structured": null,
+            "text": [
+              "Error calling tool 'execute_mutation_skill'"
+            ]
+          },
+          "replay_response": {
+            "is_error": true,
+            "structured": null,
+            "text": [
+              "Invalid preview_token, has already been used, or was not issued by this server process; rejected before execution, so this request wrote nothing. Check the current state and let the user decide whether to preview again."
+            ]
+          },
+          "execute_callback_count": 0,
+          "adapter_write_attempts": 0,
+          "database_unchanged": true
+        },
+        {
+          "exception": "generic",
+          "preview_success": true,
+          "tokens_before": 1,
+          "tokens_after": 0,
+          "execution_response": {
+            "is_error": true,
+            "structured": null,
+            "text": [
+              "Error calling tool 'execute_mutation_skill'"
+            ]
+          },
+          "replay_response": {
+            "is_error": true,
+            "structured": null,
+            "text": [
+              "Invalid preview_token, has already been used, or was not issued by this server process; rejected before execution, so this request wrote nothing. Check the current state and let the user decide whether to preview again."
+            ]
+          },
+          "execute_callback_count": 0,
+          "adapter_write_attempts": 0,
+          "database_unchanged": true
+        }
+      ],
+      "skill": {
+        "default": {
+          "is_error": false,
+          "structured": {
+            "success": true,
+            "skills": [
+              {
+                "name": "qualified-read",
+                "type": "query",
+                "description": "Isolated review probe",
+                "risk": "low",
+                "category": "uncategorized",
+                "executable": true,
+                "profile_allowed": true,
+                "db_compatible": true,
+                "connection_scope_allowed": true,
+                "policy_allowed": true,
+                "schema_ready": true,
+                "source": "query.sql",
+                "triggers": [],
+                "idempotent": false,
+                "databases": null,
+                "connection_ids": null,
+                "configured_connection_ids": [],
+                "unconfigured_connection_ids": [],
+                "connection_type_conflicts": [],
+                "profiles": []
+              }
+            ],
+            "total_skills": 1,
+            "matched_skills": 1,
+            "matched_catalog_skills": 1,
+            "available_skills": 1,
+            "unavailable_skills": 0,
+            "filtered_unavailable_skills": 0,
+            "schema_unready_skills": 0,
+            "policy_blocked_skills": 0,
+            "connection_scope_blocked_skills": 0,
+            "connection_type_conflict_skills": 0,
+            "profile_excluded_skills": 0,
+            "query_skills": 1,
+            "mutation_skills": 0,
+            "mutations_enabled": false,
+            "schema_check_enabled": true,
+            "schema_check_available": true,
+            "excluded_profiles": [],
+            "detail_level": "summary",
+            "available_only": true,
+            "current_database_type": "sqlite",
+            "connection_id": "demo",
+            "search": null,
+            "category": null,
+            "categories": [
+              {
+                "category": "uncategorized",
+                "count": 1
+              }
+            ],
+            "hint": "If params are not already known, call get_skill_detail(skill_name, connection_id, detail_level='execution') with the same target connection before execution."
+          },
+          "text": [
+            "{\"success\":true,\"skills\":[{\"name\":\"qualified-read\",\"type\":\"query\",\"description\":\"Isolated review probe\",\"risk\":\"low\",\"category\":\"uncategorized\",\"executable\":true,\"profile_allowed\":true,\"db_compatible\":true,\"connection_scope_allowed\":true,\"policy_allowed\":true,\"schema_ready\":true,\"source\":\"query.sql\",\"triggers\":[],\"idempotent\":false,\"databases\":null,\"connection_ids\":null,\"configured_connection_ids\":[],\"unconfigured_connection_ids\":[],\"connection_type_conflicts\":[],\"profiles\":[]}],\"total_skills\":1,\"matched_skills\":1,\"matched_catalog_skills\":1,\"available_skills\":1,\"unavailable_skills\":0,\"filtered_unavailable_skills\":0,\"schema_unready_skills\":0,\"policy_blocked_skills\":0,\"connection_scope_blocked_skills\":0,\"connection_type_conflict_skills\":0,\"profile_excluded_skills\":0,\"query_skills\":1,\"mutation_skills\":0,\"mutations_enabled\":false,\"schema_check_enabled\":true,\"schema_check_available\":true,\"excluded_profiles\":[],\"detail_level\":\"summary\",\"available_only\":true,\"current_database_type\":\"sqlite\",\"connection_id\":\"demo\",\"search\":null,\"category\":null,\"categories\":[{\"category\":\"uncategorized\",\"count\":1}],\"hint\":\"If params are not already known, call get_skill_detail(skill_name, connection_id, detail_level='execution') with the same target connection before execution.\"}"
+          ]
+        },
+        "full": {
+          "is_error": false,
+          "structured": {
+            "success": true,
+            "skills": [
+              {
+                "name": "qualified-read",
+                "type": "query",
+                "description": "Isolated review probe",
+                "risk": "low",
+                "category": "uncategorized",
+                "executable": true,
+                "profile_allowed": true,
+                "db_compatible": true,
+                "connection_scope_allowed": true,
+                "policy_allowed": true,
+                "schema_ready": true,
+                "source": "query.sql",
+                "triggers": [],
+                "idempotent": false,
+                "databases": null,
+                "connection_ids": null,
+                "configured_connection_ids": [],
+                "unconfigured_connection_ids": [],
+                "connection_type_conflicts": [],
+                "profiles": [],
+                "params": {},
+                "version": "1.0",
+                "requires_confirmation": false,
+                "related_skills": [],
+                "tables": [
+                  "main.orders"
+                ],
+                "declared_tables": [],
+                "inferred_tables": [
+                  "main.orders"
+                ]
+              }
+            ],
+            "total_skills": 1,
+            "matched_skills": 1,
+            "matched_catalog_skills": 1,
+            "available_skills": 1,
+            "unavailable_skills": 0,
+            "filtered_unavailable_skills": 0,
+            "schema_unready_skills": 0,
+            "policy_blocked_skills": 0,
+            "connection_scope_blocked_skills": 0,
+            "connection_type_conflict_skills": 0,
+            "profile_excluded_skills": 0,
+            "query_skills": 1,
+            "mutation_skills": 0,
+            "mutations_enabled": false,
+            "schema_check_enabled": true,
+            "schema_check_available": true,
+            "excluded_profiles": [],
+            "detail_level": "full",
+            "available_only": false,
+            "current_database_type": "sqlite",
+            "connection_id": "demo",
+            "search": null,
+            "category": null,
+            "categories": [
+              {
+                "category": "uncategorized",
+                "count": 1
+              }
+            ]
+          },
+          "text": [
+            "{\"success\":true,\"skills\":[{\"name\":\"qualified-read\",\"type\":\"query\",\"description\":\"Isolated review probe\",\"risk\":\"low\",\"category\":\"uncategorized\",\"executable\":true,\"profile_allowed\":true,\"db_compatible\":true,\"connection_scope_allowed\":true,\"policy_allowed\":true,\"schema_ready\":true,\"source\":\"query.sql\",\"triggers\":[],\"idempotent\":false,\"databases\":null,\"connection_ids\":null,\"configured_connection_ids\":[],\"unconfigured_connection_ids\":[],\"connection_type_conflicts\":[],\"profiles\":[],\"params\":{},\"version\":\"1.0\",\"requires_confirmation\":false,\"related_skills\":[],\"tables\":[\"main.orders\"],\"declared_tables\":[],\"inferred_tables\":[\"main.orders\"]}],\"total_skills\":1,\"matched_skills\":1,\"matched_catalog_skills\":1,\"available_skills\":1,\"unavailable_skills\":0,\"filtered_unavailable_skills\":0,\"schema_unready_skills\":0,\"policy_blocked_skills\":0,\"connection_scope_blocked_skills\":0,\"connection_type_conflict_skills\":0,\"profile_excluded_skills\":0,\"query_skills\":1,\"mutation_skills\":0,\"mutations_enabled\":false,\"schema_check_enabled\":true,\"schema_check_available\":true,\"excluded_profiles\":[],\"detail_level\":\"full\",\"available_only\":false,\"current_database_type\":\"sqlite\",\"connection_id\":\"demo\",\"search\":null,\"category\":null,\"categories\":[{\"category\":\"uncategorized\",\"count\":1}]}"
+          ]
+        },
+        "detail": {
+          "is_error": false,
+          "structured": {
+            "success": true,
+            "skill": {
+              "name": "qualified-read",
+              "type": "query",
+              "description": "Isolated review probe",
+              "risk": "low",
+              "category": "uncategorized",
+              "executable": true,
+              "profile_allowed": true,
+              "db_compatible": true,
+              "connection_scope_allowed": true,
+              "policy_allowed": true,
+              "schema_ready": true,
+              "source": "query.sql",
+              "triggers": [],
+              "idempotent": false,
+              "databases": null,
+              "connection_ids": null,
+              "configured_connection_ids": [],
+              "unconfigured_connection_ids": [],
+              "connection_type_conflicts": [],
+              "profiles": [],
+              "params": {},
+              "version": "1.0",
+              "requires_confirmation": false,
+              "related_skills": [],
+              "tables": [
+                "main.orders"
+              ],
+              "declared_tables": [],
+              "inferred_tables": [
+                "main.orders"
+              ]
+            },
+            "connection_id": "demo",
+            "current_database_type": "sqlite",
+            "usage_hint": "Call execute_query_skill(skill_name, params, connection_id) with this same target connection and params matching the schema.",
+            "mutations_enabled": false,
+            "schema_check_enabled": true,
+            "schema_check_available": true
+          },
+          "text": [
+            "{\"success\":true,\"skill\":{\"name\":\"qualified-read\",\"type\":\"query\",\"description\":\"Isolated review probe\",\"risk\":\"low\",\"category\":\"uncategorized\",\"executable\":true,\"profile_allowed\":true,\"db_compatible\":true,\"connection_scope_allowed\":true,\"policy_allowed\":true,\"schema_ready\":true,\"source\":\"query.sql\",\"triggers\":[],\"idempotent\":false,\"databases\":null,\"connection_ids\":null,\"configured_connection_ids\":[],\"unconfigured_connection_ids\":[],\"connection_type_conflicts\":[],\"profiles\":[],\"params\":{},\"version\":\"1.0\",\"requires_confirmation\":false,\"related_skills\":[],\"tables\":[\"main.orders\"],\"declared_tables\":[],\"inferred_tables\":[\"main.orders\"]},\"connection_id\":\"demo\",\"current_database_type\":\"sqlite\",\"usage_hint\":\"Call execute_query_skill(skill_name, params, connection_id) with this same target connection and params matching the schema.\",\"mutations_enabled\":false,\"schema_check_enabled\":true,\"schema_check_available\":true}"
+          ]
+        },
+        "execution": {
+          "is_error": false,
+          "structured": {
+            "success": true,
+            "skill_name": "qualified-read",
+            "connection_id": "demo",
+            "db_type": "sqlite",
+            "data": [
+              {
+                "n": 7
+              }
+            ],
+            "row_count": 1,
+            "total_rows": 1,
+            "truncated": false,
+            "truncation_note": null
+          },
+          "text": [
+            "{\"success\":true,\"skill_name\":\"qualified-read\",\"connection_id\":\"demo\",\"db_type\":\"sqlite\",\"data\":[{\"n\":7}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null}"
+          ]
+        }
+      },
+      "qualified_readiness_without_dotted_table": {
+        "raw": {
+          "is_error": false,
+          "structured": {
+            "success": true,
+            "data": [
+              {
+                "n": 7
+              }
+            ],
+            "row_count": 1,
+            "total_rows": 1,
+            "truncated": false,
+            "truncation_note": null,
+            "query": "SELECT n FROM main.orders",
+            "connection_id": "demo",
+            "db_type": "sqlite"
+          },
+          "text": [
+            "{\"success\":true,\"data\":[{\"n\":7}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null,\"query\":\"SELECT n FROM main.orders\",\"connection_id\":\"demo\",\"db_type\":\"sqlite\"}"
+          ]
+        },
+        "default": {
+          "is_error": false,
+          "structured": {
+            "success": true,
+            "skills": [],
+            "total_skills": 1,
+            "matched_skills": 0,
+            "matched_catalog_skills": 1,
+            "available_skills": 0,
+            "unavailable_skills": 1,
+            "filtered_unavailable_skills": 1,
+            "schema_unready_skills": 1,
+            "policy_blocked_skills": 0,
+            "connection_scope_blocked_skills": 0,
+            "connection_type_conflict_skills": 0,
+            "profile_excluded_skills": 0,
+            "query_skills": 0,
+            "mutation_skills": 0,
+            "mutations_enabled": false,
+            "schema_check_enabled": true,
+            "schema_check_available": true,
+            "excluded_profiles": [],
+            "detail_level": "summary",
+            "available_only": true,
+            "current_database_type": "sqlite",
+            "connection_id": "demo",
+            "search": null,
+            "category": null,
+            "categories": [],
+            "hint": "If params are not already known, call get_skill_detail(skill_name, connection_id, detail_level='execution') with the same target connection before execution."
+          },
+          "text": [
+            "{\"success\":true,\"skills\":[],\"total_skills\":1,\"matched_skills\":0,\"matched_catalog_skills\":1,\"available_skills\":0,\"unavailable_skills\":1,\"filtered_unavailable_skills\":1,\"schema_unready_skills\":1,\"policy_blocked_skills\":0,\"connection_scope_blocked_skills\":0,\"connection_type_conflict_skills\":0,\"profile_excluded_skills\":0,\"query_skills\":0,\"mutation_skills\":0,\"mutations_enabled\":false,\"schema_check_enabled\":true,\"schema_check_available\":true,\"excluded_profiles\":[],\"detail_level\":\"summary\",\"available_only\":true,\"current_database_type\":\"sqlite\",\"connection_id\":\"demo\",\"search\":null,\"category\":null,\"categories\":[],\"hint\":\"If params are not already known, call get_skill_detail(skill_name, connection_id, detail_level='execution') with the same target connection before execution.\"}"
+          ]
+        },
+        "full": {
+          "is_error": false,
+          "structured": {
+            "success": true,
+            "skills": [
+              {
+                "name": "qualified-read",
+                "type": "query",
+                "description": "Isolated review probe",
+                "risk": "low",
+                "category": "uncategorized",
+                "executable": false,
+                "profile_allowed": true,
+                "db_compatible": true,
+                "connection_scope_allowed": true,
+                "policy_allowed": true,
+                "schema_ready": false,
+                "disabled_reason": "Required table(s) are missing from the current database schema: ['main.orders'].",
+                "missing_tables": [
+                  "main.orders"
+                ],
+                "source": "query.sql",
+                "triggers": [],
+                "idempotent": false,
+                "databases": null,
+                "connection_ids": null,
+                "configured_connection_ids": [],
+                "unconfigured_connection_ids": [],
+                "connection_type_conflicts": [],
+                "profiles": [],
+                "params": {},
+                "version": "1.0",
+                "requires_confirmation": false,
+                "related_skills": [],
+                "tables": [
+                  "main.orders"
+                ],
+                "declared_tables": [],
+                "inferred_tables": [
+                  "main.orders"
+                ]
+              }
+            ],
+            "total_skills": 1,
+            "matched_skills": 1,
+            "matched_catalog_skills": 1,
+            "available_skills": 0,
+            "unavailable_skills": 1,
+            "filtered_unavailable_skills": 0,
+            "schema_unready_skills": 1,
+            "policy_blocked_skills": 0,
+            "connection_scope_blocked_skills": 0,
+            "connection_type_conflict_skills": 0,
+            "profile_excluded_skills": 0,
+            "query_skills": 1,
+            "mutation_skills": 0,
+            "mutations_enabled": false,
+            "schema_check_enabled": true,
+            "schema_check_available": true,
+            "excluded_profiles": [],
+            "detail_level": "full",
+            "available_only": false,
+            "current_database_type": "sqlite",
+            "connection_id": "demo",
+            "search": null,
+            "category": null,
+            "categories": [
+              {
+                "category": "uncategorized",
+                "count": 1
+              }
+            ]
+          },
+          "text": [
+            "{\"success\":true,\"skills\":[{\"name\":\"qualified-read\",\"type\":\"query\",\"description\":\"Isolated review probe\",\"risk\":\"low\",\"category\":\"uncategorized\",\"executable\":false,\"profile_allowed\":true,\"db_compatible\":true,\"connection_scope_allowed\":true,\"policy_allowed\":true,\"schema_ready\":false,\"disabled_reason\":\"Required table(s) are missing from the current database schema: ['main.orders'].\",\"missing_tables\":[\"main.orders\"],\"source\":\"query.sql\",\"triggers\":[],\"idempotent\":false,\"databases\":null,\"connection_ids\":null,\"configured_connection_ids\":[],\"unconfigured_connection_ids\":[],\"connection_type_conflicts\":[],\"profiles\":[],\"params\":{},\"version\":\"1.0\",\"requires_confirmation\":false,\"related_skills\":[],\"tables\":[\"main.orders\"],\"declared_tables\":[],\"inferred_tables\":[\"main.orders\"]}],\"total_skills\":1,\"matched_skills\":1,\"matched_catalog_skills\":1,\"available_skills\":0,\"unavailable_skills\":1,\"filtered_unavailable_skills\":0,\"schema_unready_skills\":1,\"policy_blocked_skills\":0,\"connection_scope_blocked_skills\":0,\"connection_type_conflict_skills\":0,\"profile_excluded_skills\":0,\"query_skills\":1,\"mutation_skills\":0,\"mutations_enabled\":false,\"schema_check_enabled\":true,\"schema_check_available\":true,\"excluded_profiles\":[],\"detail_level\":\"full\",\"available_only\":false,\"current_database_type\":\"sqlite\",\"connection_id\":\"demo\",\"search\":null,\"category\":null,\"categories\":[{\"category\":\"uncategorized\",\"count\":1}]}"
+          ]
+        },
+        "detail": {
+          "is_error": false,
+          "structured": {
+            "success": true,
+            "skill": {
+              "name": "qualified-read",
+              "type": "query",
+              "description": "Isolated review probe",
+              "risk": "low",
+              "category": "uncategorized",
+              "executable": false,
+              "profile_allowed": true,
+              "db_compatible": true,
+              "connection_scope_allowed": true,
+              "policy_allowed": true,
+              "schema_ready": false,
+              "disabled_reason": "Required table(s) are missing from the current database schema: ['main.orders'].",
+              "missing_tables": [
+                "main.orders"
+              ],
+              "source": "query.sql",
+              "triggers": [],
+              "idempotent": false,
+              "databases": null,
+              "connection_ids": null,
+              "configured_connection_ids": [],
+              "unconfigured_connection_ids": [],
+              "connection_type_conflicts": [],
+              "profiles": [],
+              "params": {},
+              "version": "1.0",
+              "requires_confirmation": false,
+              "related_skills": [],
+              "tables": [
+                "main.orders"
+              ],
+              "declared_tables": [],
+              "inferred_tables": [
+                "main.orders"
+              ]
+            },
+            "connection_id": "demo",
+            "current_database_type": "sqlite",
+            "usage_hint": "Required table(s) are missing from the current database schema: ['main.orders'].",
+            "mutations_enabled": false,
+            "schema_check_enabled": true,
+            "schema_check_available": true
+          },
+          "text": [
+            "{\"success\":true,\"skill\":{\"name\":\"qualified-read\",\"type\":\"query\",\"description\":\"Isolated review probe\",\"risk\":\"low\",\"category\":\"uncategorized\",\"executable\":false,\"profile_allowed\":true,\"db_compatible\":true,\"connection_scope_allowed\":true,\"policy_allowed\":true,\"schema_ready\":false,\"disabled_reason\":\"Required table(s) are missing from the current database schema: ['main.orders'].\",\"missing_tables\":[\"main.orders\"],\"source\":\"query.sql\",\"triggers\":[],\"idempotent\":false,\"databases\":null,\"connection_ids\":null,\"configured_connection_ids\":[],\"unconfigured_connection_ids\":[],\"connection_type_conflicts\":[],\"profiles\":[],\"params\":{},\"version\":\"1.0\",\"requires_confirmation\":false,\"related_skills\":[],\"tables\":[\"main.orders\"],\"declared_tables\":[],\"inferred_tables\":[\"main.orders\"]},\"connection_id\":\"demo\",\"current_database_type\":\"sqlite\",\"usage_hint\":\"Required table(s) are missing from the current database schema: ['main.orders'].\",\"mutations_enabled\":false,\"schema_check_enabled\":true,\"schema_check_available\":true}"
+          ]
+        },
+        "execution": {
+          "is_error": true,
+          "structured": null,
+          "text": [
+            "Skill 'qualified-read' requires table(s) not found in the target connection schema: ['main.orders']"
+          ]
+        }
+      }
+    }
+  ],
+  "reviewer_reported_host": {
+    "date": "2026-10-15",
+    "passed": 7,
+    "attribution": "Provided in user message; original trace not independently inspected",
+    "root_cause": "Undetermined; cache causation not established"
+  },
+  "policy_projection": [
+    {
+      "sql": "SELECT n FROM main.orders",
+      "dependencies": [
+        "main.orders"
+      ],
+      "allowed": true
+    },
+    {
+      "sql": "SELECT n FROM \"main\".\"orders\"",
+      "dependencies": [
+        "main.orders"
+      ],
+      "allowed": true
+    },
+    {
+      "sql": "SELECT n FROM \"main.orders\"",
+      "dependencies": [
+        "main.orders"
+      ],
+      "allowed": true
+    },
+    {
+      "sql": "SELECT n FROM main.\"main.orders\"",
+      "dependencies": [
+        "main.main.orders"
+      ],
+      "allowed": false
+    }
+  ],
+  "serialization_type": "PydanticSerializationError"
+}

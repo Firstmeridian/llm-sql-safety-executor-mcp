@@ -1,0 +1,65 @@
+{
+  "selected_connection": "trade_analysis_mysql",
+  "credentials": "Loaded privately from current TOML into the test process only",
+  "pytest_exit_code": 0,
+  "tests": [
+    {
+      "test": "tests/test_db_adapter.py::TestMySQLAdapter::test_mysql_connection",
+      "phase": "call",
+      "outcome": "passed"
+    },
+    {
+      "test": "tests/test_db_adapter.py::TestMySQLAdapter::test_mysql_check_connection",
+      "phase": "call",
+      "outcome": "passed"
+    },
+    {
+      "test": "tests/test_db_adapter.py::TestMySQLAdapter::test_mysql_db_type",
+      "phase": "call",
+      "outcome": "passed"
+    },
+    {
+      "test": "tests/test_v372_write_outcomes.py::test_mysql_stale_conditional_updates_allow_at_most_one_commit",
+      "phase": "call",
+      "outcome": "passed"
+    }
+  ],
+  "fixture_operations": [
+    {
+      "operation": "CREATE",
+      "table": "mcp_v372_race_235dabf72c5343038d55f50e7a051cdc"
+    },
+    {
+      "operation": "INSERT",
+      "table": "mcp_v372_race_235dabf72c5343038d55f50e7a051cdc"
+    },
+    {
+      "operation": "SELECT",
+      "table": "mcp_v372_race_235dabf72c5343038d55f50e7a051cdc"
+    },
+    {
+      "operation": "SELECT",
+      "table": "mcp_v372_race_235dabf72c5343038d55f50e7a051cdc"
+    },
+    {
+      "operation": "UPDATE",
+      "table": "mcp_v372_race_235dabf72c5343038d55f50e7a051cdc"
+    },
+    {
+      "operation": "UPDATE",
+      "table": "mcp_v372_race_235dabf72c5343038d55f50e7a051cdc"
+    },
+    {
+      "operation": "DROP",
+      "table": "mcp_v372_race_235dabf72c5343038d55f50e7a051cdc"
+    }
+  ],
+  "cleanup": [
+    {
+      "table": "mcp_v372_race_235dabf72c5343038d55f50e7a051cdc",
+      "remaining": 0
+    }
+  ],
+  "existing_business_rows_written": false,
+  "asserted_race": "Exactly one COMMITTED and one ROLLED_BACK ExpectedRowcountMismatch"
+}

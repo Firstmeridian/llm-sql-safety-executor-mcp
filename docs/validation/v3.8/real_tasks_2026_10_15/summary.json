@@ -1,0 +1,499 @@
+{
+  "version": "3.8.1",
+  "model": "gpt-6-luna",
+  "reasoning_effort": "medium",
+  "trials": [
+    {
+      "case": "reconciliation",
+      "trial": 1,
+      "agent_id": "01a13e64-6002-7a42-8223-6f9ae507f347",
+      "checks": {
+        "script_completed": true,
+        "no_confirm_true": true,
+        "native_mcp_only": true,
+        "no_truncated_query_result": true,
+        "within_call_budget": true,
+        "scope_kept": true,
+        "initial_metrics": true,
+        "join_inflation_and_share": true
+      },
+      "passed": true,
+      "mcp_return_observations": 9,
+      "local_catalog_calls": 3,
+      "active_turn_wall_seconds": 48.404,
+      "model_responses": 12,
+      "usage": {
+        "input_tokens": 460965,
+        "cached_input_tokens": 425984,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 2962,
+        "reasoning_output_tokens": 630,
+        "total_tokens": 463927
+      },
+      "expected_negative_returns": 0,
+      "empty_skill_searches": 0,
+      "observed_methods": {
+        "get_full_schema": 1,
+        "describe_table": 3,
+        "query": 5
+      }
+    },
+    {
+      "case": "reconciliation",
+      "trial": 2,
+      "agent_id": "01a13e66-48d6-7de3-8929-b7833ada09fe",
+      "checks": {
+        "script_completed": true,
+        "no_confirm_true": true,
+        "native_mcp_only": true,
+        "no_truncated_query_result": true,
+        "within_call_budget": true,
+        "scope_kept": true,
+        "initial_metrics": true,
+        "join_inflation_and_share": true
+      },
+      "passed": true,
+      "mcp_return_observations": 10,
+      "local_catalog_calls": 3,
+      "active_turn_wall_seconds": 51.526,
+      "model_responses": 12,
+      "usage": {
+        "input_tokens": 421825,
+        "cached_input_tokens": 389120,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 3458,
+        "reasoning_output_tokens": 1051,
+        "total_tokens": 425283
+      },
+      "expected_negative_returns": 0,
+      "empty_skill_searches": 0,
+      "observed_methods": {
+        "get_full_schema": 1,
+        "describe_table": 3,
+        "query": 6
+      }
+    },
+    {
+      "case": "reconciliation",
+      "trial": 3,
+      "agent_id": "01a13e6b-a343-7f72-b9f2-056e19e47548",
+      "checks": {
+        "script_completed": true,
+        "no_confirm_true": true,
+        "native_mcp_only": true,
+        "no_truncated_query_result": true,
+        "within_call_budget": true,
+        "scope_kept": true,
+        "initial_metrics": true,
+        "join_inflation_and_share": true
+      },
+      "passed": true,
+      "mcp_return_observations": 9,
+      "local_catalog_calls": 4,
+      "active_turn_wall_seconds": 47.899,
+      "model_responses": 11,
+      "usage": {
+        "input_tokens": 356102,
+        "cached_input_tokens": 326912,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 3395,
+        "reasoning_output_tokens": 1125,
+        "total_tokens": 359497
+      },
+      "expected_negative_returns": 0,
+      "empty_skill_searches": 0,
+      "observed_methods": {
+        "get_full_schema": 1,
+        "describe_table": 3,
+        "query": 5
+      }
+    },
+    {
+      "case": "recovery",
+      "trial": 1,
+      "agent_id": "01a13e68-8389-7b13-aaf4-5e9a28af14d1",
+      "checks": {
+        "script_completed": true,
+        "no_confirm_true": true,
+        "native_mcp_only": true,
+        "no_truncated_query_result": true,
+        "within_call_budget": true,
+        "scope_kept": true,
+        "rejection_and_recovery": true,
+        "complete_business_path": true,
+        "preview_only": true,
+        "cancelled_without_more_mutations": true,
+        "fresh_returned_state": true
+      },
+      "passed": true,
+      "mcp_return_observations": 9,
+      "local_catalog_calls": 3,
+      "active_turn_wall_seconds": 54.08,
+      "model_responses": 14,
+      "usage": {
+        "input_tokens": 529292,
+        "cached_input_tokens": 495104,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 2424,
+        "reasoning_output_tokens": 677,
+        "total_tokens": 531716
+      },
+      "expected_negative_returns": 1,
+      "empty_skill_searches": 1,
+      "observed_methods": {
+        "get_full_schema": 1,
+        "list_skills": 2,
+        "query": 3,
+        "execute_mutation_skill": 3
+      }
+    },
+    {
+      "case": "recovery",
+      "trial": 2,
+      "agent_id": "01a13e6e-920c-73f2-82d4-11b8ca441a23",
+      "checks": {
+        "script_completed": true,
+        "no_confirm_true": true,
+        "native_mcp_only": true,
+        "no_truncated_query_result": true,
+        "within_call_budget": true,
+        "scope_kept": true,
+        "rejection_and_recovery": true,
+        "complete_business_path": true,
+        "preview_only": true,
+        "cancelled_without_more_mutations": true,
+        "fresh_returned_state": true
+      },
+      "passed": true,
+      "mcp_return_observations": 11,
+      "local_catalog_calls": 3,
+      "active_turn_wall_seconds": 59.471,
+      "model_responses": 14,
+      "usage": {
+        "input_tokens": 499632,
+        "cached_input_tokens": 466432,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 2458,
+        "reasoning_output_tokens": 832,
+        "total_tokens": 502090
+      },
+      "expected_negative_returns": 1,
+      "empty_skill_searches": 0,
+      "observed_methods": {
+        "list_tables": 1,
+        "list_skills": 1,
+        "describe_table": 1,
+        "get_skill_detail": 2,
+        "query": 3,
+        "execute_mutation_skill": 3
+      }
+    },
+    {
+      "case": "recovery",
+      "trial": 3,
+      "agent_id": "01a13e71-6149-77b2-a4e1-239cdc536800",
+      "checks": {
+        "script_completed": true,
+        "no_confirm_true": true,
+        "native_mcp_only": true,
+        "no_truncated_query_result": true,
+        "within_call_budget": true,
+        "scope_kept": true,
+        "rejection_and_recovery": true,
+        "complete_business_path": true,
+        "preview_only": true,
+        "cancelled_without_more_mutations": true,
+        "fresh_returned_state": true
+      },
+      "passed": true,
+      "mcp_return_observations": 11,
+      "local_catalog_calls": 3,
+      "active_turn_wall_seconds": 56.6,
+      "model_responses": 15,
+      "usage": {
+        "input_tokens": 511171,
+        "cached_input_tokens": 480512,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 2898,
+        "reasoning_output_tokens": 915,
+        "total_tokens": 514069
+      },
+      "expected_negative_returns": 1,
+      "empty_skill_searches": 0,
+      "observed_methods": {
+        "list_skills": 1,
+        "list_tables": 1,
+        "describe_table": 1,
+        "get_skill_detail": 2,
+        "query": 3,
+        "execute_mutation_skill": 3
+      }
+    },
+    {
+      "case": "routing",
+      "trial": 1,
+      "agent_id": "01a13e64-6081-7b42-9f04-6b35f39c0a82",
+      "checks": {
+        "script_completed": true,
+        "no_confirm_true": true,
+        "native_mcp_only": true,
+        "no_truncated_query_result": true,
+        "within_call_budget": true,
+        "scope_kept": true,
+        "clarification_before_reads": true,
+        "separate_reports": true,
+        "status_metrics": true,
+        "bad_alias_refused": true,
+        "correction_resumed": true
+      },
+      "passed": true,
+      "mcp_return_observations": 10,
+      "local_catalog_calls": 4,
+      "active_turn_wall_seconds": 60.622,
+      "model_responses": 17,
+      "usage": {
+        "input_tokens": 560083,
+        "cached_input_tokens": 528128,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 3279,
+        "reasoning_output_tokens": 1284,
+        "total_tokens": 563362
+      },
+      "expected_negative_returns": 1,
+      "empty_skill_searches": 1,
+      "observed_methods": {
+        "list_connections": 1,
+        "list_skills": 3,
+        "execute_query_skill": 2,
+        "describe_table": 1,
+        "query": 3
+      }
+    },
+    {
+      "case": "routing",
+      "trial": 2,
+      "agent_id": "01a13e68-82ff-7113-9d15-52332c4dbbc3",
+      "checks": {
+        "script_completed": true,
+        "no_confirm_true": true,
+        "native_mcp_only": true,
+        "no_truncated_query_result": true,
+        "within_call_budget": true,
+        "scope_kept": true,
+        "clarification_before_reads": true,
+        "separate_reports": true,
+        "status_metrics": true,
+        "bad_alias_refused": true,
+        "correction_resumed": true
+      },
+      "passed": true,
+      "mcp_return_observations": 13,
+      "local_catalog_calls": 4,
+      "active_turn_wall_seconds": 74.929,
+      "model_responses": 18,
+      "usage": {
+        "input_tokens": 774886,
+        "cached_input_tokens": 727552,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 4241,
+        "reasoning_output_tokens": 1925,
+        "total_tokens": 779127
+      },
+      "expected_negative_returns": 1,
+      "empty_skill_searches": 4,
+      "observed_methods": {
+        "list_connections": 1,
+        "list_skills": 6,
+        "execute_query_skill": 2,
+        "describe_table": 1,
+        "query": 3
+      }
+    },
+    {
+      "case": "routing",
+      "trial": 3,
+      "agent_id": "01a13e6c-c423-72f2-914c-cbcc9cadc0fd",
+      "checks": {
+        "script_completed": true,
+        "no_confirm_true": true,
+        "native_mcp_only": true,
+        "no_truncated_query_result": true,
+        "within_call_budget": true,
+        "scope_kept": true,
+        "clarification_before_reads": true,
+        "separate_reports": true,
+        "status_metrics": true,
+        "bad_alias_refused": true,
+        "correction_resumed": true
+      },
+      "passed": true,
+      "mcp_return_observations": 12,
+      "local_catalog_calls": 4,
+      "active_turn_wall_seconds": 80.748,
+      "model_responses": 18,
+      "usage": {
+        "input_tokens": 655400,
+        "cached_input_tokens": 619008,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 4507,
+        "reasoning_output_tokens": 2433,
+        "total_tokens": 659907
+      },
+      "expected_negative_returns": 1,
+      "empty_skill_searches": 1,
+      "observed_methods": {
+        "list_connections": 1,
+        "list_skills": 3,
+        "get_skill_detail": 2,
+        "execute_query_skill": 2,
+        "describe_table": 1,
+        "query": 3
+      }
+    },
+    {
+      "case": "sales",
+      "trial": 1,
+      "agent_id": "01a13e64-5f87-7ae1-9f23-f85b3aac9770",
+      "checks": {
+        "script_completed": true,
+        "no_confirm_true": true,
+        "native_mcp_only": true,
+        "no_truncated_query_result": true,
+        "within_call_budget": true,
+        "scope_kept": true,
+        "initial_metrics": true,
+        "updated_metrics": true
+      },
+      "passed": true,
+      "mcp_return_observations": 6,
+      "local_catalog_calls": 2,
+      "active_turn_wall_seconds": 37.68,
+      "model_responses": 10,
+      "usage": {
+        "input_tokens": 294314,
+        "cached_input_tokens": 271872,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 2443,
+        "reasoning_output_tokens": 547,
+        "total_tokens": 296757
+      },
+      "expected_negative_returns": 0,
+      "empty_skill_searches": 0,
+      "observed_methods": {
+        "list_tables": 1,
+        "get_full_schema": 1,
+        "query": 4
+      }
+    },
+    {
+      "case": "sales",
+      "trial": 2,
+      "agent_id": "01a13e66-485b-7b71-b907-ae46e1443c47",
+      "checks": {
+        "script_completed": true,
+        "no_confirm_true": true,
+        "native_mcp_only": true,
+        "no_truncated_query_result": true,
+        "within_call_budget": true,
+        "scope_kept": true,
+        "initial_metrics": true,
+        "updated_metrics": true
+      },
+      "passed": true,
+      "mcp_return_observations": 6,
+      "local_catalog_calls": 2,
+      "active_turn_wall_seconds": 39.641,
+      "model_responses": 11,
+      "usage": {
+        "input_tokens": 315870,
+        "cached_input_tokens": 296192,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 2590,
+        "reasoning_output_tokens": 365,
+        "total_tokens": 318460
+      },
+      "expected_negative_returns": 0,
+      "empty_skill_searches": 0,
+      "observed_methods": {
+        "get_full_schema": 1,
+        "query": 5
+      }
+    },
+    {
+      "case": "sales",
+      "trial": 3,
+      "agent_id": "01a13e68-8293-7e22-9983-b7d0f1de465d",
+      "checks": {
+        "script_completed": true,
+        "no_confirm_true": true,
+        "native_mcp_only": true,
+        "no_truncated_query_result": true,
+        "within_call_budget": true,
+        "scope_kept": true,
+        "initial_metrics": true,
+        "updated_metrics": true
+      },
+      "passed": true,
+      "mcp_return_observations": 4,
+      "local_catalog_calls": 3,
+      "active_turn_wall_seconds": 36.694,
+      "model_responses": 9,
+      "usage": {
+        "input_tokens": 267704,
+        "cached_input_tokens": 245504,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 2417,
+        "reasoning_output_tokens": 392,
+        "total_tokens": 270121
+      },
+      "expected_negative_returns": 0,
+      "empty_skill_searches": 0,
+      "observed_methods": {
+        "list_tables": 1,
+        "get_full_schema": 1,
+        "query": 2
+      }
+    }
+  ],
+  "completed_trials": 12,
+  "passed_check_trials": 12,
+  "scripted_user_turns": 36,
+  "mcp_return_observations": 110,
+  "local_catalog_calls": 38,
+  "model_responses": 161,
+  "return_profiles": {
+    "Distinct printed business body within one orchestration call": 13,
+    "MCP response envelope": 97
+  },
+  "catalog_output_truncations": 13,
+  "empty_skill_searches": 7,
+  "total_host_usage": {
+    "input_tokens": 5647244,
+    "cached_input_tokens": 5272320,
+    "cache_write_input_tokens": 0,
+    "output_tokens": 37072,
+    "reasoning_output_tokens": 12176,
+    "total_tokens": 5684316
+  },
+  "active_turn_wall_seconds": 648.294,
+  "unchanged_sqlite_authorized_tables": 7,
+  "source_resources_verified": 69,
+  "assessment_scope": "Deterministic number/scope/trace checks plus parent review of final answers and public tool trajectories; numeric presence alone is not a semantic grader",
+  "timing_and_cost_limits": "Current Host only; parallel disjoint tasks/share service; no historical matched A/B or invoice comparison; token usage includes Host/tool discovery; cached tokens subset of input",
+  "recording_limits": "Application-level public events, not full JSON-RPC; no internal reasoning; full preview bearer values redacted",
+  "manual_review_notes": [
+    "All 12 business outcomes and connection scopes reviewed against public tool traces and independent truth; not all paths were efficient or wording-perfect.",
+    "All three financial trials reran top differences at currency precision after observing floating-point residuals; preserve these extra queries.",
+    "Routing trial 2 used category=query twice on each connection, then recovered through the full catalog; four empty results retained.",
+    "Routing trials 2 and 3 underused already observed schema_ready evidence while correctly rejecting the empty-result-means-failure inference.",
+    "All three recovery trials previewed reset in turn 1 as well as the explicitly requested turn 2; three early additional previews retained.",
+    "Collector initially missed label-prefixed JSON and final_answer phases; corrected against the same original logs, without rerunning or replacing Agent trials."
+  ],
+  "not_covered": [
+    "Actual approved writes/commit/rollback",
+    "Live concurrency conflicts or network failure",
+    "Token expiry/replay or MRTR UI",
+    "Special prefix/schema-name fixture replay in current native aliases",
+    "Other models/Hosts or statistical reliability guarantee"
+  ]
+}

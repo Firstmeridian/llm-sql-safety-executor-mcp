@@ -1,0 +1,78 @@
+{
+  "scope": "Fresh in-process Client, private SQLite, current source; same SQL as corrected native pre-restart probes; target alias differs",
+  "calls": [
+    {
+      "name": "unicode_pragma_from",
+      "args": {
+        "connection_id": "demo",
+        "sql": "WITH \"pragma_locKing_mode\" AS (SELECT 7 AS n) SELECT n FROM \"pragma_locKing_mode\""
+      },
+      "isError": false,
+      "structuredContent": {
+        "success": true,
+        "data": [
+          {
+            "n": 7
+          }
+        ],
+        "row_count": 1,
+        "total_rows": 1,
+        "truncated": false,
+        "truncation_note": null,
+        "query": "WITH \"pragma_locKing_mode\" AS (SELECT 7 AS n) SELECT n FROM \"pragma_locKing_mode\"",
+        "connection_id": "demo",
+        "db_type": "sqlite"
+      }
+    },
+    {
+      "name": "unicode_pragma_in",
+      "args": {
+        "connection_id": "demo",
+        "sql": "WITH \"pragma_locKing_mode\" AS (SELECT 7 AS n) SELECT 7 AS n WHERE 7 IN \"pragma_locKing_mode\""
+      },
+      "isError": false,
+      "structuredContent": {
+        "success": true,
+        "data": [
+          {
+            "n": 7
+          }
+        ],
+        "row_count": 1,
+        "total_rows": 1,
+        "truncated": false,
+        "truncation_note": null,
+        "query": "WITH \"pragma_locKing_mode\" AS (SELECT 7 AS n) SELECT 7 AS n WHERE 7 IN \"pragma_locKing_mode\"",
+        "connection_id": "demo",
+        "db_type": "sqlite"
+      }
+    },
+    {
+      "name": "unicode_account_column",
+      "args": {
+        "connection_id": "demo",
+        "sql": "WITH business AS (SELECT 7 AS current_uſer) SELECT current_uſer AS n FROM business"
+      },
+      "isError": false,
+      "structuredContent": {
+        "success": true,
+        "data": [
+          {
+            "n": 7
+          }
+        ],
+        "row_count": 1,
+        "total_rows": 1,
+        "truncated": false,
+        "truncation_note": null,
+        "query": "WITH business AS (SELECT 7 AS current_uſer) SELECT current_uſer AS n FROM business",
+        "connection_id": "demo",
+        "db_type": "sqlite"
+      }
+    }
+  ],
+  "checks": {
+    "passed": 3,
+    "failed": 0
+  }
+}

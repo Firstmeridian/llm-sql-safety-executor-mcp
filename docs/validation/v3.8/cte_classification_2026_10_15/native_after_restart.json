@@ -1,0 +1,403 @@
+{
+  "observed_at": "2026-10-15 12:47:34 UTC",
+  "scope": "Current Codex Host native observations after maintainer restart, same first eight reviewer inputs as baseline. Diagnostic consistency closed; functional bare-name support remains open. Application results, not complete JSON-RPC frame capture.",
+  "records": [
+    {
+      "id": "unıon-bare",
+      "name": "unıon",
+      "quoted": false,
+      "args": {
+        "connection_id": "analytics_demo_sqlite",
+        "sql": "WITH unıon AS (SELECT 7 AS n)\nSELECT n FROM unıon;"
+      },
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":false,\"error_code\":\"sql_parse_failed\",\"error\":\"Could not safely classify this WITH statement as a supported read.\",\"hint\":\"Keep the same connection. Quote keyword-like CTE names consistently in declarations and references, or simplify to a supported read statement.\",\"query\":\"WITH unıon AS (SELECT 7 AS n)\\nSELECT n FROM unıon;\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": false,
+          "error_code": "sql_parse_failed",
+          "error": "Could not safely classify this WITH statement as a supported read.",
+          "hint": "Keep the same connection. Quote keyword-like CTE names consistently in declarations and references, or simplify to a supported read statement.",
+          "query": "WITH unıon AS (SELECT 7 AS n)\nSELECT n FROM unıon;",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      }
+    },
+    {
+      "id": "unıon-quoted",
+      "name": "unıon",
+      "quoted": true,
+      "args": {
+        "connection_id": "analytics_demo_sqlite",
+        "sql": "WITH \"unıon\" AS (SELECT 7 AS n)\nSELECT n FROM \"unıon\";"
+      },
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":true,\"data\":[{\"n\":7}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null,\"query\":\"WITH \\\"unıon\\\" AS (SELECT 7 AS n)\\nSELECT n FROM \\\"unıon\\\";\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": true,
+          "data": [
+            {
+              "n": 7
+            }
+          ],
+          "row_count": 1,
+          "total_rows": 1,
+          "truncated": false,
+          "truncation_note": null,
+          "query": "WITH \"unıon\" AS (SELECT 7 AS n)\nSELECT n FROM \"unıon\";",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      }
+    },
+    {
+      "id": "offſet-bare",
+      "name": "offſet",
+      "quoted": false,
+      "args": {
+        "connection_id": "analytics_demo_sqlite",
+        "sql": "WITH offſet AS (SELECT 7 AS n)\nSELECT n FROM offſet;"
+      },
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":false,\"error_code\":\"sql_parse_failed\",\"error\":\"Could not safely classify this WITH statement as a supported read.\",\"hint\":\"Keep the same connection. Quote keyword-like CTE names consistently in declarations and references, or simplify to a supported read statement.\",\"query\":\"WITH offſet AS (SELECT 7 AS n)\\nSELECT n FROM offſet;\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": false,
+          "error_code": "sql_parse_failed",
+          "error": "Could not safely classify this WITH statement as a supported read.",
+          "hint": "Keep the same connection. Quote keyword-like CTE names consistently in declarations and references, or simplify to a supported read statement.",
+          "query": "WITH offſet AS (SELECT 7 AS n)\nSELECT n FROM offſet;",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      }
+    },
+    {
+      "id": "offſet-quoted",
+      "name": "offſet",
+      "quoted": true,
+      "args": {
+        "connection_id": "analytics_demo_sqlite",
+        "sql": "WITH \"offſet\" AS (SELECT 7 AS n)\nSELECT n FROM \"offſet\";"
+      },
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":true,\"data\":[{\"n\":7}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null,\"query\":\"WITH \\\"offſet\\\" AS (SELECT 7 AS n)\\nSELECT n FROM \\\"offſet\\\";\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": true,
+          "data": [
+            {
+              "n": 7
+            }
+          ],
+          "row_count": 1,
+          "total_rows": 1,
+          "truncated": false,
+          "truncation_note": null,
+          "query": "WITH \"offſet\" AS (SELECT 7 AS n)\nSELECT n FROM \"offſet\";",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      }
+    },
+    {
+      "id": "wındow-bare",
+      "name": "wındow",
+      "quoted": false,
+      "args": {
+        "connection_id": "analytics_demo_sqlite",
+        "sql": "WITH wındow AS (SELECT 7 AS n)\nSELECT n FROM wındow;"
+      },
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":false,\"error_code\":\"sql_parse_failed\",\"error\":\"Could not safely classify this WITH statement as a supported read.\",\"hint\":\"Keep the same connection. Quote keyword-like CTE names consistently in declarations and references, or simplify to a supported read statement.\",\"query\":\"WITH wındow AS (SELECT 7 AS n)\\nSELECT n FROM wındow;\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": false,
+          "error_code": "sql_parse_failed",
+          "error": "Could not safely classify this WITH statement as a supported read.",
+          "hint": "Keep the same connection. Quote keyword-like CTE names consistently in declarations and references, or simplify to a supported read statement.",
+          "query": "WITH wındow AS (SELECT 7 AS n)\nSELECT n FROM wındow;",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      }
+    },
+    {
+      "id": "wındow-quoted",
+      "name": "wındow",
+      "quoted": true,
+      "args": {
+        "connection_id": "analytics_demo_sqlite",
+        "sql": "WITH \"wındow\" AS (SELECT 7 AS n)\nSELECT n FROM \"wındow\";"
+      },
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":true,\"data\":[{\"n\":7}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null,\"query\":\"WITH \\\"wındow\\\" AS (SELECT 7 AS n)\\nSELECT n FROM \\\"wındow\\\";\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": true,
+          "data": [
+            {
+              "n": 7
+            }
+          ],
+          "row_count": 1,
+          "total_rows": 1,
+          "truncated": false,
+          "truncation_note": null,
+          "query": "WITH \"wındow\" AS (SELECT 7 AS n)\nSELECT n FROM \"wındow\";",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      }
+    },
+    {
+      "id": "window-bare",
+      "name": "window",
+      "quoted": false,
+      "args": {
+        "connection_id": "analytics_demo_sqlite",
+        "sql": "WITH window AS (SELECT 7 AS n)\nSELECT n FROM window;"
+      },
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":false,\"error_code\":\"sql_parse_failed\",\"error\":\"Could not safely classify this WITH statement as a supported read.\",\"hint\":\"Keep the same connection. Quote keyword-like CTE names consistently in declarations and references, or simplify to a supported read statement.\",\"query\":\"WITH window AS (SELECT 7 AS n)\\nSELECT n FROM window;\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": false,
+          "error_code": "sql_parse_failed",
+          "error": "Could not safely classify this WITH statement as a supported read.",
+          "hint": "Keep the same connection. Quote keyword-like CTE names consistently in declarations and references, or simplify to a supported read statement.",
+          "query": "WITH window AS (SELECT 7 AS n)\nSELECT n FROM window;",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      }
+    },
+    {
+      "id": "window-quoted",
+      "name": "window",
+      "quoted": true,
+      "args": {
+        "connection_id": "analytics_demo_sqlite",
+        "sql": "WITH \"window\" AS (SELECT 7 AS n)\nSELECT n FROM \"window\";"
+      },
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":true,\"data\":[{\"n\":7}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null,\"query\":\"WITH \\\"window\\\" AS (SELECT 7 AS n)\\nSELECT n FROM \\\"window\\\";\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": true,
+          "data": [
+            {
+              "n": 7
+            }
+          ],
+          "row_count": 1,
+          "total_rows": 1,
+          "truncated": false,
+          "truncation_note": null,
+          "query": "WITH \"window\" AS (SELECT 7 AS n)\nSELECT n FROM \"window\";",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      }
+    },
+    {
+      "id": "reserved-body-denied",
+      "tool": "query",
+      "args": {
+        "connection_id": "analytics_demo_sqlite",
+        "sql": "WITH \"x\"(n) AS (SELECT SLEEP(0)) SELECT n FROM \"x\""
+      },
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":false,\"error_code\":\"expensive_function_denied\",\"error\":\"Delay or benchmark function SLEEP() is not allowed in read queries.\",\"hint\":\"Keep the same connection and use ordinary SQL expressions, filters and aggregates; remove deliberate sleeps and benchmarking calls.\",\"query\":\"WITH \\\"x\\\"(n) AS (SELECT SLEEP(0)) SELECT n FROM \\\"x\\\"\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": false,
+          "error_code": "expensive_function_denied",
+          "error": "Delay or benchmark function SLEEP() is not allowed in read queries.",
+          "hint": "Keep the same connection and use ordinary SQL expressions, filters and aggregates; remove deliberate sleeps and benchmarking calls.",
+          "query": "WITH \"x\"(n) AS (SELECT SLEEP(0)) SELECT n FROM \"x\"",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      }
+    },
+    {
+      "id": "normal-reviewed-skill",
+      "tool": "execute_query_skill",
+      "args": {
+        "connection_id": "analytics_demo_sqlite",
+        "skill_name": "sample-monthly-sales-report-sqlite",
+        "params": {
+          "year": 2026,
+          "month": 1
+        }
+      },
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":true,\"skill_name\":\"sample-monthly-sales-report-sqlite\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\",\"data\":[{\"date\":\"2026-01-10\",\"order_count\":1,\"revenue\":1349.98,\"avg_order_value\":1349.98},{\"date\":\"2026-01-11\",\"order_count\":1,\"revenue\":84.99,\"avg_order_value\":84.99},{\"date\":\"2026-01-12\",\"order_count\":1,\"revenue\":45.0,\"avg_order_value\":45.0},{\"date\":\"2026-01-13\",\"order_count\":1,\"revenue\":139.97,\"avg_order_value\":139.97},{\"date\":\"2026-01-14\",\"order_count\":1,\"revenue\":89.99,\"avg_order_value\":89.99}],\"row_count\":5,\"total_rows\":5,\"truncated\":false,\"truncation_note\":null}"
+          }
+        ],
+        "structuredContent": {
+          "success": true,
+          "skill_name": "sample-monthly-sales-report-sqlite",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite",
+          "data": [
+            {
+              "date": "2026-01-10",
+              "order_count": 1,
+              "revenue": 1349.98,
+              "avg_order_value": 1349.98
+            },
+            {
+              "date": "2026-01-11",
+              "order_count": 1,
+              "revenue": 84.99,
+              "avg_order_value": 84.99
+            },
+            {
+              "date": "2026-01-12",
+              "order_count": 1,
+              "revenue": 45,
+              "avg_order_value": 45
+            },
+            {
+              "date": "2026-01-13",
+              "order_count": 1,
+              "revenue": 139.97,
+              "avg_order_value": 139.97
+            },
+            {
+              "date": "2026-01-14",
+              "order_count": 1,
+              "revenue": 89.99,
+              "avg_order_value": 89.99
+            }
+          ],
+          "row_count": 5,
+          "total_rows": 5,
+          "truncated": false,
+          "truncation_note": null
+        },
+        "isError": false
+      }
+    }
+  ],
+  "checks": {
+    "total": 10,
+    "passed": 10,
+    "failed": 0,
+    "details": [
+      {
+        "id": "unıon-bare",
+        "transport_ok": true,
+        "text_structured_match": true,
+        "expected_result": true
+      },
+      {
+        "id": "unıon-quoted",
+        "transport_ok": true,
+        "text_structured_match": true,
+        "expected_result": true
+      },
+      {
+        "id": "offſet-bare",
+        "transport_ok": true,
+        "text_structured_match": true,
+        "expected_result": true
+      },
+      {
+        "id": "offſet-quoted",
+        "transport_ok": true,
+        "text_structured_match": true,
+        "expected_result": true
+      },
+      {
+        "id": "wındow-bare",
+        "transport_ok": true,
+        "text_structured_match": true,
+        "expected_result": true
+      },
+      {
+        "id": "wındow-quoted",
+        "transport_ok": true,
+        "text_structured_match": true,
+        "expected_result": true
+      },
+      {
+        "id": "window-bare",
+        "transport_ok": true,
+        "text_structured_match": true,
+        "expected_result": true
+      },
+      {
+        "id": "window-quoted",
+        "transport_ok": true,
+        "text_structured_match": true,
+        "expected_result": true
+      },
+      {
+        "id": "reserved-body-denied",
+        "transport_ok": true,
+        "text_structured_match": true,
+        "expected_result": true
+      },
+      {
+        "id": "normal-reviewed-skill",
+        "transport_ok": true,
+        "text_structured_match": true,
+        "expected_result": true
+      }
+    ]
+  },
+  "configured_database_writes": false
+}

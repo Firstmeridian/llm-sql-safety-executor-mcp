@@ -1,0 +1,41 @@
+{
+  "samples": [
+    {
+      "project_import_ms": 156.701674,
+      "candidate_import_ms": 120.571155,
+      "project_peak_rss_kib": 23376,
+      "with_candidate_peak_rss_kib": 33668,
+      "peak_rss_increment_kib": 10292
+    },
+    {
+      "project_import_ms": 207.175364,
+      "candidate_import_ms": 165.281178,
+      "project_peak_rss_kib": 23252,
+      "with_candidate_peak_rss_kib": 33544,
+      "peak_rss_increment_kib": 10292
+    },
+    {
+      "project_import_ms": 174.101293,
+      "candidate_import_ms": 119.870679,
+      "project_peak_rss_kib": 23252,
+      "with_candidate_peak_rss_kib": 33544,
+      "peak_rss_increment_kib": 10292
+    },
+    {
+      "project_import_ms": 152.085807,
+      "candidate_import_ms": 113.534478,
+      "project_peak_rss_kib": 23252,
+      "with_candidate_peak_rss_kib": 33544,
+      "peak_rss_increment_kib": 10292
+    },
+    {
+      "project_import_ms": 137.742575,
+      "candidate_import_ms": 110.140795,
+      "project_peak_rss_kib": 23376,
+      "with_candidate_peak_rss_kib": 33668,
+      "peak_rss_increment_kib": 10292
+    }
+  ],
+  "scope": "Five fresh processes import current project first, then isolated SQLGlot/candidate; Linux peak RSS, not live RSS or total MCP startup",
+  "runtime_integrated": false
+}

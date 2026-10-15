@@ -16,9 +16,11 @@ def _reload_server(monkeypatch):
 def test_shared_sql_policy_allows_normal_read_query(monkeypatch):
     module = _reload_server(monkeypatch)
 
-    is_safe, error = module._validate_sql_query_policy(
+    decision = module._validate_sql_query_policy(
         "SELECT id, name FROM users WHERE id = 1"
     )
+    is_safe = decision.allowed
+    error = decision.message
 
     assert is_safe is True
     assert error is None
@@ -39,13 +41,12 @@ def test_shared_sql_policy_blocks_executing_explain_forms(monkeypatch, sql):
     module = _reload_server(monkeypatch)
     policy = module.ConnectionPolicy(allow_union=False, allowed_tables={"*"})
 
-    is_safe, error = module._validate_sql_query_policy(sql, policy)
+    decision = module._validate_sql_query_policy(sql, policy)
+    is_safe = decision.allowed
+    error = decision.message
 
     assert is_safe is False
-    assert error == (
-        "Only read-only queries allowed "
-        "(SELECT, DESCRIBE, non-ANALYZE EXPLAIN)"
-    )
+    assert decision.error_code == ("multiple_statements" if ";" in sql else "executing_explain_denied")
 
 
 def test_basic_sql_policy_blocks_select_shaped_nested_write_cte(monkeypatch):
@@ -82,12 +83,11 @@ def test_basic_and_shared_policy_block_explain_for_connection(monkeypatch, sql):
     module = _reload_server(monkeypatch)
 
     assert module.is_sql_safe(sql) is False
-    is_safe, error = module._validate_sql_query_policy(sql)
+    decision = module._validate_sql_query_policy(sql)
+    is_safe = decision.allowed
+    error = decision.message
     assert is_safe is False
-    assert error == (
-        "Only read-only queries allowed "
-        "(SELECT, DESCRIBE, non-ANALYZE EXPLAIN)"
-    )
+    assert decision.error_code == ("session_inspection_denied")
 
 
 def test_shared_sql_policy_blocks_mysql_file_operations(monkeypatch):
@@ -100,7 +100,9 @@ def test_shared_sql_policy_blocks_mysql_file_operations(monkeypatch):
     ]
 
     for sql in blocked_queries:
-        is_safe, error = module._validate_sql_query_policy(sql)
+        decision = module._validate_sql_query_policy(sql)
+        is_safe = decision.allowed
+        error = decision.message
         assert is_safe is False
         assert error == "MySQL server-side file operations are not allowed"
 
@@ -123,13 +125,12 @@ def test_shared_sql_policy_rejects_mysql_comment_semantic_mismatches(
     module = _reload_server(monkeypatch)
 
     assert module.is_sql_safe(sql) is False
-    is_safe, error = module._validate_sql_query_policy(sql)
+    decision = module._validate_sql_query_policy(sql)
+    is_safe = decision.allowed
+    error = decision.message
 
     assert is_safe is False
-    assert error == (
-        "Only read-only queries allowed "
-        "(SELECT, DESCRIBE, non-ANALYZE EXPLAIN)"
-    )
+    assert decision.error_code == ("unsafe_comment")
 
 
 @pytest.mark.parametrize(
@@ -145,7 +146,9 @@ def test_shared_sql_policy_preserves_safe_comments_and_string_literals(
 ):
     module = _reload_server(monkeypatch)
 
-    is_safe, error = module._validate_sql_query_policy(sql)
+    decision = module._validate_sql_query_policy(sql)
+    is_safe = decision.allowed
+    error = decision.message
 
     assert is_safe is True
     assert error is None
@@ -154,14 +157,12 @@ def test_shared_sql_policy_preserves_safe_comments_and_string_literals(
 def test_shared_sql_policy_blocks_comment_separated_show(monkeypatch):
     module = _reload_server(monkeypatch)
 
-    is_safe, error = module._validate_sql_query_policy("SHOW/**/VARIABLES")
+    decision = module._validate_sql_query_policy("SHOW/**/VARIABLES")
+    is_safe = decision.allowed
+    error = decision.message
 
     assert is_safe is False
-    assert error == (
-        "SHOW statements are not allowed in raw queries. "
-        "Use list_tables() or describe_table() instead; describe_table() "
-        "also returns indexes."
-    )
+    assert decision.error_code == ("show_statement_denied")
 
 
 @pytest.mark.parametrize(
@@ -181,14 +182,12 @@ def test_shared_sql_policy_blocks_all_raw_show_forms(monkeypatch, sql):
     """Metadata tools replace the broad, privilege-dependent SHOW grammar."""
     module = _reload_server(monkeypatch)
 
-    is_safe, error = module._validate_sql_query_policy(sql)
+    decision = module._validate_sql_query_policy(sql)
+    is_safe = decision.allowed
+    error = decision.message
 
     assert is_safe is False
-    assert error == (
-        "SHOW statements are not allowed in raw queries. "
-        "Use list_tables() or describe_table() instead; describe_table() "
-        "also returns indexes."
-    )
+    assert decision.error_code == ("show_statement_denied")
 
 
 @pytest.mark.parametrize(
@@ -203,13 +202,12 @@ def test_basic_and_shared_policy_reject_multiple_statements(monkeypatch, sql):
     module = _reload_server(monkeypatch)
 
     assert module.is_sql_safe(sql) is False
-    is_safe, error = module._validate_sql_query_policy(sql)
+    decision = module._validate_sql_query_policy(sql)
+    is_safe = decision.allowed
+    error = decision.message
 
     assert is_safe is False
-    assert error == (
-        "Only read-only queries allowed "
-        "(SELECT, DESCRIBE, non-ANALYZE EXPLAIN)"
-    )
+    assert decision.error_code == ("multiple_statements")
 
 
 def test_shared_sql_policy_blocks_quoted_system_schemas(monkeypatch):
@@ -228,21 +226,21 @@ def test_shared_sql_policy_blocks_quoted_system_schemas(monkeypatch):
     ]
 
     for sql in blocked_queries:
-        is_safe, error = module._validate_sql_query_policy(sql)
+        decision = module._validate_sql_query_policy(sql)
+        is_safe = decision.allowed
+        error = decision.message
         assert is_safe is False
-        assert error == (
-            "Access to system databases not allowed. "
-            "Use list_tables() or describe_table() instead; describe_table() "
-            "also returns indexes."
-        )
+        assert decision.error_code == ("system_schema_denied")
 
 
 def test_system_schema_names_in_string_literals_are_not_tables(monkeypatch):
     module = _reload_server(monkeypatch)
 
-    is_safe, error = module._validate_sql_query_policy(
+    decision = module._validate_sql_query_policy(
         "SELECT 'mysql.user', 'information_schema.tables', 'sys.session'"
     )
+    is_safe = decision.allowed
+    error = decision.message
 
     assert is_safe is True
     assert error is None
@@ -266,7 +264,9 @@ def test_shared_sql_policy_blocks_server_state_reads(monkeypatch, sql, reason):
     module = _reload_server(monkeypatch)
     policy = module.ConnectionPolicy(allow_union=False, allowed_tables={"*"}, read_mode="all")
 
-    is_safe, error = module._validate_sql_query_policy(sql, policy)
+    decision = module._validate_sql_query_policy(sql, policy)
+    is_safe = decision.allowed
+    error = decision.message
 
     assert is_safe is False
     assert reason in error
@@ -285,7 +285,9 @@ def test_server_state_check_ignores_literals_columns_and_version(monkeypatch, sq
     module = _reload_server(monkeypatch)
     policy = module.ConnectionPolicy(allow_union=False, allowed_tables={"*"}, read_mode="all")
 
-    is_safe, error = module._validate_sql_query_policy(sql, policy)
+    decision = module._validate_sql_query_policy(sql, policy)
+    is_safe = decision.allowed
+    error = decision.message
 
     assert is_safe is True, error
 
@@ -301,16 +303,22 @@ def test_case_sensitive_allowlist_requires_exact_table_case(monkeypatch):
         "SELECT * FROM `ORDERS`",
         "WITH Orders AS (SELECT 1) SELECT * FROM ORDERS",
     ):
-        is_safe, error = module._validate_sql_query_policy(sql, policy)
+        decision = module._validate_sql_query_policy(sql, policy)
+        is_safe = decision.allowed
+        error = decision.message
         assert is_safe is False, sql
         assert "Access denied" in error
 
     for sql in ("SELECT * FROM orders", "WITH t AS (SELECT 1) SELECT * FROM orders, t"):
-        is_safe, error = module._validate_sql_query_policy(sql, policy)
+        decision = module._validate_sql_query_policy(sql, policy)
+        is_safe = decision.allowed
+        error = decision.message
         assert is_safe is True, (sql, error)
 
     insensitive = module.ConnectionPolicy(allowed_tables=frozenset({"orders"}))
-    is_safe, error = module._validate_sql_query_policy("SELECT * FROM Orders", insensitive)
+    decision = module._validate_sql_query_policy("SELECT * FROM Orders", insensitive)
+    is_safe = decision.allowed
+    error = decision.message
     assert is_safe is True, error
 
 
@@ -326,13 +334,17 @@ def test_table_allowlist_blocks_quoted_identifiers(monkeypatch):
     ]
 
     for sql in blocked_queries:
-        is_safe, error = module._validate_sql_query_policy(sql, policy)
+        decision = module._validate_sql_query_policy(sql, policy)
+        is_safe = decision.allowed
+        error = decision.message
         assert is_safe is False
         assert "forbidden" in error
 
-    is_safe, error = module._validate_sql_query_policy(
+    decision = module._validate_sql_query_policy(
         'SELECT * FROM "orders"', policy
     )
+    is_safe = decision.allowed
+    error = decision.message
     assert is_safe is True
     assert error is None
 
@@ -366,7 +378,9 @@ def test_table_allowlist_blocks_every_referenced_table(
     )
 
     assert blocked_table in module._extract_tables_from_sql(sql)
-    is_safe, error = module._validate_sql_query_policy(sql, policy)
+    decision = module._validate_sql_query_policy(sql, policy)
+    is_safe = decision.allowed
+    error = decision.message
 
     assert is_safe is False
     assert blocked_table in error
@@ -401,7 +415,9 @@ def test_table_allowlist_blocks_explained_dml_targets_and_sources(
         allowed_tables=frozenset({"orders"}),
     )
 
-    is_safe, error = module._validate_sql_query_policy(sql, policy)
+    decision = module._validate_sql_query_policy(sql, policy)
+    is_safe = decision.allowed
+    error = decision.message
 
     assert is_safe is False
     assert "forbidden" in error
@@ -441,7 +457,9 @@ def test_table_allowlist_preserves_explained_dml_for_allowed_tables(
         allowed_tables=frozenset({"orders"}),
     )
 
-    is_safe, error = module._validate_sql_query_policy(sql, policy)
+    decision = module._validate_sql_query_policy(sql, policy)
+    is_safe = decision.allowed
+    error = decision.message
 
     assert is_safe is True
     assert error is None
@@ -456,18 +474,22 @@ def test_table_allowlist_fails_closed_on_ambiguous_explained_dml_target(
         allowed_tables=frozenset({"orders"}),
     )
 
-    is_safe, error = module._validate_sql_query_policy(
+    decision = module._validate_sql_query_policy(
         "EXPLAIN UPDATE (SELECT * FROM orders) SET status = 'cancelled'",
         policy,
     )
+    is_safe = decision.allowed
+    error = decision.message
 
     assert is_safe is False
     assert error == "Table allowlist could not safely determine every referenced table"
 
-    is_safe, error = module._validate_sql_query_policy(
+    decision = module._validate_sql_query_policy(
         "EXPLAIN DELETE FROM orders USING (SELECT * FROM orders)",
         policy,
     )
+    is_safe = decision.allowed
+    error = decision.message
     assert is_safe is False
     assert error == "Table allowlist could not safely determine every referenced table"
 
@@ -492,7 +514,9 @@ def test_table_allowlist_preserves_supported_allowed_queries(monkeypatch, sql):
         allowed_tables=frozenset({"orders"}),
     )
 
-    is_safe, error = module._validate_sql_query_policy(sql, policy)
+    decision = module._validate_sql_query_policy(sql, policy)
+    is_safe = decision.allowed
+    error = decision.message
 
     assert is_safe is True
     assert error is None
@@ -507,10 +531,12 @@ def test_table_allowlist_requires_exact_qualified_reference(monkeypatch):
 
     assert module._validate_sql_query_policy(
         "SELECT * FROM analytics.orders", policy
-    ) == (True, None)
-    is_safe, error = module._validate_sql_query_policy(
+    ).allowed
+    decision = module._validate_sql_query_policy(
         "SELECT * FROM orders", policy
     )
+    is_safe = decision.allowed
+    error = decision.message
     assert is_safe is False
     assert "orders" in error
 
@@ -522,16 +548,20 @@ def test_table_allowlist_fails_closed_on_ambiguous_table_target(monkeypatch):
         allowed_tables=frozenset({"orders"}),
     )
 
-    is_safe, error = module._validate_sql_query_policy(
+    decision = module._validate_sql_query_policy(
         "SELECT * FROM json_each('[1, 2]')", policy
     )
+    is_safe = decision.allowed
+    error = decision.message
 
     assert is_safe is False
     assert error == "Table allowlist could not safely determine every referenced table"
 
-    is_safe, error = module._validate_sql_query_policy(
+    decision = module._validate_sql_query_policy(
         "SELECT * FROM json_each('[1, 2]') AS item", policy
     )
+    is_safe = decision.allowed
+    error = decision.message
     assert is_safe is False
     assert error == "Table allowlist could not safely determine every referenced table"
 

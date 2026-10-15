@@ -13,6 +13,7 @@ from sql_safety_executor.core.constants import _CONNECTION_ID_FIELD, _SQL_QUERY_
 
 from sql_safety_executor.core.connections import _resolve_connection_context
 from sql_safety_executor.core.policy import _validate_sql_query_policy
+from sql_safety_executor.database.errors import DatabaseQueryError
 from sql_safety_executor.core.results import (
     _serialize_result,
     _tool_result,
@@ -45,6 +46,8 @@ async def query(
                     "SQL query is too long; maximum length is "
                     f"{runtime.config.server.limits.sql_chars} characters"
                 ),
+                "error_code": "sql_too_long",
+                "hint": "Shorten the query within the configured SQL length limit.",
                 "query_length": len(sql),
                 "max_sql_length": runtime.config.server.limits.sql_chars,
                 "connection_id": connection.connection_id,
@@ -59,14 +62,13 @@ async def query(
     await ctx.info(f"Executing query on connection '{connection.connection_id}': {sql}")
 
     # Validate the shared read-query policy used by raw queries and query skills.
-    is_safe, error_msg = _validate_sql_query_policy(runtime, sql, connection.policy)
-    if not is_safe:
-        await ctx.warning(f"Rejected query: {error_msg}")
+    decision = _validate_sql_query_policy(runtime, sql, connection.policy, adapter=connection.adapter)
+    if not decision.allowed:
+        await ctx.warning(f"Rejected query: {decision.error_code}")
         return _tool_result(
             runtime,
             {
-                "success": False,
-                "error": error_msg,
+                **decision.error_payload(),
                 "query": sql,
                 "connection_id": connection.connection_id,
                 "db_type": connection.db_type,
@@ -77,17 +79,14 @@ async def query(
             success=False,
         )
 
-    # Execute query
-    result = connection.adapter.execute(sql, connection.config.query_timeout_seconds)
-
-    # Handle error
-    if isinstance(result, str) and result.startswith("Error:"):
-        await ctx.error(f"Query failed: {result}")
+    try:
+        result = connection.adapter.execute(sql, connection.config.query_timeout_seconds)
+    except DatabaseQueryError as error:
+        await ctx.error(f"Query failed: {error.error_code}")
         return _tool_result(
             runtime,
             {
-                "success": False,
-                "error": result,
+                **error.error_payload(),
                 "query": sql,
                 "connection_id": connection.connection_id,
                 "db_type": connection.db_type,

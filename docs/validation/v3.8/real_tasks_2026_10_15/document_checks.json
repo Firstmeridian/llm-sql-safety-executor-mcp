@@ -1,0 +1,13 @@
+{
+  "local_file_links": 654,
+  "bilingual_drr_ids": 94,
+  "source_files_unchanged": 69,
+  "test_files_unchanged": 41,
+  "prior_prefix_and_schema_manifests": "unchanged and verified",
+  "syntax_compile": "passed for both new scripts",
+  "diff_check": "passed",
+  "commit_draft_bullets": 7,
+  "commit_draft_characters": 767,
+  "full_production_suite": "not rerun: accepted source/test hashes unchanged",
+  "scope": "Local file links checked, not remote URLs or Markdown anchors"
+}

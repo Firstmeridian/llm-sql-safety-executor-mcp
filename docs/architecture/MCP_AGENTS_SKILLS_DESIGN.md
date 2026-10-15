@@ -1,14 +1,16 @@
 > Historical v3.7.3 design. Environment switches and `skills/_lib` paths below describe that version. Current implementation: [v3.8 architecture](V3_8_IMPLEMENTATION_ZH.md), [TOML and SDK migration](../guides/CONFIGURATION_ZH.md).
 
+> The boolean/tuple SQL validators and row-list-or-error-string snippets below are also historical. Current raw/Query Skill decisions use PolicyDecision; read adapters return rows or raise DatabaseQueryError, and Query Skill dependencies are selected per target. See [current contracts and dated acceptance](../validation/v3.8/V3_8_1_FOLLOWUP_2026_10_13_ZH.md).
+
 # MCP Agents Skills Design Document
 
 > **Design baseline**: v3.7.3, including the September 16 managed-mutation and September 22 unified-diagnostic contracts
-> **Status**: Implemented
+> **Status**: Implemented at the stated v3.7.3 baseline
 > **Date**: 2026-09-22
 > **References**: [Skills safety policy](../security/SAFETY.md), [design risk register](../security/DESIGN_RISK_REGISTER.md), [v3.6 release-family notes](../releases/RELEASE_NOTES_v3_6.md), and [v3.7 release notes](../releases/RELEASE_NOTES_v3_7.md)
 
-Current routing guidance and parameter examples are maintained in the
-[current v3.7.3 notes](../releases/RELEASE_NOTES_v3_7.md#unified-connection-diagnostics--september-22-2026).
+Routing guidance and parameter examples for that historical baseline are in the
+[v3.7.3 notes](../releases/RELEASE_NOTES_v3_7.md#unified-connection-diagnostics--september-22-2026).
 The [v3.7.3 managed-mutation follow-up](../releases/RELEASE_NOTES_v3_7.md#managed-single-statement-mutation-contract--september-16-2026)
 removes the former exact-outcome flag/registry:
 single-statement writes use a cached `ManagedMutationPlan` and confirmation
@@ -1515,3 +1517,7 @@ practices from major AI platform providers and security standards.
 | Runtime tool metadata | [FastMCP — ToolResult and Metadata](https://gofastmcp.com/servers/tools#toolresult-and-metadata) | All registered tools return `ToolResult` with unchanged structured payload plus non-sensitive runtime `meta`, including safe `connection_id` aliases in v3.5 |
 | Explicit transaction phase tracking | [SQLAlchemy 2.0 — Transactions](https://docs.sqlalchemy.org/en/20/core/connections.html#using-transactions) | `execute_write()` calls `connect()`, `begin()`, statement, invariant check, and `commit()` explicitly so COMMIT exceptions remain distinguishable from pre-COMMIT rollback |
 | Identifier quoting | [SQLAlchemy — `quoted_name()`](https://docs.sqlalchemy.org/en/20/core/sqlelement.html#sqlalchemy.sql.expression.quoted_name) | Table names quoted to prevent SQL injection in dynamic identifiers |
+
+## October 15 relation readiness and validation results
+
+Readiness now consumes structured table/view observations for the fixed metadata schema rather than table-only discovery with row estimates. It remains an existence observation, not full query or view-source validation. Mutation validate() results require strict boolean valid, optional string-list errors and serializable business fields; preview/imperative confirmation normalize malformed results to a fixed validation failure, with no token at preview and no token restoration after consumption. These extension-contract changes add no model tool step or runtime dependency. [Current decisions and evidence](../validation/v3.8/V3_8_1_SCHEMA_BINDING_2026_10_15_ZH.md).

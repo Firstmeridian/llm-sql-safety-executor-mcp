@@ -1,0 +1,9 @@
+{
+  "local_document_link_targets": 610,
+  "bilingual_drr_ids": 93,
+  "latest_drr_rows_contiguous": true,
+  "diff_check": "passed",
+  "bilingual_sample_json_and_scoped_sql": "passed",
+  "version_runtime_dependencies_unchanged": true,
+  "scope": "Local file links, not all remote URLs/anchors"
+}

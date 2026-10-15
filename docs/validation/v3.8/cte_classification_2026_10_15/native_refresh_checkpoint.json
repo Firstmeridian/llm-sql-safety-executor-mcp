@@ -1,0 +1,66 @@
+{
+  "observed_at": "2026-10-15 12:26:46 UTC",
+  "scope": "After diagnostic source/package/full checks, before maintainer refresh. Same first two args as native_before_restart.json; bare CTE still has old read_only_required hint and quoted form returns 7. This is a new diagnostic-patch refresh checkpoint, not a reopened prior restart/cache claim.",
+  "records": [
+    {
+      "id": "unıon-bare",
+      "name": "unıon",
+      "quoted": false,
+      "args": {
+        "connection_id": "analytics_demo_sqlite",
+        "sql": "WITH unıon AS (SELECT 7 AS n)\nSELECT n FROM unıon;"
+      },
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":false,\"error_code\":\"read_only_required\",\"error\":\"Only read-only queries allowed (SELECT, DESCRIBE, non-ANALYZE EXPLAIN)\",\"hint\":\"For an intended write, discover reviewed mutation Skills with list_skills(); preview and obtain explicit approval before execution. Discovery does not authorize a write.\",\"query\":\"WITH unıon AS (SELECT 7 AS n)\\nSELECT n FROM unıon;\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": false,
+          "error_code": "read_only_required",
+          "error": "Only read-only queries allowed (SELECT, DESCRIBE, non-ANALYZE EXPLAIN)",
+          "hint": "For an intended write, discover reviewed mutation Skills with list_skills(); preview and obtain explicit approval before execution. Discovery does not authorize a write.",
+          "query": "WITH unıon AS (SELECT 7 AS n)\nSELECT n FROM unıon;",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      }
+    },
+    {
+      "id": "unıon-quoted",
+      "name": "unıon",
+      "quoted": true,
+      "args": {
+        "connection_id": "analytics_demo_sqlite",
+        "sql": "WITH \"unıon\" AS (SELECT 7 AS n)\nSELECT n FROM \"unıon\";"
+      },
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":true,\"data\":[{\"n\":7}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null,\"query\":\"WITH \\\"unıon\\\" AS (SELECT 7 AS n)\\nSELECT n FROM \\\"unıon\\\";\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": true,
+          "data": [
+            {
+              "n": 7
+            }
+          ],
+          "row_count": 1,
+          "total_rows": 1,
+          "truncated": false,
+          "truncation_note": null,
+          "query": "WITH \"unıon\" AS (SELECT 7 AS n)\nSELECT n FROM \"unıon\";",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      }
+    }
+  ]
+}

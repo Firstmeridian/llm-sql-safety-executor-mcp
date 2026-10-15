@@ -1,0 +1,137 @@
+{
+  "version": "3.8.1",
+  "baseline_commit": "af3420f58d426b4f657b1214949dc48544afde56",
+  "scope": "Maintainer-authorized targeted verification and documentation only; no product source or local TOML changes",
+  "source_hash_reference": "../automation.json#source_sha256",
+  "source_sha256_unchanged": true,
+  "fixture_state": "One unique MySQL table removed and independently verified absent; temporary SQLite fixtures removed; existing business rows untouched",
+  "findings": {
+    "mysql_optin": "4 passed, 0 skipped; conditional race exactly one commit and one rollback",
+    "skill_cte_case": "Known unresolved defect reproduced on both protocols and both read scopes; 20 actual in-process Client calls, not resident Host calls",
+    "authorizer": "Isolated cache/view/count probes only; no production callback",
+    "fixed_costs": "Matched fixed requests, 24 samples per SQL/phase; characters and in-process latency, no model/billing/RSS measurement"
+  },
+  "failed_attempt": "Initial probe used unsupported db_types frontmatter; loader correctly rejected it. Corrected fixture before tool-path verification; failure log retained.",
+  "format_decision": "Keep all previous JSON unchanged; index new evidence; metadata stored once per phase; compressed original logs and reproducible harness sources; do not duplicate unrelated discovery or model reasoning",
+  "reproduce": "Harness sources are gzip archived. Restore to local_archive/v381_review/followup_20261013_tools and run with .venv-v38/bin/python. MySQL opt-in writes a unique fixture table; never uses existing business rows. Current TOML supplies credentials privately.",
+  "artifacts": [
+    {
+      "path": "authorizer_lifecycle.json",
+      "bytes": 1056,
+      "sha256": "d5ce711d779a69d5d736c92c61830ed5365e0c1517e49a23e0da38e85fcf314c"
+    },
+    {
+      "path": "finalize_supplemental.py.gz",
+      "bytes": 2807,
+      "sha256": "2a8f33c7f67c5ee937e09d630e83bd45fcf91ee5929e4c96c747af47bb103d11",
+      "uncompressed_bytes": 6521,
+      "uncompressed_sha256": "35ab47a7f63695568f27cf3a950bbd4712a7daa743e6af8effaf220fa6834d7f"
+    },
+    {
+      "path": "fixed-costs-1-baseline.log.gz",
+      "bytes": 1707,
+      "sha256": "133750e7ac729bc3ab24b2270720712846833cb0b657cf8de82dc484b316621e",
+      "uncompressed_bytes": 65437,
+      "uncompressed_sha256": "42bfb7c8c6c29a0695468d64618e4afae2eb6d5887b024f526ebe412d10a2eda"
+    },
+    {
+      "path": "fixed-costs-1-current.log.gz",
+      "bytes": 1176,
+      "sha256": "136a653437c522c7996d6070e6c180cddfb3a0beca36b06f251e9a127326b451",
+      "uncompressed_bytes": 41218,
+      "uncompressed_sha256": "bf998c2d425e3b6f5cd9ff679b1cb1dfe965913af7ac82ed1fe959feb2adda5c"
+    },
+    {
+      "path": "fixed-costs-2-baseline.log.gz",
+      "bytes": 1730,
+      "sha256": "71e4424666c18b7900f7d6a16e00f4614d7afb8ca026402815301edea9984dbd",
+      "uncompressed_bytes": 65437,
+      "uncompressed_sha256": "f8fcce58f601158aa8cc1f8cd833b1d5aa7f48adc92190f7a1e3d23c02eafb0d"
+    },
+    {
+      "path": "fixed-costs-2-current.log.gz",
+      "bytes": 1186,
+      "sha256": "7260f0d80a4c411e662036dcbf6df65765b0637ec3fc86f22c62dbc0371615bf",
+      "uncompressed_bytes": 41218,
+      "uncompressed_sha256": "378f08fcef6a788530a6b039b506dd89bb21db5079009def9a6f9493ebcaa054"
+    },
+    {
+      "path": "fixed-costs-driver.log.gz",
+      "bytes": 111,
+      "sha256": "89521e62d5ec5c9b77713637e8cf85bb3e936012b2287a78e917fca20623345b",
+      "uncompressed_bytes": 104,
+      "uncompressed_sha256": "6ea986e005a320105813aedcfa082af49b9e393ffe56507e361a16e3618b493c"
+    },
+    {
+      "path": "fixed_costs.json",
+      "bytes": 13966,
+      "sha256": "7dfe724c0cd2188e0ce754adffa7808886af3cd70c6308d6c1e56d1c7e46b979"
+    },
+    {
+      "path": "fixed_costs.py.gz",
+      "bytes": 2939,
+      "sha256": "90feca8bdab61d8911856cbe48319551e57a12af2bfaecdab5edd9bd39b866d9",
+      "uncompressed_bytes": 7864,
+      "uncompressed_sha256": "0da6e5cdcaac86ca56162f089e1c388c71f7f71daa9d2e0017bd6ace8de9652b"
+    },
+    {
+      "path": "metadata-baseline.json.gz",
+      "bytes": 8114,
+      "sha256": "a186649601b110df454ef2f620810b6429b502c92b9b289e9723384f865e619a",
+      "uncompressed_bytes": 27606,
+      "uncompressed_sha256": "0f294ed32286a2ea996ae6ef7c907f4dbf2ef6a8d4d7afb3c8be157f2db07fd5"
+    },
+    {
+      "path": "metadata-current.json.gz",
+      "bytes": 8220,
+      "sha256": "87a3748d4d4d0f8975138b7f2e8991051e8d4300bb2501e9d27e6d646cea7d33",
+      "uncompressed_bytes": 27959,
+      "uncompressed_sha256": "f377abefdaaf580e44413c884df14f394cb795545b8e5012145e2e46a5322a11"
+    },
+    {
+      "path": "mysql-optin.log.gz",
+      "bytes": 52,
+      "sha256": "6f4030162d716d02ef8e59d450a7ebb738c35d63854bc5c5f8b41f013af1e855",
+      "uncompressed_bytes": 98,
+      "uncompressed_sha256": "b59be68fb6adfb7d9fc7d91fadce2bc4dfc5c56c4256d1f498efef44320e1fa0"
+    },
+    {
+      "path": "mysql_optin.json",
+      "bytes": 1810,
+      "sha256": "920a1de5d2a1fbaf69299378af1b6b97f6b8b5ece23d5c4c1cf3c784a19ca537"
+    },
+    {
+      "path": "mysql_optin.py.gz",
+      "bytes": 1593,
+      "sha256": "87cd005be3760e1a38c006d06342b5d102874571b5f27b7a9171239bdd9e4473",
+      "uncompressed_bytes": 3367,
+      "uncompressed_sha256": "3e795d87aaba510dabf9d891c8eec981ff83d7968e18dd3f18aa2681eaac9c8d"
+    },
+    {
+      "path": "skill-probes-fixture-error.log.gz",
+      "bytes": 556,
+      "sha256": "21b0400565b409c0437c7b24f95af131e845cb1f5a4f7c66eba270a94b1a9979",
+      "uncompressed_bytes": 1555,
+      "uncompressed_sha256": "78dac7aaa1d3ce3b56146c5e4ee2377878f5b272aa0dfd6dc6efe4a00595a397"
+    },
+    {
+      "path": "skill-probes.log.gz",
+      "bytes": 1037,
+      "sha256": "a7d29cafae4751651979871661bbcbaa035f177c0b452d2bde29c2365e4fcc92",
+      "uncompressed_bytes": 11854,
+      "uncompressed_sha256": "bfe153244aad7905a5b102408377bd0e5ecb79920a7359fc6ed94d2a6472efb8"
+    },
+    {
+      "path": "skill_cte_case.json",
+      "bytes": 51826,
+      "sha256": "42d6e975b23bdba2205788f90e830b08feb7832be8006e1d5b98ae3f568aba9e"
+    },
+    {
+      "path": "supplemental_probes.py.gz",
+      "bytes": 2729,
+      "sha256": "680f3e3cad301f9a77896f33a0b29e920a87f81f6afdfe3fc85f8f12a91a74f4",
+      "uncompressed_bytes": 8856,
+      "uncompressed_sha256": "510921be3c9bead9c1d59713f6672d48c7d6ecc9d7dfaea22cd4dedcf707434b"
+    }
+  ]
+}

@@ -4,6 +4,8 @@ from abc import ABC, abstractmethod
 from typing import Any
 
 from .outcomes import MetadataQueryError
+from .errors import DatabaseQueryError
+from .relations import ReadRelation, RelationReference, render_relation_for_text
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +23,27 @@ class DatabaseAdapter(ABC):
     - Methods return consistent formats across all implementations
     """
 
+    @property
+    @abstractmethod
+    def metadata_schema(self) -> str:
+        """Configured schema for metadata and internally generated reads; no I/O."""
+        raise NotImplementedError
+
+    def render_metadata_relation(self, reference: RelationReference) -> str:
+        """Render the same scoped identity that the metadata tool authorized."""
+        if reference.schema != self.metadata_schema:
+            raise ValueError("Metadata relation must use the adapter's configured schema")
+        return render_relation_for_text(reference, self.db_type)
+
+    @property
+    def cte_case_sensitive(self) -> bool | None:
+        """Known CTE comparison rules; None means no verified capability yet."""
+        return False if self.db_type == "sqlite" else None
+
+    def resolve_cte_case_sensitive(self) -> bool:
+        """Unknown backends retain exact matching; never infer a table grant."""
+        return self.cte_case_sensitive is not False
+
     @abstractmethod
     def connect(self) -> bool:
         """
@@ -34,7 +57,7 @@ class DatabaseAdapter(ABC):
     @abstractmethod
     def execute(
         self, sql: str, timeout: int | float | None = None, params: dict | None = None
-    ) -> list | str:
+    ) -> list:
         """
         Execute a SQL query with timeout protection.
 
@@ -46,7 +69,7 @@ class DatabaseAdapter(ABC):
                     Uses SQLAlchemy text() parameterized execution.
 
         Returns:
-            List of row tuples on success, error string on failure
+            List of row tuples on success. Raises DatabaseQueryError on failure.
         """
         pass
 
@@ -96,6 +119,16 @@ class DatabaseAdapter(ABC):
             MetadataQueryError: If the metadata query cannot be completed
         """
         pass
+
+    @abstractmethod
+    def get_read_relations(self) -> list[ReadRelation]:
+        """Observe table/view identities for readiness, without row estimates.
+
+        This is distinct from table-only discovery. MetadataQueryError means
+        observation failed; an empty list means no observed readable relations.
+        It does not prove query executability or grant access to view sources.
+        """
+        raise NotImplementedError
 
     @abstractmethod
     def get_columns(self, table_name: str) -> list[dict[str, Any]]:
@@ -178,22 +211,15 @@ class DatabaseAdapter(ABC):
         """Close database connection and cleanup resources."""
         pass
 
-    def _handle_error(self, e: Exception, timeout: int | float | None = None) -> str:
-        """
-        Sanitize error messages for security.
+    def _execute_metadata(self, sql: str, operation: str, *, timeout: int | float | None = None, params: dict | None = None) -> list:
+        try:
+            return self.execute(sql, timeout=timeout, params=params)
+        except DatabaseQueryError:
+            raise MetadataQueryError(operation) from None
 
-        Subclasses should override with DB-specific patterns.
-        Default: generic safe message.
-
-        Args:
-            e: The exception that occurred
-            timeout: Optional timeout value for error message context
-
-        Returns:
-            Sanitized error string safe for client display
-        """
+    def _handle_error(self, e: Exception, timeout: int | float | None = None) -> DatabaseQueryError:
         logger.warning("Database error: %s", e.__class__.__name__)
-        return "Error: Database query failed"
+        return DatabaseQueryError()
 
     @property
     def connection_id(self) -> str:

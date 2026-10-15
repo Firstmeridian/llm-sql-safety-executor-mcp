@@ -1,0 +1,25 @@
+{
+  "samples": [
+    {
+      "initialize_ms": 5203.490996,
+      "initialize_and_tools_ms": 5693.399445,
+      "protocol": "2026-07-28",
+      "tool_count": 10
+    },
+    {
+      "initialize_ms": 3462.32066,
+      "initialize_and_tools_ms": 3975.79455,
+      "protocol": "2026-07-28",
+      "tool_count": 10
+    },
+    {
+      "initialize_ms": 3488.164414,
+      "initialize_and_tools_ms": 3872.211124,
+      "protocol": "2026-07-28",
+      "tool_count": 10
+    }
+  ],
+  "scope": "Three isolated current-source stdio instances, configuration only/no database query; resident not restarted",
+  "documented_optional_grace_ms": 1000,
+  "causality": "Readiness exceeding optional grace is consistent with observed missing tools, not a direct trace of Codex internal scheduling"
+}

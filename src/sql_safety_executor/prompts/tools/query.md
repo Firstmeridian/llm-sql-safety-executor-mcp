@@ -12,7 +12,9 @@ Args:
     sql: One SELECT, DESCRIBE, or non-ANALYZE EXPLAIN statement
     
 Returns:
-    Query results with data rows, or error message if query fails
+    Query rows on success. SQL/policy failures return success=false,
+    error_code and a safe error; a hint may suggest recovery on the same
+    connection. Follow the hint without bypassing policy or write approval.
     
 Examples:
     query("SELECT * FROM users LIMIT 10")

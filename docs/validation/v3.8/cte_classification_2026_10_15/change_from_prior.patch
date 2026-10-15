@@ -1,0 +1,18 @@
+--- before/src/sql_safety_executor/core/sql.py
++++ after/src/sql_safety_executor/core/sql.py
+@@ -143,6 +143,15 @@
+                 first_token = statement.token_first(skip_cm=True)
+                 if first_token:
+                     stmt_type = sql_token_upper(first_token)
++                    if stmt_type == "WITH":
++                        # UNKNOWN can result from a keyword-like CTE name or
++                        # unsupported grouping. It does not establish a write,
++                        # and WITH alone does not establish a safe read either.
++                        return PolicyDecision.deny(
++                            "sql_parse_failed",
++                            "Could not safely classify this WITH statement as a supported read.",
++                            "Keep the same connection. Quote keyword-like CTE names consistently in declarations and references, or simplify to a supported read statement.",
++                        )
+             if stmt_type not in SAFE_SQL_TYPES:
+                 if stmt_type == "PRAGMA":
+                     return PolicyDecision.deny("pragma_statement_denied", "Raw PRAGMA statements are not allowed.", "Use list_tables() or describe_table(); describe_table() also returns indexes.")

@@ -1,0 +1,236 @@
+{
+  "version": "3.8.1",
+  "source_reference": "automation.json#source_sha256",
+  "recording_profile": "Decoded application results and compressed source/logs, not full transport frames",
+  "omitted": [
+    "Issued preview token material",
+    "Complete JSON-RPC frames/notifications/IDs",
+    "Model reasoning; no new model usage trial"
+  ],
+  "history": "Earlier validation batches are unchanged; initial failed harness/mock/sandbox logs retained",
+  "artifacts": [
+    {
+      "path": "automation.json",
+      "bytes": 9223,
+      "sha256": "e2acd1f104cda87982337db71c7c1706e4c2948344d68ef8f4d3960b7ee3ae75"
+    },
+    {
+      "path": "baseline_package_source.tar.gz",
+      "bytes": 100206,
+      "sha256": "5e6eb9bf35a5d822d12733a7a0af3561fd04634ea1317d7db06d23ee39c9f7fa",
+      "uncompressed_bytes": 491520,
+      "uncompressed_sha256": "acdf937297e24d0f683f42136d5888444648077ff3421b5d94406ae882e965e3"
+    },
+    {
+      "path": "baseline_source.json",
+      "bytes": 8263,
+      "sha256": "f3185208d58dd639581eb3b3692a82c67e81c46fc9c05d15f0d51c17ac89de09"
+    },
+    {
+      "path": "baseline_v381_review_20261015.json",
+      "bytes": 62086,
+      "sha256": "f10e8e5d9f5167aa3f6e932291f972aeb4c91d4f6daf7872f0b2b7b64ccbb9e4"
+    },
+    {
+      "path": "baseline_v381_review_20261015_historical.json",
+      "bytes": 501,
+      "sha256": "a50843cf0a774c75e136fefecebbc65c980ecddecd90f384d067feeee6d74c55"
+    },
+    {
+      "path": "build.log.gz",
+      "bytes": 158,
+      "sha256": "54aca4cf4c01fb0c887ef88893d5a7b9472844697ba6ffe896b194a38c40924d",
+      "uncompressed_bytes": 267,
+      "uncompressed_sha256": "eff72480fb874ab4a3c07b9189d1dfa8274b2295fa894fb29b38b127ee6f21bb"
+    },
+    {
+      "path": "change_from_oct14.patch",
+      "bytes": 26798,
+      "sha256": "f33a352b9a310906bc7ec0b434edcfcd72e8d8f442b5450add682b641024cf97"
+    },
+    {
+      "path": "document_checks.json",
+      "bytes": 218,
+      "sha256": "d968709e2207e870e8c7f90dd3d137db1634002d60aaaf64ac079a28695bf270"
+    },
+    {
+      "path": "finalize.py.gz",
+      "bytes": 2511,
+      "sha256": "4014a83c5e8c70ae8cc0c5dda31e9b6478e652e0475373a630ab201b56476e30",
+      "uncompressed_bytes": 5974,
+      "uncompressed_sha256": "018b348913c5ec6638f6013c448cc0d68f7ba659fbb9e51ba20a0e8f8ecbf5da"
+    },
+    {
+      "path": "install.log.gz",
+      "bytes": 146,
+      "sha256": "347a19c5d896ea3de48e03b0938e44a360de4e19d2799daedb5730438d91fdb0",
+      "uncompressed_bytes": 185,
+      "uncompressed_sha256": "419aae78126088568594a6d8bba3c6b77238f71584aabc51d9622140c4e989ab"
+    },
+    {
+      "path": "installed-auto.log.gz",
+      "bytes": 1059,
+      "sha256": "068ad15a3f6a4905088bf5e00c6d7cf0ed48c7265de67562d067e26fcb2237ca",
+      "uncompressed_bytes": 5294,
+      "uncompressed_sha256": "5c41d41cdf614c69d9aa036302666e019f9cec411d9c7fabf5598057d649db7b"
+    },
+    {
+      "path": "installed-legacy.log.gz",
+      "bytes": 1270,
+      "sha256": "cac7cf261a8ada8518e8eaa9df1abd001de242a066b7a3b77bab046419f78fa8",
+      "uncompressed_bytes": 9150,
+      "uncompressed_sha256": "ad7c03f735f1b02ae319419c0089786b00dc8f05ab3a088d1626f86a77c2905f"
+    },
+    {
+      "path": "installed_check.py.gz",
+      "bytes": 2288,
+      "sha256": "ca18b38c753dd44e8d502a0de4648315a1ce005f2c28beebe3113bff7544f24d",
+      "uncompressed_bytes": 5909,
+      "uncompressed_sha256": "86f0440c25413693e4131b302cef8d34ea3b036f3f9e19930592002ffb0591bd"
+    },
+    {
+      "path": "installed_scenarios.py.gz",
+      "bytes": 2282,
+      "sha256": "d9cdb56d64d5ac8b18e105905102e4ecb8b926a14064c30de21412e9fcf4a95f",
+      "uncompressed_bytes": 7136,
+      "uncompressed_sha256": "c1a941f4bf639d8751f319e426f86daffb50fa854080742044e5b17a4fb02eb6"
+    },
+    {
+      "path": "installed_wheel.json",
+      "bytes": 84758,
+      "sha256": "84594053e69f2385c2090874ca84a15050014a886a850777fdbb20d5cc46235f"
+    },
+    {
+      "path": "live_mysql.json",
+      "bytes": 22458,
+      "sha256": "70af4cb049d3904e3974642763d9019dc5b8eadc25e92fd5212b596c802339f6"
+    },
+    {
+      "path": "live_mysql.py.gz",
+      "bytes": 1487,
+      "sha256": "55dc99dfd615672cd591a3b797f894c72397128f49e85402ba52df5e58d87c11",
+      "uncompressed_bytes": 3812,
+      "uncompressed_sha256": "7cc8bd45a997d3be8be7d5a2edf133886a4b418d1e6127c1769b6c1c79702262"
+    },
+    {
+      "path": "native_after_restart.json",
+      "bytes": 55347,
+      "sha256": "83fed10b184557727688b0f51309251dc833bd642382d6a0d671fd8aed512cc6"
+    },
+    {
+      "path": "native_before_restart.json",
+      "bytes": 728,
+      "sha256": "a854f11e1c00b5a6bc85f735c7a9b06acd0016beb4e9c45cdb4bb7428c512347"
+    },
+    {
+      "path": "native_preflight.json",
+      "bytes": 627,
+      "sha256": "ff642e9d4ed98b1de434911eac2418d85b30ad16e5bd677c785b37eac1bd2e36"
+    },
+    {
+      "path": "v381-identity-focused.log.gz",
+      "bytes": 44,
+      "sha256": "9f372aec4dfc2ec041a91685ce85817fadd79a71c26393bd179f69ee18a2c1af",
+      "uncompressed_bytes": 279,
+      "uncompressed_sha256": "b11df928018864bb5ba45f7d82c383602e47c133c8bf7da8de7704402ffcccd1"
+    },
+    {
+      "path": "v381-identity-full-final.log.gz",
+      "bytes": 556,
+      "sha256": "25ef267b1202960eb703c7749186a8d33fb738377482e138108c8c2bf0070fa1",
+      "uncompressed_bytes": 2227,
+      "uncompressed_sha256": "3486fad383b16245df9bdef97cae4d3b60584cf4da7f115d2b131add25dbc162"
+    },
+    {
+      "path": "v381-identity-full-initial.log.gz",
+      "bytes": 2048,
+      "sha256": "d05fb34ca02062f52bf749962dfcf5ccdfd553447e59ab1dddde61c285d62dea",
+      "uncompressed_bytes": 8410,
+      "uncompressed_sha256": "e66aaacc2012c8d07a193aedefb974a0bbf57703edeb25eeafcb0cd3f90304c9"
+    },
+    {
+      "path": "v381-identity-full.log.gz",
+      "bytes": 2048,
+      "sha256": "d05fb34ca02062f52bf749962dfcf5ccdfd553447e59ab1dddde61c285d62dea",
+      "uncompressed_bytes": 8410,
+      "uncompressed_sha256": "e66aaacc2012c8d07a193aedefb974a0bbf57703edeb25eeafcb0cd3f90304c9"
+    },
+    {
+      "path": "v381-identity-installed-final.log.gz",
+      "bytes": 1179,
+      "sha256": "7564db174a81c605740ec0fa693a3b9948d55954d8d1460d07eab2b066a44457",
+      "uncompressed_bytes": 10301,
+      "uncompressed_sha256": "261e8ee7e83625bd5ccc4e7762dd1657dbf61e1a778e898e4e79cd08c7543ffd"
+    },
+    {
+      "path": "v381-identity-installed-initial.log.gz",
+      "bytes": 1420,
+      "sha256": "e81ab45d8898127ab1c05302abba7b4ffa25bdb9564e12e31a6fe54da4c581b7",
+      "uncompressed_bytes": 11476,
+      "uncompressed_sha256": "a3b698e9ba9f8ee14e03c034b2ffa268e52b2daee67662924b7f9247ec2dfadc"
+    },
+    {
+      "path": "v381-identity-installed.log.gz",
+      "bytes": 1420,
+      "sha256": "e81ab45d8898127ab1c05302abba7b4ffa25bdb9564e12e31a6fe54da4c581b7",
+      "uncompressed_bytes": 11476,
+      "uncompressed_sha256": "a3b698e9ba9f8ee14e03c034b2ffa268e52b2daee67662924b7f9247ec2dfadc"
+    },
+    {
+      "path": "v381-identity-mocks.log.gz",
+      "bytes": 52,
+      "sha256": "f2aec6696369b4c3af8f8e3d3e6a120a506160796166806e8d95896b2a620588",
+      "uncompressed_bytes": 98,
+      "uncompressed_sha256": "ce3d50897cb3f8b0deb52622981176393c0be3f6597dbfcce91606935c84965d"
+    },
+    {
+      "path": "v381-identity-mysql.log.gz",
+      "bytes": 939,
+      "sha256": "6e6e0f30bde32287dfd301112aae52b2f2bd5f2705d9a44211e82abb6fc9cb9a",
+      "uncompressed_bytes": 7214,
+      "uncompressed_sha256": "446a2940f085a12225919ca3f49201dc99b85563e8c5535aec5c09c6d9740265"
+    },
+    {
+      "path": "v381-identity-new-final.log.gz",
+      "bytes": 358,
+      "sha256": "c5adc1d45554c615ece82aaf56765cdc05498d4cb0b03826faf0be43637a443d",
+      "uncompressed_bytes": 594,
+      "uncompressed_sha256": "8e0ed5330def1549074f3d9c06f57fc663bd1fb585708434ee00d897d8ea9458"
+    },
+    {
+      "path": "v381-identity-new.log.gz",
+      "bytes": 2261,
+      "sha256": "aeac5c9fac8abf82be09cd0c5bf0df39d45fc68f6c90ab46e4c681dfaa31e9e0",
+      "uncompressed_bytes": 27791,
+      "uncompressed_sha256": "890f7edf6308e869043e19fe67368d896900baf5a50b744621c32e6957224ae7"
+    },
+    {
+      "path": "v381-identity-prompt.log.gz",
+      "bytes": 74,
+      "sha256": "090e5d838501a835953ba08eeacb177cf0ecef59e67add02b2bcb919113e87ea",
+      "uncompressed_bytes": 55,
+      "uncompressed_sha256": "f0e0a884c0914987015a830aea57daf3a52000e3ea17c4899a6df1db394a16f2"
+    },
+    {
+      "path": "v381-identity-pyright-absolute.log.gz",
+      "bytes": 770,
+      "sha256": "c3b6a3bace9c9fd4d7e45cc7b5f526a657bc2f2d81f491dbd1e8fe8d91de85e4",
+      "uncompressed_bytes": 10453,
+      "uncompressed_sha256": "f0f38bb26e9d54df4840974a09d51d719e83d00cd86cead3a3d3b9b46651eea4"
+    },
+    {
+      "path": "v381-identity-pyright-final.log.gz",
+      "bytes": 53,
+      "sha256": "c8f40ac3b3f577d99ca528dc797ac395a63bdcedd0b425151e1b76ffc54e42f5",
+      "uncompressed_bytes": 37,
+      "uncompressed_sha256": "6d88a1b220adb7a3d62092b6e38431f0b3fe8babe9864fab90e5849766260332"
+    },
+    {
+      "path": "v381-identity-pyright.log.gz",
+      "bytes": 770,
+      "sha256": "c3b6a3bace9c9fd4d7e45cc7b5f526a657bc2f2d81f491dbd1e8fe8d91de85e4",
+      "uncompressed_bytes": 10453,
+      "uncompressed_sha256": "f0f38bb26e9d54df4840974a09d51d719e83d00cd86cead3a3d3b9b46651eea4"
+    }
+  ]
+}

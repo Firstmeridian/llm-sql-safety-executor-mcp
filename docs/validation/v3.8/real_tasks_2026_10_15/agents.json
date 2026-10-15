@@ -1,0 +1,99 @@
+[
+  {
+    "case": "sales",
+    "trial": 1,
+    "agent_id": "01a13e64-5f87-7ae1-9f23-f85b3aac9770",
+    "nickname": "Darwin",
+    "turns_sent": 2,
+    "status": "complete"
+  },
+  {
+    "case": "reconciliation",
+    "trial": 1,
+    "agent_id": "01a13e64-6002-7a42-8223-6f9ae507f347",
+    "nickname": "Carson",
+    "turns_sent": 2,
+    "status": "complete"
+  },
+  {
+    "case": "routing",
+    "trial": 1,
+    "agent_id": "01a13e64-6081-7b42-9f04-6b35f39c0a82",
+    "nickname": "Sagan",
+    "turns_sent": 5,
+    "status": "complete"
+  },
+  {
+    "case": "sales",
+    "trial": 2,
+    "agent_id": "01a13e66-485b-7b71-b907-ae46e1443c47",
+    "nickname": "Hooke",
+    "turns_sent": 2,
+    "status": "complete"
+  },
+  {
+    "case": "reconciliation",
+    "trial": 2,
+    "agent_id": "01a13e66-48d6-7de3-8929-b7833ada09fe",
+    "nickname": "Mendel",
+    "turns_sent": 2,
+    "status": "complete"
+  },
+  {
+    "case": "sales",
+    "trial": 3,
+    "agent_id": "01a13e68-8293-7e22-9983-b7d0f1de465d",
+    "nickname": "Hume",
+    "turns_sent": 2,
+    "status": "complete"
+  },
+  {
+    "case": "routing",
+    "trial": 2,
+    "agent_id": "01a13e68-82ff-7113-9d15-52332c4dbbc3",
+    "nickname": "McClintock",
+    "turns_sent": 5,
+    "status": "complete"
+  },
+  {
+    "case": "recovery",
+    "trial": 1,
+    "agent_id": "01a13e68-8389-7b13-aaf4-5e9a28af14d1",
+    "nickname": "Mill",
+    "turns_sent": 3,
+    "status": "complete"
+  },
+  {
+    "case": "reconciliation",
+    "trial": 3,
+    "agent_id": "01a13e6b-a343-7f72-b9f2-056e19e47548",
+    "nickname": "Hilbert",
+    "turns_sent": 2,
+    "status": "complete"
+  },
+  {
+    "case": "routing",
+    "trial": 3,
+    "agent_id": "01a13e6c-c423-72f2-914c-cbcc9cadc0fd",
+    "nickname": "Euler",
+    "turns_sent": 5,
+    "status": "complete"
+  },
+  {
+    "case": "recovery",
+    "trial": 2,
+    "agent_id": "01a13e6e-920c-73f2-82d4-11b8ca441a23",
+    "nickname": "Newton",
+    "turns_sent": 3,
+    "status": "complete"
+  },
+  {
+    "case": "recovery",
+    "trial": 3,
+    "agent_id": "01a13e71-6149-77b2-a4e1-239cdc536800",
+    "nickname": "Boole",
+    "turns_sent": 3,
+    "status": "complete"
+  }
+]
+

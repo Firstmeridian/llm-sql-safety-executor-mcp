@@ -1,0 +1,184 @@
+{
+  "version": "3.8.1",
+  "source_reference": "automation.json#source_sha256",
+  "recording_profile": "Decoded public tool results and compressed logs/source references; not complete transport frames",
+  "history": "Earlier batches and Luna provider usage remain unchanged",
+  "omitted": [
+    "Internal model reasoning/credentials",
+    "Complete raw JSON-RPC notifications/IDs and omitted-vs-null distinction",
+    "No new end-to-end model cost measurement for final patch"
+  ],
+  "artifacts": [
+    {
+      "path": "automation.json",
+      "bytes": 9376,
+      "sha256": "54a86d0187faffab371c8aacb38f6e5c44d6b903eb3923ed870c7a1094d457a3"
+    },
+    {
+      "path": "baseline_source.json",
+      "bytes": 363,
+      "sha256": "ba030b8bea2eaf67723566f158377665b635106dfde874aa44da8d3488c67776"
+    },
+    {
+      "path": "build.log.gz",
+      "bytes": 158,
+      "sha256": "54aca4cf4c01fb0c887ef88893d5a7b9472844697ba6ffe896b194a38c40924d",
+      "uncompressed_bytes": 267,
+      "uncompressed_sha256": "eff72480fb874ab4a3c07b9189d1dfa8274b2295fa894fb29b38b127ee6f21bb"
+    },
+    {
+      "path": "cost_comparison.json",
+      "bytes": 2312,
+      "sha256": "4f4d40cd1c3bc248f9690b7489bacc6b094a1ac2e0d4a598a3cf49c9159f7b2a"
+    },
+    {
+      "path": "document_checks.json",
+      "bytes": 294,
+      "sha256": "efddf0c810b77c411d1fff7c01f8c5069bd62d714d32bc54368a2f63089c279a"
+    },
+    {
+      "path": "finalize.py.gz",
+      "bytes": 2475,
+      "sha256": "d060452cbe2d080137023050ddc0e5c94158c7970631181673168440aec51a18",
+      "uncompressed_bytes": 5841,
+      "uncompressed_sha256": "0e425ef08ce33a12a33c2f688eb7bf807b6f4d26bdda79b38a2942c0ca924fac"
+    },
+    {
+      "path": "harness_attempts.json",
+      "bytes": 858,
+      "sha256": "fbe643c2bc37f24cdafcf38535f3e58ffd855dc937e66a867f81b4d96a733734"
+    },
+    {
+      "path": "host_connection_metadata.json",
+      "bytes": 6911,
+      "sha256": "4f487517e052e228febe7c49877a54b8d1960683f747b26ed9d4ee641655ed6a"
+    },
+    {
+      "path": "identity_comparison.json",
+      "bytes": 9903,
+      "sha256": "863111a0feb442ab3c64f9181a45ad36916194b8d13a7fbcaf4541bf5f3ca0b5"
+    },
+    {
+      "path": "install.log.gz",
+      "bytes": 146,
+      "sha256": "347a19c5d896ea3de48e03b0938e44a360de4e19d2799daedb5730438d91fdb0",
+      "uncompressed_bytes": 185,
+      "uncompressed_sha256": "419aae78126088568594a6d8bba3c6b77238f71584aabc51d9622140c4e989ab"
+    },
+    {
+      "path": "installed-auto.log.gz",
+      "bytes": 760,
+      "sha256": "4c0bbb66e93e4dce37629eb3b3bf5299f305cc3bc5dc6084cc1266e504f5e467",
+      "uncompressed_bytes": 3934,
+      "uncompressed_sha256": "6195353112270805421476148230459f54556cfcb14250462b58aa1faf1e30da"
+    },
+    {
+      "path": "installed-legacy.log.gz",
+      "bytes": 1001,
+      "sha256": "15349c303e4523b908309e407b924a739bd5ca5aa9a56cfbf0d33785d49dba17",
+      "uncompressed_bytes": 6738,
+      "uncompressed_sha256": "d97a73517a7768e0c611c9d410c5f74fc6dc896713f4a60cb7fbb8d202e4c58f"
+    },
+    {
+      "path": "installed_check.py.gz",
+      "bytes": 3376,
+      "sha256": "0116772af897a1e7045c554f51c0e3bc5c6d2b67945cf9192c2bf1e2ee33330b",
+      "uncompressed_bytes": 9893,
+      "uncompressed_sha256": "b3d93c3b3081a71438d8ff524d59c83d83158e10b74664a7bc1c94273484f3b9"
+    },
+    {
+      "path": "installed_wheel.json",
+      "bytes": 40284,
+      "sha256": "cdd128dc88d722247e325c6f70a8d2547a51b3a5283b826803629e68cd7e2031"
+    },
+    {
+      "path": "maintainer_checkpoint.json",
+      "bytes": 497,
+      "sha256": "ab6dc7ba333b1d86137d5e9cdafc56e6bda46e33611347142bd469a77d6dda9f"
+    },
+    {
+      "path": "measure_policy.py.gz",
+      "bytes": 2253,
+      "sha256": "52f1d5159b006b7d25ca3c9b4337601e3f0fae56e9839b804e8bf21ce9c21548",
+      "uncompressed_bytes": 5722,
+      "uncompressed_sha256": "e031ca0eeb381b52f20a4f56abcdcb0875e98c6017b52c0345306062918d6ce7"
+    },
+    {
+      "path": "native_after_restart.json",
+      "bytes": 30463,
+      "sha256": "d90b13f83d5cf238a334ba408b62f9f34b8f3c5dec230917cc14a6726971f6d0"
+    },
+    {
+      "path": "native_before_restart.json",
+      "bytes": 1137,
+      "sha256": "86dd61f5a011cfa23d30f02eef54ef9a59e399beefdd66c34187731696c75ec9"
+    },
+    {
+      "path": "policy_before.py.gz",
+      "bytes": 10494,
+      "sha256": "6d9e40a7b984a899c771ac438b1e6d280325f7a54d9c3f690714563ce17148ba",
+      "uncompressed_bytes": 40680,
+      "uncompressed_sha256": "ab25a08c17f2307078f82fded19eff03e20954868f00eebd808286bb293885dd"
+    },
+    {
+      "path": "precommit_after_policy_matrix.json",
+      "bytes": 41035,
+      "sha256": "15519ae0f36ab48c30bf5d2b8de34b732ff4463a99b19d01e4857b3808be9105"
+    },
+    {
+      "path": "precommit_before_initial_overlap_policy_matrix.json",
+      "bytes": 41029,
+      "sha256": "6f4fb5e1b2bb234c00f1c4a40b8bab73be9838c75e097cb26bc81afc5099cd4f"
+    },
+    {
+      "path": "precommit_before_policy_matrix.json",
+      "bytes": 41051,
+      "sha256": "9b9f00022bf58396b30da368c6a25d107e554b08d33e157d576934d67cc06830"
+    },
+    {
+      "path": "precommit_before_return_initial_overlap_policy_matrix.json",
+      "bytes": 41045,
+      "sha256": "7ec080fa9aec6a5b61e8c83f243edb19ba58dee2bd196de16881830af98828d5"
+    },
+    {
+      "path": "precommit_before_return_policy_matrix.json",
+      "bytes": 41047,
+      "sha256": "8e73611457a90281cd53883b8f5856dc0fac9224fc88a3b7fad3b02127667b2d"
+    },
+    {
+      "path": "record_identity.py.gz",
+      "bytes": 1309,
+      "sha256": "969ce633efa81c6bf76936c84b56aae46c0108923c4382734f001c78ec1eb43c",
+      "uncompressed_bytes": 2673,
+      "uncompressed_sha256": "67afa83a25fe611357a165cada3533940886765751e2d17eab19b2671d57704e"
+    },
+    {
+      "path": "v381-precommit-full.log.gz",
+      "bytes": 537,
+      "sha256": "d3a78f02be6809f5b5a7834cdf866726b6d264d2011ba965762fb46bf7447d20",
+      "uncompressed_bytes": 2095,
+      "uncompressed_sha256": "d1eb185c2ed795e96187ff9fa33053084f6024870690d48f612d79b423902a88"
+    },
+    {
+      "path": "v381-precommit-prompt.log.gz",
+      "bytes": 74,
+      "sha256": "090e5d838501a835953ba08eeacb177cf0ecef59e67add02b2bcb919113e87ea",
+      "uncompressed_bytes": 55,
+      "uncompressed_sha256": "f0e0a884c0914987015a830aea57daf3a52000e3ea17c4899a6df1db394a16f2"
+    },
+    {
+      "path": "v381-precommit-pyright.log.gz",
+      "bytes": 53,
+      "sha256": "c8f40ac3b3f577d99ca528dc797ac395a63bdcedd0b425151e1b76ffc54e42f5",
+      "uncompressed_bytes": 37,
+      "uncompressed_sha256": "6d88a1b220adb7a3d62092b6e38431f0b3fe8babe9864fab90e5849766260332"
+    },
+    {
+      "path": "v381-precommit-wheel.log.gz",
+      "bytes": 715,
+      "sha256": "82eb5c126e93a5b924f2c06f598b964fe3dc969da17faa56607a147f45ee96ea",
+      "uncompressed_bytes": 6663,
+      "uncompressed_sha256": "7d8d4d10bba7b43fb91fdde8585a971d837328e5314b7bea445f654211fc0c51"
+    }
+  ]
+}

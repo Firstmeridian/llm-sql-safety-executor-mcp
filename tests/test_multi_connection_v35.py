@@ -323,7 +323,7 @@ def test_union_policy_and_disclosure_follow_selected_connection(
                 )
                 assert payload["success"] is False
                 assert "UNION queries disabled" in payload["error"]
-                assert "Prefer one permitted query without UNION" in payload["error"]
+                assert "Prefer one permitted query without UNION" in payload["hint"]
                 assert "combine results in your response" not in payload["error"]
                 assert payload["connection_id"] == connection_id
                 assert meta["connection_id"] == connection_id
@@ -375,12 +375,11 @@ def test_query_skill_union_policy_follows_selected_connection(
     union_sql = "SELECT label FROM items UNION SELECT label FROM items"
     skill_name = "sample-monthly-sales-report-sqlite"
     try:
-        module.get_skills_cache()[skill_name].tables = ["items"]
-        monkeypatch.setattr(
-            module,
-            "load_query",
-            lambda _skill_name: (union_sql, {}),
-        )
+        skill = module.get_skills_cache()[skill_name]
+        skill.tables = ["items"]
+        skill.params = {}
+        skill._sql_template = union_sql
+        skill._inferred_tables.clear()
 
         for connection_id, is_allowed in (
             ("default", default_allow_union),
@@ -400,18 +399,12 @@ def test_query_skill_union_policy_follows_selected_connection(
                 assert payload["connection_id"] == connection_id
                 assert meta["connection_id"] == connection_id
             else:
-                with pytest.raises(
-                    module.ToolError,
-                    match="UNION queries disabled",
-                ):
-                    run_tool(
-                        module.execute_query_skill(
-                            skill_name=skill_name,
-                            params={},
-                            ctx=DummyContext(),
-                            connection_id=connection_id,
-                        )
-                    )
+                payload, _ = run_tool(module.execute_query_skill(
+                    skill_name=skill_name, params={}, ctx=DummyContext(),
+                    connection_id=connection_id,
+                ))
+                assert payload["success"] is False
+                assert payload["error_code"] == "union_disabled"
     finally:
         _cleanup_modules()
 
@@ -534,15 +527,13 @@ def test_query_skills_are_displayed_and_executed_for_target_connection(tmp_path,
         assert result["data"][0]["date"] == "2026-01-15"
         assert meta["connection_id"] == "analytics"
 
-        with pytest.raises(module.ToolError, match="requires table.*not found"):
-            run_tool(
-                module.execute_query_skill(
-                    skill_name="sample-monthly-sales-report-sqlite",
-                    params={"year": 2026, "month": 1},
-                    ctx=DummyContext(),
-                    connection_id="default",
-                )
-            )
+        payload, _ = run_tool(module.execute_query_skill(
+            skill_name="sample-monthly-sales-report-sqlite",
+            params={"year": 2026, "month": 1}, ctx=DummyContext(),
+            connection_id="default",
+        ))
+        assert payload["success"] is False
+        assert payload["error_code"] == "table_access_denied"
     finally:
         _cleanup_modules()
 

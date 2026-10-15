@@ -1,0 +1,29 @@
+{
+  "scope": "Native post-restart Query Skill policy refusal, normal structured business failure rather than protocol ToolError; orders outside this connection allowlist",
+  "arguments": {
+    "skill_name": "sample-monthly-sales-report-sqlite",
+    "params": {
+      "year": 2026,
+      "month": 10
+    },
+    "connection_id": "union_test_sqlite"
+  },
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"success\":false,\"error_code\":\"table_access_denied\",\"error\":\"Access denied to table(s): orders. Only allowed tables: sales_2026_q1, sales_2026_q2, sales_2026_q3\",\"hint\":\"Keep the same connection and use authorized tables. For a CTE reference, use the declaration's exact case on MySQL connections.\",\"skill_name\":\"sample-monthly-sales-report-sqlite\",\"connection_id\":\"union_test_sqlite\",\"db_type\":\"sqlite\"}"
+      }
+    ],
+    "structuredContent": {
+      "success": false,
+      "error_code": "table_access_denied",
+      "error": "Access denied to table(s): orders. Only allowed tables: sales_2026_q1, sales_2026_q2, sales_2026_q3",
+      "hint": "Keep the same connection and use authorized tables. For a CTE reference, use the declaration's exact case on MySQL connections.",
+      "skill_name": "sample-monthly-sales-report-sqlite",
+      "connection_id": "union_test_sqlite",
+      "db_type": "sqlite"
+    },
+    "isError": false
+  }
+}

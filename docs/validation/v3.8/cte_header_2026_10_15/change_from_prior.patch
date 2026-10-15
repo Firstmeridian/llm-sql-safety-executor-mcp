@@ -1,0 +1,34 @@
+--- before/src/sql_safety_executor/core/policy.py
++++ after/src/sql_safety_executor/core/policy.py
+@@ -638,13 +638,25 @@
+         for entry in entries:
+             if not isinstance(entry, Identifier):
+                 continue
+-            for part in _significant_sql_tokens(entry):
+-                if part.ttype in sql_tokens.Keyword and sql_token_upper(part) == "AS":
++            # A quoted name plus column list may be grouped as an Identifier
++            # containing both the header and AS/body. Excluding that entire
++            # group hides real calls. Follow original leaves only until AS at
++            # declaration depth; malformed headers exclude nothing.
++            header: set[int] = set()
++            depth = 0
++            for part in entry.flatten():
++                if part.is_whitespace or part.ttype in sql_tokens.Comment:
++                    continue
++                if depth == 0 and part.ttype in sql_tokens.Keyword and sql_token_upper(part) == "AS":
++                    excluded.update(header)
+                     break
+-                if isinstance(part, TokenList):
+-                    excluded.update(id(leaf) for leaf in part.flatten())
+-                else:
+-                    excluded.add(id(part))
++                header.add(id(part))
++                if part.value == "(":
++                    depth += 1
++                elif part.value == ")":
++                    depth -= 1
++                    if depth < 0:
++                        break
+     for token in tokens:
+         if isinstance(token, TokenList):
+             excluded.update(_cte_header_token_ids(token))

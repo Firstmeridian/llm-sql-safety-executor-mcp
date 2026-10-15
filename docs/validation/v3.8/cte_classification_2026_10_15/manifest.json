@@ -1,0 +1,292 @@
+{
+  "version": "3.8.1",
+  "source_reference": "automation.json#source_sha256",
+  "recording_profile": "Source/test hashes, compressed application results and classifier/native-private-read comparisons; available Host content/structuredContent/isError, not complete protocol frames",
+  "omitted": [
+    "Full JSON-RPC frames/notifications",
+    "No new model token/cost/latency claims",
+    "No executed configured writes or claim of restored unquoted-CTE grammar support"
+  ],
+  "cleanup": "Private SQLite/CLI/install fixtures auto-cleaned; configured resident/database/TOML untouched",
+  "prior_evidence": "Prior manifests byte-verified; previous source/native/model acceptance not relabeled",
+  "artifacts": [
+    {
+      "path": "after-calls.json.gz",
+      "bytes": 12909,
+      "sha256": "7474612818e24973b71f721f0f169fdde6fff5c297c7b07b512443d1fd602d35",
+      "uncompressed_bytes": 199857,
+      "uncompressed_sha256": "986102ca07e9d47a0fffc64bb00ed4cb87a98b558634fb5f69a6c8fe8ea871a8"
+    },
+    {
+      "path": "automation.json",
+      "bytes": 17125,
+      "sha256": "bc0b37be48cc702813762119d5a5643185e1d8b7612151a187b0de5a08016d0d"
+    },
+    {
+      "path": "baseline_source.json",
+      "bytes": 8152,
+      "sha256": "be2991ce2507c98d2a3779289146222ef8d4410c9174bebc77047ebfee4dd2b7"
+    },
+    {
+      "path": "baseline_sql.py.gz",
+      "bytes": 2777,
+      "sha256": "20280c0860cc976db011cef24940bb7f5acba03b0461b3048126b1bc97eecff3",
+      "uncompressed_bytes": 7360,
+      "uncompressed_sha256": "132ad9f8d1ad7367aa2f20c7edbb4afaa1b22c65994c45bf8bc4e267b030d3b3"
+    },
+    {
+      "path": "before-calls.json.gz",
+      "bytes": 12357,
+      "sha256": "7e5509c007736b9fc6d9803e79eafabcb751a34b77b2c04ca069740ea541a26e",
+      "uncompressed_bytes": 201175,
+      "uncompressed_sha256": "ba0056c7f5d30f9f2a5c4070186a90c1647e42d3524ede6feeb5b0c9558cf049"
+    },
+    {
+      "path": "build.log.gz",
+      "bytes": 158,
+      "sha256": "54aca4cf4c01fb0c887ef88893d5a7b9472844697ba6ffe896b194a38c40924d",
+      "uncompressed_bytes": 267,
+      "uncompressed_sha256": "eff72480fb874ab4a3c07b9189d1dfa8274b2295fa894fb29b38b127ee6f21bb"
+    },
+    {
+      "path": "change_from_prior.patch",
+      "bytes": 1253,
+      "sha256": "eda8209ab795c9adc4e12d538ba31650e1693fb91c04bf3fcecb0757818a1fef"
+    },
+    {
+      "path": "classification_matrix.json.gz",
+      "bytes": 5227,
+      "sha256": "bd60d4121f04f76ef0c18a22ca0e2311426e518242f5e791640ab983011662e2",
+      "uncompressed_bytes": 48961,
+      "uncompressed_sha256": "3cd281b933a4e6cdc2de474fc120090ae344326592857eb279efe20441d17c91"
+    },
+    {
+      "path": "classification_matrix.py.gz",
+      "bytes": 2064,
+      "sha256": "a7224358982b64d29fb20f8b9228c92fa7a5209dc5c7d7e0937e872815e3f85b",
+      "uncompressed_bytes": 5239,
+      "uncompressed_sha256": "e937983b6cb96ad255b02ac3f8a9a06d38d39c44aa6686925c9d017006a1ec39"
+    },
+    {
+      "path": "document_checks.json",
+      "bytes": 268,
+      "sha256": "1b1a66d5cf5123574f5dd24ceb095c38ba10c44157647e22c6d1c8da88af02b1"
+    },
+    {
+      "path": "finalize.py.gz",
+      "bytes": 4729,
+      "sha256": "e17c03be22a5b0b3a10720b7bd6066af1ccc6f4e062a109a1c8ab39f53c57999",
+      "uncompressed_bytes": 13572,
+      "uncompressed_sha256": "3e1bc54888ef59cfe06ad7529a6bdb380da03eefc89fdae3a8f988cb71306596"
+    },
+    {
+      "path": "impact_matrix.json.gz",
+      "bytes": 12707,
+      "sha256": "6258922c653e1460a028abfa9c42f39b209eab0670ad936f34591a27dfe23baf",
+      "uncompressed_bytes": 373482,
+      "uncompressed_sha256": "33593a5baffc14071bb900f8cdb8f7f31b46330f1986ec2af31c9007a3f9e98d"
+    },
+    {
+      "path": "impact_matrix.py.gz",
+      "bytes": 3026,
+      "sha256": "611aa228c5cc9e4b45cef6d664570df2645fe4863362115787d389986d920435",
+      "uncompressed_bytes": 9104,
+      "uncompressed_sha256": "95e1d4f5a782bea0dae7bf0e1d0485da16009bea49b66c3551b0e05145910dce"
+    },
+    {
+      "path": "impact_skills.json.gz",
+      "bytes": 10584,
+      "sha256": "2d13c516c93c3bba7797cba2316c2fd3206825a8589d40957f574a8004b7de08",
+      "uncompressed_bytes": 162931,
+      "uncompressed_sha256": "fd7a003a6759d79bb96f8cbbb79a2f442907c3e13334511f8c4800f0cb0a849e"
+    },
+    {
+      "path": "impact_skills.py.gz",
+      "bytes": 1743,
+      "sha256": "35ae8ca4dee29153e3a501d4983cebc09efc6d82c232b8737fbef580a67d3440",
+      "uncompressed_bytes": 4401,
+      "uncompressed_sha256": "e625a9755601f663ef8b7961fe5b5c1cfa8a13799ddaf81b9b243de66f94918c"
+    },
+    {
+      "path": "install.log.gz",
+      "bytes": 146,
+      "sha256": "347a19c5d896ea3de48e03b0938e44a360de4e19d2799daedb5730438d91fdb0",
+      "uncompressed_bytes": 185,
+      "uncompressed_sha256": "419aae78126088568594a6d8bba3c6b77238f71584aabc51d9622140c4e989ab"
+    },
+    {
+      "path": "installed-auto-False.log.gz",
+      "bytes": 908,
+      "sha256": "893ffad9316fa37ed33ad38ec7460ac4cb6ff52b0c93fb1b3d9a8be3f848a375",
+      "uncompressed_bytes": 5495,
+      "uncompressed_sha256": "e1d89c0fc1289d4725622b20c634ead678057c09c2ebfb8a2c2a37ab24beed5a"
+    },
+    {
+      "path": "installed-auto-True.log.gz",
+      "bytes": 911,
+      "sha256": "c5ccfaa0422b8f63eeecd680d3abca21d1e0e5c2967b7f14035bd27e6e6b4953",
+      "uncompressed_bytes": 5495,
+      "uncompressed_sha256": "34782f572706dc044c165f637781ffe8be4d2af2f6fb64a2da7115ed0e8a2431"
+    },
+    {
+      "path": "installed-legacy-False.log.gz",
+      "bytes": 1090,
+      "sha256": "da83422d3e65a872ff31fc1b7c3ee495a8a7d1a781d2044901e918213379129d",
+      "uncompressed_bytes": 9790,
+      "uncompressed_sha256": "c6707881e661fc5777f07c5da468fea6849a5ddc76ddf4d41b03b65cc66e1fc6"
+    },
+    {
+      "path": "installed-legacy-True.log.gz",
+      "bytes": 1090,
+      "sha256": "81814af88e164443991a6da2926632e950242800d69ba1c86f8c7ccc36c3b138",
+      "uncompressed_bytes": 9790,
+      "uncompressed_sha256": "982d23891eec7613a4134f8fc77c647791091d976d3d6292114244a66e3ed805"
+    },
+    {
+      "path": "installed_check.py.gz",
+      "bytes": 2299,
+      "sha256": "76fed755c9d90f5554839e098aaa04fbd14af3bc2ae9c096ed019746959af5ed",
+      "uncompressed_bytes": 5934,
+      "uncompressed_sha256": "c2983ecf9d098da32182f236edb64292fcb30cc4f6e30d8f9d368ff537767b4f"
+    },
+    {
+      "path": "installed_scenarios.py.gz",
+      "bytes": 74,
+      "sha256": "40584ae58a58b2e0b363b44c7fad88231731468dae4609da3eea8f6c5a871a4c",
+      "uncompressed_bytes": 55,
+      "uncompressed_sha256": "08c705d3c086479e0ef8a87c9744697713c41771d390d79c9c0efc73710aba5e"
+    },
+    {
+      "path": "installed_wheel.json.gz",
+      "bytes": 13753,
+      "sha256": "b42317dabb61affaf9d55e9dc78a01e43d459dad49f0417f9d8585f60158ac18",
+      "uncompressed_bytes": 201810,
+      "uncompressed_sha256": "5d0c51d9c19ae463afcd93f4bed7223206cd9c482f06e9a65be591c114d5443a"
+    },
+    {
+      "path": "live_mysql.json.gz",
+      "bytes": 4556,
+      "sha256": "d3a0736726b90a86e977aefdc0e170d127e9a16e8cbd7409cb458ae29219cf7d",
+      "uncompressed_bytes": 21030,
+      "uncompressed_sha256": "ac1968daf537c1d9f1ff5da56805d73d3c39f6357b7b22697f063e902005bb6c"
+    },
+    {
+      "path": "live_mysql.py.gz",
+      "bytes": 1190,
+      "sha256": "92e42fccea9d60920d5182dd69a23ee6754223dbe88ddad4037f98084b5fdf86",
+      "uncompressed_bytes": 2372,
+      "uncompressed_sha256": "8fe652dff90126487e630faa21575b1b51c80aa50a58f92a3f266a8b4d01611a"
+    },
+    {
+      "path": "native_after_restart.json",
+      "bytes": 15417,
+      "sha256": "909baa82074cba9915548c5ee9fa4f31a1b55f22335f43f0f8814bf022dc0976"
+    },
+    {
+      "path": "native_before_restart.json",
+      "bytes": 10354,
+      "sha256": "46ec5aa0cecc6c32a052f6390783c4a2544970bd7032d8ac54a2124d90c44663"
+    },
+    {
+      "path": "native_impact_spot_checks.json",
+      "bytes": 13531,
+      "sha256": "2ff9b6af7163124d34d19db42480892fee774415e071e081ec82f1e52822d720"
+    },
+    {
+      "path": "native_refresh_checkpoint.json",
+      "bytes": 2878,
+      "sha256": "4b6b3b2c3710dd6ffb87b791385f5e3182c70e8bea2313c97529954f3bb7dc5f"
+    },
+    {
+      "path": "probe.py.gz",
+      "bytes": 1112,
+      "sha256": "86c8c3c6138e6feec76cd797534a5d6514076dcbf15a69084802fa1ee33a1d00",
+      "uncompressed_bytes": 2283,
+      "uncompressed_sha256": "085fd20891be5da2f6f92e5bbcc46b9285e8c8bf9df864b6d75b481c99fd779a"
+    },
+    {
+      "path": "scenarios.py.gz",
+      "bytes": 1710,
+      "sha256": "f0046a5332b3a61399fb4042e724c8c07eda6dcee16a8251e5cd1a39ea84df7c",
+      "uncompressed_bytes": 4383,
+      "uncompressed_sha256": "0b03b00421ce4919f6f06717e4d118570fa508739b88c4344acf9aa8804635b0"
+    },
+    {
+      "path": "v381-cte-classification-after.log.gz",
+      "bytes": 1564,
+      "sha256": "8e6fb0f78aea7b8f8dfbd2888de8ff54bfcb75039fd321384704fcf2a796a524",
+      "uncompressed_bytes": 39179,
+      "uncompressed_sha256": "21b6dd41e75f20354157df86b82437c7ebc9c7285ec62897d97b1f7c821ea37e"
+    },
+    {
+      "path": "v381-cte-classification-before.log.gz",
+      "bytes": 1543,
+      "sha256": "ed25c02e2da72b09470bbd7af8839f1cc5f601cf2c3db6c6afb6318822301d2b",
+      "uncompressed_bytes": 39296,
+      "uncompressed_sha256": "4fa9574f7fecb44b40770a1b847ab8b0ecacf760656b74dd7462a99767aa7d18"
+    },
+    {
+      "path": "v381-cte-classification-focused.log.gz",
+      "bytes": 419,
+      "sha256": "42f902ffd5b784499cdc4d50e1449db72bddba20858c0162d6efce66e1ba64c7",
+      "uncompressed_bytes": 793,
+      "uncompressed_sha256": "3c755b2bcadbef1f36478f8d133ab13ccb1fb6e218928f0232f96e21b9a3c685"
+    },
+    {
+      "path": "v381-cte-classification-full.log.gz",
+      "bytes": 652,
+      "sha256": "66ba9b7ca7036c60c916d235dac412b6f522d44866f24f906f4454deb5b3c815",
+      "uncompressed_bytes": 2928,
+      "uncompressed_sha256": "3553e660b8990dbfe03341d0facc283ef8a8308fcd3baae13faa5fc79895869d"
+    },
+    {
+      "path": "v381-cte-classification-installed.log.gz",
+      "bytes": 831,
+      "sha256": "ebde9f037037701797e64095394c2899031665714fe9ac67cb4090743bf194ca",
+      "uncompressed_bytes": 20009,
+      "uncompressed_sha256": "8954f32f6687f2baeb60479aa2c16ee2949ddf9301dae5fa63278b45982052e4"
+    },
+    {
+      "path": "v381-cte-classification-matrix.log.gz",
+      "bytes": 99,
+      "sha256": "d6685eece846d0dad641ffb1ceb115f878ed3c9daf7d6680a89b48fa452beca3",
+      "uncompressed_bytes": 93,
+      "uncompressed_sha256": "2504a1118f8ce18b3f9681d5d8468c0622332b946e52af6ec59f3c6c49a03c96"
+    },
+    {
+      "path": "v381-cte-classification-mysql.log.gz",
+      "bytes": 762,
+      "sha256": "2ee7ab6565fc20c8ae00733e3715f8b79f64fd7f68c361954d24a28987ede0c0",
+      "uncompressed_bytes": 7425,
+      "uncompressed_sha256": "7d2b5a5b76599a8fd099d5e77a659817e86c74ec07f21a9a7fba081677a28a28"
+    },
+    {
+      "path": "v381-cte-classification-prompt.log.gz",
+      "bytes": 74,
+      "sha256": "090e5d838501a835953ba08eeacb177cf0ecef59e67add02b2bcb919113e87ea",
+      "uncompressed_bytes": 55,
+      "uncompressed_sha256": "f0e0a884c0914987015a830aea57daf3a52000e3ea17c4899a6df1db394a16f2"
+    },
+    {
+      "path": "v381-cte-classification-pyright.log.gz",
+      "bytes": 53,
+      "sha256": "c8f40ac3b3f577d99ca528dc797ac395a63bdcedd0b425151e1b76ffc54e42f5",
+      "uncompressed_bytes": 37,
+      "uncompressed_sha256": "6d88a1b220adb7a3d62092b6e38431f0b3fe8babe9864fab90e5849766260332"
+    },
+    {
+      "path": "v381-cte-impact-matrix.log.gz",
+      "bytes": 792,
+      "sha256": "1b0d941d557d5d2beccd344b67b9a98cdd860d50d5b02c1bae8c059af4455db8",
+      "uncompressed_bytes": 5850,
+      "uncompressed_sha256": "75ae827f0ad9117489211f6dd457ac56a5cd1965906a18212df2511ab848e2cd"
+    },
+    {
+      "path": "v381-cte-impact-skills.log.gz",
+      "bytes": 2855,
+      "sha256": "2fa8b1ced30ab061ca2eaaccc7dfe65027fca54bb04a38ce1a2f07ca0f865db3",
+      "uncompressed_bytes": 58427,
+      "uncompressed_sha256": "fcbd32086904d9cf47670979438916d307a40e622791ea46e1116450fccaabcd"
+    }
+  ]
+}

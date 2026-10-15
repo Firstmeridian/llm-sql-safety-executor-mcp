@@ -1,0 +1,9 @@
+{
+  "local_file_links": 625,
+  "bilingual_drr_ids": 94,
+  "diff_check": "passed",
+  "bilingual_sample_json_and_dialect_scope": "passed",
+  "commit_draft_bullets": 7,
+  "commit_draft_characters": 737,
+  "scope": "Local file links, not all remote URLs/anchors"
+}

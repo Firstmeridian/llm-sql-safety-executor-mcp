@@ -1,0 +1,163 @@
+{
+  "version": "3.8.1",
+  "source_reference": "truth_before.json#source_sha256",
+  "plan": "plan.json",
+  "summary": "summary.json",
+  "helper_source_sha256": {
+    "scripts/review_v381/real_task_eval.py": "894da3216d668171a24bfba9356c2f098d4b990a2a929dd7c3ae705bfe3fece6",
+    "scripts/review_v381/summarize_real_tasks.py": "d8433da6b3bdaf872b685f09d1062c816b39316e84e00a42bd615c745141b929"
+  },
+  "recording_profile": "Compressed Host public application traces and exact task script; distinct observed tool projections preserved. Not complete transport frames or loaded-code attestation.",
+  "excluded": [
+    "Internal reasoning text",
+    "Creator/account/rate-limit metadata",
+    "Full preview bearer values",
+    "Full JSON-RPC frames/IDs/notifications"
+  ],
+  "preflight": "preflight_0.json.gz, excluded from business totals",
+  "historical_evidence": "Prior batches remain unchanged; only explanatory Markdown cross-links appended",
+  "configured_database_writes": false,
+  "production_config_changes": false,
+  "artifacts": [
+    {
+      "path": "agents.json",
+      "bytes": 2131,
+      "sha256": "7aa2d215b79d30721cba8e21297a8eef8aad58a860c576c1c3ac754e94d212af"
+    },
+    {
+      "path": "document_checks.json",
+      "bytes": 479,
+      "sha256": "5bbd52b4ac2abaa854deba50104771d276cb891126f89cb5211dc2a72fe28874"
+    },
+    {
+      "path": "host_tool_descriptions.json",
+      "bytes": 71279,
+      "sha256": "fcc46a8da831c46f246a55d55127a5d441878c831e2a39146b5d608ee94fa21f"
+    },
+    {
+      "path": "plan.json",
+      "bytes": 7899,
+      "sha256": "a4e367477458dc8458e58531ed6b683df6b2849882064e6592e41379194b5998"
+    },
+    {
+      "path": "preflight_0.json.gz",
+      "bytes": 9057,
+      "sha256": "0e1dffb920c526fe300ea47865e90468dea4a7c6079d302ee71545d696b532b6",
+      "uncompressed_bytes": 50089,
+      "uncompressed_sha256": "7051c6d06d9a098ad419f28e9aac2599d984b25d4035fafa47124563e957507d"
+    },
+    {
+      "path": "real_task_eval.py.gz",
+      "bytes": 6035,
+      "sha256": "2da89fbe539ca387ad52d62759c7b8fa1d3c69728644269a4f70dcf4b447a767",
+      "uncompressed_bytes": 18372,
+      "uncompressed_sha256": "894da3216d668171a24bfba9356c2f098d4b990a2a929dd7c3ae705bfe3fece6"
+    },
+    {
+      "path": "reconciliation_1.json.gz",
+      "bytes": 29187,
+      "sha256": "8f15cdc9c72e9cc3bde4f2e0216147c953a3946f4ed8a34d0b4ff4e51000d590",
+      "uncompressed_bytes": 167973,
+      "uncompressed_sha256": "46921eb017603accc38e126f6773f7b8e8bf150e52484415757e81b1fb7706e7"
+    },
+    {
+      "path": "reconciliation_2.json.gz",
+      "bytes": 26534,
+      "sha256": "6ad591fe3e8cc69daf5170174ef72feecb3f03132068654a58e830d98a4f8c00",
+      "uncompressed_bytes": 147803,
+      "uncompressed_sha256": "697aee07cd0e7040ce586f0c2a6646e745820248db978a40b0268ba9913505c1"
+    },
+    {
+      "path": "reconciliation_3.json.gz",
+      "bytes": 22505,
+      "sha256": "baaa3bd7f2cdbbcf83ba0b3a83ee14c63b88c925194026adda0c585f7611a522",
+      "uncompressed_bytes": 137493,
+      "uncompressed_sha256": "9b8ed673923d696dd4493ec14fb80f7893fbc16f55664206e44aeab62dd6e571"
+    },
+    {
+      "path": "recovery_1.json.gz",
+      "bytes": 24892,
+      "sha256": "61b45f0ea57ed78588472b67089d0ad577099091941c6e02281eee93e3736cf9",
+      "uncompressed_bytes": 159235,
+      "uncompressed_sha256": "b89138613ceae6415aa42e5457e7d5f3f2654e397e71933d2d09632038e11bcb"
+    },
+    {
+      "path": "recovery_2.json.gz",
+      "bytes": 23477,
+      "sha256": "f27295e5dfd10f2412928317f4e2c7b65eb55774e92272a082a8afa421162133",
+      "uncompressed_bytes": 145778,
+      "uncompressed_sha256": "060a7540a5de94fc080f86dfe6c147440dae78157bbc649137f5703be15bfcc3"
+    },
+    {
+      "path": "recovery_3.json.gz",
+      "bytes": 26690,
+      "sha256": "5cb58fca9c3574c6120188b28ec2ce9b0d6c2128b345336b638d2302cc2ba43f",
+      "uncompressed_bytes": 137611,
+      "uncompressed_sha256": "8e8591ce5c0d8672cfa603cf26744f2ce501bee9a78d7c5a9615f45822203846"
+    },
+    {
+      "path": "routing_1.json.gz",
+      "bytes": 23776,
+      "sha256": "cb7b0de5f81d4dd0e60b2d8b6461aa573f8a03048a85308cc2559c1dc2bc4cdc",
+      "uncompressed_bytes": 132267,
+      "uncompressed_sha256": "7a4f1d14af584f1c79f445f11d2230bdd3ed44582303d8bc5262333d148ed293"
+    },
+    {
+      "path": "routing_2.json.gz",
+      "bytes": 32574,
+      "sha256": "60b1628d9b23099286b2284872513a94b9ea8226198079540fc4ba17cca6ad95",
+      "uncompressed_bytes": 230888,
+      "uncompressed_sha256": "e9e144865a88de082873b4612c14ef3c93d5495e2cf11a3324a32ed61972a115"
+    },
+    {
+      "path": "routing_3.json.gz",
+      "bytes": 27301,
+      "sha256": "b19df93b177290a4e847a2fb634392b29500cea707b51c9a1d625adeebf3ba9a",
+      "uncompressed_bytes": 147012,
+      "uncompressed_sha256": "191a4735bbecdf5e7421e22880815cded9611ad724d608f638b19a4bec0f72d3"
+    },
+    {
+      "path": "sales_1.json.gz",
+      "bytes": 17937,
+      "sha256": "0741b592b4d333fbf573df04f26ac827f5f12ce40f23a5769f40609e34a3029e",
+      "uncompressed_bytes": 99063,
+      "uncompressed_sha256": "29c8d6859b954c7c47bd3416de045dc3b91a6031b4431f3ac02ce1ddc6fb748a"
+    },
+    {
+      "path": "sales_2.json.gz",
+      "bytes": 16664,
+      "sha256": "14ee8df3512cb84f7678e2ea1145653da2a9209877bc010ef2d9fe5268373dce",
+      "uncompressed_bytes": 91779,
+      "uncompressed_sha256": "faa409269fc12e1b89ff0dccc737700a042ea869273da9f1995408002cb9d134"
+    },
+    {
+      "path": "sales_3.json.gz",
+      "bytes": 21621,
+      "sha256": "28657eb2fe6df346fa5aa844b07f5351d0579c9cd56b056c4b0a576963e68900",
+      "uncompressed_bytes": 98514,
+      "uncompressed_sha256": "9755d9e55ea62cfa689580244b1bafba4f4b73c0b1a33035b06ef4bfa6e0eabb"
+    },
+    {
+      "path": "summarize_real_tasks.py.gz",
+      "bytes": 3914,
+      "sha256": "a518a7d9721cf4bb16a208e26d3957b7d3c313c4d70a163c10a3a6feeb22b5e1",
+      "uncompressed_bytes": 10298,
+      "uncompressed_sha256": "d8433da6b3bdaf872b685f09d1062c816b39316e84e00a42bd615c745141b929"
+    },
+    {
+      "path": "summary.json",
+      "bytes": 15722,
+      "sha256": "c9c09edb890e6a177ea60d03842b0fc44355d05fc0836f9de9a8f957df43a85e"
+    },
+    {
+      "path": "truth_after.json",
+      "bytes": 19504,
+      "sha256": "860f5d070c9991597896541e5a449dbe769eb75a9a05a138f81f69f5aec8ff1b"
+    },
+    {
+      "path": "truth_before.json",
+      "bytes": 19167,
+      "sha256": "7972c2ca64687a4c4dbdca859aadaf2a5cbe32a69e36f6b9f1d1aa5588d5ee9c"
+    }
+  ]
+}

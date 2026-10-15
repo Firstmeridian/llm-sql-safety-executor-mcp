@@ -1,0 +1,57 @@
+{
+  "version": "3.8.1",
+  "observed_at": "2026-10-15 09:44:09 UTC",
+  "scope": "Native refresh checkpoint after source correction and package/full verification. Same inputs as native_before_restart.json; allowlist does not execute these functions. Final maintainer restart still pending.",
+  "records": [
+    {
+      "id": "quoted_header_sleep",
+      "args": {
+        "connection_id": "analytics_demo_sqlite",
+        "sql": "WITH \"x\"(n) AS (SELECT SLEEP(0)) SELECT n FROM \"x\""
+      },
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":false,\"error_code\":\"relation_scope_unresolved\",\"error\":\"Table allowlist could not safely determine every referenced table\",\"hint\":\"Use supported explicit relation references and CTEs; keep schema and name case aligned with the connection policy.\",\"query\":\"WITH \\\"x\\\"(n) AS (SELECT SLEEP(0)) SELECT n FROM \\\"x\\\"\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": false,
+          "error_code": "relation_scope_unresolved",
+          "error": "Table allowlist could not safely determine every referenced table",
+          "hint": "Use supported explicit relation references and CTEs; keep schema and name case aligned with the connection policy.",
+          "query": "WITH \"x\"(n) AS (SELECT SLEEP(0)) SELECT n FROM \"x\"",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      }
+    },
+    {
+      "id": "quoted_header_account",
+      "args": {
+        "connection_id": "analytics_demo_sqlite",
+        "sql": "WITH \"x\"(n) AS (SELECT USER()) SELECT n FROM \"x\""
+      },
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":false,\"error_code\":\"relation_scope_unresolved\",\"error\":\"Table allowlist could not safely determine every referenced table\",\"hint\":\"Use supported explicit relation references and CTEs; keep schema and name case aligned with the connection policy.\",\"query\":\"WITH \\\"x\\\"(n) AS (SELECT USER()) SELECT n FROM \\\"x\\\"\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": false,
+          "error_code": "relation_scope_unresolved",
+          "error": "Table allowlist could not safely determine every referenced table",
+          "hint": "Use supported explicit relation references and CTEs; keep schema and name case aligned with the connection policy.",
+          "query": "WITH \"x\"(n) AS (SELECT USER()) SELECT n FROM \"x\"",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      }
+    }
+  ]
+}

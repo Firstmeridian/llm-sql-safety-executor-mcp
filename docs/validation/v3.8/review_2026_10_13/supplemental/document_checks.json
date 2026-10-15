@@ -1,0 +1,10 @@
+{
+  "source_hashes_match_installed_acceptance": true,
+  "product_version": "3.8.1",
+  "relative_markdown_links_checked": 500,
+  "bilingual_drr_ids": 82,
+  "latest_rows_contiguous": true,
+  "drr_081_unresolved_boundary_recorded": true,
+  "diff_check": "passed",
+  "scope": "Relative file targets, not remote URL or heading anchor verification; no repeated full-suite/type/build checks for documentation-only supplement"
+}

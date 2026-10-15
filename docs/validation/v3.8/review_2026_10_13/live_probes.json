@@ -1,0 +1,233 @@
+[
+  {
+    "connection_id": "analytics_demo_sqlite",
+    "sql": "SELECT id,status,'union' AS label FROM orders ORDER BY id LIMIT 3",
+    "result": {
+      "success": true,
+      "data": [
+        {
+          "id": 1,
+          "status": "completed",
+          "label": "union"
+        },
+        {
+          "id": 2,
+          "status": "completed",
+          "label": "union"
+        },
+        {
+          "id": 3,
+          "status": "shipped",
+          "label": "union"
+        }
+      ],
+      "row_count": 3,
+      "total_rows": 3,
+      "truncated": false,
+      "truncation_note": null,
+      "query": "SELECT id,status,'union' AS label FROM orders ORDER BY id LIMIT 3",
+      "connection_id": "analytics_demo_sqlite",
+      "db_type": "sqlite"
+    }
+  },
+  {
+    "connection_id": "analytics_demo_sqlite",
+    "sql": "SELECT review_missing_column FROM orders LIMIT 1",
+    "result": {
+      "success": false,
+      "error_code": "unknown_column",
+      "error": "Column not found.",
+      "hint": "Use describe_table() to check columns on the same connection.",
+      "query": "SELECT review_missing_column FROM orders LIMIT 1",
+      "connection_id": "analytics_demo_sqlite",
+      "db_type": "sqlite"
+    }
+  },
+  {
+    "connection_id": "analytics_demo_sqlite",
+    "sql": "SELECT 1; SELECT 2",
+    "result": {
+      "success": false,
+      "error_code": "multiple_statements",
+      "error": "Exactly one SQL statement is allowed per call.",
+      "hint": "Send each statement in a separate call.",
+      "query": "SELECT 1; SELECT 2",
+      "connection_id": "analytics_demo_sqlite",
+      "db_type": "sqlite"
+    }
+  },
+  {
+    "connection_id": "analytics_demo_sqlite",
+    "sql": "SELECT DATE_FORMAT('2026-01-01','%Y')",
+    "result": {
+      "success": false,
+      "error_code": "unknown_function",
+      "error": "SQL function not found for this database dialect.",
+      "hint": "Use a function supported by the returned db_type; check the SQL dialect.",
+      "query": "SELECT DATE_FORMAT('2026-01-01','%Y')",
+      "connection_id": "analytics_demo_sqlite",
+      "db_type": "sqlite"
+    }
+  },
+  {
+    "connection_id": "trade_analysis_mysql",
+    "sql": "SELECT review_missing_column FROM orders LIMIT 1",
+    "result": {
+      "success": false,
+      "error_code": "unknown_column",
+      "error": "Column not found.",
+      "hint": "Use describe_table() to check columns on the same connection.",
+      "query": "SELECT review_missing_column FROM orders LIMIT 1",
+      "connection_id": "trade_analysis_mysql",
+      "db_type": "mysql"
+    }
+  },
+  {
+    "connection_id": "trade_analysis_mysql",
+    "sql": "SELECT strftime('%Y','2026-01-01')",
+    "result": {
+      "success": false,
+      "error_code": "unknown_function",
+      "error": "SQL function not found for this database dialect.",
+      "hint": "Use a function supported by the returned db_type; check the SQL dialect.",
+      "query": "SELECT strftime('%Y','2026-01-01')",
+      "connection_id": "trade_analysis_mysql",
+      "db_type": "mysql"
+    }
+  },
+  {
+    "connection_id": "trade_analysis_mysql",
+    "sql": "SELECT 1 WHERE",
+    "result": {
+      "success": false,
+      "error_code": "sql_syntax_error",
+      "error": "SQL syntax error.",
+      "hint": "Check SQL syntax for the returned db_type.",
+      "query": "SELECT 1 WHERE",
+      "connection_id": "trade_analysis_mysql",
+      "db_type": "mysql"
+    }
+  },
+  {
+    "connection_id": "trade_analysis_mysql",
+    "sql": "WITH F AS (SELECT 7 AS n) SELECT n FROM f",
+    "result": {
+      "success": true,
+      "data": [
+        {
+          "n": 7
+        }
+      ],
+      "row_count": 1,
+      "total_rows": 1,
+      "truncated": false,
+      "truncation_note": null,
+      "query": "WITH F AS (SELECT 7 AS n) SELECT n FROM f",
+      "connection_id": "trade_analysis_mysql",
+      "db_type": "mysql"
+    }
+  },
+  {
+    "mysql_server": {
+      "version": "8.0.25",
+      "lower_case_table_names": 1
+    }
+  },
+  {
+    "mysql_cte": "WITH F AS (SELECT 7 AS n) SELECT n FROM f",
+    "native_rows": [
+      [
+        7
+      ]
+    ],
+    "policy": {
+      "success": false,
+      "error_code": "table_access_denied",
+      "error": "Access denied to table(s): f. Only allowed tables: other",
+      "hint": "Keep the same connection and use authorized tables. For a CTE reference, use the declaration's exact case on MySQL connections."
+    }
+  },
+  {
+    "mysql_cte": "WITH orders AS (SELECT COUNT(*) AS n FROM orders) SELECT n FROM orders",
+    "native_rows": [
+      [
+        8
+      ]
+    ],
+    "policy": {
+      "success": false,
+      "error_code": "table_access_denied",
+      "error": "Access denied to table(s): orders. Only allowed tables: other",
+      "hint": "Keep the same connection and use authorized tables. For a CTE reference, use the declaration's exact case on MySQL connections."
+    }
+  },
+  {
+    "mysql_cte": "WITH a AS (SELECT COUNT(*) AS n FROM orders), orders AS (SELECT 7 AS n) SELECT n FROM a",
+    "native_rows": [
+      [
+        8
+      ]
+    ],
+    "policy": {
+      "success": false,
+      "error_code": "table_access_denied",
+      "error": "Access denied to table(s): orders. Only allowed tables: other",
+      "hint": "Keep the same connection and use authorized tables. For a CTE reference, use the declaration's exact case on MySQL connections."
+    }
+  },
+  {
+    "sqlite_fixture": "SELECT id FROM allowed WHERE 1 IN blocked",
+    "native_rows": [
+      [
+        1
+      ]
+    ],
+    "policy": {
+      "success": false,
+      "error_code": "table_access_denied",
+      "error": "Access denied to table(s): blocked. Only allowed tables: allowed",
+      "hint": "Keep the same connection and use authorized tables. For a CTE reference, use the declaration's exact case on MySQL connections."
+    }
+  },
+  {
+    "sqlite_fixture": "SELECT id FROM allowed WHERE 1 IN allowed",
+    "native_rows": [
+      [
+        1
+      ]
+    ],
+    "policy": {
+      "allowed": true
+    }
+  },
+  {
+    "sqlite_fixture": "SELECT id FROM allowed WHERE 1 IN main.blocked",
+    "native_rows": [
+      [
+        1
+      ]
+    ],
+    "policy": {
+      "success": false,
+      "error_code": "table_access_denied",
+      "error": "Access denied to table(s): main.blocked. Only allowed tables: allowed",
+      "hint": "Keep the same connection and use authorized tables. For a CTE reference, use the declaration's exact case on MySQL connections."
+    }
+  },
+  {
+    "sqlite_fixture": "SELECT (0,'id','INTEGER',0,NULL,0) IN pragma_table_info('blocked')",
+    "native_rows": [
+      [
+        null
+      ]
+    ],
+    "policy": {
+      "success": false,
+      "error_code": "server_state_denied",
+      "error": "SQLite PRAGMA table-valued functions are not allowed in queries; use list_tables() or describe_table() instead (describe_table() also returns indexes)."
+    }
+  },
+  {
+    "cleanup": "temporary SQLite directory removed; no existing rows or configuration modified"
+  }
+]

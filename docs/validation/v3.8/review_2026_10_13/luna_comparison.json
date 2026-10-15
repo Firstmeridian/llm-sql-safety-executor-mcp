@@ -1,0 +1,408 @@
+{
+  "prompt": "只通过已注册的 SQL Safety Executor MCP 工具完成只读验收，不读源码、文档、日志或文件，不修改数据。任务：在 analytics_demo_sqlite 连接上查询 orders 的前3个订单，按 id 排序，显示 id、status，并为每行附加固定文本标签 union。然后请求一次 `SELECT review_missing_column FROM orders LIMIT 1`，根据返回向用户准确解释失败；最后提交一次 `SELECT 1; SELECT 2`，说明返回和下一步。可以按需恢复第一项原任务，不能通过更换标签或查询目标来宣称完成；不切换连接，不调用写入工具。最终给出实际订单结果、两个错误的解释及实际工具调用列表。",
+  "method": "Actual raw tool outputs and cumulative token_count usage; MCP calls exclude metadata/tool discovery execs; not a billed-currency measurement. Discovery verbosity is part of observed input usage.",
+  "baseline": [
+    {
+      "thread": "01a1349c-4d02-7052-8123-97909c7c09e5",
+      "stage": "baseline",
+      "mcp_calls": 4,
+      "queries": [
+        {
+          "success": false,
+          "error": "UNION queries disabled for security on this connection. Prefer one permitted query without UNION (scalar subqueries, EXISTS/NOT EXISTS, JOIN or a CTE) when it keeps the task's meaning. If you run separate queries, aggregate in SQL and check truncation, duplicates and ordering before combining; do not switch connections.",
+          "query": "SELECT id, status, 'union' AS label FROM orders ORDER BY id LIMIT 3",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        {
+          "success": false,
+          "error": "Error: Database query failed",
+          "query": "SELECT review_missing_column FROM orders LIMIT 1",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        {
+          "success": false,
+          "error": "Only read-only queries allowed (SELECT, DESCRIBE, non-ANALYZE EXPLAIN)",
+          "query": "SELECT 1; SELECT 2",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        {
+          "success": true,
+          "data": [
+            {
+              "id": 1,
+              "status": "completed",
+              "label": "union"
+            },
+            {
+              "id": 2,
+              "status": "completed",
+              "label": "union"
+            },
+            {
+              "id": 3,
+              "status": "shipped",
+              "label": "union"
+            }
+          ],
+          "row_count": 3,
+          "total_rows": 3,
+          "truncated": false,
+          "truncation_note": null,
+          "query": "SELECT id, status, 'un' || 'ion' AS label FROM orders ORDER BY id LIMIT 3",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        }
+      ],
+      "llm_responses": 4,
+      "first_input_tokens": 18276,
+      "total_input_tokens": 103375,
+      "cached_input_tokens": 78848,
+      "total_output_tokens": 914,
+      "task_rows_preserved": true,
+      "uncached_input_tokens": 24527
+    },
+    {
+      "thread": "01a1349c-4bdc-73e0-b1a0-65b544b7de96",
+      "stage": "baseline",
+      "mcp_calls": 4,
+      "queries": [
+        {
+          "success": false,
+          "error": "UNION queries disabled for security on this connection. Prefer one permitted query without UNION (scalar subqueries, EXISTS/NOT EXISTS, JOIN or a CTE) when it keeps the task's meaning. If you run separate queries, aggregate in SQL and check truncation, duplicates and ordering before combining; do not switch connections.",
+          "query": "SELECT id, status, 'union' AS label FROM orders ORDER BY id LIMIT 3",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        {
+          "success": true,
+          "data": [
+            {
+              "id": 1,
+              "status": "completed",
+              "label": "union"
+            },
+            {
+              "id": 2,
+              "status": "completed",
+              "label": "union"
+            },
+            {
+              "id": 3,
+              "status": "shipped",
+              "label": "union"
+            }
+          ],
+          "row_count": 3,
+          "total_rows": 3,
+          "truncated": false,
+          "truncation_note": null,
+          "query": "SELECT id, status, char(117, 110, 105, 111, 110) AS label FROM orders ORDER BY id LIMIT 3",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        {
+          "success": false,
+          "error": "Error: Database query failed",
+          "query": "SELECT review_missing_column FROM orders LIMIT 1",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        {
+          "success": false,
+          "error": "Only read-only queries allowed (SELECT, DESCRIBE, non-ANALYZE EXPLAIN)",
+          "query": "SELECT 1; SELECT 2",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        }
+      ],
+      "llm_responses": 6,
+      "first_input_tokens": 18276,
+      "total_input_tokens": 156030,
+      "cached_input_tokens": 141824,
+      "total_output_tokens": 974,
+      "task_rows_preserved": true,
+      "uncached_input_tokens": 14206
+    },
+    {
+      "thread": "01a1349c-4dfe-7242-b2e4-8cbf44b9b522",
+      "stage": "baseline",
+      "mcp_calls": 4,
+      "queries": [
+        {
+          "success": false,
+          "error": "UNION queries disabled for security on this connection. Prefer one permitted query without UNION (scalar subqueries, EXISTS/NOT EXISTS, JOIN or a CTE) when it keeps the task's meaning. If you run separate queries, aggregate in SQL and check truncation, duplicates and ordering before combining; do not switch connections.",
+          "query": "SELECT id, status, 'union' AS label FROM orders ORDER BY id LIMIT 3",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        {
+          "success": true,
+          "data": [
+            {
+              "id": 1,
+              "status": "completed",
+              "label": "union"
+            },
+            {
+              "id": 2,
+              "status": "completed",
+              "label": "union"
+            },
+            {
+              "id": 3,
+              "status": "shipped",
+              "label": "union"
+            }
+          ],
+          "row_count": 3,
+          "total_rows": 3,
+          "truncated": false,
+          "truncation_note": null,
+          "query": "SELECT id, status, 'u' || 'nion' AS label FROM orders ORDER BY id LIMIT 3",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        {
+          "success": false,
+          "error": "Error: Database query failed",
+          "query": "SELECT review_missing_column FROM orders LIMIT 1",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        {
+          "success": false,
+          "error": "Only read-only queries allowed (SELECT, DESCRIBE, non-ANALYZE EXPLAIN)",
+          "query": "SELECT 1; SELECT 2",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        }
+      ],
+      "llm_responses": 7,
+      "first_input_tokens": 18276,
+      "total_input_tokens": 188714,
+      "cached_input_tokens": 163072,
+      "total_output_tokens": 1004,
+      "task_rows_preserved": true,
+      "uncached_input_tokens": 25642
+    }
+  ],
+  "after": [
+    {
+      "thread": "01a13544-188e-73d0-9dee-52830d138aa6",
+      "stage": "after",
+      "mcp_calls": 3,
+      "queries": [
+        {
+          "success": true,
+          "data": [
+            {
+              "id": 1,
+              "status": "completed",
+              "label": "union"
+            },
+            {
+              "id": 2,
+              "status": "completed",
+              "label": "union"
+            },
+            {
+              "id": 3,
+              "status": "shipped",
+              "label": "union"
+            }
+          ],
+          "row_count": 3,
+          "total_rows": 3,
+          "truncated": false,
+          "truncation_note": null,
+          "query": "SELECT id, status, 'union' AS label FROM orders ORDER BY id LIMIT 3",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        {
+          "success": false,
+          "error_code": "unknown_column",
+          "error": "Column not found.",
+          "hint": "Use describe_table() to check columns on the same connection.",
+          "query": "SELECT review_missing_column FROM orders LIMIT 1",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        {
+          "success": false,
+          "error_code": "multiple_statements",
+          "error": "Exactly one SQL statement is allowed per call.",
+          "hint": "Send each statement in a separate call.",
+          "query": "SELECT 1; SELECT 2",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        }
+      ],
+      "llm_responses": 6,
+      "first_input_tokens": 18276,
+      "total_input_tokens": 164417,
+      "cached_input_tokens": 147968,
+      "total_output_tokens": 762,
+      "task_rows_preserved": true,
+      "first_label_query_succeeded": true,
+      "missing_column_explanation_correct": true,
+      "multiple_statement_explanation_correct": true,
+      "uncached_input_tokens": 16449
+    },
+    {
+      "thread": "01a13544-1922-78a1-8a70-280f4f4adbeb",
+      "stage": "after",
+      "mcp_calls": 3,
+      "queries": [
+        {
+          "success": true,
+          "data": [
+            {
+              "id": 1,
+              "status": "completed",
+              "label": "union"
+            },
+            {
+              "id": 2,
+              "status": "completed",
+              "label": "union"
+            },
+            {
+              "id": 3,
+              "status": "shipped",
+              "label": "union"
+            }
+          ],
+          "row_count": 3,
+          "total_rows": 3,
+          "truncated": false,
+          "truncation_note": null,
+          "query": "SELECT id, status, 'union' AS label FROM orders ORDER BY id LIMIT 3",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        {
+          "success": false,
+          "error_code": "unknown_column",
+          "error": "Column not found.",
+          "hint": "Use describe_table() to check columns on the same connection.",
+          "query": "SELECT review_missing_column FROM orders LIMIT 1",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        {
+          "success": false,
+          "error_code": "multiple_statements",
+          "error": "Exactly one SQL statement is allowed per call.",
+          "hint": "Send each statement in a separate call.",
+          "query": "SELECT 1; SELECT 2",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        }
+      ],
+      "llm_responses": 6,
+      "first_input_tokens": 18276,
+      "total_input_tokens": 164791,
+      "cached_input_tokens": 148992,
+      "total_output_tokens": 821,
+      "task_rows_preserved": true,
+      "first_label_query_succeeded": true,
+      "missing_column_explanation_correct": true,
+      "multiple_statement_explanation_correct": true,
+      "uncached_input_tokens": 15799
+    },
+    {
+      "thread": "01a13544-19d3-72d2-9486-9f3578f442e3",
+      "stage": "after",
+      "mcp_calls": 3,
+      "queries": [
+        {
+          "success": true,
+          "data": [
+            {
+              "id": 1,
+              "status": "completed",
+              "label": "union"
+            },
+            {
+              "id": 2,
+              "status": "completed",
+              "label": "union"
+            },
+            {
+              "id": 3,
+              "status": "shipped",
+              "label": "union"
+            }
+          ],
+          "row_count": 3,
+          "total_rows": 3,
+          "truncated": false,
+          "truncation_note": null,
+          "query": "SELECT id, status, 'union' AS label FROM orders ORDER BY id LIMIT 3",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        {
+          "success": false,
+          "error_code": "unknown_column",
+          "error": "Column not found.",
+          "hint": "Use describe_table() to check columns on the same connection.",
+          "query": "SELECT review_missing_column FROM orders LIMIT 1",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        {
+          "success": false,
+          "error_code": "multiple_statements",
+          "error": "Exactly one SQL statement is allowed per call.",
+          "hint": "Send each statement in a separate call.",
+          "query": "SELECT 1; SELECT 2",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        }
+      ],
+      "llm_responses": 5,
+      "first_input_tokens": 18276,
+      "total_input_tokens": 131069,
+      "cached_input_tokens": 106240,
+      "total_output_tokens": 762,
+      "task_rows_preserved": true,
+      "first_label_query_succeeded": true,
+      "missing_column_explanation_correct": true,
+      "multiple_statement_explanation_correct": true,
+      "uncached_input_tokens": 24829
+    }
+  ],
+  "status": "completed: native registered Host refreshed; identical-prompt trials 3/3 passed",
+  "limits": "Three independent samples per stage; tool-discovery breadth and batching differ among runs. First input usage unchanged, but it precedes deferred MCP metadata discovery. Totals are measured input including cache, not billed currency or an isolated service-description cost.",
+  "aggregate": {
+    "baseline": {
+      "samples": 3,
+      "mean_input_tokens": 149373,
+      "median_input_tokens": 156030,
+      "total_input_tokens": 448119,
+      "cached_input_tokens": 383744,
+      "uncached_input_tokens": 64375,
+      "output_tokens": 2892,
+      "mcp_calls": 12,
+      "llm_responses": 17
+    },
+    "after": {
+      "samples": 3,
+      "mean_input_tokens": 153425.66666666666,
+      "median_input_tokens": 164417,
+      "total_input_tokens": 460277,
+      "cached_input_tokens": 403200,
+      "uncached_input_tokens": 57077,
+      "output_tokens": 2345,
+      "mcp_calls": 9,
+      "llm_responses": 17
+    },
+    "mean_input_change_percent": 2.7131186135825436,
+    "median_input_change_percent": 5.375248349676354
+  }
+}

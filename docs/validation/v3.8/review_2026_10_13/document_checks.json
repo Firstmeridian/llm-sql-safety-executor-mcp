@@ -1,0 +1,27 @@
+{
+  "scope": "changed Markdown relative file targets (no remote or heading-anchor validation), bilingual risk IDs, versions, JSON evidence, installed-source hashes and actual native outputs",
+  "relative_links_checked": 492,
+  "missing_targets": [],
+  "drr": {
+    "docs/security/DESIGN_RISK_REGISTER.md": {
+      "rows": 82,
+      "ids_sha256": "a3366b2dbac4f583663c2c26586796c88637d3c9b80498680539efa8dd30dd5d",
+      "latest_rows_contiguous": true
+    },
+    "docs/security/DESIGN_RISK_REGISTER_ZH.md": {
+      "rows": 82,
+      "ids_sha256": "a3366b2dbac4f583663c2c26586796c88637d3c9b80498680539efa8dd30dd5d",
+      "latest_rows_contiguous": true
+    }
+  },
+  "versions": {
+    "pyproject.toml": "3.8.1",
+    "src/sql_safety_executor/__init__.py": "3.8.1"
+  },
+  "uv_lock_project": "3.8.1",
+  "source_sha256_unchanged": true,
+  "native_host_calls_passed": 9,
+  "luna_tasks_passed": 3,
+  "luna_native_calls": 9,
+  "cost_non_regression_established": false
+}

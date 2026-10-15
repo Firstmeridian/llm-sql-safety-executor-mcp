@@ -8,6 +8,7 @@ test_mutation_skills.py.
 """
 
 from tests.support import SCENARIO, make_gateway
+from sql_safety_executor.database.relations import RelationReference
 
 import asyncio
 import json
@@ -177,7 +178,7 @@ def test_metadata_failure_marks_table_dependent_skills_unverified(
     def fail_metadata():
         raise skills_server.MetadataQueryError("listing tables")
 
-    monkeypatch.setattr(adapter, "get_tables", fail_metadata)
+    monkeypatch.setattr(adapter, "get_read_relations", fail_metadata)
 
     catalog = run_tool(
         skills_server.list_skills(
@@ -229,7 +230,7 @@ def test_schema_readiness_does_not_swallow_programming_errors(
     adapter = skills_server.get_adapter()
     monkeypatch.setattr(
         adapter,
-        "get_tables",
+        "get_read_relations",
         lambda: (_ for _ in ()).throw(RuntimeError("programming defect")),
     )
 
@@ -245,7 +246,7 @@ def test_disabled_schema_readiness_does_not_access_metadata(
     monkeypatch.setattr(skills_server, "SKILLS_CHECK_SCHEMA_ON_LIST", False)
     monkeypatch.setattr(
         skills_server.get_adapter(),
-        "get_tables",
+        "get_read_relations",
         lambda: pytest.fail("Disabled readiness checks must not read metadata"),
     )
 
@@ -768,7 +769,8 @@ def test_mysql_database_hides_sqlite_skill_by_default(monkeypatch):
             lambda _connection: module._SkillSchemaSnapshot(
                 enabled=True,
                 available=True,
-                table_names=frozenset({"orders"}),
+                table_names=frozenset({RelationReference("orders", _connection.default_schema)}),
+                schema_name=_connection.default_schema,
             ),
         )
         result = run_tool(module.list_skills(ctx=DummyContext()))

@@ -1,0 +1,11 @@
+{
+  "focused_default_sandbox": {
+    "partial_progress": "90 test dots before prolonged no output",
+    "result": "SIGINT did not finish; only this pytest process then terminated with SIGTERM (exit 143)",
+    "root_cause": "Not proven from an unavailable failure stack; approved full run passed"
+  },
+  "initial_baseline_reconstruction": "First archive reconstruction missed one formatting newline; corrected bytes match all 68 preceding source hashes",
+  "initial_cost_measurements": "Before/return were launched overlapping; after invocation used a relative source and failed provenance assertion. Retained exploratory files and corrected to absolute sources, awaiting each process sequentially",
+  "final_cost": "Three completed serial A/B/A records only",
+  "source_changes": "Only core/policy.py identity patch after the preceding 1089-test snapshot"
+}

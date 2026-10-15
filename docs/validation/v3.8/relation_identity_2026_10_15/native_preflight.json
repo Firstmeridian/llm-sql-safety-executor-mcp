@@ -1,0 +1,28 @@
+{
+  "date": "2026-10-15",
+  "stage": "Before relation identity source change",
+  "tool": "query",
+  "arguments": {
+    "connection_id": "trade_analysis_mysql",
+    "sql": "SELECT 7 AS n"
+  },
+  "result": {
+    "isError": false,
+    "structuredContent": {
+      "success": true,
+      "data": [
+        {
+          "n": 7
+        }
+      ],
+      "row_count": 1,
+      "total_rows": 1,
+      "truncated": false,
+      "truncation_note": null,
+      "query": "SELECT 7 AS n",
+      "connection_id": "trade_analysis_mysql",
+      "db_type": "mysql"
+    }
+  },
+  "scope": "Availability only; not proof of later source freshness"
+}

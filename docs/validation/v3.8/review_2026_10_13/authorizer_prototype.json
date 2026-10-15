@@ -1,0 +1,50 @@
+{
+  "scope": "isolated in-memory prototype; no production authorizer installed",
+  "cases": [
+    {
+      "callback": "base_table_read_only",
+      "sql": "SELECT id FROM allowed WHERE 'demo' IN blocked",
+      "accepted": false
+    },
+    {
+      "callback": "base_table_read_only",
+      "sql": "SELECT (0,'code','TEXT',1,'''demo''',0) IN pragma_table_info('blocked') AS probe FROM allowed",
+      "accepted": true,
+      "rows": [
+        [
+          1
+        ]
+      ]
+    },
+    {
+      "callback": "base_table_read_only",
+      "sql": "SELECT COUNT(*) FROM allowed",
+      "accepted": true,
+      "rows": [
+        [
+          1
+        ]
+      ]
+    },
+    {
+      "callback": "base_and_pragma_objects",
+      "sql": "SELECT id FROM allowed WHERE 'demo' IN blocked",
+      "accepted": false
+    },
+    {
+      "callback": "base_and_pragma_objects",
+      "sql": "SELECT (0,'code','TEXT',1,'''demo''',0) IN pragma_table_info('blocked') AS probe FROM allowed",
+      "accepted": false
+    },
+    {
+      "callback": "base_and_pragma_objects",
+      "sql": "SELECT COUNT(*) FROM allowed",
+      "accepted": true,
+      "rows": [
+        [
+          1
+        ]
+      ]
+    }
+  ]
+}

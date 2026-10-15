@@ -1,0 +1,8 @@
+{
+  "captured_utc": "2026-10-14T13:48:51.328Z",
+  "maintainer_selection": "稍后重启，先给完整报告",
+  "implementation_and_local_package_checks": "complete",
+  "primary_host_acceptance": "pending final manual restart; preceding-source decision observed",
+  "next_check": "On analytics_demo_sqlite, the differing-whitespace CTE/table probe must return table_access_denied; legitimate quoted CTEs must still execute.",
+  "git_commit": "Not created; maintainer plans one complete commit"
+}

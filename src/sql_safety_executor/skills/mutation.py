@@ -40,6 +40,7 @@ from typing import Any, ClassVar, Literal, final
 
 import sqlparse
 from sqlalchemy import text
+from pydantic_core import to_json
 
 from sql_safety_executor.core.types import OperationError as ToolError
 from sql_safety_executor.database.outcomes import (
@@ -48,6 +49,27 @@ from sql_safety_executor.database.outcomes import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def normalize_mutation_validation(result: Any) -> dict[str, Any]:
+    """Enforce the callback result contract before preview/token or execution.
+
+    Preserve serializable business fields, but never stringify arbitrary
+    callback objects or expose their exception text to the caller.
+    """
+    invalid = {"valid": False, "errors": ["Mutation validation returned an invalid result."]}
+    if not isinstance(result, dict) or type(result.get("valid")) is not bool:
+        return invalid
+    if "errors" in result and (
+        not isinstance(result["errors"], list)
+        or any(not isinstance(reason, str) for reason in result["errors"])
+    ):
+        return invalid
+    try:
+        to_json(result)
+    except (TypeError, ValueError):
+        return invalid
+    return result
 
 
 _MANAGED_WRITE_TYPES = frozenset({"INSERT", "UPDATE", "DELETE"})
@@ -274,6 +296,9 @@ class MutationBase(ABC):
         Returns:
             {"valid": True} on success
             {"valid": False, "errors": ["reason1", ...]} on failure
+            valid must be a strict bool, errors (when present) a list of safe
+            strings, and additional business fields JSON-serializable. Invalid
+            returns become a fixed validation_failed result before execution.
         """
         pass
 
@@ -412,9 +437,9 @@ class MutationBase(ABC):
                 sanitized = "Database COMMIT result could not be confirmed."
             else:
                 source_error = error.original_error
-                sanitized = self.adapter._handle_error(
+                sanitized = str(self.adapter._handle_error(
                     source_error if isinstance(source_error, Exception) else error
-                )
+                ))
 
             audit_logged = _log_execution_failure(
                 audit_logger=self.logger,
@@ -457,7 +482,7 @@ class MutationBase(ABC):
                 audit_logged=audit_logged,
             ) from error
         except Exception as error:
-            sanitized = self.adapter._handle_error(error)
+            sanitized = str(self.adapter._handle_error(error))
             logger.error("Mutation '%s' failed: %s", skill_name, sanitized)
             audit_logged = _log_execution_failure(
                 audit_logger=self.logger,
@@ -723,7 +748,7 @@ def run_managed_mutation(
             and bool(raw_error_code)
         )
         if not is_typed_write_error:
-            message = adapter._handle_error(error)
+            message = str(adapter._handle_error(error))
             audit_logged = _log_execution_failure(
                 audit_logger=audit_logger,
                 params=params,
@@ -763,9 +788,9 @@ def run_managed_mutation(
             message = "Database COMMIT result could not be confirmed."
         else:
             source_error = getattr(error, "original_error", None)
-            message = adapter._handle_error(
+            message = str(adapter._handle_error(
                 source_error if isinstance(source_error, Exception) else error
-            )
+            ))
         audit_logged = _log_execution_failure(
             audit_logger=audit_logger,
             params=params,

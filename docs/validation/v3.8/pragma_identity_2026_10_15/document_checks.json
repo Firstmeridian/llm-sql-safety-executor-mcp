@@ -1,0 +1,11 @@
+{
+  "local_file_links": 661,
+  "bilingual_drr_ids": 95,
+  "drr_table_contiguous": true,
+  "root_readme_stage_notices_removed": true,
+  "documentation_indexes_start_with_title": true,
+  "commit_draft_bullets": 7,
+  "commit_draft_characters": 779,
+  "diff_check": "passed",
+  "scope": "Local file links and relevant navigation structure, not every remote URL/anchor"
+}

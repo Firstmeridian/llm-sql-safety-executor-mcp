@@ -1,0 +1,32 @@
+{
+  "version": "3.8.1",
+  "captured_utc": "2026-10-14T10:48:07.280Z",
+  "request": {
+    "tool": "query",
+    "params": {
+      "connection_id": "analytics_demo_sqlite",
+      "sql": "SELECT SLEEP(0) AS n"
+    }
+  },
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"success\":false,\"error_code\":\"unknown_function\",\"error\":\"SQL function not found for this database dialect.\",\"hint\":\"Use a function supported by the returned db_type; check the SQL dialect.\",\"query\":\"SELECT SLEEP(0) AS n\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\"}"
+      }
+    ],
+    "structuredContent": {
+      "success": false,
+      "error_code": "unknown_function",
+      "error": "SQL function not found for this database dialect.",
+      "hint": "Use a function supported by the returned db_type; check the SQL dialect.",
+      "query": "SELECT SLEEP(0) AS n",
+      "connection_id": "analytics_demo_sqlite",
+      "db_type": "sqlite"
+    },
+    "isError": false
+  },
+  "expected_current_source_error": "expensive_function_denied",
+  "observation": "unknown_function",
+  "meaning": "Resident service has not loaded the new function policy"
+}

@@ -1,0 +1,404 @@
+{
+  "baseline_commit": "af3420f58d426b4f657b1214949dc48544afde56",
+  "method": "Same interpreter/dependencies; in-process FastMCP Client, legacy protocol; two rounds with reversed phase order; one warmup then 12 fixed sequences per round",
+  "metadata_context": "Current unchanged five-connection TOML; metadata listing only, no query or schema readiness calls",
+  "query_context": "Identical isolated single-connection SQLite fixture; same three query requests regardless of result",
+  "limits": "Characters are not tokens. No LLM, Host discovery, billing, RSS or production stdio latency measurement. Baseline label rejection means the fixed sequence is not equivalent completed-task cost.",
+  "fixtures_removed": true,
+  "phases": {
+    "baseline": {
+      "metadata": {
+        "protocol_version": "2025-11-25",
+        "configured_connections": 5,
+        "instructions_characters": 4494,
+        "tools_characters": 23049,
+        "includes_outputSchema": false,
+        "snapshot_file": "metadata-baseline.json.gz",
+        "snapshot_sha256": "0f294ed32286a2ea996ae6ef7c907f4dbf2ef6a8d4d7afb3c8be157f2db07fd5"
+      },
+      "queries": [
+        {
+          "sql": "SELECT id, status, 'union' AS label FROM orders ORDER BY id LIMIT 3",
+          "response": {
+            "isError": false,
+            "structuredContent": {
+              "success": false,
+              "error": "UNION queries disabled for security on this connection. Prefer one permitted query without UNION (scalar subqueries, EXISTS/NOT EXISTS, JOIN or a CTE) when it keeps the task's meaning. If you run separate queries, aggregate in SQL and check truncation, duplicates and ordering before combining; do not switch connections.",
+              "query": "SELECT id, status, 'union' AS label FROM orders ORDER BY id LIMIT 3",
+              "connection_id": "demo",
+              "db_type": "sqlite"
+            },
+            "content": [
+              {
+                "type": "text",
+                "text": "{\"success\":false,\"error\":\"UNION queries disabled for security on this connection. Prefer one permitted query without UNION (scalar subqueries, EXISTS/NOT EXISTS, JOIN or a CTE) when it keeps the task's meaning. If you run separate queries, aggregate in SQL and check truncation, duplicates and ordering before combining; do not switch connections.\",\"query\":\"SELECT id, status, 'union' AS label FROM orders ORDER BY id LIMIT 3\",\"connection_id\":\"demo\",\"db_type\":\"sqlite\"}"
+              }
+            ]
+          },
+          "structured_characters": 469,
+          "text_characters": 469,
+          "public_json_characters": 1032,
+          "samples": 24,
+          "median_ms": 14.399479000530846,
+          "p95_ms": 18.39664519939106
+        },
+        {
+          "sql": "SELECT missing_column FROM orders",
+          "response": {
+            "isError": false,
+            "structuredContent": {
+              "success": false,
+              "error": "Error: Database query failed",
+              "query": "SELECT missing_column FROM orders",
+              "connection_id": "demo",
+              "db_type": "sqlite"
+            },
+            "content": [
+              {
+                "type": "text",
+                "text": "{\"success\":false,\"error\":\"Error: Database query failed\",\"query\":\"SELECT missing_column FROM orders\",\"connection_id\":\"demo\",\"db_type\":\"sqlite\"}"
+              }
+            ]
+          },
+          "structured_characters": 142,
+          "text_characters": 142,
+          "public_json_characters": 378,
+          "samples": 24,
+          "median_ms": 11.847309000586392,
+          "p95_ms": 16.99387940007
+        },
+        {
+          "sql": "SELECT 1; SELECT 2",
+          "response": {
+            "isError": false,
+            "structuredContent": {
+              "success": false,
+              "error": "Only read-only queries allowed (SELECT, DESCRIBE, non-ANALYZE EXPLAIN)",
+              "query": "SELECT 1; SELECT 2",
+              "connection_id": "demo",
+              "db_type": "sqlite"
+            },
+            "content": [
+              {
+                "type": "text",
+                "text": "{\"success\":false,\"error\":\"Only read-only queries allowed (SELECT, DESCRIBE, non-ANALYZE EXPLAIN)\",\"query\":\"SELECT 1; SELECT 2\",\"connection_id\":\"demo\",\"db_type\":\"sqlite\"}"
+              }
+            ]
+          },
+          "structured_characters": 169,
+          "text_characters": 169,
+          "public_json_characters": 432,
+          "samples": 24,
+          "median_ms": 8.40205349959433,
+          "p95_ms": 11.673778448857774
+        }
+      ]
+    },
+    "current": {
+      "metadata": {
+        "protocol_version": "2025-11-25",
+        "configured_connections": 5,
+        "instructions_characters": 4528,
+        "tools_characters": 23367,
+        "includes_outputSchema": false,
+        "snapshot_file": "metadata-current.json.gz",
+        "snapshot_sha256": "f377abefdaaf580e44413c884df14f394cb795545b8e5012145e2e46a5322a11"
+      },
+      "queries": [
+        {
+          "sql": "SELECT id, status, 'union' AS label FROM orders ORDER BY id LIMIT 3",
+          "response": {
+            "isError": false,
+            "structuredContent": {
+              "success": true,
+              "data": [
+                {
+                  "id": 1,
+                  "status": "completed",
+                  "label": "union"
+                },
+                {
+                  "id": 2,
+                  "status": "completed",
+                  "label": "union"
+                },
+                {
+                  "id": 3,
+                  "status": "shipped",
+                  "label": "union"
+                }
+              ],
+              "row_count": 3,
+              "total_rows": 3,
+              "truncated": false,
+              "truncation_note": null,
+              "query": "SELECT id, status, 'union' AS label FROM orders ORDER BY id LIMIT 3",
+              "connection_id": "demo",
+              "db_type": "sqlite"
+            },
+            "content": [
+              {
+                "type": "text",
+                "text": "{\"success\":true,\"data\":[{\"id\":1,\"status\":\"completed\",\"label\":\"union\"},{\"id\":2,\"status\":\"completed\",\"label\":\"union\"},{\"id\":3,\"status\":\"shipped\",\"label\":\"union\"}],\"row_count\":3,\"total_rows\":3,\"truncated\":false,\"truncation_note\":null,\"query\":\"SELECT id, status, 'union' AS label FROM orders ORDER BY id LIMIT 3\",\"connection_id\":\"demo\",\"db_type\":\"sqlite\"}"
+              }
+            ]
+          },
+          "structured_characters": 351,
+          "text_characters": 351,
+          "public_json_characters": 832,
+          "samples": 24,
+          "median_ms": 15.830161500161921,
+          "p95_ms": 20.551460700426105
+        },
+        {
+          "sql": "SELECT missing_column FROM orders",
+          "response": {
+            "isError": false,
+            "structuredContent": {
+              "success": false,
+              "error_code": "unknown_column",
+              "error": "Column not found.",
+              "hint": "Use describe_table() to check columns on the same connection.",
+              "query": "SELECT missing_column FROM orders",
+              "connection_id": "demo",
+              "db_type": "sqlite"
+            },
+            "content": [
+              {
+                "type": "text",
+                "text": "{\"success\":false,\"error_code\":\"unknown_column\",\"error\":\"Column not found.\",\"hint\":\"Use describe_table() to check columns on the same connection.\",\"query\":\"SELECT missing_column FROM orders\",\"connection_id\":\"demo\",\"db_type\":\"sqlite\"}"
+              }
+            ]
+          },
+          "structured_characters": 232,
+          "text_characters": 232,
+          "public_json_characters": 566,
+          "samples": 24,
+          "median_ms": 10.954396499982977,
+          "p95_ms": 13.437933050317952
+        },
+        {
+          "sql": "SELECT 1; SELECT 2",
+          "response": {
+            "isError": false,
+            "structuredContent": {
+              "success": false,
+              "error_code": "multiple_statements",
+              "error": "Exactly one SQL statement is allowed per call.",
+              "hint": "Send each statement in a separate call.",
+              "query": "SELECT 1; SELECT 2",
+              "connection_id": "demo",
+              "db_type": "sqlite"
+            },
+            "content": [
+              {
+                "type": "text",
+                "text": "{\"success\":false,\"error_code\":\"multiple_statements\",\"error\":\"Exactly one SQL statement is allowed per call.\",\"hint\":\"Send each statement in a separate call.\",\"query\":\"SELECT 1; SELECT 2\",\"connection_id\":\"demo\",\"db_type\":\"sqlite\"}"
+              }
+            ]
+          },
+          "structured_characters": 229,
+          "text_characters": 229,
+          "public_json_characters": 560,
+          "samples": 24,
+          "median_ms": 7.086789499226143,
+          "p95_ms": 9.98836095104707
+        }
+      ]
+    }
+  },
+  "latency_samples": [
+    {
+      "round": 1,
+      "phase": "baseline",
+      "latency_ms": [
+        [
+          17.201857999680215,
+          18.607489999340032,
+          17.145695999715826,
+          15.867723999690497,
+          16.56306099903304,
+          14.814682999713114,
+          14.269007000621059,
+          16.95268500043312,
+          13.494681999873137,
+          13.827770000716555,
+          13.036743001066498,
+          13.361677001739736
+        ],
+        [
+          9.571496000717161,
+          10.01410899880284,
+          9.900389000904397,
+          9.744701001181966,
+          10.127068999281619,
+          10.031830999650992,
+          10.472758000105387,
+          11.516816000948893,
+          12.45604900032049,
+          14.081482999245054,
+          12.036604999593692,
+          11.369167999873753
+        ],
+        [
+          8.522018000803655,
+          7.400300999506726,
+          7.919560999653186,
+          10.607456000798265,
+          9.134809999522986,
+          8.7346290001733,
+          13.19870099905529,
+          8.907868999813218,
+          7.404038000458968,
+          9.176319001198863,
+          7.147221998820896,
+          7.494426999983261
+        ]
+      ]
+    },
+    {
+      "round": 1,
+      "phase": "current",
+      "latency_ms": [
+        [
+          13.8710049996007,
+          14.303338000900112,
+          14.634687000580016,
+          14.311936000012793,
+          13.710389999687322,
+          13.6899959998118,
+          14.081458999498864,
+          13.84334599970316,
+          14.98245000038878,
+          16.380424000089988,
+          15.722289001132594,
+          15.675122000175179
+        ],
+        [
+          9.920769998643664,
+          13.492160000168951,
+          11.955050000324263,
+          11.72393200067745,
+          12.682588001553086,
+          12.029530000290833,
+          11.565268001504592,
+          12.067589999787742,
+          9.94572200033872,
+          10.418560001198784,
+          12.060936998750549,
+          9.177669000564492
+        ],
+        [
+          9.367800999825704,
+          10.017771001002984,
+          7.116135999240214,
+          6.758616998922662,
+          9.821704001296894,
+          6.617936000111513,
+          7.22553999912634,
+          12.498093999965931,
+          7.057442999212071,
+          8.900312999685411,
+          8.857765998982359,
+          9.699715001261211
+        ]
+      ]
+    },
+    {
+      "round": 2,
+      "phase": "current",
+      "latency_ms": [
+        [
+          13.888378998672124,
+          15.938033999191248,
+          16.46444300058647,
+          20.79686400065839,
+          18.994104000739753,
+          16.22907399905671,
+          16.47714299906511,
+          19.160841999109834,
+          16.111707000163733,
+          16.266284001176246,
+          22.59459300148592,
+          16.77839799958747
+        ],
+        [
+          12.363652998828911,
+          16.6116169984889,
+          13.130647001162288,
+          11.49023299876717,
+          9.419350999451126,
+          9.454238001126214,
+          9.141380000073696,
+          9.64509199911845,
+          9.158677001323667,
+          9.28978900083166,
+          9.598313999958918,
+          9.408425001311116
+        ],
+        [
+          6.098718000430381,
+          5.793424999865238,
+          8.998290000818088,
+          7.881790999817895,
+          7.0142909989954205,
+          6.099182999605546,
+          6.7430719991534716,
+          7.393607000267366,
+          6.354945999191841,
+          6.320260001302813,
+          6.123973998910515,
+          6.243537000045762
+        ]
+      ]
+    },
+    {
+      "round": 2,
+      "phase": "baseline",
+      "latency_ms": [
+        [
+          13.541754999096156,
+          14.014487000167719,
+          13.72663999973156,
+          13.923508000516449,
+          14.148631000352907,
+          14.529951000440633,
+          15.965631000653957,
+          20.996435001507052,
+          17.1944789999543,
+          16.95154799926968,
+          13.978046999909566,
+          13.874577000024146
+        ],
+        [
+          13.396202000876656,
+          15.872811000008369,
+          12.859395999839762,
+          11.945199001274887,
+          17.191715000080876,
+          11.643197000012151,
+          17.743996000717743,
+          13.18913399882149,
+          11.749418999897898,
+          10.649695999745745,
+          13.206864998210222,
+          14.232498000637861
+        ],
+        [
+          6.9391720007843105,
+          6.505822000690387,
+          6.211035999513115,
+          6.2636269994982285,
+          6.7072319998260355,
+          7.235658000354306,
+          10.096002000864246,
+          10.251221001453814,
+          11.861952998515335,
+          8.467581999866525,
+          8.875442999851657,
+          8.336524999322137
+        ]
+      ]
+    }
+  ]
+}

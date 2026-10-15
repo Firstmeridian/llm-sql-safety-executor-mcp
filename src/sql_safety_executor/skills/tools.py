@@ -22,6 +22,7 @@ from sql_safety_executor.core.constants import (
 
 from sql_safety_executor.core.connections import _resolve_connection_context
 from sql_safety_executor.core.policy import _validate_sql_query_policy
+from sql_safety_executor.database.errors import DatabaseQueryError
 from sql_safety_executor.core.results import (
     _context_client_id,
     _serialize_result,
@@ -31,7 +32,7 @@ from sql_safety_executor.core.results import (
 )
 from sql_safety_executor.skills.access import (
     _aggregate_skill_categories,
-    _ensure_query_skill_policy_ready,
+    _query_skill_policy_decision,
     _ensure_skill_profile_allowed,
     _ensure_skill_schema_ready,
     _get_skill_schema_snapshot,
@@ -127,15 +128,20 @@ async def list_skills(
 
     skills = runtime.catalog.get_skills_cache()
     schema_snapshot = _get_skill_schema_snapshot(runtime, connection)
-    matched_catalog = [
+    category_catalog = [
         meta
         for name, meta in sorted(skills.items())
-        if _skill_matches(meta, normalized_search, normalized_category)
+        if _skill_matches(meta, None, normalized_category)
     ]
     availability_by_name = {
         meta.name: _skill_availability_state(runtime, meta, schema_snapshot, connection)
-        for meta in matched_catalog
+        for meta in category_catalog
     }
+    matched_catalog = [
+        meta for meta in category_catalog
+        if _skill_matches(meta, normalized_search, normalized_category,
+                          required_tables=availability_by_name[meta.name]["required_tables"])
+    ]
     available_count = sum(
         1 for meta in matched_catalog if availability_by_name[meta.name]["executable"]
     )
@@ -372,38 +378,37 @@ async def execute_query_skill(
 
     try:
         _ensure_skill_profile_allowed(runtime, meta)
-        _ensure_skill_schema_ready(runtime, meta, connection)
-        _ensure_query_skill_policy_ready(meta, connection)
     except ToolError as e:
         await ctx.warning(str(e))
         raise
 
-    is_safe, safety_error = _validate_sql_query_policy(
-        runtime, sql_template, connection.policy
-    )
-    if not is_safe:
-        msg = f"Skill '{skill_name}' failed SQL safety policy: {safety_error}"
-        await ctx.warning(msg)
-        raise ToolError(msg)
-
-    # Execute parameterized query via adapter (Step 3a: params support)
-    adapter = connection.adapter
-    result = adapter.execute(sql_template, params=validated_params)
-
-    # Handle error (adapter returns error string on failure)
-    if isinstance(result, str) and result.startswith("Error:"):
-        await ctx.error(f"Query skill failed: {result}")
+    decision = _query_skill_policy_decision(meta, connection)
+    if decision.allowed:
+        decision = _validate_sql_query_policy(runtime, sql_template, connection.policy, adapter=connection.adapter)
+    failure = None
+    result: list = []
+    if not decision.allowed:
+        failure = decision.error_payload()
+    else:
+        _ensure_skill_schema_ready(runtime, meta, connection)
+        try:
+            result = connection.adapter.execute(sql_template, params=validated_params)
+        except DatabaseQueryError as error:
+            failure = error.error_payload()
+    if failure is not None:
+        await ctx.warning(f"Query skill failed: {failure['error_code']}")
         if runtime.config.skills.audit.queries:
             runtime.audit.log(
-                skill_name=skill_name,
-                params=validated_params,
-                mode="query",
-                result={"success": False, "error": result},
-                client_id=client_id,
-                connection_id=connection.connection_id,
-                db_type=connection.db_type,
+                skill_name=skill_name, params=validated_params, mode="query",
+                result=failure, client_id=client_id,
+                connection_id=connection.connection_id, db_type=connection.db_type,
             )
-        raise ToolError(result)
+        return _tool_result(
+            runtime, {**failure, "skill_name": skill_name,
+                      "connection_id": connection.connection_id, "db_type": connection.db_type},
+            tool_name="execute_query_skill", start_time=start_time,
+            connection=connection, success=False,
+        )
 
     # Success — serialize and truncate (reuse existing helpers)
     data = _serialize_result(result)

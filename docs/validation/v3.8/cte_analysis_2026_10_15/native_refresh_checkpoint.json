@@ -1,0 +1,31 @@
+{
+  "observed_at": "2026-10-15 13:27:54 UTC",
+  "scope": "Current Codex resident checkpoint after source/package completion, before the maintainer restart for the new shared-CTE implementation. Observed behavior, not loaded-code attestation or cache root-cause proof.",
+  "records": [
+    {
+      "id": "bare-business",
+      "args": {
+        "connection_id": "analytics_demo_sqlite",
+        "sql": "WITH data AS (SELECT 7 AS n) SELECT n FROM data"
+      },
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":false,\"error_code\":\"sql_parse_failed\",\"error\":\"Could not safely classify this WITH statement as a supported read.\",\"hint\":\"Keep the same connection. Quote keyword-like CTE names consistently in declarations and references, or simplify to a supported read statement.\",\"query\":\"WITH data AS (SELECT 7 AS n) SELECT n FROM data\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": false,
+          "error_code": "sql_parse_failed",
+          "error": "Could not safely classify this WITH statement as a supported read.",
+          "hint": "Keep the same connection. Quote keyword-like CTE names consistently in declarations and references, or simplify to a supported read statement.",
+          "query": "WITH data AS (SELECT 7 AS n) SELECT n FROM data",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      }
+    }
+  ]
+}

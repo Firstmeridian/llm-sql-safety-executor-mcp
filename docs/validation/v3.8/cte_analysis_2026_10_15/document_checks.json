@@ -1,0 +1,9 @@
+{
+  "local_file_links": 698,
+  "bilingual_drr_ids": 99,
+  "latest_drr_contiguous": true,
+  "draft_characters": 811,
+  "draft_bullets": 7,
+  "diff_check": "passed",
+  "scope": "Changed local Markdown file targets, not all external URLs/anchors"
+}

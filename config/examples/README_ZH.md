@@ -89,7 +89,7 @@ uv run python -m examples.manual_mutation_approval \
 
 使用 MRTR 时，在私有 Skills 文件中将 `skills.mutation.mrtr.enabled` 设为 `true`，参考 Host 传入对应部署的 `--config` 和 `--flow mrtr`。它要求 MCP `2026-07-28`、客户端表单能力及托管单语句 Skill。旧客户端仍可使用 preview/execute；不支持 MRTR 的调用会明确拒绝。服务端信任 Host 收集的决定，不独立认证真实人类。结果未知或响应丢失时不得自动重试，须先核对业务状态。重启会使未使用提案失效。
 
-部署继续默认使用 preview/execute，仅对已验证的 Host 显式启用 MRTR。[10 月 1 日验收复核](../../docs/validation/V3_8_MRTR_NATIVE_2026_10_01_ZH.md)记录了 Codex IDE 原生交互通过、Copilot 协议拒绝和剩余 UI 项目，不能概括为所有客户端均不支持 MRTR。启用 MRTR 仍保留旧执行入口，也不独立证明人工批准。审批失败或结果未知后，不得自动改走另一写入流程。
+部署继续默认使用 preview/execute，仅对已验证的 Host 显式启用 MRTR。[10 月 1 日验收复核](../../docs/validation/v3.8/V3_8_MRTR_NATIVE_2026_10_01_ZH.md)记录了 Codex IDE 原生交互通过、Copilot 协议拒绝和剩余 UI 项目，不能概括为所有客户端均不支持 MRTR。启用 MRTR 仍保留旧执行入口，也不独立证明人工批准。审批失败或结果未知后，不得自动改走另一写入流程。
 
 ## 复制到本地配置时的注意事项
 
@@ -105,4 +105,4 @@ uv run python -m examples.manual_mutation_approval \
 
 `config/*.toml`、`config/secrets/` 和 `mcp_config.local.json` 已被 Git 忽略；`config/examples/` 是公开、受跟踪的模板目录。其它自定义位置需要另行添加忽略规则。Python Skill 是可信代码，目录边界检查不是沙箱；应使用显式且经过审查的路径。
 
-先检查本地副本，再让 Host 指向其绝对 `server.toml` 路径。切换版本前停止旧进程；回退需同时匹配代码、依赖和配置。完整字段、默认值及新旧映射见[配置与迁移指南](../../docs/guides/CONFIGURATION_ZH.md)，另见[客户端指南](../../docs/guides/TEST_MCP_CLIENT_GUIDE.md)和[验收限制](../../docs/validation/V3_8_VALIDATION_ZH.md)。
+先检查本地副本，再让 Host 指向其绝对 `server.toml` 路径。切换版本前停止旧进程；回退需同时匹配代码、依赖和配置。完整字段、默认值及新旧映射见[配置与迁移指南](../../docs/guides/CONFIGURATION_ZH.md)，另见[客户端指南](../../docs/guides/TEST_MCP_CLIENT_GUIDE.md)和[验收限制](../../docs/validation/v3.8/V3_8_VALIDATION_ZH.md)。

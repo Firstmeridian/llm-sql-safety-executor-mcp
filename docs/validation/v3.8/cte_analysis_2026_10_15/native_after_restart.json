@@ -1,0 +1,788 @@
+{
+  "observed_at": "2026-10-15 13:35:00 UTC",
+  "scope": "Current Codex Host after maintainer restart: first ten exact baseline inputs, ten supplemental functional/refusal/MySQL/ordinary-Skill checks. Available application objects, not complete protocol frames or full loaded-code attestation. Configured CTE Skill fixtures were not added; full CTE discovery/readiness validation remains attributed to current-source private Client/installed checks.",
+  "source_reference": "automation.json#source_sha256",
+  "records": [
+    {
+      "id": "bare-business",
+      "args": {
+        "connection_id": "analytics_demo_sqlite",
+        "sql": "WITH data AS (SELECT 7 AS n) SELECT n FROM data"
+      },
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":true,\"data\":[{\"n\":7}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null,\"query\":\"WITH data AS (SELECT 7 AS n) SELECT n FROM data\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": true,
+          "data": [
+            {
+              "n": 7
+            }
+          ],
+          "row_count": 1,
+          "total_rows": 1,
+          "truncated": false,
+          "truncation_note": null,
+          "query": "WITH data AS (SELECT 7 AS n) SELECT n FROM data",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      },
+      "expected": "seven"
+    },
+    {
+      "id": "bare-unicode",
+      "args": {
+        "connection_id": "analytics_demo_sqlite",
+        "sql": "WITH unıon AS (SELECT 7 AS n) SELECT n FROM unıon"
+      },
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":true,\"data\":[{\"n\":7}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null,\"query\":\"WITH unıon AS (SELECT 7 AS n) SELECT n FROM unıon\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": true,
+          "data": [
+            {
+              "n": 7
+            }
+          ],
+          "row_count": 1,
+          "total_rows": 1,
+          "truncated": false,
+          "truncation_note": null,
+          "query": "WITH unıon AS (SELECT 7 AS n) SELECT n FROM unıon",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      },
+      "expected": "seven"
+    },
+    {
+      "id": "quoted-columns",
+      "args": {
+        "connection_id": "analytics_demo_sqlite",
+        "sql": "WITH \"monthly_sales\"(n) AS (SELECT 7) SELECT n FROM \"monthly_sales\""
+      },
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":true,\"data\":[{\"n\":7}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null,\"query\":\"WITH \\\"monthly_sales\\\"(n) AS (SELECT 7) SELECT n FROM \\\"monthly_sales\\\"\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": true,
+          "data": [
+            {
+              "n": 7
+            }
+          ],
+          "row_count": 1,
+          "total_rows": 1,
+          "truncated": false,
+          "truncation_note": null,
+          "query": "WITH \"monthly_sales\"(n) AS (SELECT 7) SELECT n FROM \"monthly_sales\"",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      },
+      "expected": "seven"
+    },
+    {
+      "id": "comment-body",
+      "args": {
+        "connection_id": "analytics_demo_sqlite",
+        "sql": "WITH base AS /* body */ (SELECT 7 AS n) SELECT n FROM base"
+      },
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":true,\"data\":[{\"n\":7}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null,\"query\":\"WITH base AS /* body */ (SELECT 7 AS n) SELECT n FROM base\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": true,
+          "data": [
+            {
+              "n": 7
+            }
+          ],
+          "row_count": 1,
+          "total_rows": 1,
+          "truncated": false,
+          "truncation_note": null,
+          "query": "WITH base AS /* body */ (SELECT 7 AS n) SELECT n FROM base",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      },
+      "expected": "seven"
+    },
+    {
+      "id": "bare-replace",
+      "args": {
+        "connection_id": "analytics_demo_sqlite",
+        "sql": "WITH replace(n) AS (SELECT 7) SELECT n FROM replace"
+      },
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":true,\"data\":[{\"n\":7}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null,\"query\":\"WITH replace(n) AS (SELECT 7) SELECT n FROM replace\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": true,
+          "data": [
+            {
+              "n": 7
+            }
+          ],
+          "row_count": 1,
+          "total_rows": 1,
+          "truncated": false,
+          "truncation_note": null,
+          "query": "WITH replace(n) AS (SELECT 7) SELECT n FROM replace",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      },
+      "expected": "seven"
+    },
+    {
+      "id": "materialized",
+      "args": {
+        "connection_id": "analytics_demo_sqlite",
+        "sql": "WITH base(n) AS MATERIALIZED (SELECT 7) SELECT n FROM base"
+      },
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":true,\"data\":[{\"n\":7}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null,\"query\":\"WITH base(n) AS MATERIALIZED (SELECT 7) SELECT n FROM base\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": true,
+          "data": [
+            {
+              "n": 7
+            }
+          ],
+          "row_count": 1,
+          "total_rows": 1,
+          "truncated": false,
+          "truncation_note": null,
+          "query": "WITH base(n) AS MATERIALIZED (SELECT 7) SELECT n FROM base",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      },
+      "expected": "seven"
+    },
+    {
+      "id": "normal",
+      "args": {
+        "connection_id": "analytics_demo_sqlite",
+        "sql": "WITH monthly_sales AS (SELECT 7 AS n) SELECT n FROM monthly_sales"
+      },
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":true,\"data\":[{\"n\":7}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null,\"query\":\"WITH monthly_sales AS (SELECT 7 AS n) SELECT n FROM monthly_sales\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": true,
+          "data": [
+            {
+              "n": 7
+            }
+          ],
+          "row_count": 1,
+          "total_rows": 1,
+          "truncated": false,
+          "truncation_note": null,
+          "query": "WITH monthly_sales AS (SELECT 7 AS n) SELECT n FROM monthly_sales",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      },
+      "expected": "seven"
+    },
+    {
+      "id": "quoted-name",
+      "args": {
+        "connection_id": "analytics_demo_sqlite",
+        "sql": "WITH \"data\" AS (SELECT 7 AS n) SELECT n FROM \"data\""
+      },
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":true,\"data\":[{\"n\":7}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null,\"query\":\"WITH \\\"data\\\" AS (SELECT 7 AS n) SELECT n FROM \\\"data\\\"\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": true,
+          "data": [
+            {
+              "n": 7
+            }
+          ],
+          "row_count": 1,
+          "total_rows": 1,
+          "truncated": false,
+          "truncation_note": null,
+          "query": "WITH \"data\" AS (SELECT 7 AS n) SELECT n FROM \"data\"",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      },
+      "expected": "seven"
+    },
+    {
+      "id": "reserved-body",
+      "args": {
+        "connection_id": "analytics_demo_sqlite",
+        "sql": "WITH \"data\"(n) AS (SELECT SLEEP(0)) SELECT n FROM \"data\""
+      },
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":false,\"error_code\":\"expensive_function_denied\",\"error\":\"Delay or benchmark function SLEEP() is not allowed in read queries.\",\"hint\":\"Keep the same connection and use ordinary SQL expressions, filters and aggregates; remove deliberate sleeps and benchmarking calls.\",\"query\":\"WITH \\\"data\\\"(n) AS (SELECT SLEEP(0)) SELECT n FROM \\\"data\\\"\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": false,
+          "error_code": "expensive_function_denied",
+          "error": "Delay or benchmark function SLEEP() is not allowed in read queries.",
+          "hint": "Keep the same connection and use ordinary SQL expressions, filters and aggregates; remove deliberate sleeps and benchmarking calls.",
+          "query": "WITH \"data\"(n) AS (SELECT SLEEP(0)) SELECT n FROM \"data\"",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      },
+      "expected": "expensive_function_denied"
+    },
+    {
+      "id": "real-write",
+      "args": {
+        "connection_id": "analytics_demo_sqlite",
+        "sql": "WITH data AS (SELECT 7 AS n) UPDATE orders SET status = status"
+      },
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":false,\"error_code\":\"read_only_required\",\"error\":\"Only read-only queries allowed (SELECT, DESCRIBE, non-ANALYZE EXPLAIN)\",\"hint\":\"For an intended write, discover reviewed mutation Skills with list_skills(); preview and obtain explicit approval before execution. Discovery does not authorize a write.\",\"query\":\"WITH data AS (SELECT 7 AS n) UPDATE orders SET status = status\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": false,
+          "error_code": "read_only_required",
+          "error": "Only read-only queries allowed (SELECT, DESCRIBE, non-ANALYZE EXPLAIN)",
+          "hint": "For an intended write, discover reviewed mutation Skills with list_skills(); preview and obtain explicit approval before execution. Discovery does not authorize a write.",
+          "query": "WITH data AS (SELECT 7 AS n) UPDATE orders SET status = status",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      },
+      "expected": "read_only_required"
+    },
+    {
+      "id": "contextual-like",
+      "tool": "query",
+      "expected": "seven",
+      "args": {
+        "connection_id": "analytics_demo_sqlite",
+        "sql": "WITH like(n) AS (SELECT 7) SELECT n FROM like"
+      },
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":true,\"data\":[{\"n\":7}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null,\"query\":\"WITH like(n) AS (SELECT 7) SELECT n FROM like\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": true,
+          "data": [
+            {
+              "n": 7
+            }
+          ],
+          "row_count": 1,
+          "total_rows": 1,
+          "truncated": false,
+          "truncation_note": null,
+          "query": "WITH like(n) AS (SELECT 7) SELECT n FROM like",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      }
+    },
+    {
+      "id": "contextual-regexp",
+      "tool": "query",
+      "expected": "seven",
+      "args": {
+        "connection_id": "analytics_demo_sqlite",
+        "sql": "WITH regexp(n) AS (SELECT 7) SELECT n FROM regexp"
+      },
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":true,\"data\":[{\"n\":7}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null,\"query\":\"WITH regexp(n) AS (SELECT 7) SELECT n FROM regexp\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": true,
+          "data": [
+            {
+              "n": 7
+            }
+          ],
+          "row_count": 1,
+          "total_rows": 1,
+          "truncated": false,
+          "truncation_note": null,
+          "query": "WITH regexp(n) AS (SELECT 7) SELECT n FROM regexp",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      }
+    },
+    {
+      "id": "comma-replace",
+      "tool": "query",
+      "expected": "seven",
+      "args": {
+        "connection_id": "analytics_demo_sqlite",
+        "sql": "WITH replace(n) AS (SELECT 7), base(n) AS (SELECT 1) SELECT r.n FROM base, replace AS r"
+      },
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":true,\"data\":[{\"n\":7}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null,\"query\":\"WITH replace(n) AS (SELECT 7), base(n) AS (SELECT 1) SELECT r.n FROM base, replace AS r\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": true,
+          "data": [
+            {
+              "n": 7
+            }
+          ],
+          "row_count": 1,
+          "total_rows": 1,
+          "truncated": false,
+          "truncation_note": null,
+          "query": "WITH replace(n) AS (SELECT 7), base(n) AS (SELECT 1) SELECT r.n FROM base, replace AS r",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      }
+    },
+    {
+      "id": "where-unicode-in",
+      "tool": "query",
+      "expected": "seven",
+      "args": {
+        "connection_id": "analytics_demo_sqlite",
+        "sql": "WITH unıon(n) AS (SELECT 7) SELECT 7 AS n WHERE 7 IN unıon"
+      },
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":true,\"data\":[{\"n\":7}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null,\"query\":\"WITH unıon(n) AS (SELECT 7) SELECT 7 AS n WHERE 7 IN unıon\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": true,
+          "data": [
+            {
+              "n": 7
+            }
+          ],
+          "row_count": 1,
+          "total_rows": 1,
+          "truncated": false,
+          "truncation_note": null,
+          "query": "WITH unıon(n) AS (SELECT 7) SELECT 7 AS n WHERE 7 IN unıon",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      }
+    },
+    {
+      "id": "not-materialized",
+      "tool": "query",
+      "expected": "seven",
+      "args": {
+        "connection_id": "analytics_demo_sqlite",
+        "sql": "WITH \"data\"(n) AS NOT MATERIALIZED (SELECT 7) SELECT n FROM \"data\""
+      },
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":true,\"data\":[{\"n\":7}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null,\"query\":\"WITH \\\"data\\\"(n) AS NOT MATERIALIZED (SELECT 7) SELECT n FROM \\\"data\\\"\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": true,
+          "data": [
+            {
+              "n": 7
+            }
+          ],
+          "row_count": 1,
+          "total_rows": 1,
+          "truncated": false,
+          "truncation_note": null,
+          "query": "WITH \"data\"(n) AS NOT MATERIALIZED (SELECT 7) SELECT n FROM \"data\"",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      }
+    },
+    {
+      "id": "body-write-denied",
+      "tool": "query",
+      "expected": "nested_write_denied",
+      "args": {
+        "connection_id": "analytics_demo_sqlite",
+        "sql": "WITH \"data\"(n) AS (DELETE FROM orders RETURNING 7) SELECT n FROM \"data\""
+      },
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":false,\"error_code\":\"nested_write_denied\",\"error\":\"Write statements inside a read query are not allowed.\",\"query\":\"WITH \\\"data\\\"(n) AS (DELETE FROM orders RETURNING 7) SELECT n FROM \\\"data\\\"\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": false,
+          "error_code": "nested_write_denied",
+          "error": "Write statements inside a read query are not allowed.",
+          "query": "WITH \"data\"(n) AS (DELETE FROM orders RETURNING 7) SELECT n FROM \"data\"",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      }
+    },
+    {
+      "id": "unauthorized-relation-denied",
+      "tool": "query",
+      "expected": "table_access_denied",
+      "args": {
+        "connection_id": "analytics_demo_sqlite",
+        "sql": "WITH \"data\"(n) AS (SELECT 7 FROM main.__unapproved_cte_scope_probe__) SELECT n FROM \"data\""
+      },
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":false,\"error_code\":\"table_access_denied\",\"error\":\"Access denied to table(s): main.__unapproved_cte_scope_probe__. Only allowed tables: orders\",\"hint\":\"Keep the same connection and use authorized tables. If CTE name rules are unknown or case-sensitive, match the declaration's exact case.\",\"query\":\"WITH \\\"data\\\"(n) AS (SELECT 7 FROM main.__unapproved_cte_scope_probe__) SELECT n FROM \\\"data\\\"\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": false,
+          "error_code": "table_access_denied",
+          "error": "Access denied to table(s): main.__unapproved_cte_scope_probe__. Only allowed tables: orders",
+          "hint": "Keep the same connection and use authorized tables. If CTE name rules are unknown or case-sensitive, match the declaration's exact case.",
+          "query": "WITH \"data\"(n) AS (SELECT 7 FROM main.__unapproved_cte_scope_probe__) SELECT n FROM \"data\"",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      }
+    },
+    {
+      "id": "malformed-with-denied",
+      "tool": "query",
+      "expected": "sql_parse_failed",
+      "args": {
+        "connection_id": "analytics_demo_sqlite",
+        "sql": "WITH data AS"
+      },
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":false,\"error_code\":\"sql_parse_failed\",\"error\":\"Could not safely analyze this WITH statement.\",\"hint\":\"Keep the same connection. Check the CTE declarations, parentheses and read-only query bodies, or simplify to a supported read statement.\",\"query\":\"WITH data AS\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": false,
+          "error_code": "sql_parse_failed",
+          "error": "Could not safely analyze this WITH statement.",
+          "hint": "Keep the same connection. Check the CTE declarations, parentheses and read-only query bodies, or simplify to a supported read statement.",
+          "query": "WITH data AS",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      }
+    },
+    {
+      "id": "mysql-quoted-columns",
+      "tool": "query",
+      "expected": "seven",
+      "args": {
+        "connection_id": "trade_analysis_mysql",
+        "sql": "WITH `data`(n) AS (SELECT 7) SELECT n FROM `data`"
+      },
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":true,\"data\":[{\"n\":7}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null,\"query\":\"WITH `data`(n) AS (SELECT 7) SELECT n FROM `data`\",\"connection_id\":\"trade_analysis_mysql\",\"db_type\":\"mysql\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": true,
+          "data": [
+            {
+              "n": 7
+            }
+          ],
+          "row_count": 1,
+          "total_rows": 1,
+          "truncated": false,
+          "truncation_note": null,
+          "query": "WITH `data`(n) AS (SELECT 7) SELECT n FROM `data`",
+          "connection_id": "trade_analysis_mysql",
+          "db_type": "mysql"
+        },
+        "isError": false
+      }
+    },
+    {
+      "id": "ordinary-reviewed-skill",
+      "tool": "execute_query_skill",
+      "expected": "report",
+      "args": {
+        "connection_id": "analytics_demo_sqlite",
+        "skill_name": "sample-monthly-sales-report-sqlite",
+        "params": {
+          "year": 2026,
+          "month": 1
+        }
+      },
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":true,\"skill_name\":\"sample-monthly-sales-report-sqlite\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\",\"data\":[{\"date\":\"2026-01-10\",\"order_count\":1,\"revenue\":1349.98,\"avg_order_value\":1349.98},{\"date\":\"2026-01-11\",\"order_count\":1,\"revenue\":84.99,\"avg_order_value\":84.99},{\"date\":\"2026-01-12\",\"order_count\":1,\"revenue\":45.0,\"avg_order_value\":45.0},{\"date\":\"2026-01-13\",\"order_count\":1,\"revenue\":139.97,\"avg_order_value\":139.97},{\"date\":\"2026-01-14\",\"order_count\":1,\"revenue\":89.99,\"avg_order_value\":89.99}],\"row_count\":5,\"total_rows\":5,\"truncated\":false,\"truncation_note\":null}"
+          }
+        ],
+        "structuredContent": {
+          "success": true,
+          "skill_name": "sample-monthly-sales-report-sqlite",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite",
+          "data": [
+            {
+              "date": "2026-01-10",
+              "order_count": 1,
+              "revenue": 1349.98,
+              "avg_order_value": 1349.98
+            },
+            {
+              "date": "2026-01-11",
+              "order_count": 1,
+              "revenue": 84.99,
+              "avg_order_value": 84.99
+            },
+            {
+              "date": "2026-01-12",
+              "order_count": 1,
+              "revenue": 45,
+              "avg_order_value": 45
+            },
+            {
+              "date": "2026-01-13",
+              "order_count": 1,
+              "revenue": 139.97,
+              "avg_order_value": 139.97
+            },
+            {
+              "date": "2026-01-14",
+              "order_count": 1,
+              "revenue": 89.99,
+              "avg_order_value": 89.99
+            }
+          ],
+          "row_count": 5,
+          "total_rows": 5,
+          "truncated": false,
+          "truncation_note": null
+        },
+        "isError": false
+      }
+    }
+  ],
+  "checks": {
+    "total": 20,
+    "passed": 20,
+    "failed": 0,
+    "same_input_baseline": 10,
+    "supplemental": 10,
+    "details": [
+      {
+        "id": "bare-business",
+        "transport_ok": true,
+        "text_structured_match": true,
+        "expected_result": true
+      },
+      {
+        "id": "bare-unicode",
+        "transport_ok": true,
+        "text_structured_match": true,
+        "expected_result": true
+      },
+      {
+        "id": "quoted-columns",
+        "transport_ok": true,
+        "text_structured_match": true,
+        "expected_result": true
+      },
+      {
+        "id": "comment-body",
+        "transport_ok": true,
+        "text_structured_match": true,
+        "expected_result": true
+      },
+      {
+        "id": "bare-replace",
+        "transport_ok": true,
+        "text_structured_match": true,
+        "expected_result": true
+      },
+      {
+        "id": "materialized",
+        "transport_ok": true,
+        "text_structured_match": true,
+        "expected_result": true
+      },
+      {
+        "id": "normal",
+        "transport_ok": true,
+        "text_structured_match": true,
+        "expected_result": true
+      },
+      {
+        "id": "quoted-name",
+        "transport_ok": true,
+        "text_structured_match": true,
+        "expected_result": true
+      },
+      {
+        "id": "reserved-body",
+        "transport_ok": true,
+        "text_structured_match": true,
+        "expected_result": true
+      },
+      {
+        "id": "real-write",
+        "transport_ok": true,
+        "text_structured_match": true,
+        "expected_result": true
+      },
+      {
+        "id": "contextual-like",
+        "transport_ok": true,
+        "text_structured_match": true,
+        "expected_result": true
+      },
+      {
+        "id": "contextual-regexp",
+        "transport_ok": true,
+        "text_structured_match": true,
+        "expected_result": true
+      },
+      {
+        "id": "comma-replace",
+        "transport_ok": true,
+        "text_structured_match": true,
+        "expected_result": true
+      },
+      {
+        "id": "where-unicode-in",
+        "transport_ok": true,
+        "text_structured_match": true,
+        "expected_result": true
+      },
+      {
+        "id": "not-materialized",
+        "transport_ok": true,
+        "text_structured_match": true,
+        "expected_result": true
+      },
+      {
+        "id": "body-write-denied",
+        "transport_ok": true,
+        "text_structured_match": true,
+        "expected_result": true
+      },
+      {
+        "id": "unauthorized-relation-denied",
+        "transport_ok": true,
+        "text_structured_match": true,
+        "expected_result": true
+      },
+      {
+        "id": "malformed-with-denied",
+        "transport_ok": true,
+        "text_structured_match": true,
+        "expected_result": true
+      },
+      {
+        "id": "mysql-quoted-columns",
+        "transport_ok": true,
+        "text_structured_match": true,
+        "expected_result": true
+      },
+      {
+        "id": "ordinary-reviewed-skill",
+        "transport_ok": true,
+        "text_structured_match": true,
+        "expected_result": true
+      }
+    ]
+  },
+  "configured_database_writes": false,
+  "authorization_probe_scope": "The deliberately unapproved relation name is a policy refusal control, not a claim that the physical table exists. Write-shaped controls were refused; no configured write performed."
+}

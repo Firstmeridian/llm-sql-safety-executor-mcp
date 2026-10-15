@@ -1,0 +1,253 @@
+{
+  "version": "3.8.1",
+  "observed_at": "2026-10-15 09:03:32 UTC",
+  "scope": "Current Host native application results after maintainer restart; first three SQL inputs match native_before_restart_corrected.json. No configured DB writes.",
+  "checks": {
+    "passed": 6,
+    "failed": 0,
+    "details": [
+      {
+        "id": "unicode_pragma_from",
+        "passed": true
+      },
+      {
+        "id": "unicode_pragma_in",
+        "passed": true
+      },
+      {
+        "id": "unicode_account_column",
+        "passed": true
+      },
+      {
+        "id": "ascii_pragma_reserved",
+        "passed": true
+      },
+      {
+        "id": "ascii_account_reserved",
+        "passed": true
+      },
+      {
+        "id": "normal_query_skill",
+        "passed": true
+      }
+    ]
+  },
+  "recording_profile": "MCP application results including content/structuredContent/isError; not complete JSON-RPC frames or notifications",
+  "records": [
+    {
+      "id": "unicode_pragma_from",
+      "expect": "positive",
+      "tool": "query",
+      "args": {
+        "connection_id": "analytics_demo_sqlite",
+        "sql": "WITH \"pragma_locKing_mode\" AS (SELECT 7 AS n) SELECT n FROM \"pragma_locKing_mode\""
+      },
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":true,\"data\":[{\"n\":7}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null,\"query\":\"WITH \\\"pragma_locKing_mode\\\" AS (SELECT 7 AS n) SELECT n FROM \\\"pragma_locKing_mode\\\"\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": true,
+          "data": [
+            {
+              "n": 7
+            }
+          ],
+          "row_count": 1,
+          "total_rows": 1,
+          "truncated": false,
+          "truncation_note": null,
+          "query": "WITH \"pragma_locKing_mode\" AS (SELECT 7 AS n) SELECT n FROM \"pragma_locKing_mode\"",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      }
+    },
+    {
+      "id": "unicode_pragma_in",
+      "expect": "positive",
+      "tool": "query",
+      "args": {
+        "connection_id": "analytics_demo_sqlite",
+        "sql": "WITH \"pragma_locKing_mode\" AS (SELECT 7 AS n) SELECT 7 AS n WHERE 7 IN \"pragma_locKing_mode\""
+      },
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":true,\"data\":[{\"n\":7}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null,\"query\":\"WITH \\\"pragma_locKing_mode\\\" AS (SELECT 7 AS n) SELECT 7 AS n WHERE 7 IN \\\"pragma_locKing_mode\\\"\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": true,
+          "data": [
+            {
+              "n": 7
+            }
+          ],
+          "row_count": 1,
+          "total_rows": 1,
+          "truncated": false,
+          "truncation_note": null,
+          "query": "WITH \"pragma_locKing_mode\" AS (SELECT 7 AS n) SELECT 7 AS n WHERE 7 IN \"pragma_locKing_mode\"",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      }
+    },
+    {
+      "id": "unicode_account_column",
+      "expect": "positive",
+      "tool": "query",
+      "args": {
+        "connection_id": "analytics_demo_sqlite",
+        "sql": "WITH business AS (SELECT 7 AS current_uſer) SELECT current_uſer AS n FROM business"
+      },
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":true,\"data\":[{\"n\":7}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null,\"query\":\"WITH business AS (SELECT 7 AS current_uſer) SELECT current_uſer AS n FROM business\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": true,
+          "data": [
+            {
+              "n": 7
+            }
+          ],
+          "row_count": 1,
+          "total_rows": 1,
+          "truncated": false,
+          "truncation_note": null,
+          "query": "WITH business AS (SELECT 7 AS current_uſer) SELECT current_uſer AS n FROM business",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      }
+    },
+    {
+      "id": "ascii_pragma_reserved",
+      "expect": "denied",
+      "tool": "query",
+      "args": {
+        "connection_id": "analytics_demo_sqlite",
+        "sql": "WITH pragma_locking_mode AS (SELECT 7 AS n) SELECT n FROM pragma_locking_mode"
+      },
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":false,\"error_code\":\"server_state_denied\",\"error\":\"SQLite PRAGMA table-valued functions are not allowed in queries; use list_tables() or describe_table() instead (describe_table() also returns indexes).\",\"query\":\"WITH pragma_locking_mode AS (SELECT 7 AS n) SELECT n FROM pragma_locking_mode\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": false,
+          "error_code": "server_state_denied",
+          "error": "SQLite PRAGMA table-valued functions are not allowed in queries; use list_tables() or describe_table() instead (describe_table() also returns indexes).",
+          "query": "WITH pragma_locking_mode AS (SELECT 7 AS n) SELECT n FROM pragma_locking_mode",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      }
+    },
+    {
+      "id": "ascii_account_reserved",
+      "expect": "denied",
+      "tool": "query",
+      "args": {
+        "connection_id": "analytics_demo_sqlite",
+        "sql": "WITH business AS (SELECT 7 AS current_user) SELECT current_user AS n FROM business"
+      },
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":false,\"error_code\":\"server_state_denied\",\"error\":\"Account and role functions are not allowed in queries.\",\"query\":\"WITH business AS (SELECT 7 AS current_user) SELECT current_user AS n FROM business\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": false,
+          "error_code": "server_state_denied",
+          "error": "Account and role functions are not allowed in queries.",
+          "query": "WITH business AS (SELECT 7 AS current_user) SELECT current_user AS n FROM business",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      }
+    },
+    {
+      "id": "normal_query_skill",
+      "expect": "monthly_sales",
+      "tool": "execute_query_skill",
+      "args": {
+        "connection_id": "analytics_demo_sqlite",
+        "skill_name": "sample-monthly-sales-report-sqlite",
+        "params": {
+          "year": 2026,
+          "month": 1
+        }
+      },
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":true,\"skill_name\":\"sample-monthly-sales-report-sqlite\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\",\"data\":[{\"date\":\"2026-01-10\",\"order_count\":1,\"revenue\":1349.98,\"avg_order_value\":1349.98},{\"date\":\"2026-01-11\",\"order_count\":1,\"revenue\":84.99,\"avg_order_value\":84.99},{\"date\":\"2026-01-12\",\"order_count\":1,\"revenue\":45.0,\"avg_order_value\":45.0},{\"date\":\"2026-01-13\",\"order_count\":1,\"revenue\":139.97,\"avg_order_value\":139.97},{\"date\":\"2026-01-14\",\"order_count\":1,\"revenue\":89.99,\"avg_order_value\":89.99}],\"row_count\":5,\"total_rows\":5,\"truncated\":false,\"truncation_note\":null}"
+          }
+        ],
+        "structuredContent": {
+          "success": true,
+          "skill_name": "sample-monthly-sales-report-sqlite",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite",
+          "data": [
+            {
+              "date": "2026-01-10",
+              "order_count": 1,
+              "revenue": 1349.98,
+              "avg_order_value": 1349.98
+            },
+            {
+              "date": "2026-01-11",
+              "order_count": 1,
+              "revenue": 84.99,
+              "avg_order_value": 84.99
+            },
+            {
+              "date": "2026-01-12",
+              "order_count": 1,
+              "revenue": 45,
+              "avg_order_value": 45
+            },
+            {
+              "date": "2026-01-13",
+              "order_count": 1,
+              "revenue": 139.97,
+              "avg_order_value": 139.97
+            },
+            {
+              "date": "2026-01-14",
+              "order_count": 1,
+              "revenue": 89.99,
+              "avg_order_value": 89.99
+            }
+          ],
+          "row_count": 5,
+          "total_rows": 5,
+          "truncated": false,
+          "truncation_note": null
+        },
+        "isError": false
+      }
+    }
+  ]
+}

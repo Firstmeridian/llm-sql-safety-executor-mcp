@@ -4,6 +4,13 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+_ASCII_IDENTIFIER_CASE = str.maketrans("ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz")
+
+
+def ascii_identifier_lower(name: str) -> str:
+    """SQLite identifier comparison folds ASCII, not Python's Unicode case map."""
+    return name.translate(_ASCII_IDENTIFIER_CASE)
+
 METADATA_IDENTIFIER_PATTERN = re.compile(
     r"^[a-zA-Z_\u4e00-\u9fff][a-zA-Z0-9_\u4e00-\u9fff]{0,63}$"
 )

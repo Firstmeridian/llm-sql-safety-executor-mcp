@@ -1,0 +1,589 @@
+--- before/src/sql_safety_executor/core/mutations.py
++++ after/src/sql_safety_executor/core/mutations.py
+@@ -346,7 +346,7 @@
+         except ToolError:
+             raise
+         except Exception as e:
+-            sanitized = adapter._handle_error(e)
++            sanitized = str(adapter._handle_error(e))
+             raise ToolError(sanitized) from e
+     else:
+         # Phase 2: consume, then use the managed plan or imperative callback
+@@ -386,7 +386,7 @@
+             except Exception as validation_error:
+                 validation = {
+                     "valid": False,
+-                    "errors": [adapter._handle_error(validation_error)],
++                    "errors": [str(adapter._handle_error(validation_error))],
+                 }
+ 
+             if not isinstance(validation, dict):
+--- before/src/sql_safety_executor/core/policy.py
++++ after/src/sql_safety_executor/core/policy.py
+@@ -14,6 +14,7 @@
+ from sql_safety_executor.database.models import ConnectionPolicy
+ from sql_safety_executor.database.base import DatabaseAdapter
+ from sql_safety_executor.database.identifiers import ascii_identifier_lower as _ascii_identifier_lower
++from sql_safety_executor.database.relations import RelationReference
+ 
+ logger = logging.getLogger(__name__)
+ 
+@@ -33,7 +34,8 @@
+ 
+ 
+ def _is_table_allowed(
+-    runtime, table_name: str, policy: ConnectionPolicy | None = None
++    runtime, table_name: str, policy: ConnectionPolicy | None = None, *,
++    schema: str | None = None,
+ ) -> bool:
+     """
+     Check if a table is in the allowlist.
+@@ -47,7 +49,7 @@
+     allowed_tables = _effective_policy(runtime, policy).allowed_tables
+     if allowed_tables is None:
+         return True  # No allowlist - allow all
+-    return _effective_policy(runtime, policy).allows_table(table_name)
++    return _effective_policy(runtime, policy).allows_metadata_table(table_name, schema)
+ 
+ 
+ def _normalize_sql_identifier(identifier: str) -> str:
+@@ -87,6 +89,8 @@
+     schema = None
+     target = parts[0]
+     if len(parts) >= 3 and parts[1].value == ".":
++        if any(part.value == "." for part in parts[3:]):
++            raise ValueError("Unsupported multi-component qualification")
+         schema = _normalize_sql_identifier(target.value)
+         target = parts[2]
+     if isinstance(target, (Identifier, Function)):
+@@ -147,11 +151,11 @@
+     allow_table_function: bool = False,
+     fold: Callable[[str], str] = str.lower,
+     cte_fold: Callable[[str], str] | None = None,
+-) -> list[str]:
++) -> list[RelationReference]:
+     """Extract complete table references from one FROM/JOIN target token."""
+     cte_fold = cte_fold or fold
+     if isinstance(token, IdentifierList):
+-        references: list[str] = []
++        references: list[RelationReference] = []
+         for identifier in token.get_identifiers():
+             references.extend(
+                 _table_references_from_target(
+@@ -177,26 +181,26 @@
+         if not table_name:
+             raise ValueError("Table target has no resolvable name")
+         schema_name, table_name = _identifier_name_parts(token)
+-        if schema_name:
+-            return [fold(f"{schema_name}.{table_name}")]
++        if schema_name is not None:
++            return [RelationReference(fold(table_name), fold(schema_name))]
+         if (
+             not any(isinstance(child, Function) for child in token.tokens)
+             and cte_fold(table_name) in cte_names
+         ):
+             return []
+-        return [fold(table_name)]
++        return [RelationReference(fold(table_name))]
+ 
+     if isinstance(token, Function) and (allow_column_list or allow_table_function):
+         table_name = token.get_real_name()
+         if not table_name:
+             raise ValueError("DML table target has no resolvable name")
+-        return [fold(_identifier_name_parts(token)[1])]
++        return [RelationReference(fold(_identifier_name_parts(token)[1]))]
+ 
+     if token.ttype in sql_tokens.Name:
+         table_name = _normalize_sql_identifier(token.value)
+         if cte_fold(table_name) in cte_names:
+             return []
+-        return [fold(table_name)]
++        return [RelationReference(fold(table_name))]
+ 
+     raise ValueError(f"Unsupported table target: {token.value!r}")
+ 
+@@ -206,7 +210,7 @@
+     cte_names: set[str],
+     fold: Callable[[str], str] = str.lower,
+     cte_fold: Callable[[str], str] | None = None,
+-) -> list[str]:
++) -> list[RelationReference]:
+     """Extract a write target from non-executing MySQL EXPLAIN-family SQL."""
+     dml_index = next(
+         (
+@@ -296,10 +300,10 @@
+     strict: bool,
+     fold: Callable[[str], str] = str.lower,
+     cte_fold: Callable[[str], str] | None = None,
+-) -> list[str]:
++) -> list[RelationReference]:
+     """Walk parsed SQL and collect every FROM/JOIN base-table reference."""
+     cte_fold = cte_fold or fold
+-    references: list[str] = []
++    references: list[RelationReference] = []
+     tokens = _significant_sql_tokens(token_list)
+     with_index = next(
+         (index for index, token in enumerate(tokens)
+@@ -368,10 +372,10 @@
+     return references
+ 
+ 
+-def _extract_tables_from_sql(
++def _extract_relation_references(
+     sql: str, *, strict: bool = True, case_sensitive: bool = False,
+     cte_case_sensitive: bool | None = None
+-) -> list[str]:
++) -> list[RelationReference]:
+     """Extract complete base-table references for restrictive allowlists.
+ 
+     This intentionally supports a conservative subset rather than pretending
+@@ -454,13 +458,24 @@
+                     if strict:
+                         raise
+ 
+-    return sorted(set(references))
++    return sorted(set(references), key=lambda reference: reference.display_name)
++
++
++def _extract_tables_from_sql(
++    sql: str, *, strict: bool = True, case_sensitive: bool = False,
++    cte_case_sensitive: bool | None = None,
++) -> list[str]:
++    """Display projection for diagnostics/matrices; never an authorization key."""
++    return [relation.display_name for relation in _extract_relation_references(
++        sql, strict=strict, case_sensitive=case_sensitive,
++        cte_case_sensitive=cte_case_sensitive,
++    )]
+ 
+ 
+ def _resolve_query_tables(
+     sql: str, policy: ConnectionPolicy, *, adapter: DatabaseAdapter | None = None,
+     strict: bool = True, probe: bool = False,
+-) -> list[str]:
++) -> list[RelationReference]:
+     """Resolve CTE scope independently from physical table spelling/grants.
+ 
+     Probe only a genuine exact-vs-insensitive ambiguity, and only when even
+@@ -468,11 +483,11 @@
+     Static startup checks and metadata projections never initiate a probe.
+     """
+     if not policy.case_sensitive_tables:
+-        return _extract_tables_from_sql(sql, strict=strict, case_sensitive=True, cte_case_sensitive=False)
+-    exact = _extract_tables_from_sql(sql, strict=strict, case_sensitive=True, cte_case_sensitive=True)
++        return _extract_relation_references(sql, strict=strict, case_sensitive=True, cte_case_sensitive=False)
++    exact = _extract_relation_references(sql, strict=strict, case_sensitive=True, cte_case_sensitive=True)
+     if adapter is None or "WITH" not in sql.upper():
+         return exact
+-    folded = _extract_tables_from_sql(sql, strict=strict, case_sensitive=True, cte_case_sensitive=False)
++    folded = _extract_relation_references(sql, strict=strict, case_sensitive=True, cte_case_sensitive=False)
+     if exact == folded:
+         return exact
+     known = adapter.cte_case_sensitive
+@@ -480,7 +495,7 @@
+         return folded
+     if known is True or not probe:
+         return exact
+-    if policy.read_mode != "all" and any(not policy.allows_table(table) for table in folded):
++    if policy.read_mode != "all" and any(not policy.allows_relation(table) for table in folded):
+         return exact
+     return exact if adapter.resolve_cte_case_sensitive() else folded
+ 
+@@ -500,7 +515,7 @@
+             "relation_scope_unresolved", "Table allowlist could not safely determine every referenced table",
+             "Use supported explicit relation references and CTEs; keep schema and name case aligned with the connection policy.",
+         )
+-    blocked = [table for table in tables if not effective.allows_table(table)]
++    blocked = [table.display_name for table in tables if not effective.allows_relation(table)]
+     if blocked:
+         return PolicyDecision.deny(
+             "table_access_denied",
+@@ -934,8 +949,8 @@
+             return PolicyDecision.deny("relation_group_unsupported", "Parenthesized FROM/JOIN targets are not allowed; use a CTE instead.")
+         if any(_nonstandard_relation_reference(statement) for statement in statements):
+             return PolicyDecision.deny("relation_quoting_unsupported", "Single-quoted table names and ODBC relation wrappers are not supported; use standard identifier quoting and explicit FROM/JOIN targets.")
+-        references = _extract_tables_from_sql(normalized_sql, strict=False)
+-        if any("." in reference and reference.split(".", 1)[0].lower() in {"mysql", "performance_schema", "information_schema", "sys"} for reference in references):
++        references = _extract_relation_references(normalized_sql, strict=False)
++        if any(reference.schema is not None and _ascii_identifier_lower(reference.schema) in {"mysql", "performance_schema", "information_schema", "sys"} for reference in references):
+             return PolicyDecision.deny("system_schema_denied", "Access to system databases not allowed.", "Use list_tables() or describe_table(); describe_table() also returns indexes.")
+         if any(token.ttype in sql_tokens.Keyword and token.normalized.upper() in {"UNION", "UNION ALL"} for token in tokens):
+             if require_union_allowlist and not effective.allow_union:
+--- before/src/sql_safety_executor/core/schema.py
++++ after/src/sql_safety_executor/core/schema.py
+@@ -91,7 +91,7 @@
+     allowed_tables = connection.policy.allowed_tables
+     if allowed_tables is not None and "*" not in allowed_tables:
+         original_count = len(tables)
+-        tables = [t for t in tables if connection.policy.allows_table(t["table_name"])]
++        tables = [t for t in tables if connection.policy.allows_metadata_table(t["table_name"], connection.default_schema)]
+         if len(tables) < original_count:
+             await ctx.info(
+                 f"Filtered {original_count - len(tables)} tables by allowlist"
+@@ -180,7 +180,7 @@
+         )
+ 
+     # Check table allowlist (P1 Security)
+-    if not _is_table_allowed(runtime, table_name, connection.policy):
++    if not _is_table_allowed(runtime, table_name, connection.policy, schema=connection.default_schema):
+         await ctx.warning(f"Table access denied by allowlist: {table_name}")
+         return _tool_result(
+             runtime,
+@@ -392,7 +392,7 @@
+     allowed_tables = connection.policy.allowed_tables
+     if allowed_tables is not None and "*" not in allowed_tables:
+         tables_data = [
+-            t for t in tables_data if connection.policy.allows_table(t["table_name"])
++            t for t in tables_data if connection.policy.allows_metadata_table(t["table_name"], connection.default_schema)
+         ]
+         await ctx.info(f"Allowlist active: showing {len(tables_data)} allowed tables")
+ 
+@@ -615,7 +615,7 @@
+         )
+ 
+     # Check table allowlist (P1 Security)
+-    if not _is_table_allowed(runtime, table_name, connection.policy):
++    if not _is_table_allowed(runtime, table_name, connection.policy, schema=connection.default_schema):
+         await ctx.warning(f"Table access denied by allowlist: {table_name}")
+         return _tool_result(
+             runtime,
+@@ -797,7 +797,7 @@
+         )
+ 
+     # Check table allowlist (P1 Security)
+-    if not _is_table_allowed(runtime, table_name, connection.policy):
++    if not _is_table_allowed(runtime, table_name, connection.policy, schema=connection.default_schema):
+         await ctx.warning(f"Table access denied by allowlist: {table_name}")
+         return _tool_result(
+             runtime,
+--- before/src/sql_safety_executor/core/types.py
++++ after/src/sql_safety_executor/core/types.py
+@@ -6,6 +6,7 @@
+ 
+ from sql_safety_executor.database.base import DatabaseAdapter
+ from sql_safety_executor.database.models import ConnectionPolicy, DatabaseConfig
++from sql_safety_executor.database.relations import RelationReference
+ 
+ 
+ class OperationError(Exception):
+@@ -52,9 +53,14 @@
+     def db_type(self) -> str:
+         return self.config.db_type
+ 
++    @property
++    def default_schema(self) -> str | None:
++        return "main" if self.db_type == "sqlite" else self.config.mysql_database
++
+ 
+ @dataclass(frozen=True)
+ class SkillSchemaSnapshot:
+     enabled: bool
+     available: bool
+-    table_names: frozenset[str]
++    table_names: frozenset[RelationReference]
++    schema_name: str | None = None
+--- before/src/sql_safety_executor/database/models.py
++++ after/src/sql_safety_executor/database/models.py
+@@ -3,6 +3,7 @@
+ from dataclasses import dataclass, field
+ from pydantic import SecretStr
+ from .identifiers import ascii_identifier_lower
++from .relations import RelationReference
+ 
+ logger = logging.getLogger(__name__)
+ 
+@@ -18,14 +19,34 @@
+     mutation_skills: frozenset[str] = frozenset()
+     # MySQL table identity may be case-sensitive (lower_case_table_names=0).
+     case_sensitive_tables: bool = False
++    _relation_grants: frozenset[RelationReference] = field(init=False, repr=False)
++
++    def __post_init__(self) -> None:
++        object.__setattr__(self, "_relation_grants", frozenset(
++            self.relation_key(RelationReference.from_declaration(name))
++            for name in self.allowed_tables or () if name != "*"
++        ))
+ 
+     def table_key(self, name: str) -> str:
+         return name if self.case_sensitive_tables else ascii_identifier_lower(name)
+ 
+     def allows_table(self, name: str) -> bool:
+-        if "*" in self.allowed_tables:
++        """Check a configured/declarative name, not a decoded SQL token."""
++        return self.allows_relation(RelationReference.from_declaration(name))
++
++    def relation_key(self, relation: RelationReference) -> RelationReference:
++        return relation.key(case_sensitive=self.case_sensitive_tables)
++
++    def allows_relation(self, relation: RelationReference) -> bool:
++        if self.allowed_tables is None or "*" in self.allowed_tables:
+             return True
+-        return self.table_key(name) in self.allowed_tables
++        return self.relation_key(relation) in self._relation_grants
++
++    def allows_metadata_table(self, name: str, schema: str | None) -> bool:
++        """Metadata is bound to a known schema; names here are already decoded."""
++        return self.allows_relation(RelationReference(name)) or (
++            schema is not None and self.allows_relation(RelationReference(name, schema))
++        )
+ 
+ 
+ @dataclass(frozen=True)
+--- before/src/sql_safety_executor/database/relations.py
++++ after/src/sql_safety_executor/database/relations.py
+@@ -0,0 +1,38 @@
++"""Relation identity; display text never decides schema or object boundaries."""
++
++from dataclasses import dataclass
++from .identifiers import ascii_identifier_lower
++
++
++@dataclass(frozen=True)
++class RelationReference:
++    name: str
++    schema: str | None = None
++
++    @classmethod
++    def from_declaration(cls, value: str) -> "RelationReference":
++        """Configured/declarative dots separate schema from name, once.
++
++        These are name declarations, not SQL: quotation marks remain name data.
++        SQL references are constructed from lexical components instead.
++        """
++        schema, separator, name = value.partition(".")
++        return cls(name, schema) if separator else cls(value)
++
++    def key(self, *, case_sensitive: bool) -> "RelationReference":
++        if case_sensitive:
++            return self
++        return RelationReference(
++            ascii_identifier_lower(self.name),
++            ascii_identifier_lower(self.schema) if self.schema is not None else None,
++        )
++
++    @property
++    def display_name(self) -> str:
++        def display(value: str) -> str:
++            return '"' + value.replace('"', '""') + '"' if "." in value else value
++        name = display(self.name)
++        return name if self.schema is None else f"{display(self.schema)}.{name}"
++
++    def in_schema(self, schema: str | None) -> "RelationReference":
++        return self if self.schema is not None else RelationReference(self.name, schema)
+--- before/src/sql_safety_executor/skills/access.py
++++ after/src/sql_safety_executor/skills/access.py
+@@ -8,6 +8,7 @@
+     SkillSchemaSnapshot as _SkillSchemaSnapshot,
+ )
+ from sql_safety_executor.database.models import DatabaseConfig
++from sql_safety_executor.database.relations import RelationReference
+ from sql_safety_executor.database.outcomes import MetadataQueryError
+ from sql_safety_executor.core.connections import read_access_enabled
+ from sql_safety_executor.core.policy import _validate_sql_query_policy
+@@ -208,12 +209,15 @@
+ 
+     return _SkillSchemaSnapshot(
+         enabled=True,
+-        available=True,
++        available=connection.default_schema is not None,
+         table_names=frozenset(
+-            connection.policy.table_key(str(table.get("table_name", "")))
++            connection.policy.relation_key(RelationReference(
++                str(table["table_name"]), connection.default_schema,
++            ))
+             for table in tables
+             if table.get("table_name")
+         ),
++        schema_name=connection.default_schema,
+     )
+ 
+ 
+@@ -230,28 +234,37 @@
+     return [table for table in meta.tables if not connection.policy.allows_table(table)]
+ 
+ 
+-def _inferred_skill_tables(meta: SkillMetadata, connection: ConnectionContext) -> list[str]:
++def _inferred_skill_relations(meta: SkillMetadata, connection: ConnectionContext) -> list[RelationReference]:
+     """Keep independently inferred dependencies distinct from declarations."""
+     if meta.type == "query" and meta._sql_template is not None:
+-        from sql_safety_executor.skills.catalog import _extract_table_names
++        from sql_safety_executor.skills.catalog import _extract_table_references
+         sensitive = connection.policy.case_sensitive_tables
+         if sensitive and "WITH" in meta._sql_template.upper():
+             sensitive = connection.adapter.cte_case_sensitive is not False
+         if sensitive not in meta._inferred_tables:
+-            meta._inferred_tables[sensitive] = _extract_table_names(
++            meta._inferred_tables[sensitive] = _extract_table_references(
+                 meta._sql_template, cte_case_sensitive=sensitive,
+             )
+         return meta._inferred_tables[sensitive]
+     return []
+ 
+ 
++def _required_skill_relations(meta: SkillMetadata, connection: ConnectionContext) -> list[RelationReference]:
++    """Resolve inference for this target, without changing declared restrictions."""
++    inferred = _inferred_skill_relations(meta, connection)
++    required: dict[RelationReference, RelationReference] = {}
++    declared = [RelationReference.from_declaration(table) for table in meta.tables]
++    for table in [*declared, *inferred]:
++        required.setdefault(connection.policy.relation_key(table), table)
++    return list(required.values())
++
++
++def _inferred_skill_tables(meta: SkillMetadata, connection: ConnectionContext) -> list[str]:
++    return [table.display_name for table in _inferred_skill_relations(meta, connection)]
++
++
+ def _required_skill_tables(meta: SkillMetadata, connection: ConnectionContext) -> list[str]:
+-    """Resolve inference for this target, without changing declared restrictions."""
+-    inferred = _inferred_skill_tables(meta, connection)
+-    required = {}
+-    for table in [*meta.tables, *inferred]:
+-        required.setdefault(connection.policy.table_key(table), table)
+-    return list(required.values())
++    return [table.display_name for table in _required_skill_relations(meta, connection)]
+ 
+ 
+ def _mutation_connection_policy_state(
+@@ -308,6 +321,7 @@
+     """Describe whether a discovered skill can execute in the current state."""
+     reasons: list[str] = []
+     missing_tables: list[str] = []
++    unverified_tables: list[str] = []
+     blocked_tables: list[str] = []
+     excluded_profiles = _skill_excluded_profiles(runtime, meta)
+     connection_scope = _skill_connection_scope_state(runtime, meta, connection)
+@@ -365,7 +379,8 @@
+                 policy_allowed = False
+                 reasons.append(f"Skill '{meta.name}' failed SQL safety policy: {decision.message}")
+ 
+-    required_tables = _required_skill_tables(meta, connection)
++    required_relations = _required_skill_relations(meta, connection)
++    required_tables = [table.display_name for table in required_relations]
+     if schema_snapshot.enabled and required_tables:
+         if not schema_snapshot.available:
+             schema_ready = False
+@@ -374,10 +389,25 @@
+                 "database metadata is unavailable for the target connection."
+             )
+         else:
++            scope = connection.policy.table_key(schema_snapshot.schema_name) if schema_snapshot.schema_name is not None else None
++            unverified_relations = [
++                table for table in required_relations
++                if table.schema is not None
++                and connection.policy.relation_key(table).schema != scope
++            ]
++            unverified_tables = [table.display_name for table in unverified_relations]
++            if unverified_tables:
++                schema_ready = False
++                reasons.append(
++                    "Schema readiness does not cover required table(s): "
++                    f"{unverified_tables}."
++                )
+             missing_tables = [
+-                table
+-                for table in required_tables
+-                if connection.policy.table_key(table) not in schema_snapshot.table_names
++                table.display_name
++                for table in required_relations
++                if table not in unverified_relations
++                and connection.policy.relation_key(table.in_schema(schema_snapshot.schema_name))
++                not in schema_snapshot.table_names
+             ]
+             if missing_tables:
+                 schema_ready = False
+@@ -401,8 +431,9 @@
+         "blocked_tables": blocked_tables,
+         "schema_ready": schema_ready,
+         "schema_check_enabled": schema_snapshot.enabled,
+-        "schema_check_available": schema_snapshot.available,
++        "schema_check_available": schema_snapshot.available and not unverified_tables,
+         "missing_tables": missing_tables,
++        "unverified_tables": unverified_tables,
+         "required_tables": required_tables,
+         "declared_tables": list(meta.tables),
+         "inferred_tables": list(_inferred_skill_tables(meta, connection)),
+@@ -450,6 +481,11 @@
+         )
+ 
+     availability = _skill_availability_state(runtime, meta, schema_snapshot, connection)
++    if availability["unverified_tables"]:
++        raise ToolError(
++            f"Skill '{meta.name}' schema readiness could not verify table(s): "
++            f"{availability['unverified_tables']}"
++        )
+     if availability["missing_tables"]:
+         raise ToolError(
+             f"Skill '{meta.name}' requires table(s) not found in the "
+@@ -543,6 +579,8 @@
+         projected["excluded_profiles"] = availability["excluded_profiles"]
+     if availability["missing_tables"]:
+         projected["missing_tables"] = availability["missing_tables"]
++    if availability["unverified_tables"]:
++        projected["unverified_tables"] = availability["unverified_tables"]
+     if availability["blocked_tables"]:
+         projected["blocked_tables"] = availability["blocked_tables"]
+     if detail_level in {"summary", "full"}:
+@@ -574,6 +612,10 @@
+                 "requires_confirmation": meta.requires_confirmation,
+                 "related_skills": meta.related_skills,
+                 "tables": availability["required_tables"],
++                "schema_check_enabled": availability["schema_check_enabled"],
++                "schema_check_available": availability["schema_check_available"],
++                "missing_tables": availability["missing_tables"],
++                "unverified_tables": availability["unverified_tables"],
+             }
+         )
+         if meta.type == "query":
+--- before/src/sql_safety_executor/skills/catalog.py
++++ after/src/sql_safety_executor/skills/catalog.py
+@@ -62,6 +62,7 @@
+ 
+ from sql_safety_executor.core.sql import classify_sql_statement
+ from sql_safety_executor.core.decisions import PolicyDecision
++from sql_safety_executor.database.relations import RelationReference
+ 
+ logger = logging.getLogger(__name__)
+ 
+@@ -191,7 +192,7 @@
+     connection_ids: list[str] | None = None
+     # -- Internal fields (populated by discover(), not from YAML) --
+     _sql_template: str | None = field(default=None, repr=False)
+-    _inferred_tables: dict[bool, list[str]] = field(default_factory=dict, repr=False)
++    _inferred_tables: dict[bool, list[RelationReference]] = field(default_factory=dict, repr=False)
+     _mutation_class: type | None = field(default=None, repr=False)
+     _managed_mutation_plan: "ManagedMutationPlan | None" = field(
+         default=None,
+@@ -981,14 +982,21 @@
+ 
+ 
+ def _extract_table_names(sql: str, *, cte_case_sensitive: bool = True) -> list[str]:
++    """Display inferred dependencies without deciding relation identity."""
++    return [relation.display_name for relation in _extract_table_references(
++        sql, cte_case_sensitive=cte_case_sensitive,
++    )]
++
++
++def _extract_table_references(sql: str, *, cte_case_sensitive: bool = True) -> list[RelationReference]:
+     """Infer dependencies with the same scoped relation walker as read policy.
+ 
+     Preserve physical spelling; resolve CTE aliases using the target rules.
+     Inferred dependencies never overwrite explicitly declared metadata.
+     """
+-    from sql_safety_executor.core.policy import _extract_tables_from_sql
+-
+-    return _extract_tables_from_sql(
++    from sql_safety_executor.core.policy import _extract_relation_references
++
++    return _extract_relation_references(
+         sql, strict=False, case_sensitive=True, cte_case_sensitive=cte_case_sensitive,
+     )
+ 
+@@ -1164,7 +1172,7 @@
+                 metadata._sql_template = sql_template
+                 # Do not merge target-dependent inference into declared policy.
+                 metadata._inferred_tables = {
+-                    sensitive: _extract_table_names(sql_template, cte_case_sensitive=sensitive)
++                    sensitive: _extract_table_references(sql_template, cte_case_sensitive=sensitive)
+                     for sensitive in (True, False)
+                 }
+ 

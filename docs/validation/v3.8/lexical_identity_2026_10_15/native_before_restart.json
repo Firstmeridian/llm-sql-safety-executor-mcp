@@ -1,0 +1,106 @@
+{
+  "observed_at": "2026-10-15 09:13:53 UTC",
+  "scope": "Current native Host after previous patch restart, before lexical-boundary patch restart. These safe probes access no configured database objects or functions successfully; preserve same SQL for later verification.",
+  "records": [
+    {
+      "id": "contextual_target",
+      "args": {
+        "connection_id": "analytics_demo_sqlite",
+        "sql": "SELECT 7 AS n FROM window"
+      },
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":false,\"error_code\":\"unknown_table\",\"error\":\"Table not found.\",\"hint\":\"Use list_tables() to discover authorized tables on the same connection.\",\"query\":\"SELECT 7 AS n FROM window\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": false,
+          "error_code": "unknown_table",
+          "error": "Table not found.",
+          "hint": "Use list_tables() to discover authorized tables on the same connection.",
+          "query": "SELECT 7 AS n FROM window",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      }
+    },
+    {
+      "id": "unicode_target",
+      "args": {
+        "connection_id": "analytics_demo_sqlite",
+        "sql": "SELECT 7 AS n FROM offſet"
+      },
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":false,\"error_code\":\"unknown_table\",\"error\":\"Table not found.\",\"hint\":\"Use list_tables() to discover authorized tables on the same connection.\",\"query\":\"SELECT 7 AS n FROM offſet\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": false,
+          "error_code": "unknown_table",
+          "error": "Table not found.",
+          "hint": "Use list_tables() to discover authorized tables on the same connection.",
+          "query": "SELECT 7 AS n FROM offſet",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      }
+    },
+    {
+      "id": "quoted_file_call",
+      "args": {
+        "connection_id": "analytics_demo_sqlite",
+        "sql": "SELECT \"load_file\"(NULL)"
+      },
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":false,\"error_code\":\"unknown_function\",\"error\":\"SQL function not found for this database dialect.\",\"hint\":\"Use a function supported by the returned db_type; check the SQL dialect.\",\"query\":\"SELECT \\\"load_file\\\"(NULL)\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": false,
+          "error_code": "unknown_function",
+          "error": "SQL function not found for this database dialect.",
+          "hint": "Use a function supported by the returned db_type; check the SQL dialect.",
+          "query": "SELECT \"load_file\"(NULL)",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      }
+    },
+    {
+      "id": "quoted_account_call",
+      "args": {
+        "connection_id": "analytics_demo_sqlite",
+        "sql": "SELECT [user](0)"
+      },
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":false,\"error_code\":\"unknown_function\",\"error\":\"SQL function not found for this database dialect.\",\"hint\":\"Use a function supported by the returned db_type; check the SQL dialect.\",\"query\":\"SELECT [user](0)\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": false,
+          "error_code": "unknown_function",
+          "error": "SQL function not found for this database dialect.",
+          "hint": "Use a function supported by the returned db_type; check the SQL dialect.",
+          "query": "SELECT [user](0)",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      }
+    }
+  ]
+}

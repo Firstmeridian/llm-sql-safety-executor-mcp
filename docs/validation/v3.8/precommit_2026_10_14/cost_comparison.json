@@ -1,0 +1,67 @@
+{
+  "cases_with_unchanged_policy": 52,
+  "timings": [
+    {
+      "sql": "WITH F AS (SELECT 7 AS n) SELECT n FROM f",
+      "before_median_ms": 7.71951,
+      "after_median_ms": 7.570036,
+      "return_median_ms": 7.689196000000001,
+      "before_p95_ms": 10.879864,
+      "after_p95_ms": 10.165138,
+      "median_delta_percent": -1.9363146106423756,
+      "gate_passed": true
+    },
+    {
+      "sql": "WITH first_cte AS (SELECT COUNT(*) AS n FROM orders), second_cte AS (SELECT n FROM first_cte) SELECT n FROM second_cte",
+      "before_median_ms": 15.448728500000001,
+      "after_median_ms": 15.3872315,
+      "return_median_ms": 15.1808565,
+      "before_p95_ms": 21.857075,
+      "after_p95_ms": 18.786579,
+      "median_delta_percent": -0.39807159534197556,
+      "gate_passed": true
+    },
+    {
+      "sql": "WITH f AS (SELECT 7 AS n) SELECT n FROM main.f",
+      "before_median_ms": 8.3145235,
+      "after_median_ms": 7.9264399999999995,
+      "return_median_ms": 8.2157925,
+      "before_p95_ms": 11.715202,
+      "after_p95_ms": 10.691515,
+      "median_delta_percent": -4.667537472231576,
+      "gate_passed": true
+    },
+    {
+      "sql": "SELECT 'GET_LOCK(1), SLEEP(9), BENCHMARK(2,3)' AS label",
+      "before_median_ms": 2.773664,
+      "after_median_ms": 2.8290575000000002,
+      "return_median_ms": 2.7760745,
+      "before_p95_ms": 4.636416,
+      "after_p95_ms": 4.015543,
+      "median_delta_percent": 1.9971236602559062,
+      "gate_passed": true
+    },
+    {
+      "sql": "SELECT ABS(-7) AS n",
+      "before_median_ms": 4.793376,
+      "after_median_ms": 4.6420335,
+      "return_median_ms": 4.64024,
+      "before_p95_ms": 8.131835,
+      "after_p95_ms": 6.635479,
+      "median_delta_percent": -3.1573258596863663,
+      "gate_passed": true
+    },
+    {
+      "sql": "SELECT SLEEP(0) AS n",
+      "before_median_ms": 2.4786215,
+      "after_median_ms": 2.4640515,
+      "return_median_ms": 2.504371,
+      "before_p95_ms": 3.651861,
+      "after_p95_ms": 3.574455,
+      "median_delta_percent": -0.5878267415980964,
+      "gate_passed": true
+    }
+  ],
+  "fixed_metadata": "No prompt/tool-contract changes in the final identity patch",
+  "limits": "Serial local A/B/A; no machine exclusivity or complete model/billing measurement. Initial overlapping probes retained separately."
+}

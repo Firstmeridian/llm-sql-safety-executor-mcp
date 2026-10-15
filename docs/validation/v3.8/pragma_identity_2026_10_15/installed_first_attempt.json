@@ -1,0 +1,29 @@
+{
+  "state": "Private CLI started but first complete result set did not finish in default sandbox; preserving logs before interrupt",
+  "processes": [
+    {
+      "pid": 54027,
+      "ppid": 54026,
+      "role": "this task installed-check parent"
+    }
+  ],
+  "configured_service_untouched": true,
+  "completed_tool_call_count": "unknown; no complete result set",
+  "sigint_did_not_complete": true,
+  "termination_requested_for_task_pids": [
+    54027,
+    54311
+  ],
+  "scope": "Only this installed-check process and its descendants, never the configured resident service",
+  "private_temporary_directories_removed": 1,
+  "verified_task_process_exit": [
+    {
+      "pid": 54027,
+      "state": "exited"
+    },
+    {
+      "pid": 54311,
+      "state": "exited"
+    }
+  ]
+}

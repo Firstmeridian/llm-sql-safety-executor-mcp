@@ -7,6 +7,7 @@
 ![AutoGen](https://img.shields.io/badge/Framework-AutoGen-blueviolet?logo=microsoft)
 
 [English](README.md) | 中文
+
 > [介绍](#介绍) | 
 > [快速开始](#快速开始) | 
 > [配置](#配置) |
@@ -17,7 +18,7 @@
 > [本项目的其它文档](#本项目的其它文档)  
 > [项目路线图](#项目路线图) · **v3.8 更新：** FastMCP 4、TOML 配置与可选 MRTR 审批  
 
-> **v3.8 部署更新**：采用 FastMCP 4、显式三文件 TOML、可安装包与实例级状态；新增默认关闭的托管 MRTR 审批。原 `.env` 和根目录启动脚本不再作为运行入口。详见 [配置迁移](docs/guides/CONFIGURATION_ZH.md)、[实施决策](docs/architecture/V3_8_IMPLEMENTATION_ZH.md) 和 [验收范围](docs/validation/V3_8_VALIDATION_ZH.md)。
+> **v3.8 部署更新**：采用 FastMCP 4、显式三文件 TOML、可安装包与实例级状态；新增默认关闭的托管 MRTR 审批。原 `.env` 和根目录启动脚本不再作为运行入口。详见 [配置迁移](docs/guides/CONFIGURATION_ZH.md)、[实施决策](docs/architecture/V3_8_IMPLEMENTATION_ZH.md) 和 [验收范围](docs/validation/v3.8/V3_8_VALIDATION_ZH.md)。
 
 ## 介绍
 
@@ -178,7 +179,7 @@ Skills 场景：未知 Skill → list_skills(search=..., detail_level="compact",
   | L2 | 启用 Mutations | `true` | `true` | + execute_mutation_skill | + 目标授权后的受控写操作（两阶段 preview/execute gate） |
 
 - **MRTR（可选）**：完整配置最多注册 13 个工具；审批等待返回 `InputRequiredResult`，遥测记录 `phase=awaiting_approval`、`success=null`。续接共用同一提案与执行服务，不把等待当成业务成功。
-- **默认审批流程**：继续使用 preview/execute，保持 `skills.mutation.mrtr.enabled=false`。10 月 1 日实测已验证 Codex IDE 的主要原生交互，所测 Copilot 会话则被协议门槛拒绝；结论限于已测客户端支持不一致，不泛化为所有 Host。MRTR 按部署显式开启，并先验证实际 Host。两条流程都不独立认证真人，开启 MRTR 也保留旧写入入口。详见[验收与剩余缺口](docs/validation/V3_8_MRTR_NATIVE_2026_10_01_ZH.md)及[审批边界](docs/security/V3_8_SECURITY.md#where-approval-is-enforced)。
+- **默认审批流程**：继续使用 preview/execute，保持 `skills.mutation.mrtr.enabled=false`。10 月 1 日实测已验证 Codex IDE 的主要原生交互，所测 Copilot 会话则被协议门槛拒绝；结论限于已测客户端支持不一致，不泛化为所有 Host。MRTR 按部署显式开启，并先验证实际 Host。两条流程都不独立认证真人，开启 MRTR 也保留旧写入入口。详见[验收与剩余缺口](docs/validation/v3.8/V3_8_MRTR_NATIVE_2026_10_01_ZH.md)及[审批边界](docs/security/V3_8_SECURITY.md#where-approval-is-enforced)。
 - **Skills 两阶段 Preview/Execute Gate**：写操作必须携带匹配的服务端 preview token；它阻止 replay/漂移，但没有可信客户端流程时不能证明人工批准
 - **Skills 审计日志**：mutation preview/execute 路径会在服务端尝试 best-effort JSONL 审计，正常工具结果会报告 `audit_logged`
 
@@ -273,7 +274,7 @@ LLM(Agents)不能凭空生成SQL，需要有一定的上下文基础。这里的
 
 标准 Agent Skills 信任 Agent 会正确遵循指令 [1]——例如：SKILL.md 写着"用 pdfplumber 打开文件"，Agent 就自行编写 Python 代码去做 [2]。而本项目面对的是数据库写操作，不能信任 Agent 自由发挥：
 
-- SQL 必须经过 `is_sql_safe()` 校验
+- 读取 SQL 必须经过共享结构化策略，检查语句形态和目标连接范围
 - 参数必须强类型验证（type/min/max/enum），而非自然语言理解
 - Mutation（INSERT/UPDATE/DELETE）必须走已审查的 Skill 类：单条语句优先使用
   `ManagedMutationBase` 由框架执行；命令式 `MutationBase` 仅作为可信扩展，整个
@@ -336,15 +337,15 @@ flowchart TB
         direction TB
 
         subgraph S1["Layer 1: 输入验证"]
-            V1["is_sql_safe()<br/>仅只读形式；禁止 EXPLAIN ANALYZE"]
-            V2["_is_query_safe_extended()<br/>阻止系统表/UNION/子查询"]
+            V1["classify_sql_statement()<br/>仅只读形式；禁止 EXPLAIN ANALYZE"]
+            V2["_is_query_safe_extended()<br/>阻止系统状态；按策略检查 UNION 和关系"]
             V3["_check_table_allowlist()<br/>表级访问控制"]
             V4["validate_name()<br/>^a-z0-9- 防路径遍历"]
             V5["validate_params()<br/>类型/范围/枚举约束"]
         end
 
         subgraph S2["Layer 2: 执行控制"]
-            E1["query.sql 模板<br/>启动时 is_sql_safe() 预校验"]
+            E1["query.sql 模板<br/>启动时结构化策略预校验"]
             E2["参数化绑定<br/>SQLAlchemy text() + params"]
             E3["mutation: validate()<br/>业务规则校验"]
             E4["mutation: preview()<br/>干跑预览"]
@@ -424,7 +425,7 @@ Agent **既是决策者又是执行者**，安全保障依赖于：
 
 | 安全机制 | 本项目如何实现 | 标准 Skills 下 |
 |---|---|---|
-| **SQL 白名单校验** | 启动时 `is_sql_safe()` 验证，不安全的 skill 直接拒绝注册 | Agent 运行时自己读 SQL 文件再执行，绕过校验 |
+| **SQL 白名单校验** | 启动时共享结构检查，执行前再检查目标连接范围 | Agent 运行时自己读 SQL 文件再执行，绕过校验 |
 | **参数强类型验证** | `validate_params()` 强制 type/min/max/enum | Agent 从自然语言理解参数，无硬约束 |
 | **防参数注入** | 拒绝 schema 之外的参数 (`unexpected` check) | Agent 自己决定传什么参数 |
 | **TOCTOU 防护** | 启动时读入内存，调用时不重新读取已缓存定义 | Agent 每次用 bash 读文件，文件可能已被篡改 |
@@ -475,7 +476,7 @@ Agent **既是决策者又是执行者**，安全保障依赖于：
 
     ![todo](readme_pic/todo.png)
 - 在最近的几次修改中（截至2026.1.7），进行了多次的安全优化，比如大数据量下的截断，特殊关键词的使用（比如union），表的白名单设置，针对不同配置的动态提示词等。但是 **更高的安全意味着更低的性能、效率和更高的消耗（比如更多的请求参数和Token消耗），因此请酌情配置安全性设置。**
-- 实际上，Claude Code、Codex、Gemini CLI这样的AI客户端也与GitHub Copilot类似，但是 **应注意AI调用可能产生大量Token的费用问题。** 此前的测试（包括能力测试）主要集中在 GitHub Copilot；v3.8 的参考 Client、实际 Codex 与尚未完成的 Copilot 验收分别记录在[验收文档](docs/validation/V3_8_VALIDATION_ZH.md)。
+- 实际上，Claude Code、Codex、Gemini CLI这样的AI客户端也与GitHub Copilot类似，但是 **应注意AI调用可能产生大量Token的费用问题。** 此前的测试（包括能力测试）主要集中在 GitHub Copilot；v3.8 的参考 Client、实际 Codex 与尚未完成的 Copilot 验收分别记录在[验收文档](docs/validation/v3.8/V3_8_VALIDATION_ZH.md)。
 
 
 ## 快速开始
@@ -543,7 +544,7 @@ Agent **既是决策者又是执行者**，安全保障依赖于：
 
     ![answer](readme_pic/answer.png)
 
-注意：先使用可丢弃测试库，并按当前账户可用模型和额度选择。用户提供的 Copilot 试验在表单出现前被 MCP 2026-07-28 协议门槛拒绝，交互 MRTR 仍未验收；工具可见不等于支持 MRTR，见[验收记录](docs/validation/V3_8_VALIDATION_ZH.md)。
+注意：先使用可丢弃测试库，并按当前账户可用模型和额度选择。用户提供的 Copilot 试验在表单出现前被 MCP 2026-07-28 协议门槛拒绝，交互 MRTR 仍未验收；工具可见不等于支持 MRTR，见[验收记录](docs/validation/v3.8/V3_8_VALIDATION_ZH.md)。
 
 #### 常见问题
 *   **找不到工具？** 检查 `Output` (输出) 面板，切换到 "GitHub Copilot" 查看是否有报错。
@@ -809,7 +810,7 @@ agent_id = "unknown"
 
 MRTR 保存最多 64 KiB 的同一审阅快照，用框架密封状态续接；缺回答重发，不重新 preview，不延长原期限。只有有效 accept 且布尔 approve=true 才执行。拒绝/取消关闭提案；既有 preview 示例的本地拒绝不主动撤销服务端令牌，令牌仍按 TTL 过期。两条流程都不自动重试未知写入。
 
-参考 Host 的两条流程都强制执行外层审批期限、校验展示内容未被修改，并在接受批准前复核有效期。MRTR 等待/重发遥测使用已验证的目标，拒绝/取消分别记录 `approval_declined` / `approval_cancelled`；未取得可信目标的调用保留空目标字段。SDK 在中间件前拒绝的请求可能没有遥测事件。详见[评审修复与验收](docs/validation/V3_8_REVIEW_FIXES_2026_09_27_ZH.md)。
+参考 Host 的两条流程都强制执行外层审批期限、校验展示内容未被修改，并在接受批准前复核有效期。MRTR 等待/重发遥测使用已验证的目标，拒绝/取消分别记录 `approval_declined` / `approval_cancelled`；未取得可信目标的调用保留空目标字段。SDK 在中间件前拒绝的请求可能没有遥测事件。详见[评审修复与验收](docs/validation/v3.8/V3_8_REVIEW_FIXES_2026_09_27_ZH.md)。
 
 批准仍信任 Host，并非独立的人类身份认证。审阅及终端结果可能含业务数据；密封状态也应视为敏感。子进程仍继承调用者导出的环境，生产 Host 应按自身需要收窄环境。此行为不恢复旧 `.env` 配置通道。
 
@@ -870,6 +871,13 @@ SQLite 初始化拒绝覆盖已有文件；MySQL 初始化遇到现存 orders �
 
 ## 更新日志
 
+### v3.8.1 复核修正与完整任务验收（2026 年 10 月）
+
+- 读取、Skill readiness 与元数据共用有范围的关系身份；保留上下文表名及 Unicode 身份，按标准引用识别既有 PRAGMA／账户／文件调用限制。
+- CTE 查询体继续检查保留函数，声明名称与列列表按标识符处理。
+- 共享 CTE 结构分析支持上下文／Unicode 名称、带引号列列表、普通注释与 SQLite 物化提示；读取策略、Skill 依赖及 readiness 对齐，无法确定的形态仍提供读取恢复提示。
+- 分日期变更与决定见[重构日志](REFACTORING_LOG_ZH.md)；详细测试、完整 Agent 任务与限制见[验收索引](docs/README_ZH.md#发布与验收)及[发布说明](docs/releases/RELEASE_NOTES_v3_8.md)。
+
 ### v3.8.1 Skill 拒绝后的恢复线索（2026年10月1日）
 
 - `execute_mutation_skill` 遇到 `validation_failed` 时，可返回 `related_available_skills`：在同一连接上当前可执行、且被声明为关联的写入 Skill 名称。它只是线索，不含建议、授权或批准；替代路径中的每次写入仍需单独预览和批准。查找失败时省略该字段，不改变原失败结果。
@@ -882,7 +890,18 @@ SQLite 初始化拒绝覆盖已有文件；MySQL 初始化遇到现存 orders �
 - 读取策略现拒绝以 SELECT 读取服务器、账号与文件路径状态（`@@` 系统变量、`CURRENT_USER()` 等函数、SQLite `pragma_*` 函数）；MySQL 白名单按表名大小写精确匹配，因为在 Linux 上 `Orders` 与 `orders` 可能是不同的表。在不区分大小写的 MySQL 服务器上，白名单条目应使用存储名；大小写不同的引用现会被拒绝（DRR-2026-075/076）。
 - 各项更新后全量依次为 796 → 797 → 799 → 820 passed、4 skipped；Pyright 0 errors。子代理测试仅在逐条批准后写入专用本地测试数据。详见[发布说明](docs/releases/RELEASE_NOTES_v3_8.md#v381--skill-rejection-recovery-clue-october-1-2026)。
 
-**10 月 12 日复核：** 修复引用 PRAGMA、CTE／表范围漏查；SQLite 元数据固定 main，结构化索引在固定采集预算内保留方向、collation、前缀长度和可见性。两个写入工具各自携带先核对有效性的结果指导及缺失行数说明。最终 **941 passed、4 skipped**，Pyright 无错误，两库真实对照与两协议仓库外 wheel 验证通过。GPT-6 Luna 原生任务、模拟结果失败及实际用量分开归档；上面的历史 token 数不能代表最终提示成本。维护者重启后，当前 Host 描述与最终源码一致，两类解释各 3/3、原生索引／预览 3/3；完整恢复路线 2/3，一个漏掉 confirmed 的原答案保留，复核后修正，实际预览拒绝该跳转；无执行。详见[评审与证据](docs/validation/V3_8_1_REVIEW_2026_10_12_ZH.md)。
+**10 月 12 日复核：** 修复引用 PRAGMA、CTE／表范围漏查；SQLite 元数据固定 main，结构化索引在固定采集预算内保留方向、collation、前缀长度和可见性。两个写入工具各自携带先核对有效性的结果指导及缺失行数说明。最终 **941 passed、4 skipped**，Pyright 无错误，两库真实对照与两协议仓库外 wheel 验证通过。GPT-6 Luna 原生任务、模拟结果失败及实际用量分开归档；上面的历史 token 数不能代表最终提示成本。维护者重启后，当前 Host 描述与最终源码一致，两类解释各 3/3、原生索引／预览 3/3；完整恢复路线 2/3，一个漏掉 confirmed 的原答案保留，复核后修正，实际预览拒绝该跳转；无执行。详见[评审与证据](docs/validation/v3.8/V3_8_1_REVIEW_2026_10_12_ZH.md)。
+
+
+**10 月 14 日矩阵／函数／AST 后续：** 已记录当前 SQLite/MySQL CTE 真值及成本基线；raw query 与 Query Skill 在 I/O 前拒绝真实 GET_LOCK／RELEASE_LOCK／RELEASE_ALL_LOCKS／SLEEP／BENCHMARK 调用，保留字符串、普通列和 CTE 声明；危险模板启动时离线跳过。SQLGlot 30.22.0 已隔离验证，生产 AST／authorizer 接入留待下一轮。**1089 passed、4 skipped**，Pyright／提示契约与 12 次安装包 stdio 调用通过；维护者重启后，主会话 13 次原生检查通过。初期工具缺失保留，required 原生 CLI 对照每阶段 3/3 通过。见[决议与证据](docs/validation/v3.8/V3_8_1_PHASE123_2026_10_14_ZH.md)。
+
+**提交前最终补修：** 保留引号内连续空白，从原始标识符 token 仅解码一层，防止物理名称被当成 CTE／授权对象及转义名形成假依赖。最终 **1114 passed、4 skipped**，类型／提示契约及两协议 22 次安装包 stdio 调用通过；旧模型结果仍对应其源码快照。维护者最后重启后，主会话 **11/11 原生核验通过**，见[完整补充](docs/validation/v3.8/V3_8_1_PHASE123_2026_10_14_ZH.md#提交前完整复核与补修2026-10-14)。
+
+**10 月 14 日 CTE 修复：** Skill 声明与按目标推断的依赖分开，发现、表搜索、readiness 与执行一致；MySQL 通过缓存的常量探测获取 CTE 大小写规则，未知时保守。SQLite 身份只折叠 ASCII，并保留引号／声明表名的真实空格。full Query Skill 返回依赖来源字段。新源码验收及已完成的原生核验与 13 日模型快照分开记录，版本仍为 3.8.1。 验收：**1042 passed、4 skipped**，另行四项 MySQL 实库通过；Pyright 和两协议安装验证通过。
+
+**10 月 13 日复评整改：** SQLite IN/NOT IN 关系纳入表／PRAGMA 检查，token 检查保留字符串中的 UNION/FROM。结构化读策略与类型化查询异常提供固定 error_code 和恢复提示；Query Skill 依赖复用作用域解析，策略拒绝先于 readiness，SQL／策略错误返回业务 success=false。验收为 **1002 passed、4 skipped**，Pyright 无错误，两协议安装 wheel 验证通过。版本仍为 3.8.1；发布前旧配置／SDK 兼容不纳入本轮。重启后原生检查及同任务 Luna 验收 3/3，每次 MCP 调用 4→3；输入 token 均值 +2.7%、中位数 +5.4%，未据此宣称成本改善。详见[决议与最终验收](docs/validation/v3.8/V3_8_1_FOLLOWUP_2026_10_13_ZH.md)。
+
+13 日追加定点验证：四项 opt-in MySQL 实库测试全部通过，独立竞争测试表已删除并核验无残留。两协议确认 SQLite F/f CTE 在 Skill 中产生假依赖，all 模式也会 readiness 误报缺表；14 日已修复该复现边界，最新原生 Host 十次核验通过。新增证据规范与固定成本限制见同一验收记录。
 
 ### v3.8.0 FastMCP 4、TOML 与托管 MRTR（2026年9月）
 
@@ -891,9 +910,9 @@ SQLite 初始化拒绝覆盖已有文件；MySQL 初始化遇到现存 orders �
 - 三文件 TOML、显式 `--config`、严格模型、密钥来源、离线 `config check/explain`；读取默认 deny，写入要求全部准入条件，移除 default-only 兼容授权和弱 `execute_sql()` 入口。
 - 默认关闭的 `request_mutation_approval` 仅支持托管单语句；密封续接、64 KiB 审阅上限、严格批准值、原期限校验及单次消费，不自动重试未知写入。
 - 公开 Skill SDK 导入迁移，允许显式外部可信目录；更新客户端、AutoGen 隔离环境、迁移文档、依赖锁与 CI。
-- 早期本地自动化记录为 744 passed、4 skipped；提交 `1be44b4` 后 CI 因旧工具说明断言失败，详见[评审修复与当前验收](docs/validation/V3_8_REVIEW_FIXES_2026_09_27_ZH.md)。实测已验证 MySQL 连通/基础读取、原生 Codex 的 SQLite preview/execute 及数据恢复，以及三组隔离 Luna 六轮路由任务。后续[10 月 1 日 MRTR 更新](REFACTORING_LOG_ZH.md)记录了原生 Codex IDE 批准、取消和未勾选拒绝通过；[后续原生实测](docs/validation/V3_8_MRTR_NATIVE_2026_10_01_ZH.md)确认长等待后批准被框架拒绝且未写入；独立真实进程重启验收及新提案正常执行对照已通过，业务 TTL 有模拟时钟覆盖；原生业务 TTL/重启 UI 与 MySQL 写入仍未验收；用户提供的 Copilot 试验触发协议门槛拒绝，未进入 MRTR 表单，保留早期 MRTR 调用拦截记录。
+- 早期本地自动化记录为 744 passed、4 skipped；提交 `1be44b4` 后 CI 因旧工具说明断言失败，详见[评审修复与当前验收](docs/validation/v3.8/V3_8_REVIEW_FIXES_2026_09_27_ZH.md)。实测已验证 MySQL 连通/基础读取、原生 Codex 的 SQLite preview/execute 及数据恢复，以及三组隔离 Luna 六轮路由任务。后续[10 月 1 日 MRTR 更新](REFACTORING_LOG_ZH.md)记录了原生 Codex IDE 批准、取消和未勾选拒绝通过；[后续原生实测](docs/validation/v3.8/V3_8_MRTR_NATIVE_2026_10_01_ZH.md)确认长等待后批准被框架拒绝且未写入；独立真实进程重启验收及新提案正常执行对照已通过，业务 TTL 有模拟时钟覆盖；原生业务 TTL/重启 UI 与 MySQL 写入仍未验收；用户提供的 Copilot 试验触发协议门槛拒绝，未进入 MRTR 表单，保留早期 MRTR 调用拦截记录。
 
-参见 [v3.8 发布说明](docs/releases/RELEASE_NOTES_v3_8.md) 和 [验收记录](docs/validation/V3_8_VALIDATION_ZH.md)。以下历史条目保留当时版本的配置、路径与结论，不作为 v3.8 部署指令。
+参见 [v3.8 发布说明](docs/releases/RELEASE_NOTES_v3_8.md) 和 [验收记录](docs/validation/v3.8/V3_8_VALIDATION_ZH.md)。以下历史条目保留当时版本的配置、路径与结论，不作为 v3.8 部署指令。
 
 
 历史版本条目保留当时的 Skill 原名；当前名称见
@@ -1271,6 +1290,11 @@ SQLite 初始化拒绝覆盖已有文件；MySQL 初始化遇到现存 orders �
 `EXPLAIN`。raw `SHOW` 会被拒绝，metadata discovery 使用
 `list_tables()`/`describe_table()`。
 
+SQL／策略失败返回普通结构化结果：`success=false`、`error_code`、`error`
+及可选恢复 `hint`，MCP 的 `isError` 可以仍为 false。例如 `unknown_column`
+提示在同一连接使用 `describe_table()`。数据库异常映射为固定安全文本，不回传
+驱动异常原文；策略拒绝可说明配置的表范围。提示不授予访问权限或写入批准。
+
 输入：
 ```json
 {
@@ -1429,7 +1453,7 @@ DDL：外键、check 和其它 backend-specific 属性不在结果中。
 `complete` 仅表示索引清单完整，不表示完整 DDL。索引采集独立限制为 128 个索引、
 2048 个键项、64 KiB UTF-8 JSON；超限整组不可用，不截半复合索引。这不是
 `limits.result_chars`，也不是整个工具的硬超时。SQLite 元数据显式读取 main；
-`get_full_schema()` 仍不采索引。见[本轮审查与边界](docs/validation/V3_8_1_REVIEW_2026_10_03_ZH.md)。
+`get_full_schema()` 仍不采索引。见[本轮审查与边界](docs/validation/v3.8/V3_8_1_REVIEW_2026_10_03_ZH.md)。
 
 若 MySQL 返回不可用的估算值，成功响应会使用 `row_count=null`、
 `row_count_approximate=null` 和 `is_large=null`，不会根据未知值生成大表建议。
@@ -1472,6 +1496,8 @@ DDL：外键、check 和其它 backend-specific 属性不在结果中。
 在 SQL 执行前被拒绝，不再静默 clamp。Python 直接调用也会得到同样的明确拒绝，
 两条入口共用一个范围契约。
 
+SQLite 的采样和精确计数明确读取 `main`，避免同名 `temp` 对象替代，也不会在主表缺失时回退到附加库。MySQL 的生成读取与元数据绑定配置库，但同一会话的临时表仍可能遮蔽同名永久表；会话清理或隔离需要单独设计。下例使用 SQLite。
+
 输入：
 ```json
 {
@@ -1490,7 +1516,7 @@ DDL：外键、check 和其它 backend-specific 属性不在结果中。
     {"id": 2, "name": "Bob"}
   ],
   "row_count": 2,
-  "query": "SELECT * FROM `users` LIMIT 5"
+  "query": "SELECT * FROM \"main\".\"users\" LIMIT 5"
 }
 ```
 
@@ -1538,7 +1564,7 @@ Full 输出继续使用以表名为 key 的 `schema` 映射；每个字段包含
 MySQL 还可能遇到 metadata-lock contention）。该成本警告也写入机器可见的参数说明。
 若 `exact_count=false` 时的 adapter 行数估计或任一模式的列元数据无法读取，本工具
 返回 `success=false` 和 `error_code="metadata_query_failed"`，不会伪装为空结果、
-缺表或 0 行。显式 `COUNT(*)` 执行失败仍使用原有 query-error 响应。
+缺表或 0 行。显式 `COUNT(*)` 执行失败返回类型化的脱敏业务错误，例如 `unknown_table` 或 `query_timeout`。
 如果 MySQL 在查询成功时返回不可用估算，approximate 响应会保留
 `row_count=null`、`row_count_approximate=null` 和 `is_large=null`；
 `exact_count=true` 仍返回整数行数和布尔分类字段。
@@ -1679,7 +1705,7 @@ summary/full 输出中的 `configured_connection_ids` 只表示该 Skill 声明�
 ### 10. `execute_query_skill`（Skills 扩展，可选）
 用途：执行预定义的查询技能，支持参数化 SQL。
 
-**注意：** 需要 `skills.enabled=true`。查询 Skills 是经过 review 的 SQL 模板：启动期会做只读/结构性安全校验，运行时仍会针对已解析的目标连接重新检查，包括 per-connection table allowlist。它们不再依赖纯启动期 trust 路径。
+**注意：** 需要 `skills.enabled=true`。查询 Skills 是经过 review 的 SQL 模板：启动期会做只读/结构性安全校验，运行时仍会针对已解析的目标连接重新检查，包括 per-connection table allowlist。它们不再依赖纯启动期 trust 路径。 SQL／策略失败返回 `success=false`、`error_code`、`error`、可选 `hint`、`skill_name`、`connection_id` 和 `db_type`；参数、目标、Skill 范围、profile 和 schema readiness 错误仍可走协议 ToolError。策略拒绝先于 readiness 读取。
 
 输入：
 ```json
@@ -1761,7 +1787,7 @@ DRR-2026-061，不另建推测性计划文档。
 
 只有有效 accept 且布尔 `approve=true` 才进入共享执行边界。拒绝或取消关闭提案；原期限、绑定和原子单次消费继续生效。等待不占事务或行锁，重复续接不能授权第二次执行。消费后异常不恢复令牌；丢失响应或找不到状态不意味着“之前没有执行”。最终仍检查 `success` 和 `execution_outcome`，未知写入不得自动重试。
 
-这验证了可信 Host 的批准消息与提案绑定，并不独立认证真实人类。参考 Host 的 `--flow mrtr` 与协议测试已经覆盖；具体 Codex/Copilot 的验收限制见 [实测记录](docs/validation/V3_8_VALIDATION_ZH.md)。
+这验证了可信 Host 的批准消息与提案绑定，并不独立认证真实人类。参考 Host 的 `--flow mrtr` 与协议测试已经覆盖；具体 Codex/Copilot 的验收限制见 [实测记录](docs/validation/v3.8/V3_8_VALIDATION_ZH.md)。
 
 ### Skills 扩展详解（始于 v3.0）
 
@@ -1820,7 +1846,7 @@ ORDER BY date ASC
 {"skill_name": "sample-monthly-sales-report", "params": {"year": 2026, "month": 1}}
 ```
 
-**工作原理**：服务器启动时，`sql_safety_executor.skills.catalog.SkillCatalog` 扫描 `skills/` 目录，解析 `skill_def.md` 的 YAML frontmatter，读取 `source` 字段声明的源文件，并通过 `is_sql_safe()` 进行安全检查。运行时，Agent 传入参数 `year` 和 `month`，服务器通过 SQLAlchemy 的参数化绑定（`:year`、`:month`）安全地执行查询，防止 SQL 注入。
+**工作原理**：服务器启动时，`sql_safety_executor.skills.catalog.SkillCatalog` 扫描 `skills/` 目录，解析 `skill_def.md` 的 YAML frontmatter，读取 `source` 字段声明的源文件，并通过共享结构性策略检查；执行时完整结构化策略在 schema readiness 之前检查目标连接与显式依赖。运行时，Agent 传入参数 `year` 和 `month`，服务器通过 SQLAlchemy 的参数化绑定（`:year`、`:month`）安全地执行查询，防止 SQL 注入。
 
 #### SQLite 对应版本：`sample-monthly-sales-report-sqlite`
 
@@ -2063,7 +2089,7 @@ flowchart LR
     subgraph Startup["阶段 2: 服务启动 — discover()"]
         S1["扫描 skills/ 目录"]
         S2["解析 YAML frontmatter"]
-        S3["SQL 安全校验\nis_sql_safe()"]
+        S3["结构化 SQL 策略\nPolicyDecision"]
         S4["写入启用时导入 Mutation 类\nimportlib.util"]
         S5["写入实例目录快照\nSkillCatalog"]
         S6["可选导出清单"]
@@ -2205,11 +2231,11 @@ uv run pyright
 uv build
 ```
 
-[`139d53a` 的远端 CI](https://github.com/Firstmeridian/llm-sql-safety-executor-mcp/actions/runs/36330541822) 已完整通过：**786 passed、4 skipped**，类型、构建和安装后 wheel 验证均成功。此前 `1be44b4` 的失败和本地结果保留在[9 月 27 日记录](docs/validation/V3_8_REVIEW_FIXES_2026_09_27_ZH.md)。[9 月 28 日复评](docs/validation/V3_8_REREVIEW_2026_09_28_ZH.md)进一步修复 Query Skill 静态策略发现，干净副本本地验证为 **792 passed、4 skipped**；这次新补丁仍待远端 CI。四项 MySQL 实库测试未启用，原生 MRTR UI 验收继续单独记录。
+[`139d53a` 的远端 CI](https://github.com/Firstmeridian/llm-sql-safety-executor-mcp/actions/runs/36330541822) 已完整通过：**786 passed、4 skipped**，类型、构建和安装后 wheel 验证均成功。此前 `1be44b4` 的失败和本地结果保留在[9 月 27 日记录](docs/validation/v3.8/V3_8_REVIEW_FIXES_2026_09_27_ZH.md)。[9 月 28 日复评](docs/validation/v3.8/V3_8_REREVIEW_2026_09_28_ZH.md)进一步修复 Query Skill 静态策略发现，干净副本本地验证为 **792 passed、4 skipped**；这次新补丁仍待远端 CI。四项 MySQL 实库测试未启用，原生 MRTR UI 验收继续单独记录。
 
-后续[本地实测与原生重连测试](docs/validation/V3_8_LIVE_REVIEW_2026_09_26_ZH.md)验证了 MySQL 连通/基础读取及原生 SQLite 预览、执行和补偿。三个隔离上下文 GPT-6 Luna 各完成六轮任务（共 22 次调用，未观察到误访问）；主持者写入试验的夹具已恢复。这与四项跳过的 MySQL 集成测试分别记录，不代表原生 MRTR、人工审批 UI 或 MySQL 写入已通过。原生子代理未暴露 usage/协商协议，不据此推算费用或协议版本。
+后续[本地实测与原生重连测试](docs/validation/v3.8/V3_8_LIVE_REVIEW_2026_09_26_ZH.md)验证了 MySQL 连通/基础读取及原生 SQLite 预览、执行和补偿。三个隔离上下文 GPT-6 Luna 各完成六轮任务（共 22 次调用，未观察到误访问）；主持者写入试验的夹具已恢复。这与四项跳过的 MySQL 集成测试分别记录，不代表原生 MRTR、人工审批 UI 或 MySQL 写入已通过。原生子代理未暴露 usage/协商协议，不据此推算费用或协议版本。
 
-**10 月 1 日提交前检查：** 完整待提交 v3.8.0 改动经干净副本、锁定依赖验证，结果为 **793 passed、4 skipped**，三项警告均为已有旧协议日志弃用。Pyright、sdist/wheel 构建及仓库外安装后验证通过。版本仍为 **3.8.0**；新提交的远端 CI 和剩余原生 UI 项目分别管理，详见[最终本地验证](docs/validation/V3_8_MRTR_NATIVE_2026_10_01_ZH.md)。
+**10 月 1 日提交前检查：** 完整待提交 v3.8.0 改动经干净副本、锁定依赖验证，结果为 **793 passed、4 skipped**，三项警告均为已有旧协议日志弃用。Pyright、sdist/wheel 构建及仓库外安装后验证通过。版本仍为 **3.8.0**；新提交的远端 CI 和剩余原生 UI 项目分别管理，详见[最终本地验证](docs/validation/v3.8/V3_8_MRTR_NATIVE_2026_10_01_ZH.md)。
 
 **v3.8.1 检查（10 月 1 日）：** 加入拒绝恢复线索后，本地全量测试为 **796 passed、4 skipped**，Pyright 0 errors；随后加入结果解读引导后为 **797 passed、4 skipped**，加入按连接读取策略指导后为 **799 passed、4 skipped**，修复服务器状态读取、MySQL 表名大小写并加入结构化索引后为 **820 passed、4 skipped**。这些结果来自现有开发环境，不是干净副本，未宣称构建或远端 CI 结果。见 [v3.8.1 说明](docs/releases/RELEASE_NOTES_v3_8.md#v381--skill-rejection-recovery-clue-october-1-2026)。
 
@@ -2241,7 +2267,7 @@ uv run python scripts/inspect_mcp.py --config config/examples/sqlite/server.toml
 - [v3.8 配置与迁移](docs/guides/CONFIGURATION_ZH.md)：三文件 TOML、权限变化、SDK 导入与部署切换
 - [v3.8 实施决策](docs/architecture/V3_8_IMPLEMENTATION_ZH.md)：包结构、状态归属及参考稿评审
 - [v3.8 安全边界](docs/security/V3_8_SECURITY.md)：可信 Python/Host、MRTR、审计与未知结果
-- [v3.8 发布说明](docs/releases/RELEASE_NOTES_v3_8.md)及[验收记录](docs/validation/V3_8_VALIDATION_ZH.md)
+- [v3.8 发布说明](docs/releases/RELEASE_NOTES_v3_8.md)及[验收记录](docs/validation/v3.8/V3_8_VALIDATION_ZH.md)
 - [文档索引](docs/README_ZH.md)：区分当前契约与历史资料
 
 - [Skills 设计文档](docs/architecture/MCP_AGENTS_SKILLS_DESIGN.md)：v3.0 Skills 扩展层架构和设计决策

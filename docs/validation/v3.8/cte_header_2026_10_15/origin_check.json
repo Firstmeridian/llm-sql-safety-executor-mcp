@@ -1,0 +1,110 @@
+{
+  "scope": "Hash-verified archived-module reconstruction plus direct native private SQLite UDF truth; not historical native Host observations",
+  "stage_refs": {
+    "before_lexical_096": "../lexical_identity_2026_10_15/baseline_source.json",
+    "before_header_097": "../cte_header_2026_10_15/baseline_source.json"
+  },
+  "records": [
+    {
+      "sql": "WITH \"x\"(n) AS (SELECT SLEEP(0)) SELECT n FROM \"x\"",
+      "native_rows": [
+        [
+          7
+        ]
+      ],
+      "before_lexical_096": {
+        "allowed": true,
+        "code": null
+      },
+      "before_header_097": {
+        "allowed": true,
+        "code": null
+      },
+      "after_header_097": {
+        "allowed": false,
+        "code": "expensive_function_denied"
+      }
+    },
+    {
+      "sql": "WITH \"x\"(n) AS (SELECT BENCHMARK(0,1)) SELECT n FROM \"x\"",
+      "native_rows": [
+        [
+          7
+        ]
+      ],
+      "before_lexical_096": {
+        "allowed": true,
+        "code": null
+      },
+      "before_header_097": {
+        "allowed": true,
+        "code": null
+      },
+      "after_header_097": {
+        "allowed": false,
+        "code": "expensive_function_denied"
+      }
+    },
+    {
+      "sql": "WITH \"x\"(n) AS (SELECT GET_LOCK('fixture',0)) SELECT n FROM \"x\"",
+      "native_rows": [
+        [
+          7
+        ]
+      ],
+      "before_lexical_096": {
+        "allowed": true,
+        "code": null
+      },
+      "before_header_097": {
+        "allowed": true,
+        "code": null
+      },
+      "after_header_097": {
+        "allowed": false,
+        "code": "lock_function_denied"
+      }
+    },
+    {
+      "sql": "WITH \"x\"(n) AS (SELECT LOAD_FILE(NULL)) SELECT n FROM \"x\"",
+      "native_rows": [
+        [
+          7
+        ]
+      ],
+      "before_lexical_096": {
+        "allowed": false,
+        "code": "file_operation_denied"
+      },
+      "before_header_097": {
+        "allowed": true,
+        "code": null
+      },
+      "after_header_097": {
+        "allowed": false,
+        "code": "file_operation_denied"
+      }
+    },
+    {
+      "sql": "WITH \"x\"(n) AS (SELECT USER()) SELECT n FROM \"x\"",
+      "native_rows": [
+        [
+          7
+        ]
+      ],
+      "before_lexical_096": {
+        "allowed": false,
+        "code": "server_state_denied"
+      },
+      "before_header_097": {
+        "allowed": true,
+        "code": null
+      },
+      "after_header_097": {
+        "allowed": false,
+        "code": "server_state_denied"
+      }
+    }
+  ],
+  "conclusion": "Lock/delay declaration exclusion omission predates 096; routing file/account calls through the shared scanner in 096 extended that omission to those categories. 097 repairs the header exclusion boundary."
+}

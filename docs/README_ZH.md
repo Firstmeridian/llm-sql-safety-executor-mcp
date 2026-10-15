@@ -33,16 +33,29 @@
 
 ## 发布与验收
 
-- [10 月 12 日 v3.8.1 复核收尾](validation/V3_8_1_REVIEW_2026_10_12_ZH.md)：最终回归、安装包／真实数据库检查、GPT-6 Luna 轨迹、保留失败、已完成的常驻 Host 刷新核验及恢复路线误述。
-- [10 月 3 日 v3.8.1 复核](validation/V3_8_1_REVIEW_2026_10_03_ZH.md)：五次提交审查、查询策略修复、有界索引元数据与实测限制。
+- [v3.8 验收正文与原始证据](validation/v3.8/)。
+- [共享 CTE 分析、功能修复与相邻检查](validation/v3.8/V3_8_1_CTE_ANALYSIS_2026_10_15_ZH.md).
+- [未分类 WITH 恢复与开放的 CTE 限制](validation/v3.8/V3_8_1_CTE_CLASSIFICATION_2026_10_15_ZH.md).
+- [CTE 声明与查询体调用边界](validation/v3.8/V3_8_1_CTE_HEADER_2026_10_15_ZH.md).
+- [关系词法边界与保留函数引用](validation/v3.8/V3_8_1_LEXICAL_BOUNDARIES_2026_10_15_ZH.md).
+- [Unicode 保留名称补修](validation/v3.8/V3_8_1_UNICODE_POLICY_2026_10_15_ZH.md).
+- [完整原生 Agent 业务任务](validation/v3.8/V3_8_1_AGENT_REAL_TASKS_2026_10_15_ZH.md).
+- [SQLite 目录字面前缀与方言范围](validation/v3.8/V3_8_1_SQLITE_PREFIX_2026_10_15_ZH.md).
+- [内部 schema 绑定与关系 readiness](validation/v3.8/V3_8_1_SCHEMA_BINDING_2026_10_15_ZH.md).
+- [结构化关系身份与 Mutation 复验](validation/v3.8/V3_8_1_RELATION_IDENTITY_2026_10_15_ZH.md).
+- [CTE／成本矩阵、函数策略与 SQLGlot 验证](validation/v3.8/V3_8_1_PHASE123_2026_10_14_ZH.md).
 
-- [10 月 1 日 MRTR 原生验收](validation/V3_8_MRTR_NATIVE_2026_10_01_ZH.md)：实际提交、延迟批准拒绝、夹具最终状态及 TTL/重启待验收边界。
+- [10 月 13 日 v3.8.1 复评整改](validation/v3.8/V3_8_1_FOLLOWUP_2026_10_13_ZH.md)：IN 授权、结构化策略／查询异常、评审勘误与当前验收范围。
+- [10 月 12 日 v3.8.1 复核收尾](validation/v3.8/V3_8_1_REVIEW_2026_10_12_ZH.md)：最终回归、安装包／真实数据库检查、GPT-6 Luna 轨迹、保留失败、已完成的常驻 Host 刷新核验及恢复路线误述。
+- [10 月 3 日 v3.8.1 复核](validation/v3.8/V3_8_1_REVIEW_2026_10_03_ZH.md)：五次提交审查、查询策略修复、有界索引元数据与实测限制。
 
-- [v3.8 复评处理记录](validation/V3_8_REREVIEW_2026_09_28_ZH.md)：确认 `139d53a` 远端 CI 成功，补齐 Query Skill 静态策略发现，记录回归和 Host 待验收范围。
-- [v3.8 外部评审修复记录](validation/V3_8_REVIEW_FIXES_2026_09_27_ZH.md)：已确认问题、CI 失败、生产路径回归及待验收范围。
+- [10 月 1 日 MRTR 原生验收](validation/v3.8/V3_8_MRTR_NATIVE_2026_10_01_ZH.md)：实际提交、延迟批准拒绝、夹具最终状态及 TTL/重启待验收边界。
 
-- [v3.8 本地 live Review](validation/V3_8_LIVE_REVIEW_2026_09_26_ZH.md)：Host 入口修复、真实数据库检查、9 次 Luna CLI 试验，以及后续原生重连和三组六轮代理测试；保留失败与验收边界。
-- [v3.8 发布说明](releases/RELEASE_NOTES_v3_8.md)及[验收与实际 Host 限制](validation/V3_8_VALIDATION_ZH.md)。
+- [v3.8 复评处理记录](validation/v3.8/V3_8_REREVIEW_2026_09_28_ZH.md)：确认 `139d53a` 远端 CI 成功，补齐 Query Skill 静态策略发现，记录回归和 Host 待验收范围。
+- [v3.8 外部评审修复记录](validation/v3.8/V3_8_REVIEW_FIXES_2026_09_27_ZH.md)：已确认问题、CI 失败、生产路径回归及待验收范围。
+
+- [v3.8 本地 live Review](validation/v3.8/V3_8_LIVE_REVIEW_2026_09_26_ZH.md)：Host 入口修复、真实数据库检查、9 次 Luna CLI 试验，以及后续原生重连和三组六轮代理测试；保留失败与验收边界。
+- [v3.8 发布说明](releases/RELEASE_NOTES_v3_8.md)及[验收与实际 Host 限制](validation/v3.8/V3_8_VALIDATION_ZH.md)。
 - [v3.7 发布说明](releases/RELEASE_NOTES_v3_7.md)、[v3.6](releases/RELEASE_NOTES_v3_6.md)、[v3.5](releases/RELEASE_NOTES_v3_5.md)。
 - [v3.7 实测记录](validation/v3.7/)与 [v3.8 证据](validation/v3.8/)。保留原版本、失败试验和结论，不把旧版通过当成 v3.8 已验收。
 

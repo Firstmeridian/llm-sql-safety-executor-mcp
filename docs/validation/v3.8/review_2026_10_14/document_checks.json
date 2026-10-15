@@ -1,0 +1,10 @@
+{
+  "relative_file_links": 513,
+  "bilingual_drr_ids": 84,
+  "latest_rows_contiguous": true,
+  "version": "3.8.1",
+  "source_sha256_matches_final_checks": true,
+  "diff_check": "passed",
+  "native_host": "ten checks passed",
+  "scope": "Relative targets only; no remote URL or heading-anchor validation"
+}

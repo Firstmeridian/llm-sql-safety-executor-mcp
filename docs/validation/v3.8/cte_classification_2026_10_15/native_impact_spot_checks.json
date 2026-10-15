@@ -1,0 +1,352 @@
+{
+  "observed_at": "2026-10-15 12:52:01 UTC",
+  "scope": "Current Codex Host targeted functional-impact observations after diagnostic restart, selected private-matrix hypotheses adapted to constant reads. Initial comment-position expectation was too broad and is retained. Not an acceptance claim for CTE support.",
+  "records": [
+    {
+      "id": "business-data-bare",
+      "expected_code": "sql_parse_failed",
+      "args": {
+        "connection_id": "analytics_demo_sqlite",
+        "sql": "WITH data AS (SELECT 7 AS n) SELECT n FROM data"
+      },
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":false,\"error_code\":\"sql_parse_failed\",\"error\":\"Could not safely classify this WITH statement as a supported read.\",\"hint\":\"Keep the same connection. Quote keyword-like CTE names consistently in declarations and references, or simplify to a supported read statement.\",\"query\":\"WITH data AS (SELECT 7 AS n) SELECT n FROM data\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": false,
+          "error_code": "sql_parse_failed",
+          "error": "Could not safely classify this WITH statement as a supported read.",
+          "hint": "Keep the same connection. Quote keyword-like CTE names consistently in declarations and references, or simplify to a supported read statement.",
+          "query": "WITH data AS (SELECT 7 AS n) SELECT n FROM data",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      }
+    },
+    {
+      "id": "business-data-quoted",
+      "expected_code": null,
+      "args": {
+        "connection_id": "analytics_demo_sqlite",
+        "sql": "WITH \"data\" AS (SELECT 7 AS n) SELECT n FROM \"data\""
+      },
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":true,\"data\":[{\"n\":7}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null,\"query\":\"WITH \\\"data\\\" AS (SELECT 7 AS n) SELECT n FROM \\\"data\\\"\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": true,
+          "data": [
+            {
+              "n": 7
+            }
+          ],
+          "row_count": 1,
+          "total_rows": 1,
+          "truncated": false,
+          "truncation_note": null,
+          "query": "WITH \"data\" AS (SELECT 7 AS n) SELECT n FROM \"data\"",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      }
+    },
+    {
+      "id": "business-summary-bare",
+      "expected_code": "sql_parse_failed",
+      "args": {
+        "connection_id": "analytics_demo_sqlite",
+        "sql": "WITH summary AS (SELECT 7 AS n) SELECT n FROM summary"
+      },
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":false,\"error_code\":\"sql_parse_failed\",\"error\":\"Could not safely classify this WITH statement as a supported read.\",\"hint\":\"Keep the same connection. Quote keyword-like CTE names consistently in declarations and references, or simplify to a supported read statement.\",\"query\":\"WITH summary AS (SELECT 7 AS n) SELECT n FROM summary\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": false,
+          "error_code": "sql_parse_failed",
+          "error": "Could not safely classify this WITH statement as a supported read.",
+          "hint": "Keep the same connection. Quote keyword-like CTE names consistently in declarations and references, or simplify to a supported read statement.",
+          "query": "WITH summary AS (SELECT 7 AS n) SELECT n FROM summary",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      }
+    },
+    {
+      "id": "business-summary-quoted",
+      "expected_code": null,
+      "args": {
+        "connection_id": "analytics_demo_sqlite",
+        "sql": "WITH \"summary\" AS (SELECT 7 AS n) SELECT n FROM \"summary\""
+      },
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":true,\"data\":[{\"n\":7}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null,\"query\":\"WITH \\\"summary\\\" AS (SELECT 7 AS n) SELECT n FROM \\\"summary\\\"\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": true,
+          "data": [
+            {
+              "n": 7
+            }
+          ],
+          "row_count": 1,
+          "total_rows": 1,
+          "truncated": false,
+          "truncation_note": null,
+          "query": "WITH \"summary\" AS (SELECT 7 AS n) SELECT n FROM \"summary\"",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      }
+    },
+    {
+      "id": "quoted-column-list",
+      "expected_code": "relation_scope_unresolved",
+      "args": {
+        "connection_id": "analytics_demo_sqlite",
+        "sql": "WITH \"monthly_sales\"(n) AS (SELECT 7) SELECT n FROM \"monthly_sales\""
+      },
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":false,\"error_code\":\"relation_scope_unresolved\",\"error\":\"Table allowlist could not safely determine every referenced table\",\"hint\":\"Use supported explicit relation references and CTEs; keep schema and name case aligned with the connection policy.\",\"query\":\"WITH \\\"monthly_sales\\\"(n) AS (SELECT 7) SELECT n FROM \\\"monthly_sales\\\"\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": false,
+          "error_code": "relation_scope_unresolved",
+          "error": "Table allowlist could not safely determine every referenced table",
+          "hint": "Use supported explicit relation references and CTEs; keep schema and name case aligned with the connection policy.",
+          "query": "WITH \"monthly_sales\"(n) AS (SELECT 7) SELECT n FROM \"monthly_sales\"",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      }
+    },
+    {
+      "id": "unquoted-column-list",
+      "expected_code": null,
+      "args": {
+        "connection_id": "analytics_demo_sqlite",
+        "sql": "WITH monthly_sales(n) AS (SELECT 7) SELECT n FROM monthly_sales"
+      },
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":true,\"data\":[{\"n\":7}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null,\"query\":\"WITH monthly_sales(n) AS (SELECT 7) SELECT n FROM monthly_sales\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": true,
+          "data": [
+            {
+              "n": 7
+            }
+          ],
+          "row_count": 1,
+          "total_rows": 1,
+          "truncated": false,
+          "truncation_note": null,
+          "query": "WITH monthly_sales(n) AS (SELECT 7) SELECT n FROM monthly_sales",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      }
+    },
+    {
+      "id": "interstitial-comment",
+      "expected_code": "sql_parse_failed",
+      "args": {
+        "connection_id": "analytics_demo_sqlite",
+        "sql": "WITH /* declaration */ base AS (SELECT 7 AS n) SELECT n FROM base"
+      },
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":true,\"data\":[{\"n\":7}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null,\"query\":\"WITH /* declaration */ base AS (SELECT 7 AS n) SELECT n FROM base\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": true,
+          "data": [
+            {
+              "n": 7
+            }
+          ],
+          "row_count": 1,
+          "total_rows": 1,
+          "truncated": false,
+          "truncation_note": null,
+          "query": "WITH /* declaration */ base AS (SELECT 7 AS n) SELECT n FROM base",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      }
+    },
+    {
+      "id": "ordinary-cte",
+      "expected_code": null,
+      "args": {
+        "connection_id": "analytics_demo_sqlite",
+        "sql": "WITH base AS (SELECT 7 AS n) SELECT n FROM base"
+      },
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":true,\"data\":[{\"n\":7}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null,\"query\":\"WITH base AS (SELECT 7 AS n) SELECT n FROM base\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": true,
+          "data": [
+            {
+              "n": 7
+            }
+          ],
+          "row_count": 1,
+          "total_rows": 1,
+          "truncated": false,
+          "truncation_note": null,
+          "query": "WITH base AS (SELECT 7 AS n) SELECT n FROM base",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      }
+    },
+    {
+      "id": "comment-between-as-and-body",
+      "expected_code": "sql_parse_failed",
+      "args": {
+        "connection_id": "analytics_demo_sqlite",
+        "sql": "WITH base AS /* body */ (SELECT 7 AS n) SELECT n FROM base"
+      },
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":false,\"error_code\":\"sql_parse_failed\",\"error\":\"Could not safely classify this WITH statement as a supported read.\",\"hint\":\"Keep the same connection. Quote keyword-like CTE names consistently in declarations and references, or simplify to a supported read statement.\",\"query\":\"WITH base AS /* body */ (SELECT 7 AS n) SELECT n FROM base\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": false,
+          "error_code": "sql_parse_failed",
+          "error": "Could not safely classify this WITH statement as a supported read.",
+          "hint": "Keep the same connection. Quote keyword-like CTE names consistently in declarations and references, or simplify to a supported read statement.",
+          "query": "WITH base AS /* body */ (SELECT 7 AS n) SELECT n FROM base",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      }
+    }
+  ],
+  "initial_expectations": {
+    "total": 9,
+    "matched": 8,
+    "unexpected": [
+      {
+        "id": "interstitial-comment",
+        "matched": false
+      }
+    ],
+    "correction": "Comment after WITH is supported in this case; comment between AS and body is the reproduced refusal. All original results retained."
+  },
+  "confirmed_checks": {
+    "total": 9,
+    "passed": 9,
+    "failed": 0,
+    "details": [
+      {
+        "id": "business-data-bare",
+        "initial_expected_code": "sql_parse_failed",
+        "confirmed_expected_code": "sql_parse_failed",
+        "transport_ok": true,
+        "confirmed_result": true
+      },
+      {
+        "id": "business-data-quoted",
+        "initial_expected_code": null,
+        "confirmed_expected_code": null,
+        "transport_ok": true,
+        "confirmed_result": true
+      },
+      {
+        "id": "business-summary-bare",
+        "initial_expected_code": "sql_parse_failed",
+        "confirmed_expected_code": "sql_parse_failed",
+        "transport_ok": true,
+        "confirmed_result": true
+      },
+      {
+        "id": "business-summary-quoted",
+        "initial_expected_code": null,
+        "confirmed_expected_code": null,
+        "transport_ok": true,
+        "confirmed_result": true
+      },
+      {
+        "id": "quoted-column-list",
+        "initial_expected_code": "relation_scope_unresolved",
+        "confirmed_expected_code": "relation_scope_unresolved",
+        "transport_ok": true,
+        "confirmed_result": true
+      },
+      {
+        "id": "unquoted-column-list",
+        "initial_expected_code": null,
+        "confirmed_expected_code": null,
+        "transport_ok": true,
+        "confirmed_result": true
+      },
+      {
+        "id": "interstitial-comment",
+        "initial_expected_code": "sql_parse_failed",
+        "confirmed_expected_code": null,
+        "transport_ok": true,
+        "confirmed_result": true
+      },
+      {
+        "id": "ordinary-cte",
+        "initial_expected_code": null,
+        "confirmed_expected_code": null,
+        "transport_ok": true,
+        "confirmed_result": true
+      },
+      {
+        "id": "comment-between-as-and-body",
+        "initial_expected_code": "sql_parse_failed",
+        "confirmed_expected_code": "sql_parse_failed",
+        "transport_ok": true,
+        "confirmed_result": true
+      }
+    ]
+  },
+  "configured_database_writes": false
+}

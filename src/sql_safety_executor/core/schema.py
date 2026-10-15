@@ -9,6 +9,7 @@ from sql_safety_executor.core.types import (
     OperationResult as ToolResult,
 )
 from sql_safety_executor.database.outcomes import MetadataQueryError
+from sql_safety_executor.database.errors import DatabaseQueryError
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +20,7 @@ from sql_safety_executor.core.connections import (
     _public_database_name,
     _resolve_connection_context,
 )
-from sql_safety_executor.core.policy import _is_table_allowed, _is_valid_identifier
+from sql_safety_executor.core.policy import _is_valid_identifier
 from sql_safety_executor.core.results import (
     _metadata_failure_result,
     _normalize_schema_detail_level,
@@ -90,7 +91,7 @@ async def list_tables(
     allowed_tables = connection.policy.allowed_tables
     if allowed_tables is not None and "*" not in allowed_tables:
         original_count = len(tables)
-        tables = [t for t in tables if connection.policy.allows_table(t["table_name"])]
+        tables = [t for t in tables if connection.policy.allows_metadata_relation(connection.metadata_relation(t["table_name"]))]
         if len(tables) < original_count:
             await ctx.info(
                 f"Filtered {original_count - len(tables)} tables by allowlist"
@@ -179,7 +180,8 @@ async def describe_table(
         )
 
     # Check table allowlist (P1 Security)
-    if not _is_table_allowed(runtime, table_name, connection.policy):
+    relation = connection.metadata_relation(table_name)
+    if not connection.policy.allows_metadata_relation(relation):
         await ctx.warning(f"Table access denied by allowlist: {table_name}")
         return _tool_result(
             runtime,
@@ -391,7 +393,7 @@ async def get_full_schema(
     allowed_tables = connection.policy.allowed_tables
     if allowed_tables is not None and "*" not in allowed_tables:
         tables_data = [
-            t for t in tables_data if connection.policy.allows_table(t["table_name"])
+            t for t in tables_data if connection.policy.allows_metadata_relation(connection.metadata_relation(t["table_name"]))
         ]
         await ctx.info(f"Allowlist active: showing {len(tables_data)} allowed tables")
 
@@ -614,7 +616,8 @@ async def get_table_summary(
         )
 
     # Check table allowlist (P1 Security)
-    if not _is_table_allowed(runtime, table_name, connection.policy):
+    relation = connection.metadata_relation(table_name)
+    if not connection.policy.allows_metadata_relation(relation):
         await ctx.warning(f"Table access denied by allowlist: {table_name}")
         return _tool_result(
             runtime,
@@ -644,16 +647,15 @@ async def get_table_summary(
         await ctx.warning(
             f"Running COUNT(*) on {table_name} - may be slow on large tables"
         )
-        quote = "`" if adapter.db_type == "mysql" else '"'
-        count_sql = f"SELECT COUNT(*) as total_rows FROM {quote}{table_name}{quote}"
-        count_result = adapter.execute(count_sql)
-        if isinstance(count_result, str) and count_result.startswith("Error:"):
-            await ctx.error(f"Failed to count rows: {count_result}")
+        count_sql = f"SELECT COUNT(*) as total_rows FROM {adapter.render_metadata_relation(relation)}"
+        try:
+            count_result = adapter.execute(count_sql)
+        except DatabaseQueryError as error:
+            await ctx.error(f"Failed to count rows: {error.error_code}")
             return _tool_result(
                 runtime,
                 {
-                    "success": False,
-                    "error": count_result,
+                    **error.error_payload(),
                     "connection_id": connection.connection_id,
                     "db_type": connection.db_type,
                 },
@@ -796,7 +798,8 @@ async def sample(
         )
 
     # Check table allowlist (P1 Security)
-    if not _is_table_allowed(runtime, table_name, connection.policy):
+    relation = connection.metadata_relation(table_name)
+    if not connection.policy.allows_metadata_relation(relation):
         await ctx.warning(f"Table access denied by allowlist: {table_name}")
         return _tool_result(
             runtime,
@@ -823,19 +826,16 @@ async def sample(
         f"Sampling {limit} rows from connection '{connection.connection_id}': {table_name}"
     )
 
-    # Use adapter-compatible quoting (backticks for MySQL, double-quotes for SQLite)
     adapter = connection.adapter
-    quote = "`" if adapter.db_type == "mysql" else '"'
-    sql = f"SELECT * FROM {quote}{table_name}{quote} LIMIT {limit}"
-    result = adapter.execute(sql)
-
-    if isinstance(result, str) and result.startswith("Error:"):
-        await ctx.error(f"Failed to sample table: {result}")
+    sql = f"SELECT * FROM {adapter.render_metadata_relation(relation)} LIMIT {limit}"
+    try:
+        result = adapter.execute(sql)
+    except DatabaseQueryError as error:
+        await ctx.error(f"Failed to sample table: {error.error_code}")
         return _tool_result(
             runtime,
             {
-                "success": False,
-                "error": result,
+                **error.error_payload(),
                 "connection_id": connection.connection_id,
                 "db_type": connection.db_type,
             },

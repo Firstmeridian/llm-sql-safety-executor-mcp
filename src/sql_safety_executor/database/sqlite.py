@@ -11,7 +11,9 @@ logger = logging.getLogger(__name__)
 
 from .models import DatabaseConfig
 from .base import DatabaseAdapter
+from .errors import DatabaseQueryError, classify_database_error
 from .indexes import IndexMetadataBudget, MAX_INDEX_KEY_PARTS
+from .relations import ReadRelation, RelationReference
 from .outcomes import (
     MetadataQueryError,
     WriteExecutionOutcome,
@@ -29,6 +31,10 @@ from .identifiers import (
     _metadata_identifier_is_rejected,
     _quote_sqlite_identifier,
 )
+
+# Internal names have the literal sqlite_ prefix. LIKE's unescaped underscore
+# would also hide legitimate sqliteX... names. Keep both directories aligned.
+_PUBLIC_RELATION_FILTER = "substr(name, 1, 7) COLLATE NOCASE != 'sqlite_'"
 
 
 class SQLiteAdapter(DatabaseAdapter):
@@ -77,6 +83,10 @@ class SQLiteAdapter(DatabaseAdapter):
     @property
     def db_type(self) -> str:
         return "sqlite"
+
+    @property
+    def metadata_schema(self) -> str:
+        return "main"
 
     def connect(self) -> bool:
         """Create a business StaticPool or a disposable diagnostic NullPool."""
@@ -137,7 +147,7 @@ class SQLiteAdapter(DatabaseAdapter):
 
     def execute(
         self, sql: str, timeout: int | float | None = None, params: dict | None = None
-    ) -> list | str:
+    ) -> list:
         """
         Execute SQL query with timeout protection via set_progress_handler.
 
@@ -155,10 +165,10 @@ class SQLiteAdapter(DatabaseAdapter):
         """
         if not self._engine:
             if not self.connect():
-                return "Error: Database engine could not be initialized."
+                raise DatabaseQueryError("database_connection_failed")
         engine = self._engine
         if engine is None:
-            return "Error: Database engine could not be initialized."
+            raise DatabaseQueryError("database_connection_failed")
 
         timeout = timeout if timeout is not None else self._query_timeout_seconds
 
@@ -169,7 +179,7 @@ class SQLiteAdapter(DatabaseAdapter):
                 # Get raw sqlite3 connection for set_progress_handler
                 raw_conn = connection.connection.dbapi_connection
                 if raw_conn is None:
-                    return "Error: Database engine could not be initialized."
+                    raise DatabaseQueryError("database_connection_failed")
                 sqlite_conn = cast(sqlite3.Connection, raw_conn)
 
                 # Set up timeout handler
@@ -200,9 +210,9 @@ class SQLiteAdapter(DatabaseAdapter):
                     sqlite_conn.set_progress_handler(None, 0)
 
         except sqlite3.OperationalError as e:
-            return self._handle_error(e, timeout)
+            raise self._handle_error(e, timeout) from None
         except Exception as e:
-            return self._handle_error(e, timeout)
+            raise self._handle_error(e, timeout) from None
 
     def execute_write(
         self,
@@ -342,31 +352,9 @@ class SQLiteAdapter(DatabaseAdapter):
         _close_write_connection(connection)
         return WriteExecutionResult(rowcount)
 
-    def _handle_error(self, e: Exception, timeout: int | float | None = None) -> str:
-        """
-        Sanitize error messages for security.
-
-        Args:
-            e: The exception that occurred
-            timeout: Optional timeout value (ignored for SQLite, kept for
-                     signature consistency with MySQLAdapter)
-        """
-        error_str = str(e)
-        logger.warning("SQLite execution error: %s", e.__class__.__name__)
-
-        if "interrupted" in error_str.lower():
-            timeout_suffix = f" ({timeout}s limit)" if timeout is not None else ""
-            return f"Error: Query timeout exceeded{timeout_suffix}"
-        elif "no such table" in error_str.lower():
-            return "Error: Table or column not found"
-        elif "syntax error" in error_str.lower():
-            return "Error: SQL syntax error"
-        elif "database is locked" in error_str.lower():
-            return "Error: Database is locked"
-        elif "readonly" in error_str.lower() or "read-only" in error_str.lower():
-            return "Error: Database is read-only"
-        else:
-            return "Error: Database query failed"
+    def _handle_error(self, e: Exception, timeout: int | float | None = None) -> DatabaseQueryError:
+        logger.warning("sqlite execution error: %s", e.__class__.__name__)
+        return classify_database_error(e, "sqlite")
 
     def get_tables(self) -> list[dict[str, Any]]:
         """
@@ -375,17 +363,14 @@ class SQLiteAdapter(DatabaseAdapter):
         Note: SQLite doesn't have INFORMATION_SCHEMA, uses sqlite_master instead.
         Row counts are estimated via sqlite_stat1 or bounded sampling.
         """
-        sql = """
+        sql = f"""
             SELECT name as table_name
             FROM main.sqlite_master
-            WHERE type='table' AND name NOT LIKE 'sqlite_%'
+            WHERE type='table' AND {_PUBLIC_RELATION_FILTER}
             ORDER BY name
         """
-        result = self.execute(sql)
+        result = self._execute_metadata(sql, 'listing tables')
 
-        if isinstance(result, str):
-            logger.error("Failed to list SQLite tables")
-            raise MetadataQueryError("listing tables")
 
         tables = []
         for row in result:
@@ -403,6 +388,14 @@ class SQLiteAdapter(DatabaseAdapter):
 
         return tables
 
+    def get_read_relations(self) -> list[ReadRelation]:
+        rows = self._execute_metadata(
+            "SELECT name, type FROM main.sqlite_master "
+            f"WHERE type IN ('table', 'view') AND {_PUBLIC_RELATION_FILTER} ORDER BY name",
+            "observing read relations",
+        )
+        return [ReadRelation(RelationReference(row[0], self.metadata_schema), row[1]) for row in rows]
+
     def get_columns(self, table_name: str) -> list[dict[str, Any]]:
         """
         Get column information using PRAGMA table_info.
@@ -415,11 +408,8 @@ class SQLiteAdapter(DatabaseAdapter):
 
         quoted_table_name = _quote_sqlite_identifier(table_name)
         sql = f"PRAGMA main.table_info({quoted_table_name})"
-        result = self.execute(sql)
+        result = self._execute_metadata(sql, 'reading table columns')
 
-        if isinstance(result, str):
-            logger.error("Failed to read SQLite column metadata")
-            raise MetadataQueryError("reading table columns")
 
         columns = []
         for row in result:
@@ -442,20 +432,20 @@ class SQLiteAdapter(DatabaseAdapter):
             raise MetadataQueryError("reading table indexes")
         budget = IndexMetadataBudget(self._query_timeout_seconds)
         index_rows = budget.rows(
-            self.execute(
+            self._execute_metadata(
                 'SELECT il.name, il."unique", il.origin, il.partial, '
                 'xi.seqno, xi.cid, xi.name, xi."desc", xi.coll '
                 "FROM pragma_index_list(:table_name, 'main') AS il "
                 "JOIN pragma_index_xinfo(il.name, 'main') AS xi ON xi.key = 1 "
-                "ORDER BY il.name, xi.seqno LIMIT :row_limit",
+                "ORDER BY il.name, xi.seqno LIMIT :row_limit", 'reading table indexes',
                 timeout=budget.remaining(),
                 params={"table_name": table_name, "row_limit": MAX_INDEX_KEY_PARTS + 1},
             )
         )
         pk_rows = budget.rows(
-            self.execute(
+            self._execute_metadata(
                 "SELECT name FROM pragma_table_info(:table_name, 'main') "
-                "WHERE pk > 0 ORDER BY pk LIMIT :row_limit",
+                "WHERE pk > 0 ORDER BY pk LIMIT :row_limit", 'reading table indexes',
                 timeout=budget.remaining(),
                 params={"table_name": table_name, "row_limit": MAX_INDEX_KEY_PARTS + 1},
             )
@@ -529,20 +519,14 @@ class SQLiteAdapter(DatabaseAdapter):
         check_sql = (
             "SELECT name FROM main.sqlite_master WHERE type='table' AND name='sqlite_stat1'"
         )
-        check_result = self.execute(check_sql)
+        check_result = self._execute_metadata(check_sql, 'estimating table rows')
 
-        if isinstance(check_result, str):
-            logger.error("Failed to inspect SQLite statistics metadata")
-            raise MetadataQueryError("estimating table rows")
 
         if check_result:
             # sqlite_stat1 exists, query it
             stat_sql = "SELECT stat FROM main.sqlite_stat1 WHERE tbl = :table_name LIMIT 1"
-            stat_result = self.execute(stat_sql, params={"table_name": table_name})
+            stat_result = self._execute_metadata(stat_sql, 'estimating table rows', params={"table_name": table_name})
 
-            if isinstance(stat_result, str):
-                logger.error("Failed to read SQLite statistics metadata")
-                raise MetadataQueryError("estimating table rows")
 
             if stat_result:
                 # sqlite_stat1.stat format: "row_count col1_distinct col2_distinct ..."
@@ -559,13 +543,12 @@ class SQLiteAdapter(DatabaseAdapter):
         sample_limit = 10000
         quoted_table_name = _quote_sqlite_identifier(table_name)
         sample_sql = f"SELECT COUNT(*) FROM (SELECT 1 FROM main.{quoted_table_name} LIMIT {sample_limit})"
-        sample_result = self.execute(sample_sql)
-
-        if isinstance(sample_result, str):
-            if sample_result == "Error: Table or column not found":
+        try:
+            sample_result = self.execute(sample_sql)
+        except DatabaseQueryError as error:
+            if error.error_code == "unknown_table":
                 return None
-            logger.error("Failed to sample SQLite table rows")
-            raise MetadataQueryError("estimating table rows")
+            raise MetadataQueryError("estimating table rows") from None
         if not sample_result:
             return 0
 
@@ -581,10 +564,10 @@ class SQLiteAdapter(DatabaseAdapter):
 
     def check_connection(self) -> tuple[bool, str]:
         """Check SQLite connection status."""
-        result = self.execute("SELECT 1")
-
-        if isinstance(result, str):
-            return False, result
+        try:
+            self.execute("SELECT 1")
+        except DatabaseQueryError as error:
+            return False, str(error)
 
         return True, "SQLite connection successful"
 

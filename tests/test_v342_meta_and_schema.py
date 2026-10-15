@@ -757,8 +757,8 @@ def test_sample_mcp_enforces_limit_range_before_execution(
     assert lower_content["query"].endswith("LIMIT 1")
     assert upper_content["query"].endswith("LIMIT 20")
     assert executed_sql == [
-        'SELECT * FROM "widgets" LIMIT 1',
-        'SELECT * FROM "widgets" LIMIT 20',
+        'SELECT * FROM "main"."widgets" LIMIT 1',
+        'SELECT * FROM "main"."widgets" LIMIT 20',
     ]
 
 

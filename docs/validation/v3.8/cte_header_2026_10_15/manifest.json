@@ -1,0 +1,313 @@
+{
+  "version": "3.8.1",
+  "source_reference": "automation.json#source_sha256",
+  "recording_profile": "Source/test hashes, compressed native private truth and application records/check logs, available Host content/structuredContent/isError; not full protocol frames",
+  "omitted": [
+    "Full JSON-RPC frames/notifications",
+    "No new model usage/cost or measured latency comparison",
+    "No real locking/delay/file/account function execution or MySQL ANSI_QUOTES grammar assertion"
+  ],
+  "cleanup": "Task-private SQLite/CLI/install processes and directories auto-cleaned; configured resident/database/TOML untouched",
+  "prior_evidence": "Prior manifests byte-verified; previous native/model results not relabeled",
+  "artifacts": [
+    {
+      "path": "adjacent_audit.json.gz",
+      "bytes": 9176,
+      "sha256": "5d527ff6d4270707a9dfe688c2328dff7d3528e9d869ba438b3c5a32c53390d9",
+      "uncompressed_bytes": 193539,
+      "uncompressed_sha256": "68bf9c565d7304e483aa2cd073db8718119e7628c94fe99c00b2708bb2f8f782"
+    },
+    {
+      "path": "after-calls.json.gz",
+      "bytes": 7650,
+      "sha256": "adafba7edab9e5845ee5a676d58193998bb8844afb7efbaf1b67749bfc04eefd",
+      "uncompressed_bytes": 116562,
+      "uncompressed_sha256": "b78fe56ab1e56c3aef12041f6be9a3a6669283b719797d699349a120cbd0ab44"
+    },
+    {
+      "path": "automation.json",
+      "bytes": 16039,
+      "sha256": "18f1273c06c5dd6255ff9d011969a5d3248235b19c93d29a8e530bf41e0fc80c"
+    },
+    {
+      "path": "baseline_policy.py.gz",
+      "bytes": 11270,
+      "sha256": "54b90b94420fa4e672b638788c56fa59b70b42361e44679bc9de46dc02088986",
+      "uncompressed_bytes": 43964,
+      "uncompressed_sha256": "ec928199668d6aeccf22f0384943215f3c20c3ded8d2f4514a61b022da730d5c"
+    },
+    {
+      "path": "baseline_source.json",
+      "bytes": 8152,
+      "sha256": "6ddaf197e2e0c34738295483c2381f3dae33d2ba809802c0c406203dc550bd17"
+    },
+    {
+      "path": "baseline_sql.py.gz",
+      "bytes": 2777,
+      "sha256": "20280c0860cc976db011cef24940bb7f5acba03b0461b3048126b1bc97eecff3",
+      "uncompressed_bytes": 7360,
+      "uncompressed_sha256": "132ad9f8d1ad7367aa2f20c7edbb4afaa1b22c65994c45bf8bc4e267b030d3b3"
+    },
+    {
+      "path": "before-calls.json.gz",
+      "bytes": 14153,
+      "sha256": "48c91ecd5070dc55b129907fc71c9ee9f345b0c0bae3ffd764fa20d37ae275e2",
+      "uncompressed_bytes": 243334,
+      "uncompressed_sha256": "3b32d1c1176df3bccc6e5b64ab769a3334415a5541d5e0960eec0d12dc9afeb1"
+    },
+    {
+      "path": "boundary_context_audit.json.gz",
+      "bytes": 8926,
+      "sha256": "01ed04821e6710a0068bbc941c847015dc1421121289b5214228d53675d72eb7",
+      "uncompressed_bytes": 312685,
+      "uncompressed_sha256": "d0d6e44f5d67c7339049d67fbeddd736a07d522f4a294103b4435c7f3ab3a709"
+    },
+    {
+      "path": "boundary_context_audit.py.gz",
+      "bytes": 1435,
+      "sha256": "c1a18a22eccb523f3cfb7dd2a4c351ddbe4f10dd62df8d8a6892300109e70b3e",
+      "uncompressed_bytes": 3404,
+      "uncompressed_sha256": "62e1939aab7d27cc40d389a4d5b32403e7428410ef5b1717cdb88066926b2f86"
+    },
+    {
+      "path": "build.log.gz",
+      "bytes": 158,
+      "sha256": "54aca4cf4c01fb0c887ef88893d5a7b9472844697ba6ffe896b194a38c40924d",
+      "uncompressed_bytes": 267,
+      "uncompressed_sha256": "eff72480fb874ab4a3c07b9189d1dfa8274b2295fa894fb29b38b127ee6f21bb"
+    },
+    {
+      "path": "change_from_prior.patch",
+      "bytes": 1626,
+      "sha256": "112281581f5eb383838fb61076c9d02a0cc3d5479a2c7ab398c22f43d1fad902"
+    },
+    {
+      "path": "document_checks.json",
+      "bytes": 272,
+      "sha256": "516754dcb996e8b96f795d7e3e3544114e53e7d360ba14fb892307fa91563cb6"
+    },
+    {
+      "path": "finalize.py.gz",
+      "bytes": 4294,
+      "sha256": "87ad68348ebff511d1e3313a14f52f20dc7a8a729bab1cd9ba2d1e6d0bb07518",
+      "uncompressed_bytes": 11689,
+      "uncompressed_sha256": "7ef6e7af324f6677a1b8db42410dce0cb4a26656d58a78ae8ff88b438a41fc6f"
+    },
+    {
+      "path": "header_scan_matrix.json.gz",
+      "bytes": 10680,
+      "sha256": "0475634a4da192788cbfc1a1ce895288dd8eb1814c9dcfe4db3de95baeb5df34",
+      "uncompressed_bytes": 273883,
+      "uncompressed_sha256": "be5b6c79e2f82f98510524300c547b67c77410d74a28528a3a1e2d1680347745"
+    },
+    {
+      "path": "header_scan_matrix.py.gz",
+      "bytes": 1730,
+      "sha256": "84d275c8bcb7054e79b6d0625db6159d1c073e8398125d7b965339634f1e5698",
+      "uncompressed_bytes": 4569,
+      "uncompressed_sha256": "83906701cdadd0463d3a9492c84576315f50045b1bb9a85e7225ff7ca803f77c"
+    },
+    {
+      "path": "install.log.gz",
+      "bytes": 146,
+      "sha256": "347a19c5d896ea3de48e03b0938e44a360de4e19d2799daedb5730438d91fdb0",
+      "uncompressed_bytes": 185,
+      "uncompressed_sha256": "419aae78126088568594a6d8bba3c6b77238f71584aabc51d9622140c4e989ab"
+    },
+    {
+      "path": "installed-auto-False.log.gz",
+      "bytes": 1087,
+      "sha256": "080b39bed7918bcae8233e0d22c9d95de2ee873d6c271869388aaf3effa7dc19",
+      "uncompressed_bytes": 6367,
+      "uncompressed_sha256": "32a2dbba6b33268d239cf3cf7c460204f1fc82d119d1b057630d6eb33de8341f"
+    },
+    {
+      "path": "installed-auto-True.log.gz",
+      "bytes": 1073,
+      "sha256": "3ab48d88cbf2fcf6c18485448227eef512acfe3c6dab398e61785deebecb35d1",
+      "uncompressed_bytes": 6344,
+      "uncompressed_sha256": "5f246d12ecf14600344d5bbce8d71fe432e40ff4775983fb6733ba50c8f487c6"
+    },
+    {
+      "path": "installed-legacy-False.log.gz",
+      "bytes": 1298,
+      "sha256": "94c613424961aafb76e335b467bf83b93b85a397ce3ab1c128c8c4d5886ff1a7",
+      "uncompressed_bytes": 10661,
+      "uncompressed_sha256": "e55e4bf6f0e0cb449734705c6933d16c53b66d4ddfd3b56558ee0f13b16b6738"
+    },
+    {
+      "path": "installed-legacy-True.log.gz",
+      "bytes": 1289,
+      "sha256": "2ea0b1e5ab187e88495bc553df3218b982530b7e143980e4c8dc519e56614ea7",
+      "uncompressed_bytes": 10661,
+      "uncompressed_sha256": "83b18cb0f8b83b97b0e5c6fb9c37846a1cb7f938d78bfc19dd4a7601d8821084"
+    },
+    {
+      "path": "installed_check.py.gz",
+      "bytes": 2296,
+      "sha256": "ff09da792bcddd919f71b5a9cbd917a8f35a268d87d1219b371a8ad39015e35a",
+      "uncompressed_bytes": 5918,
+      "uncompressed_sha256": "8aff51bb2cbecfbb1f223e31e08237834357351789a633b1923c170077d9c4d0"
+    },
+    {
+      "path": "installed_scenarios.py.gz",
+      "bytes": 74,
+      "sha256": "40584ae58a58b2e0b363b44c7fad88231731468dae4609da3eea8f6c5a871a4c",
+      "uncompressed_bytes": 55,
+      "uncompressed_sha256": "08c705d3c086479e0ef8a87c9744697713c41771d390d79c9c0efc73710aba5e"
+    },
+    {
+      "path": "installed_wheel.json.gz",
+      "bytes": 8514,
+      "sha256": "4c576cbf9ac906edf230dc37ca22cf60c11c14eed07356e1d6e9fdcac54e6b89",
+      "uncompressed_bytes": 118548,
+      "uncompressed_sha256": "cf852241313ba6d3cb203954e1c2b08bec1f1a9527a931ac213e659b8db907ac"
+    },
+    {
+      "path": "live_mysql.json.gz",
+      "bytes": 4479,
+      "sha256": "5c7a0001d418e547e6e8c43dd92926679ea632b01ab8b18b609996660b4f2a97",
+      "uncompressed_bytes": 20563,
+      "uncompressed_sha256": "ae5d5e35175499c1bd6e4e3e68a5ab196542209557076ba61c58702ba97c65c5"
+    },
+    {
+      "path": "live_mysql.py.gz",
+      "bytes": 1188,
+      "sha256": "f9aab9d77ece66982bc7f74cd8d16b7ba605e1defc55c61351ac37d77a401d3c",
+      "uncompressed_bytes": 2372,
+      "uncompressed_sha256": "4a4d7d3c9899e62964bb3e242137f4b255c0edf0cbdb2ecc9229a68531d0cfc5"
+    },
+    {
+      "path": "native_after_restart.json",
+      "bytes": 14424,
+      "sha256": "c051878be28344166d59ec2ddeb8b299cdff757ea9553fc1f77c29ca38df69a7"
+    },
+    {
+      "path": "native_before_restart.json",
+      "bytes": 2902,
+      "sha256": "16f554f0ae0578a39c1b62e712164022a888efa307e7eddd687f4c1db2e5da00"
+    },
+    {
+      "path": "native_refresh_checkpoint.json",
+      "bytes": 2850,
+      "sha256": "bb902f2920251421aef4e8bd3d3cb041a1f6d5e7ca803fdc2129be0cd49620e7"
+    },
+    {
+      "path": "origin_check.json",
+      "bytes": 2728,
+      "sha256": "5d6db1728efa37d5d6d14c9bd51a4093279ffb967bc38e2e0fb54ae427dd6849"
+    },
+    {
+      "path": "origin_check.py.gz",
+      "bytes": 1454,
+      "sha256": "fc7729cccf414a86f962130d1cb5c54f7e1762e92f541dc135cb0a4eeed995e9",
+      "uncompressed_bytes": 3041,
+      "uncompressed_sha256": "a30e979d40660b87ab91e40fc902c76268ce4a0486732eeef70c42b163c1e543"
+    },
+    {
+      "path": "probe.py.gz",
+      "bytes": 1117,
+      "sha256": "b49ca6b863c28675943523642f5c8f067174798442bd26e52fd336508a0c3d62",
+      "uncompressed_bytes": 2276,
+      "uncompressed_sha256": "ee923dbf7da50751d5588a0988592fef63901641bff81367939a2e5c807378d5"
+    },
+    {
+      "path": "relation_audit.py.gz",
+      "bytes": 2567,
+      "sha256": "390a1a7d9757473dd188c2f62eaad5f47a2ec7677aff52ab05c541eb851c01b9",
+      "uncompressed_bytes": 6910,
+      "uncompressed_sha256": "38769a634c57614b1ee561b3dbad3a346c2f7bce78f9ada7ecebf9bdae19555e"
+    },
+    {
+      "path": "scenarios.py.gz",
+      "bytes": 1827,
+      "sha256": "c815657c386c441180d38cd6d2cb51d9406de1fe5e6158c1996832fd618d7d01",
+      "uncompressed_bytes": 4522,
+      "uncompressed_sha256": "1a7d0d75f987cd80a545e10e39f390e8b9955820a83e5cb97dbf20f619bcf950"
+    },
+    {
+      "path": "v381-cte-header-after.log.gz",
+      "bytes": 2004,
+      "sha256": "5703bacf8e4f7b38554865964b6fde7df01cc945b1fd04fee6628f97d0201f56",
+      "uncompressed_bytes": 42912,
+      "uncompressed_sha256": "da8753b2860bc75b372f4564c4a19f6415604dd6e318ee91512785686f099d28"
+    },
+    {
+      "path": "v381-cte-header-before.log.gz",
+      "bytes": 1607,
+      "sha256": "43fbb0cb29cb61304383de8107cae2568656af7862a77039f49496899c1ede3f",
+      "uncompressed_bytes": 38072,
+      "uncompressed_sha256": "4bd1a8c3652072a33e0757b7e6982c698338e976fe506a442833124656a8dc30"
+    },
+    {
+      "path": "v381-cte-header-boundary.log.gz",
+      "bytes": 100,
+      "sha256": "d76fce4fd8c18d748e81504591ae2fc50fa04ea8ea9d99ec9aca2286338db71b",
+      "uncompressed_bytes": 99,
+      "uncompressed_sha256": "37b50e5b97460218b8f3152e7a9d766810a55bf12e0d013adfa9563de809642c"
+    },
+    {
+      "path": "v381-cte-header-focused.log.gz",
+      "bytes": 418,
+      "sha256": "1ecf2a8ff141585c5c6b866377d982daeebfeb1afce8b5280eeacf305fe92404",
+      "uncompressed_bytes": 850,
+      "uncompressed_sha256": "b161fbd56021df19af1fa4b28e9c664a90e72839627e17ee3c7592b84d9a67b9"
+    },
+    {
+      "path": "v381-cte-header-full.log.gz",
+      "bytes": 632,
+      "sha256": "434d4b89f302667d9de25cbacdd76af0dc4d8ed57cb124e80e5a8ece7b531689",
+      "uncompressed_bytes": 2873,
+      "uncompressed_sha256": "e101b945971f4c22ade7618ce9c90f37ddd76988ccb7e0e00ae3db818feef196"
+    },
+    {
+      "path": "v381-cte-header-installed.log.gz",
+      "bytes": 992,
+      "sha256": "a3468cab4812f0015a6539bfce9716b38bc84ef14055d39c06d47462ea082470",
+      "uncompressed_bytes": 19418,
+      "uncompressed_sha256": "864832636f2cf49bd0d55a52c1edd956194ae3759f0f7f1a5e5301a72473d1e4"
+    },
+    {
+      "path": "v381-cte-header-matrix-initial.log.gz",
+      "bytes": 428,
+      "sha256": "78df1366c8f637c54d55410daf9020a0802df44b90cc4cfaf4becd23ca87f479",
+      "uncompressed_bytes": 700,
+      "uncompressed_sha256": "3088ccd2d4b34c203649926316fbf01b8a87057a6d434a9424f43503a734956c"
+    },
+    {
+      "path": "v381-cte-header-matrix.log.gz",
+      "bytes": 114,
+      "sha256": "02b60500cb8975dce25b94f5b23780e6cc22910389b8e32a0dc5fde0908e1ce8",
+      "uncompressed_bytes": 124,
+      "uncompressed_sha256": "c4901478671e48ef50e09cdc547487ca8a881a8e62ae36203abb1ae66d4b4db4"
+    },
+    {
+      "path": "v381-cte-header-mysql.log.gz",
+      "bytes": 781,
+      "sha256": "5c4e3f895ac5d70d98277811034b14ce4d016b976258bf24b7c933e8a0d15a5a",
+      "uncompressed_bytes": 7590,
+      "uncompressed_sha256": "cddf309ceee783b841fa6e1549e40f8dca46ba982f3b63d0a38e1cca09b32c53"
+    },
+    {
+      "path": "v381-cte-header-prompt.log.gz",
+      "bytes": 74,
+      "sha256": "090e5d838501a835953ba08eeacb177cf0ecef59e67add02b2bcb919113e87ea",
+      "uncompressed_bytes": 55,
+      "uncompressed_sha256": "f0e0a884c0914987015a830aea57daf3a52000e3ea17c4899a6df1db394a16f2"
+    },
+    {
+      "path": "v381-cte-header-pyright.log.gz",
+      "bytes": 53,
+      "sha256": "c8f40ac3b3f577d99ca528dc797ac395a63bdcedd0b425151e1b76ffc54e42f5",
+      "uncompressed_bytes": 37,
+      "uncompressed_sha256": "6d88a1b220adb7a3d62092b6e38431f0b3fe8babe9864fab90e5849766260332"
+    },
+    {
+      "path": "v381-cte-header-relation-audit.log.gz",
+      "bytes": 661,
+      "sha256": "741c3ba9966702147ebbc4dd5be7747069ccf9266b4719f03dbdaed19cb292c7",
+      "uncompressed_bytes": 8293,
+      "uncompressed_sha256": "72bae685f7f822234a44828442c6f1048a21120841b8af5d7576166839198726"
+    }
+  ]
+}

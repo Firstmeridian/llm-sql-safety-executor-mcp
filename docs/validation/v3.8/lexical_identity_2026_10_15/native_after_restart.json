@@ -1,0 +1,389 @@
+{
+  "version": "3.8.1",
+  "observed_at": "2026-10-15 09:26:28 UTC",
+  "checks": {
+    "passed": 10,
+    "failed": 0,
+    "details": [
+      {
+        "id": "contextual_target",
+        "passed": true
+      },
+      {
+        "id": "unicode_target",
+        "passed": true
+      },
+      {
+        "id": "quoted_file_call",
+        "passed": true
+      },
+      {
+        "id": "quoted_account_call",
+        "passed": true
+      },
+      {
+        "id": "unicode_pragma_identity",
+        "passed": true
+      },
+      {
+        "id": "unicode_column_identity",
+        "passed": true
+      },
+      {
+        "id": "account_name_cte_header",
+        "passed": true
+      },
+      {
+        "id": "mysql_constant",
+        "passed": true
+      },
+      {
+        "id": "mysql_unicode_cte",
+        "passed": true
+      },
+      {
+        "id": "normal_query_skill",
+        "passed": true
+      }
+    ]
+  },
+  "scope": "Native current Host application results after maintainer restart. First four arguments identical to native_before_restart.json; positive Unicode/CTE, MySQL and existing report Skill controls. No configured database writes; no cache root-cause or full loaded-code attestation claim.",
+  "recording_profile": "Actual MCP content/structuredContent/isError available to Host, not complete protocol frames/notifications",
+  "records": [
+    {
+      "id": "contextual_target",
+      "args": {
+        "connection_id": "analytics_demo_sqlite",
+        "sql": "SELECT 7 AS n FROM window"
+      },
+      "code": "table_access_denied",
+      "tool": "query",
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":false,\"error_code\":\"table_access_denied\",\"error\":\"Access denied to table(s): window. Only allowed tables: orders\",\"hint\":\"Keep the same connection and use authorized tables. If CTE name rules are unknown or case-sensitive, match the declaration's exact case.\",\"query\":\"SELECT 7 AS n FROM window\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": false,
+          "error_code": "table_access_denied",
+          "error": "Access denied to table(s): window. Only allowed tables: orders",
+          "hint": "Keep the same connection and use authorized tables. If CTE name rules are unknown or case-sensitive, match the declaration's exact case.",
+          "query": "SELECT 7 AS n FROM window",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      }
+    },
+    {
+      "id": "unicode_target",
+      "args": {
+        "connection_id": "analytics_demo_sqlite",
+        "sql": "SELECT 7 AS n FROM offſet"
+      },
+      "code": "table_access_denied",
+      "tool": "query",
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":false,\"error_code\":\"table_access_denied\",\"error\":\"Access denied to table(s): offſet. Only allowed tables: orders\",\"hint\":\"Keep the same connection and use authorized tables. If CTE name rules are unknown or case-sensitive, match the declaration's exact case.\",\"query\":\"SELECT 7 AS n FROM offſet\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": false,
+          "error_code": "table_access_denied",
+          "error": "Access denied to table(s): offſet. Only allowed tables: orders",
+          "hint": "Keep the same connection and use authorized tables. If CTE name rules are unknown or case-sensitive, match the declaration's exact case.",
+          "query": "SELECT 7 AS n FROM offſet",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      }
+    },
+    {
+      "id": "quoted_file_call",
+      "args": {
+        "connection_id": "analytics_demo_sqlite",
+        "sql": "SELECT \"load_file\"(NULL)"
+      },
+      "code": "file_operation_denied",
+      "tool": "query",
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":false,\"error_code\":\"file_operation_denied\",\"error\":\"MySQL server-side file operations are not allowed\",\"query\":\"SELECT \\\"load_file\\\"(NULL)\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": false,
+          "error_code": "file_operation_denied",
+          "error": "MySQL server-side file operations are not allowed",
+          "query": "SELECT \"load_file\"(NULL)",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      }
+    },
+    {
+      "id": "quoted_account_call",
+      "args": {
+        "connection_id": "analytics_demo_sqlite",
+        "sql": "SELECT [user](0)"
+      },
+      "code": "server_state_denied",
+      "tool": "query",
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":false,\"error_code\":\"server_state_denied\",\"error\":\"Account and role functions are not allowed in queries.\",\"query\":\"SELECT [user](0)\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": false,
+          "error_code": "server_state_denied",
+          "error": "Account and role functions are not allowed in queries.",
+          "query": "SELECT [user](0)",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      }
+    },
+    {
+      "id": "unicode_pragma_identity",
+      "args": {
+        "connection_id": "analytics_demo_sqlite",
+        "sql": "WITH \"pragma_locKing_mode\" AS (SELECT 7 AS n) SELECT n FROM \"pragma_locKing_mode\""
+      },
+      "code": null,
+      "tool": "query",
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":true,\"data\":[{\"n\":7}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null,\"query\":\"WITH \\\"pragma_locKing_mode\\\" AS (SELECT 7 AS n) SELECT n FROM \\\"pragma_locKing_mode\\\"\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": true,
+          "data": [
+            {
+              "n": 7
+            }
+          ],
+          "row_count": 1,
+          "total_rows": 1,
+          "truncated": false,
+          "truncation_note": null,
+          "query": "WITH \"pragma_locKing_mode\" AS (SELECT 7 AS n) SELECT n FROM \"pragma_locKing_mode\"",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      }
+    },
+    {
+      "id": "unicode_column_identity",
+      "args": {
+        "connection_id": "analytics_demo_sqlite",
+        "sql": "WITH business AS (SELECT 7 AS current_uſer) SELECT current_uſer AS n FROM business"
+      },
+      "code": null,
+      "tool": "query",
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":true,\"data\":[{\"n\":7}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null,\"query\":\"WITH business AS (SELECT 7 AS current_uſer) SELECT current_uſer AS n FROM business\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": true,
+          "data": [
+            {
+              "n": 7
+            }
+          ],
+          "row_count": 1,
+          "total_rows": 1,
+          "truncated": false,
+          "truncation_note": null,
+          "query": "WITH business AS (SELECT 7 AS current_uſer) SELECT current_uſer AS n FROM business",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      }
+    },
+    {
+      "id": "account_name_cte_header",
+      "args": {
+        "connection_id": "analytics_demo_sqlite",
+        "sql": "WITH user(n) AS (SELECT 7) SELECT n FROM user"
+      },
+      "code": null,
+      "tool": "query",
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":true,\"data\":[{\"n\":7}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null,\"query\":\"WITH user(n) AS (SELECT 7) SELECT n FROM user\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": true,
+          "data": [
+            {
+              "n": 7
+            }
+          ],
+          "row_count": 1,
+          "total_rows": 1,
+          "truncated": false,
+          "truncation_note": null,
+          "query": "WITH user(n) AS (SELECT 7) SELECT n FROM user",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      }
+    },
+    {
+      "id": "mysql_constant",
+      "args": {
+        "connection_id": "trade_analysis_mysql",
+        "sql": "SELECT 7 AS n"
+      },
+      "code": null,
+      "tool": "query",
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":true,\"data\":[{\"n\":7}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null,\"query\":\"SELECT 7 AS n\",\"connection_id\":\"trade_analysis_mysql\",\"db_type\":\"mysql\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": true,
+          "data": [
+            {
+              "n": 7
+            }
+          ],
+          "row_count": 1,
+          "total_rows": 1,
+          "truncated": false,
+          "truncation_note": null,
+          "query": "SELECT 7 AS n",
+          "connection_id": "trade_analysis_mysql",
+          "db_type": "mysql"
+        },
+        "isError": false
+      }
+    },
+    {
+      "id": "mysql_unicode_cte",
+      "args": {
+        "connection_id": "trade_analysis_mysql",
+        "sql": "WITH `offſet` AS (SELECT 7 AS n) SELECT n FROM `offſet`"
+      },
+      "code": null,
+      "tool": "query",
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":true,\"data\":[{\"n\":7}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null,\"query\":\"WITH `offſet` AS (SELECT 7 AS n) SELECT n FROM `offſet`\",\"connection_id\":\"trade_analysis_mysql\",\"db_type\":\"mysql\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": true,
+          "data": [
+            {
+              "n": 7
+            }
+          ],
+          "row_count": 1,
+          "total_rows": 1,
+          "truncated": false,
+          "truncation_note": null,
+          "query": "WITH `offſet` AS (SELECT 7 AS n) SELECT n FROM `offſet`",
+          "connection_id": "trade_analysis_mysql",
+          "db_type": "mysql"
+        },
+        "isError": false
+      }
+    },
+    {
+      "id": "normal_query_skill",
+      "tool": "execute_query_skill",
+      "args": {
+        "connection_id": "analytics_demo_sqlite",
+        "skill_name": "sample-monthly-sales-report-sqlite",
+        "params": {
+          "year": 2026,
+          "month": 1
+        }
+      },
+      "code": null,
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":true,\"skill_name\":\"sample-monthly-sales-report-sqlite\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\",\"data\":[{\"date\":\"2026-01-10\",\"order_count\":1,\"revenue\":1349.98,\"avg_order_value\":1349.98},{\"date\":\"2026-01-11\",\"order_count\":1,\"revenue\":84.99,\"avg_order_value\":84.99},{\"date\":\"2026-01-12\",\"order_count\":1,\"revenue\":45.0,\"avg_order_value\":45.0},{\"date\":\"2026-01-13\",\"order_count\":1,\"revenue\":139.97,\"avg_order_value\":139.97},{\"date\":\"2026-01-14\",\"order_count\":1,\"revenue\":89.99,\"avg_order_value\":89.99}],\"row_count\":5,\"total_rows\":5,\"truncated\":false,\"truncation_note\":null}"
+          }
+        ],
+        "structuredContent": {
+          "success": true,
+          "skill_name": "sample-monthly-sales-report-sqlite",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite",
+          "data": [
+            {
+              "date": "2026-01-10",
+              "order_count": 1,
+              "revenue": 1349.98,
+              "avg_order_value": 1349.98
+            },
+            {
+              "date": "2026-01-11",
+              "order_count": 1,
+              "revenue": 84.99,
+              "avg_order_value": 84.99
+            },
+            {
+              "date": "2026-01-12",
+              "order_count": 1,
+              "revenue": 45,
+              "avg_order_value": 45
+            },
+            {
+              "date": "2026-01-13",
+              "order_count": 1,
+              "revenue": 139.97,
+              "avg_order_value": 139.97
+            },
+            {
+              "date": "2026-01-14",
+              "order_count": 1,
+              "revenue": 89.99,
+              "avg_order_value": 89.99
+            }
+          ],
+          "row_count": 5,
+          "total_rows": 5,
+          "truncated": false,
+          "truncation_note": null
+        },
+        "isError": false
+      }
+    }
+  ]
+}

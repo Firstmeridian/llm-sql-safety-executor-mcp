@@ -1,5 +1,7 @@
 # v3.8.0 — FastMCP 4, explicit TOML, instance state and managed MRTR
 
+> **Latest v3.8.1 follow-up (October 13–14, 2026):** structured read decisions, typed query failures and SQLite IN relation checks. See [acceptance and decisions](../validation/v3.8/V3_8_1_FOLLOWUP_2026_10_13_ZH.md).
+
 > **v3.8.1 maintenance (October 1, 2026):** see [Skill rejection recovery clue](#v381--skill-rejection-recovery-clue-october-1-2026). Configuration, authorization, token and execution semantics are unchanged.
 
 This is a deliberate pre-release breaking refactor from baseline `582822b`.
@@ -25,11 +27,11 @@ Update the Host's actual saved command/args as well as the repository template, 
 
 ## Validation limits
 
-See [the validation record](../validation/V3_8_VALIDATION_ZH.md) and [subsequent live review](../validation/V3_8_LIVE_REVIEW_2026_09_26_ZH.md). Earlier local runs recorded 744 passed / 4 skipped and a later focused 66 passed. The submitted `1be44b4` then failed CI on a stale description assertion; later steps were skipped. [September 27 review fixes](../validation/V3_8_REVIEW_FIXES_2026_09_27_ZH.md) preserve that history. Remote [run 36330541822 for `139d53a`](https://github.com/Firstmeridian/llm-sql-safety-executor-mcp/actions/runs/36330541822) subsequently passed all steps with 786 passed / 4 skipped. Reference FastMCP modern MRTR and legacy preview/execute are automated.
+See [the validation record](../validation/v3.8/V3_8_VALIDATION_ZH.md) and [subsequent live review](../validation/v3.8/V3_8_LIVE_REVIEW_2026_09_26_ZH.md). Earlier local runs recorded 744 passed / 4 skipped and a later focused 66 passed. The submitted `1be44b4` then failed CI on a stale description assertion; later steps were skipped. [September 27 review fixes](../validation/v3.8/V3_8_REVIEW_FIXES_2026_09_27_ZH.md) preserve that history. Remote [run 36330541822 for `139d53a`](https://github.com/Firstmeridian/llm-sql-safety-executor-mcp/actions/runs/36330541822) subsequently passed all steps with 786 passed / 4 skipped. Reference FastMCP modern MRTR and legacy preview/execute are automated.
 
 After fixing the saved Codex launch entry and reconnecting, the current IDE Host completed 23 native calls, including a controlled SQLite preview/execute/compensation cycle with the fixture restored. Three isolated GPT-6 Luna agents completed 18 routing rounds with 22 native calls and no observed wrong-target access. Real MySQL connectivity/basic reads passed; the four optional MySQL integration tests remain skipped, and MySQL writes/failure recovery remain unverified.
 
-The earlier native MRTR dispatch was blocked by Host policy; subsequent September 26 local tests kept MRTR disabled. Later September 30–October 1 Codex IDE tests verified human-approved commit and cancellation; after adding the required boolean field's standard `default=false` hint, the user confirmed unchecked submission and the server returned refusal without a write. [Later native tests](../validation/V3_8_MRTR_NATIVE_2026_10_01_ZH.md) observed framework rejection of a delayed approval and unchanged database state. A separate real-process restart regression passed in the focused 131-test suite, including new-process fresh-approval success. Business-TTL checks have simulated-clock coverage; their native UI acceptance and the native restart case remain pending; two earlier approved trials committed real test updates, and no compensating write was performed. See the [dated refactoring log](../../REFACTORING_LOG.md#v380-mrtr-approval-form-default-october-1-2026). A user-supplied Copilot trial was rejected by the MCP 2026-07-28 requirement before a form appeared; interactive MRTR remains unverified. Subsequent session-log inspection identified VS Code 1.140.0 / Copilot 0.68.0; the actual MCP request protocol, capabilities and harness remain unknown. The installed SDK version list alone does not prove the session used that path. Native subagent token usage and negotiated protocol were not exposed; reference Client versions are not substituted for them. Historical failures, including one rejected-and-corrected UNION in the earlier CLI trials, remain in the evidence.
+The earlier native MRTR dispatch was blocked by Host policy; subsequent September 26 local tests kept MRTR disabled. Later September 30–October 1 Codex IDE tests verified human-approved commit and cancellation; after adding the required boolean field's standard `default=false` hint, the user confirmed unchecked submission and the server returned refusal without a write. [Later native tests](../validation/v3.8/V3_8_MRTR_NATIVE_2026_10_01_ZH.md) observed framework rejection of a delayed approval and unchanged database state. A separate real-process restart regression passed in the focused 131-test suite, including new-process fresh-approval success. Business-TTL checks have simulated-clock coverage; their native UI acceptance and the native restart case remain pending; two earlier approved trials committed real test updates, and no compensating write was performed. See the [dated refactoring log](../../REFACTORING_LOG.md#v380-mrtr-approval-form-default-october-1-2026). A user-supplied Copilot trial was rejected by the MCP 2026-07-28 requirement before a form appeared; interactive MRTR remains unverified. Subsequent session-log inspection identified VS Code 1.140.0 / Copilot 0.68.0; the actual MCP request protocol, capabilities and harness remain unknown. The installed SDK version list alone does not prove the session used that path. Native subagent token usage and negotiated protocol were not exposed; reference Client versions are not substituted for them. Historical failures, including one rejected-and-corrected UNION in the earlier CLI trials, remain in the evidence.
 
 ## Independent review corrections (September 27)
 
@@ -54,7 +56,7 @@ work, and enabled schema readiness may still access database metadata.
 Six new regressions cover modern/legacy UNION decisions, quoted tables and
 missing SQL snapshots. Clean-copy local validation recorded 792 passed / 4
 skipped, clean type checks, build and installed-wheel verification. This new
-patch still awaits remote CI. See the [follow-up record](../validation/V3_8_REREVIEW_2026_09_28_ZH.md)
+patch still awaits remote CI. See the [follow-up record](../validation/v3.8/V3_8_REREVIEW_2026_09_28_ZH.md)
 for evidence and unchanged native Host acceptance limits.
 
 Historical releases and failed trials retain their original versions and conclusions under `docs/`.
@@ -65,7 +67,7 @@ Preview/execute remains the recommended deployment default; MRTR stays
 disabled by default and opt-in for a verified Host. The tested Codex IDE and
 Copilot paths show uneven support, not universal incompatibility. Enabling
 MRTR is not permission to switch write paths automatically after a refusal,
-cancellation, timeout or uncertain result. The [acceptance audit](../validation/V3_8_MRTR_NATIVE_2026_10_01_ZH.md)
+cancellation, timeout or uncertain result. The [acceptance audit](../validation/v3.8/V3_8_MRTR_NATIVE_2026_10_01_ZH.md)
 lists remaining native cases and evidence gaps; its focused revalidation
 passed 131 tests with one existing logging deprecation warning. This is not a
 new full-suite or remote CI result.
@@ -80,7 +82,7 @@ its own writes. See the [flow comparison](../security/V3_8_SECURITY.md#where-app
 
 ### MRTR review readability follow-up (October 1)
 
-Approval reviews now show indented JSON with readable Unicode while retaining every field and the reference Host parsing contract. First asks and re-asks use the same saved snapshot. Focused regressions after the change: 131 passed, one existing deprecation warning. After a user restart, a native Codex IDE screenshot confirmed multiline rendering; the close-button test returned `approval_cancelled` and independent reads showed no change. Other Host rendering remains unverified; see the [current acceptance matrix](../validation/V3_8_MRTR_NATIVE_2026_10_01_ZH.md).
+Approval reviews now show indented JSON with readable Unicode while retaining every field and the reference Host parsing contract. First asks and re-asks use the same saved snapshot. Focused regressions after the change: 131 passed, one existing deprecation warning. After a user restart, a native Codex IDE screenshot confirmed multiline rendering; the close-button test returned `approval_cancelled` and independent reads showed no change. Other Host rendering remains unverified; see the [current acceptance matrix](../validation/v3.8/V3_8_MRTR_NATIVE_2026_10_01_ZH.md).
 
 ### Final local verification (October 1)
 
@@ -91,7 +93,7 @@ wheel builds and an isolated installed-wheel check outside the repository
 passed, including packaged prompts and both protocol generations. The four
 MySQL integration tests remain skipped. This local result does not claim a
 new remote CI pass or close the documented native UI gaps. See the
-[pre-commit record](../validation/V3_8_MRTR_NATIVE_2026_10_01_ZH.md).
+[pre-commit record](../validation/v3.8/V3_8_MRTR_NATIVE_2026_10_01_ZH.md).
 
 ## v3.8.1 — Skill rejection recovery clue (October 1, 2026)
 
@@ -148,7 +150,7 @@ field without issuing a token. Three GPT-5.6 Luna runs per case: purpose-only
 target 3/3, recovery discovery after rejection 3/3, preview-only without
 approval 3/3; asking whether a token remained usable 0/3, then 1/3. No writes
 were made; orders 1–3 remain shipped. No new remote CI result is claimed. See
-the [acceptance record](../validation/V3_8_MRTR_NATIVE_2026_10_01_ZH.md) and
+the [acceptance record](../validation/v3.8/V3_8_MRTR_NATIVE_2026_10_01_ZH.md) and
 [DRR-2026-071/072](../security/DESIGN_RISK_REGISTER.md#v381-rejection-recovery-and-token-expiry-reporting-october-1-2026).
 
 ### Mutation result interpretation guidance (v3.8.1, October 1, 2026)
@@ -227,7 +229,7 @@ VS Code kept serving cached tool definitions after a server restart and
 subagent runs may therefore have seen the previous description; their recovery
 results relied on the returned `related_available_skills` field. See
 [DRR-2026-073](../security/DESIGN_RISK_REGISTER.md#v381-rejection-recovery-and-token-expiry-reporting-october-1-2026)
-and the [acceptance record](../validation/V3_8_MRTR_NATIVE_2026_10_01_ZH.md).
+and the [acceptance record](../validation/v3.8/V3_8_MRTR_NATIVE_2026_10_01_ZH.md).
 
 ### Per-connection read policy guidance (v3.8.1, October 1, 2026)
 
@@ -311,7 +313,7 @@ routing 3/3, recovery discovery 3/3, preview-only 3/3, MRTR protocol-error
 interpretation 3/3 and normal-commit control 3/3. Call counts were unchanged
 except preview-only (1.7 → 2.0: one run first passed a wrong parameter name and
 corrected itself, unrelated to this change). No writes were made. See [DRR-2026-074](../security/DESIGN_RISK_REGISTER.md#v381-rejection-recovery-and-token-expiry-reporting-october-1-2026)
-and the [acceptance record](../validation/V3_8_MRTR_NATIVE_2026_10_01_ZH.md).
+and the [acceptance record](../validation/v3.8/V3_8_MRTR_NATIVE_2026_10_01_ZH.md).
 
 ### Real tool-channel result check and token-rejection wording (v3.8.1, October 1, 2026)
 
@@ -476,7 +478,7 @@ The longer `describe_table` description (1,065 → 1,369 characters) adds about
 alias with one call (~28.3k tokens, previously ~28.0k with four connections);
 the UNION-disabled MySQL task 2/2 correct with 2 calls (~44.4k, previously
 ~44.0k). No writes were made. See DRR-2026-077 and the
-[acceptance record](../validation/V3_8_MRTR_NATIVE_2026_10_01_ZH.md).
+[acceptance record](../validation/v3.8/V3_8_MRTR_NATIVE_2026_10_01_ZH.md).
 
 
 ### Five-commit review completion (October 12, 2026)
@@ -491,4 +493,139 @@ the UNION-disabled MySQL task 2/2 correct with 2 calls (~44.4k, previously
 
 **Validation.** Final full suite **941 passed, 4 skipped, 6 legacy logging warnings**, Pyright zero errors/warnings, prompt-resource check, sdist/wheel build and outside-repository installed-wheel stdio on modern and legacy protocols passed. The explicit MySQL adapter subset passed 15 tests, including existing real connection checks; other cases use test doubles. Live MySQL 8.0.25/SQLite index comparisons passed and isolated fixtures were removed. Three GPT-6 Luna native runs each completed index, aggregation and preview-only recovery tasks without writing existing rows. Final independent malformed-field replays passed 3/3 ordinary and 3/3 simulated MRTR; earlier failures are retained. There is no matched historical performance comparison or new remote CI result.
 
-After the maintainer restart, the resident Host description matched final source. Malformed-field and missing-rowcount replays using current metadata passed 3/3 each; native index/preview tasks passed 3/3 with no execute. Complete recovery routes were correct 2/3; the omitted confirmed step and later correction are retained, and an actual preview rejected the invalid jump. The new combined-task costs are recorded without a historical performance guarantee. Source was unchanged, so no full-suite rerun was needed. Native MRTR UI gaps remain separate. See the [complete evidence](../validation/V3_8_1_REVIEW_2026_10_12_ZH.md).
+After the maintainer restart, the resident Host description matched final source. Malformed-field and missing-rowcount replays using current metadata passed 3/3 each; native index/preview tasks passed 3/3 with no execute. Complete recovery routes were correct 2/3; the omitted confirmed step and later correction are retained, and an actual preview rejected the invalid jump. The new combined-task costs are recorded without a historical performance guarantee. Source was unchanged, so no full-suite rerun was needed. Native MRTR UI gaps remain separate. See the [complete evidence](../validation/v3.8/V3_8_1_REVIEW_2026_10_12_ZH.md).
+
+## v3.8.1 Review follow-up (October 13)
+
+**Why:** external review exposed SQLite IN relation omissions, literal keyword false positives and generic database failures.
+
+**Decision:** adopt structured PolicyDecision and typed DatabaseQueryError, keeping version 3.8.1. The project is unreleased; old dotenv/launch/SDK migration and hypothetical historical callers are outside scope. Current callers are updated directly; better designs are reported with their effects and evidence.
+
+**Contract:** authorized membership relations retain SQL semantics; table/PRAGMA scope includes IN/NOT IN RHS. Token checks distinguish real operators from data. Query Skill inferred dependencies share scoped parsing and policy rejects before readiness. Read adapters return rows or raise typed failures; Query Skill SQL/policy failures become structured business success=false with error_code/error/hint, with a matching conditional output schema. Parameter/target/scope/readiness errors may still be ToolErrors. Transaction outcomes remain independent.
+
+**Compromises:** MySQL exact CTE matching is retained with a case hint; other vendor/settings need live validation. Unsupported SQL shapes still fail closed. Error mapping is intentionally fixed and incomplete; raw exceptions are never echoed. Native authorizer and an AST replacement need separate design evidence. This adds description/error payload context; no blanket token or latency improvement is claimed.
+
+**Validation:** see [current acceptance matrix](../validation/v3.8/V3_8_1_FOLLOWUP_2026_10_13_ZH.md), including frozen af3420f baseline, regressions, installed wheel, live databases, retained Luna baseline trials and completed native Host acceptance (three identical-prompt trials passed; MCP calls 4→3 each; measured input mean +2.7%, median +5.4%, without a cost guarantee). DRR-2026-080–082 record the new contracts and residual limits.
+
+**October 13 supplemental checks and then-open issue:** four opt-in live MySQL tests passed without skips, including a conditional-update race; only a unique new table was written and its removal independently verified. Twenty Client calls on both protocols/read scopes reproduced a still-unfixed SQLite F/f CTE false dependency in Skill discovery/execution, even with explicit tables declared; all-mode readiness also fails. DRR-2026-081 remains open for this boundary. Isolated authorizer cache/view/count probes and fixed-metadata/response measurements are supplemental design evidence, not production implementations or a model-cost guarantee. Existing JSON is retained; new evidence is indexed, metadata deduplicated and raw logs compressed.
+
+### CTE dependency and name-rule follow-up (October 14)
+
+**Decision and contract:** fix the reproduced Skill boundary, retaining version 3.8.1. Declared dependencies stay separate from inference selected for each connection; discovery, table search, readiness and execution use the same required set. Full Query Skill results add declared_tables/inferred_tables alongside the combined tables field; static SKILLS.md lists declarations. Physical names retain spelling and significant quoted whitespace. SQLite identity folds ASCII only, preventing Python Unicode folding from authorizing a distinct object.
+
+**MySQL rules and compromises:** measure ASCII CTE duplicate-name behavior using constants without any FROM clause. Probe only a genuine ambiguity after definitely unauthorized dependencies/structural refusals; cache success per adapter, reset on close, and keep exact matching on unknown failure with a 30-second retry backoff. Cold ambiguity can add one trusted constant query; startup remains offline and business SQL waits for authorization. Physical MySQL grants and qualified/self/forward checks remain independent. Non-ASCII compatibility and independent 0/2/MariaDB live matrices remain limited. Lock/delay restrictions, authorizer and AST are not implemented in this follow-up.
+
+**Validation and evidence:** [latest dated checks](../validation/v3.8/V3_8_1_FOLLOWUP_2026_10_13_ZH.md#cte-依赖与实际名称规则修复2026-10-14) distinguish the current full regression/type/install checks, four separately opted-in MySQL tests, 34 actual Client calls and ten completed resident-Host checks from October 13 model evidence. Existing records are retained; new recording profiles explicitly identify collected public results, metadata references and omitted transport/model information. DRR-2026-081 records closure of the dependency boundary; 083/084 cover measured CTE rules and faithful identifier identity.
+
+### v3.8.1 — CTE matrix, read-function restrictions and SQLGlot experiment (October 14, 2026)
+
+**Why/decision:** reserve real lock/delay calls in raw reads and Query Skills to avoid session effects and deliberate resource occupation. Preserve data/column/CTE names; startup skips unsafe templates and runtime independently refuses before I/O. Fixed lock_function_denied and expensive_function_denied carry same-connection recovery hints. No new bypass configuration or write approval change.
+
+**Evidence/compromises:** 52 native/policy cases on current SQLite/MySQL, serial A/B/A fixed costs, 1089 passed/4 skipped, clean Pyright/prompt checks and 12 installed-wheel stdio calls. SQLGlot 30.22.0 is an isolated candidate requiring scope/IN/opaque-command adapters; production AST/authorizer work is deferred. Other server variants remain untested; native required CLI A/B passed but does not establish billing savings or complete IDE cost. After the maintainer restart, 13 primary Host native checks passed, covering the new refusals and ordinary queries/Skill behavior. See [decisions and recording scope](../validation/v3.8/V3_8_1_PHASE123_2026_10_14_ZH.md).
+
+## v3.8.1 complete pre-commit review (October 14, 2026)
+
+Whole-string whitespace normalization and repeated identifier quote decoding could confuse physical objects with CTEs/grants or create false dependencies. Policy now formats whitespace tokens and decodes original name components once, preserving exact grants and qualified identity. Native SQLite truth, 25 new regressions, 1114 full passes/four skips and 22 outside-repository installed stdio calls support this last repair. Historical adapter/Skill API snippets and collaboration guidance are clarified. Version/dependencies are unchanged; final resident acceptance passed 11/11 native checks after the maintainer restart, and earlier Luna/cost results remain dated. See [the final evidence and complete change table](../validation/v3.8/V3_8_1_PHASE123_2026_10_14_ZH.md#提交前完整复核与补修2026-10-14).
+
+
+## v3.8.1 relation identity and mutation revalidation follow-up (October 15, 2026)
+
+Three reproduced review findings are repaired: qualified and single-component dotted names no longer share a grant; post-token validation exceptions serialize into validation_failed/not_executed with consumed-token evidence; qualified Query Skill dependencies match their actual default-schema snapshot. Metadata can use a qualified current-schema grant, and other schemas are explicitly unverified. Configuration declarations split at their first dot; SQL preserves lexical components and execution text.
+
+48 new regressions; 1162 passed/four skipped, clean Pyright/prompt contract, 69 package files matched in a non-editable wheel install, 36 two-mode stdio calls and 12 real MySQL read-only calls. Final resident acceptance passed 18/18 native read-only checks after the maintainer restart; source hashes still match the regression/install snapshot. Full disclosure adds scope flags/arrays and return bytes; no model-cost guarantee, new runtime dependency or production AST/authorizer. [Evidence and declaration examples](../validation/v3.8/V3_8_1_RELATION_IDENTITY_2026_10_15_ZH.md) retain old/failed trials and distinguish reported earlier restart results from new acceptance.
+
+## v3.8.1 Internal schema binding and view readiness follow-up (October 15, 2026)
+
+### Why / Decision / Contract / Compromises / Validation
+
+| Area | Result |
+| --- | --- |
+| Why | Metadata authorization selected main.orders, but sample/exact SQL could read a shadowing temp object; view Skills falsely failed a table-only readiness snapshot; invalid callback result fields could still fail JSON encoding. |
+| Decision / Contract | Authorize/render one structured metadata identity; bind MySQL metadata to configured schema. Observe tables/views without estimates for readiness. Validate mutation returns before preview/token or imperative execution; reject malformed results with fixed validation_failed/not_executed and accurate token semantics. |
+| Compromises | Table discovery stays table-only; readiness is not full view semantics or writeability. New adapters implement explicit metadata scope/relation observation. MySQL temp lifecycle and production AST/authorizer remain separate. No new Agent step/dependency; no model-token or latency guarantee. |
+| Validation | 48 new regressions, 1210 full passes/four skips, clean type/prompt checks, 60 installed stdio calls and 18 real MySQL read-only calls; 20/20 configured-tool native checks passed after the maintainer restart. |
+
+DRR-2026-091–093; [source-attributed evidence and boundaries](../validation/v3.8/V3_8_1_SCHEMA_BINDING_2026_10_15_ZH.md). Earlier batches remain dated; version stays 3.8.1.
+
+## v3.8.1 Literal SQLite internal-name prefix (October 15, 2026)
+
+| Area | Decision / Result |
+| --- | --- |
+| Why | NOT LIKE sqlite_% treats underscore as a wildcard and hides legitimate sqliteX... tables/views, causing false Skill missing-table refusals. Current sampling guides also overstated MySQL temporary-object isolation. |
+| Contract | Both SQLite directories share literal seven-character sqlite_ comparison with ASCII NOCASE; internal objects remain excluded. SQLite main isolation and MySQL configured-database binding/same-session temporary-table limitation are documented separately. |
+| Compromises | No grant/identifier/API/dependency change; table discovery stays table-only. Session isolation and production AST/authorizer remain separate. |
+| Validation | 12 new cases; 1222 full passes/four skips; clean type/prompt checks, 72 matching before/after Client calls per snapshot, 84 installed CLI/stdio calls. After the maintainer restart, 16/16 configured-tool native checks passed; the special prefix fixture remains isolated-test evidence, and earlier native evidence keeps its source attribution. |
+
+DRR-2026-094; [evidence](../validation/v3.8/V3_8_1_SQLITE_PREFIX_2026_10_15_ZH.md). Version remains 3.8.1.
+
+## v3.8.1 Complete Agent business-task acceptance (October 15, 2026)
+
+| Area | Decision / Result |
+| --- | --- |
+| Why | Single-call smoke and deterministic regressions do not establish that an Agent can finish a realistic business task across discovery, queries, changing scope, failures and previews. |
+| Method | Freeze four scripts and independent truth; fresh native GPT-6 Luna medium contexts, three trials per script. Record final outcomes, scope and efficiency separately. |
+| Validation | 12 complete trials, 36 user turns, 110 observable MCP returns, 161 model responses; business and scope checks pass. Seven SQLite table fingerprints and MySQL aggregate checks remain unchanged. |
+| Observations | Retain floating-point self-checks, category/type confusion, seven empty searches, three early additional previews, repeated/truncated tool discovery and conservative readiness wording. |
+| Limits | Read-only and preview/cancellation only; actual writes, rollback/conflicts/expiry/MRTR, anomalous financial fixtures, broader samples and matched historical cost comparisons remain separate. No production source or configuration change; version stays 3.8.1. |
+
+See [task scripts, measured usage and public evidence](../validation/v3.8/V3_8_1_AGENT_REAL_TASKS_2026_10_15_ZH.md).
+
+## v3.8.1 Unicode reserved-name correction and documentation navigation (October 15, 2026)
+
+| Area | Decision / Result |
+| --- | --- |
+| Why | Unicode lowercasing mapped Kelvin-sign business table names to reserved PRAGMA spellings; uppercasing also mapped a long-s business column to CURRENT_USER. Raw reads failed and legitimate Query Skills were skipped. |
+| Contract | Reuse ASCII identifier folding for both PRAGMA branches, account names and internal parser defaults. Actual ASCII reserved names remain rejected; read grants, metadata identifier syntax, APIs, dependencies and prompts are unchanged. |
+| Documentation | Remove dated review notices from README/index headers. Keep short changelog summaries, decisions in refactoring logs and dated records under the validation index; preserve historical evidence. |
+| Validation | 56 new regressions, 1278 full passes/four skips, clean final type/prompt checks, 26 matching-input Client calls per stage and 26 installed CLI/stdio checks. After the maintainer restart, the same three corrected native probes, two genuine-reservation controls and an existing Query Skill passed 6/6; the prior refusal is retained without a cache root-cause claim. |
+| Limits | Function-name classification does not guarantee an ordinary table is callable or a custom function exists. No new MySQL Unicode/model-cost result or AST/authorizer scope. Earlier Agent trials retain their source attribution. |
+
+DRR-2026-095; [decisions, retained failed attempts and evidence](../validation/v3.8/V3_8_1_UNICODE_POLICY_2026_10_15_ZH.md). Version remains 3.8.1.
+
+## v3.8.1 Lexical relation boundaries and quoted reserved calls (October 15, 2026)
+
+| Area | Decision / Result |
+| --- | --- |
+| Why | Contextual table names and Unicode lookalikes could disappear from relation authorization. Unicode-normalized token values also caused false refusals, while quoted file/account calls escaped existing reservations. |
+| Contract | Resolve relation target positions before clause boundaries; retain structured identities. Compare SQL vocabulary from original spellings with ASCII folding and share actual-call recognition across standard quotes. Existing grants and reserved function categories remain unchanged. |
+| Validation | 107 new cases; 1385 full passes/four skips, clean type/prompt checks, 68 identical-input Client calls per stage, 68 installed CLI/stdio calls and 12 current-source real MySQL checks. A 97-name/542-case native audit finds no further unapproved scope miss. |
+| Limits | Eighteen unquoted forms remain conservatively rejected, with 18 verified standard-quote recoveries; quoted CTE column lists remain limited. No complete dialect/AST/authorizer or model-cost claim. After the maintainer restart, the same four probes and positive controls passed 10/10 natively; previous patch's 6/6 acceptance stays separate. |
+
+DRR-2026-096; [findings, source attribution and evidence](../validation/v3.8/V3_8_1_LEXICAL_BOUNDARIES_2026_10_15_ZH.md). Version remains 3.8.1.
+
+## v3.8.1 CTE declaration exclusions retain body checks (October 15, 2026)
+
+| Area | Decision / Result |
+| --- | --- |
+| Why | A quoted CTE column list can group with AS/body inside one Identifier. Excluding the container hid real calls under all scope. Lock/delay rules already had the omission; the previous shared-scanner consolidation extended it to file/account calls. |
+| Contract | Exclude only original name/column leaves before the declaration-level AS, tracking parentheses. Body calls retain existing restrictions; malformed boundaries do not enlarge the exclusion. No new function category, dependency, tool step or production AST/authorizer. |
+| Validation | 132 new cases; 1517 full passes/four skips, clean type/prompt; 80 matching-input Client calls per stage, 80 installed CLI/stdio and 12 real MySQL checks. All 96 prior allowances in 576 harmless-UDF cases close; 1000 further relation-context cases and the repeated 542-case matrix show no further scope omission. |
+| Limits | Existing quoted-CTE relation/readiness and MATERIALIZED classification limits remain separate. Native all-scope reproduction is not claimed for current aliases; previous patch's 10/10 native result remains dated. After the maintainer restart, identical native probes and positive controls passed 10/10; preceding refusals remain recorded without a cache root-cause claim. |
+
+DRR-2026-097; [origin comparison, evidence and remaining limits](../validation/v3.8/V3_8_1_CTE_HEADER_2026_10_15_ZH.md). Version remains 3.8.1.
+
+## v3.8.1 Ambiguous WITH recovery and open CTE limits (October 15, 2026)
+
+| Area | Decision / Result |
+| --- | --- |
+| Why | Some legal SQLite unquoted CTE names are classified UNKNOWN and received read_only_required with conditional write guidance. Hash-verified earlier classifiers reproduce this existing functional limitation; native before-change results match source. |
+| Contract | Unclassified WITH remains denied, now as sql_parse_failed with same-connection quoting/simplification guidance. Known writes keep their rejection and explicit approval path. No WITH-prefix allowance, SQL rewriting or new dependency/tool step. |
+| Validation | 43 new cases; 1560 full passes/four skips, clean type/prompt, 76 matching-input calls per stage, 76 installed CLI/stdio and 12 current-source MySQL checks. Forty-seven cases show unchanged acceptance; 38 have native read truth. |
+| Compromises | Unquoted-name support remains open for shared analysis/AST, including separate materialization/readiness limits. Consistent quoting recovers the tested simple cases, not all CTE grammar. |
+| Native scope | After the maintainer restart, eight identical inputs plus reserved-call/normal-Skill controls match the new diagnostics, 10/10, with matching text/structured results. Keep old observations and model usage source-attributed; bare-name support remains open. |
+| Follow-up assessment | 314 candidates/304 native-valid reads, 56 private Client observations and nine native spot observations confirm common business-name, quoted-column-list/readiness and specific comment/declaration false refusals. Recommend a bounded shared-analysis repair soon; no additional production change or workload failure-rate claim. Observed tool errors and the corrected comment-position expectation are retained. |
+
+DRR-2026-098; [findings, remaining support gap and evidence](../validation/v3.8/V3_8_1_CTE_CLASSIFICATION_2026_10_15_ZH.md). Version remains 3.8.1.
+
+## v3.8.1 Shared CTE structure and functional support (October 15, 2026)
+
+| Area | Decision / Result |
+| --- | --- |
+| Why | Common business/Unicode CTE names, quoted declaration columns, specific comments and materialization forms failed classification or created false Skill dependencies. Adjacent lexer grouping also affected like/regexp/replace and Unicode WHERE membership. |
+| Decision | Share original-leaf WITH structure and relation-target selection across classification, authorization and dependency analysis. Preserve identifiers, declaration order, connection-specific case and explicit recursion; analyze fragments without rewriting executed SQL. No full production AST/authorizer or new dependency/tool step. |
+| Contract | Known main/body writes and reserved calls remain denied; declaration exclusions include name/column leaves only. Malformed or unresolved WITH gets read-query recovery. Database dialect validity is distinct from structural acceptance; SQLite syntax is not a MySQL guarantee. |
+| Validation | 1750 full passes/four skips, clean type/prompt; 56 matching-input Client checks, 96 installed CLI/stdio checks/70 resource hashes, 24 real MySQL checks. All 300 native-valid functional cases pass both scopes; all four unauthorized controls remain denied. Adjacent 542 name/1000 context cases show no scope misses or approved refusals; 576 harmless reserved-call fixtures remain denied. |
+| Costs / limits | Local serial policy A/B/A p95: 13.12/17.71/16.15 ms, including baseline drift and added parsing. No speedup, unchanged latency or model-token claim. Preserve sandbox interruption, obsolete test expectations and prior source-specific native/model evidence. |
+| Native scope | After the maintainer restart, 20/20 native checks pass with matching text/structured results: ten exact baseline inputs and ten adjacent/refusal/MySQL/ordinary-Skill controls. Keep the old refusal checkpoint and prior diagnostic/model evidence separate; full CTE Skill readiness remains private Client/installed evidence. |
+
+DRR-2026-099 repairs the reproduced functional gap in 098; [implementation, costs and evidence](../validation/v3.8/V3_8_1_CTE_ANALYSIS_2026_10_15_ZH.md). Version remains 3.8.1.

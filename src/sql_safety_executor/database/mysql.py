@@ -1,6 +1,8 @@
 from __future__ import annotations
 import asyncio
 import logging
+import time
+from threading import RLock
 from typing import Any
 from sqlalchemy.engine import Engine
 
@@ -8,6 +10,7 @@ logger = logging.getLogger(__name__)
 
 from .models import DatabaseConfig
 from .base import DatabaseAdapter
+from .errors import DatabaseQueryError, classify_database_error
 from .outcomes import (
     MetadataQueryError,
     WriteExecutionOutcome,
@@ -22,6 +25,14 @@ from .outcomes import (
 )
 from .identifiers import _adapter_logging_name, _metadata_identifier_is_rejected
 from .indexes import IndexMetadataBudget, MAX_INDEX_KEY_PARTS
+from .relations import ReadRelation, RelationReference
+
+# Both definitions contain constants and the final SELECT has no FROM clause:
+# the probe never names or reads a physical table, even on case-sensitive servers.
+_CTE_CASE_PROBE = (
+    "WITH `mcp_Cte_Case_A` AS (SELECT 1 AS n), "
+    "`mcp_cte_case_a` AS (SELECT 2 AS n) SELECT 1 AS n"
+)
 
 
 class MySQLAdapter(DatabaseAdapter):
@@ -57,10 +68,59 @@ class MySQLAdapter(DatabaseAdapter):
         self._query_timeout_seconds = self._config.query_timeout_seconds
         self._connect_timeout_seconds = self._config.connect_timeout_seconds
         self._connected = False
+        self._cte_case_sensitive: bool | None = None
+        self._cte_probe_lock = RLock()
+        self._cte_probe_retry_after = 0.0
 
     @property
     def db_type(self) -> str:
         return "mysql"
+
+    @property
+    def metadata_schema(self) -> str:
+        if self._db_name is None:
+            raise ValueError("MySQL metadata requires a configured database")
+        return self._db_name
+
+    @property
+    def cte_case_sensitive(self) -> bool | None:
+        return self._cte_case_sensitive
+
+    def resolve_cte_case_sensitive(self) -> bool:
+        """Measure ASCII CTE name comparison once, without any table access.
+
+        Distinct names succeed on exact-comparison servers. MySQL 1066 and
+        MariaDB 4004 identify a duplicate CTE name under insensitive comparison.
+        Other failures do not relax policy; retry after 30 seconds. No capability
+        is acquired during construction or ordinary unambiguous queries.
+        """
+        from sqlalchemy.exc import DBAPIError
+
+        with self._cte_probe_lock:
+            if self._cte_case_sensitive is not None:
+                return self._cte_case_sensitive
+            if time.monotonic() < self._cte_probe_retry_after:
+                return True
+            try:
+                if not self.connect() or self._engine is None:
+                    raise DatabaseQueryError("database_connection_failed")
+                with self._engine.connect() as connection:
+                    value = connection.exec_driver_sql(_CTE_CASE_PROBE).scalar_one()
+                if type(value) is not int or value != 1:
+                    raise DatabaseQueryError()
+                self._cte_case_sensitive = True
+            except DBAPIError as error:
+                args = getattr(error.orig, "args", ())
+                errno = args[0] if args and type(args[0]) is int else None
+                if errno in {1066, 4004}:
+                    self._cte_case_sensitive = False
+                else:
+                    self._cte_probe_retry_after = time.monotonic() + 30
+                    logger.warning("CTE case capability unavailable: %s", type(error).__name__)
+            except Exception as error:
+                self._cte_probe_retry_after = time.monotonic() + 30
+                logger.warning("CTE case capability unavailable: %s", type(error).__name__)
+            return self._cte_case_sensitive is not False
 
     def connect(self) -> bool:
         """Create SQLAlchemy engine with connection pool."""
@@ -125,7 +185,7 @@ class MySQLAdapter(DatabaseAdapter):
 
     def execute(
         self, sql: str, timeout: int | float | None = None, params: dict | None = None
-    ) -> list | str:
+    ) -> list:
         """
         Execute SQL query with timeout protection.
 
@@ -139,10 +199,10 @@ class MySQLAdapter(DatabaseAdapter):
         """
         if not self._engine:
             if not self.connect():
-                return "Error: Database engine could not be initialized."
+                raise DatabaseQueryError("database_connection_failed")
         engine = self._engine
         if engine is None:
-            return "Error: Database engine could not be initialized."
+            raise DatabaseQueryError("database_connection_failed")
 
         timeout = timeout if timeout is not None else self._query_timeout_seconds
 
@@ -174,7 +234,7 @@ class MySQLAdapter(DatabaseAdapter):
                 return rows
 
         except Exception as e:
-            return self._handle_error(e, timeout)
+            raise self._handle_error(e, timeout) from None
 
     def execute_write(
         self,
@@ -309,39 +369,9 @@ class MySQLAdapter(DatabaseAdapter):
         _close_write_connection(connection)
         return WriteExecutionResult(rowcount)
 
-    def _handle_error(self, e: Exception, timeout: int | float | None = None) -> str:
-        """
-        Sanitize error messages for security.
-
-        Preserves original error handling logic from sql_safety_checker.py.
-
-        Args:
-            e: The exception that occurred
-            timeout: Optional timeout value for error message context
-        """
-        error_str = str(e)
-        logger.warning("SQL execution error: %s", e.__class__.__name__)
-
-        timeout_suffix = f" ({timeout}s limit)" if timeout is not None else ""
-
-        if "Access denied" in error_str or "permission" in error_str.lower():
-            return "Error: Access denied"
-        elif "doesn't exist" in error_str or "Unknown table" in error_str:
-            return "Error: Table or column not found"
-        elif "syntax" in error_str.lower():
-            return "Error: SQL syntax error"
-        elif (
-            "timeout" in error_str.lower() or "max_execution_time" in error_str.lower()
-        ):
-            return f"Error: Query timeout exceeded{timeout_suffix}"
-        elif "timed out" in error_str.lower() or "2013" in error_str:
-            return f"Error: Query timeout exceeded{timeout_suffix}"
-        elif "read timed out" in error_str.lower():
-            return f"Error: Query timeout exceeded{timeout_suffix}"
-        elif "Lost connection" in error_str:
-            return f"Error: Query timeout exceeded{timeout_suffix}"
-        else:
-            return "Error: Database query failed"
+    def _handle_error(self, e: Exception, timeout: int | float | None = None) -> DatabaseQueryError:
+        logger.warning("mysql execution error: %s", e.__class__.__name__)
+        return classify_database_error(e, "mysql")
 
     def get_tables(self) -> list[dict[str, Any]]:
         """Get all tables with row count estimates from INFORMATION_SCHEMA."""
@@ -350,16 +380,23 @@ class MySQLAdapter(DatabaseAdapter):
                 TABLE_NAME as table_name, 
                 TABLE_ROWS as row_count
             FROM INFORMATION_SCHEMA.TABLES
-            WHERE TABLE_SCHEMA = DATABASE() AND TABLE_TYPE = 'BASE TABLE'
+            WHERE TABLE_SCHEMA = :schema_name AND TABLE_TYPE = 'BASE TABLE'
             ORDER BY TABLE_NAME
         """
-        result = self.execute(sql)
+        result = self._execute_metadata(sql, 'listing tables', params={"schema_name": self.metadata_schema})
 
-        if isinstance(result, str):
-            logger.error("Failed to list MySQL tables")
-            raise MetadataQueryError("listing tables")
 
         return [{"table_name": row[0], "row_count": row[1]} for row in result]
+
+    def get_read_relations(self) -> list[ReadRelation]:
+        rows = self._execute_metadata(
+            "SELECT TABLE_NAME, TABLE_TYPE FROM INFORMATION_SCHEMA.TABLES "
+            "WHERE TABLE_SCHEMA = :schema_name AND TABLE_TYPE IN ('BASE TABLE', 'VIEW') "
+            "ORDER BY TABLE_NAME",
+            "observing read relations", params={"schema_name": self.metadata_schema},
+        )
+        return [ReadRelation(RelationReference(row[0], self.metadata_schema),
+                            "view" if row[1] == "VIEW" else "table") for row in rows]
 
     def get_columns(self, table_name: str) -> list[dict[str, Any]]:
         """Get column information from INFORMATION_SCHEMA."""
@@ -374,14 +411,11 @@ class MySQLAdapter(DatabaseAdapter):
                 COLUMN_KEY,
                 COLUMN_DEFAULT
             FROM INFORMATION_SCHEMA.COLUMNS
-            WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = :table_name
+            WHERE TABLE_SCHEMA = :schema_name AND TABLE_NAME = :table_name
             ORDER BY ORDINAL_POSITION
         """
-        result = self.execute(sql, params={"table_name": table_name})
+        result = self._execute_metadata(sql, 'reading table columns', params={"schema_name": self.metadata_schema, "table_name": table_name})
 
-        if isinstance(result, str):
-            logger.error("Failed to read MySQL column metadata")
-            raise MetadataQueryError("reading table columns")
 
         return [
             {
@@ -403,10 +437,10 @@ class MySQLAdapter(DatabaseAdapter):
         # string. A failed probe fails collection; errors are never interpreted
         # as proof that this is an old server, nor retried with weaker metadata.
         visibility_rows = budget.rows(
-            self.execute(
+            self._execute_metadata(
                 "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS "
                 "WHERE TABLE_SCHEMA = 'information_schema' "
-                "AND TABLE_NAME = 'STATISTICS' AND COLUMN_NAME = 'IS_VISIBLE' LIMIT 1",
+                "AND TABLE_NAME = 'STATISTICS' AND COLUMN_NAME = 'IS_VISIBLE' LIMIT 1", 'reading table indexes',
                 timeout=budget.remaining(),
             )
         )
@@ -416,15 +450,15 @@ class MySQLAdapter(DatabaseAdapter):
             SELECT INDEX_NAME, NON_UNIQUE, SEQ_IN_INDEX, COLUMN_NAME, INDEX_TYPE,
                    SUB_PART, COLLATION, {visibility_column}
             FROM INFORMATION_SCHEMA.STATISTICS
-            WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = :table_name
+            WHERE TABLE_SCHEMA = :schema_name AND TABLE_NAME = :table_name
             ORDER BY INDEX_NAME, SEQ_IN_INDEX
             LIMIT :row_limit
         """
         result = budget.rows(
-            self.execute(
-                sql,
+            self._execute_metadata(
+                sql, 'reading table indexes',
                 timeout=budget.remaining(),
-                params={"table_name": table_name, "row_limit": MAX_INDEX_KEY_PARTS + 1},
+                params={"schema_name": self.metadata_schema, "table_name": table_name, "row_limit": MAX_INDEX_KEY_PARTS + 1},
             )
         )
 
@@ -467,13 +501,10 @@ class MySQLAdapter(DatabaseAdapter):
         sql = """
             SELECT TABLE_ROWS
             FROM INFORMATION_SCHEMA.TABLES
-            WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = :table_name
+            WHERE TABLE_SCHEMA = :schema_name AND TABLE_NAME = :table_name
         """
-        result = self.execute(sql, params={"table_name": table_name})
+        result = self._execute_metadata(sql, 'estimating table rows', params={"schema_name": self.metadata_schema, "table_name": table_name})
 
-        if isinstance(result, str):
-            logger.error("Failed to read MySQL row estimate metadata")
-            raise MetadataQueryError("estimating table rows")
         if not result:
             return None
 
@@ -482,24 +513,29 @@ class MySQLAdapter(DatabaseAdapter):
 
     def check_connection(self) -> tuple[bool, str]:
         """Check MySQL connection status."""
-        result = self.execute("SELECT 1")
-
-        if isinstance(result, str):
-            return False, result
+        try:
+            self.execute("SELECT 1")
+        except DatabaseQueryError as error:
+            return False, str(error)
 
         return True, "MySQL connection successful"
 
     def get_database_name(self) -> str | None:
         """Get current database name."""
-        result = self.execute("SELECT DATABASE()")
+        try:
+            result = self.execute("SELECT DATABASE()")
+        except DatabaseQueryError:
+            return self._db_name
 
-        if isinstance(result, str) or not result:
+        if not result:
             return self._db_name
 
         return result[0][0]
 
     def close(self) -> None:
         """Dispose SQLAlchemy engine."""
+        self._cte_case_sensitive = None
+        self._cte_probe_retry_after = 0.0
         if self._engine:
             self._engine.dispose()
             self._engine = None

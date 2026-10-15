@@ -4,6 +4,7 @@ import sqlite3
 from types import SimpleNamespace
 
 import pytest
+from sql_safety_executor.database.errors import DatabaseQueryError
 from fastmcp import Client
 
 from sql_safety_executor import create_server, load_config
@@ -156,7 +157,7 @@ def test_mysql_metadata_errors_fail_closed_without_legacy_retry(monkeypatch, fai
         calls.append(sql)
         if len(calls) == 1 and not fail_probe:
             return [("IS_VISIBLE",)]
-        return "Error: denied"
+        raise DatabaseQueryError("database_access_denied")
 
     monkeypatch.setattr(adapter, "execute", execute)
     with pytest.raises(MetadataQueryError):

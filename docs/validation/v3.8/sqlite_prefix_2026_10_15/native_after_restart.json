@@ -1,0 +1,1539 @@
+{
+  "version": "3.8.1",
+  "batch": "sqlite_prefix_2026_10_15",
+  "started_at_utc": "2026-10-15 06:56:59 UTC",
+  "finished_at_utc": "2026-10-15 06:58:25 UTC",
+  "trigger": "Maintainer reports manual MCP restart and asks to continue",
+  "transport": "Current Host registered native SQL MCP tool calls",
+  "recording_profile": "Application arguments/results exposed by Host; not complete JSON-RPC frames/notifications",
+  "source_reference": "automation.json#source_sha256",
+  "workspace_snapshot_verification": {
+    "source_files": 69,
+    "test_files": 41,
+    "source_matches_accepted_snapshot": true,
+    "tests_match_accepted_snapshot": true,
+    "source_map_sha256": "fbb5daa6109817651882a261dece7f6a2d17bfe13078dae98116fea365a605fd",
+    "test_map_sha256": "1c6359d8d739dae012f9b7dfbac0c54be8d3f94f8f4d81e9842fabc2d81fb5c6"
+  },
+  "checks": {
+    "total": 16,
+    "passed": 16,
+    "failed": 0,
+    "sqlite_connection_calls": 8,
+    "mysql_connection_calls": 7,
+    "configuration_only_calls": 1
+  },
+  "scope": {
+    "configuration": 1,
+    "sqlite_calls": 8,
+    "mysql_calls": 7,
+    "checked": [
+      "Configuration routing",
+      "SELECT 1",
+      "Authorized table directory",
+      "Column/index metadata",
+      "SQLite full schema",
+      "Dialect Skill discovery and detail readiness",
+      "Read-only Skill execution and separate raw count confirmation"
+    ],
+    "prefix_fixture_available_in_current_aliases": false,
+    "literal_prefix_fix_direct_evidence": "12 regressions, 72 same-input after calls and 84 installed CLI/stdio calls against the accepted source snapshot",
+    "resident_scope": "Configured-tool operational smoke after reported restart; does not independently attest loaded code hashes or distinguish old/new prefix predicates without the special fixture",
+    "prior_native_attribution": "Previous 20/20 remains attributed to schema_binding_2026_10_15; not relabeled as this batch",
+    "new_independent_mysql_adapter_matrix": false,
+    "model_cost_remeasured": false,
+    "configured_database_writes": false,
+    "configuration_changes": false
+  },
+  "calls": [
+    {
+      "name": "list_connections",
+      "args": {},
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":true,\"default_connection_id\":\"trade_analysis_mysql\",\"connection_count\":5,\"connections\":[{\"connection_id\":\"trade_analysis_mysql\",\"db_type\":\"mysql\",\"is_default\":true,\"query_timeout_seconds\":30,\"connect_timeout_seconds\":10,\"policy\":{\"read_mode\":\"all\",\"read_enabled\":true,\"allow_union\":false,\"allowed_tables_mode\":\"explicit_all\",\"allowed_tables\":[\"*\"],\"allowed_tables_count\":1,\"allow_mutations\":true,\"mutation_skills_mode\":\"allowlist\",\"mutation_skills\":[\"sample-update-order-status\"],\"mutation_skills_count\":1}},{\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\",\"is_default\":false,\"query_timeout_seconds\":30,\"connect_timeout_seconds\":10,\"policy\":{\"read_mode\":\"allowlist\",\"read_enabled\":true,\"allow_union\":false,\"allowed_tables_mode\":\"allowlist\",\"allowed_tables\":[\"orders\"],\"allowed_tables_count\":1,\"allow_mutations\":true,\"mutation_skills_mode\":\"allowlist\",\"mutation_skills\":[\"sample-reset-order-to-pending\",\"sample-update-order-status\"],\"mutation_skills_count\":2}},{\"connection_id\":\"live_test_sqlite\",\"db_type\":\"sqlite\",\"is_default\":false,\"query_timeout_seconds\":30,\"connect_timeout_seconds\":10,\"policy\":{\"read_mode\":\"allowlist\",\"read_enabled\":true,\"allow_union\":false,\"allowed_tables_mode\":\"allowlist\",\"allowed_tables\":[\"orders\"],\"allowed_tables_count\":1,\"allow_mutations\":true,\"mutation_skills_mode\":\"allowlist\",\"mutation_skills\":[\"sample-reset-order-to-pending\",\"sample-update-order-status\"],\"mutation_skills_count\":2}},{\"connection_id\":\"union_test_sqlite\",\"db_type\":\"sqlite\",\"is_default\":false,\"query_timeout_seconds\":30,\"connect_timeout_seconds\":10,\"policy\":{\"read_mode\":\"allowlist\",\"read_enabled\":true,\"allow_union\":true,\"allowed_tables_mode\":\"allowlist\",\"allowed_tables\":[\"sales_2026_q1\",\"sales_2026_q2\",\"sales_2026_q3\"],\"allowed_tables_count\":3,\"allow_mutations\":false,\"mutation_skills_mode\":\"deny_all\",\"mutation_skills\":[],\"mutation_skills_count\":0}},{\"connection_id\":\"rich_mutation_sqlite\",\"db_type\":\"sqlite\",\"is_default\":false,\"query_timeout_seconds\":30,\"connect_timeout_seconds\":10,\"policy\":{\"read_mode\":\"allowlist\",\"read_enabled\":true,\"allow_union\":false,\"allowed_tables_mode\":\"allowlist\",\"allowed_tables\":[\"customers\",\"order_items\",\"orders\"],\"allowed_tables_count\":3,\"allow_mutations\":true,\"mutation_skills_mode\":\"allowlist\",\"mutation_skills\":[\"sample-reset-order-to-pending\",\"sample-update-order-status\"],\"mutation_skills_count\":2}}],\"hint\":\"Configuration only; no database was inspected. allowed_tables is an access policy, not proof of table existence or a complete table inventory. Say 'configured to allow orders', not 'the database only has orders'.\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": true,
+          "default_connection_id": "trade_analysis_mysql",
+          "connection_count": 5,
+          "connections": [
+            {
+              "connection_id": "trade_analysis_mysql",
+              "db_type": "mysql",
+              "is_default": true,
+              "query_timeout_seconds": 30,
+              "connect_timeout_seconds": 10,
+              "policy": {
+                "read_mode": "all",
+                "read_enabled": true,
+                "allow_union": false,
+                "allowed_tables_mode": "explicit_all",
+                "allowed_tables": [
+                  "*"
+                ],
+                "allowed_tables_count": 1,
+                "allow_mutations": true,
+                "mutation_skills_mode": "allowlist",
+                "mutation_skills": [
+                  "sample-update-order-status"
+                ],
+                "mutation_skills_count": 1
+              }
+            },
+            {
+              "connection_id": "analytics_demo_sqlite",
+              "db_type": "sqlite",
+              "is_default": false,
+              "query_timeout_seconds": 30,
+              "connect_timeout_seconds": 10,
+              "policy": {
+                "read_mode": "allowlist",
+                "read_enabled": true,
+                "allow_union": false,
+                "allowed_tables_mode": "allowlist",
+                "allowed_tables": [
+                  "orders"
+                ],
+                "allowed_tables_count": 1,
+                "allow_mutations": true,
+                "mutation_skills_mode": "allowlist",
+                "mutation_skills": [
+                  "sample-reset-order-to-pending",
+                  "sample-update-order-status"
+                ],
+                "mutation_skills_count": 2
+              }
+            },
+            {
+              "connection_id": "live_test_sqlite",
+              "db_type": "sqlite",
+              "is_default": false,
+              "query_timeout_seconds": 30,
+              "connect_timeout_seconds": 10,
+              "policy": {
+                "read_mode": "allowlist",
+                "read_enabled": true,
+                "allow_union": false,
+                "allowed_tables_mode": "allowlist",
+                "allowed_tables": [
+                  "orders"
+                ],
+                "allowed_tables_count": 1,
+                "allow_mutations": true,
+                "mutation_skills_mode": "allowlist",
+                "mutation_skills": [
+                  "sample-reset-order-to-pending",
+                  "sample-update-order-status"
+                ],
+                "mutation_skills_count": 2
+              }
+            },
+            {
+              "connection_id": "union_test_sqlite",
+              "db_type": "sqlite",
+              "is_default": false,
+              "query_timeout_seconds": 30,
+              "connect_timeout_seconds": 10,
+              "policy": {
+                "read_mode": "allowlist",
+                "read_enabled": true,
+                "allow_union": true,
+                "allowed_tables_mode": "allowlist",
+                "allowed_tables": [
+                  "sales_2026_q1",
+                  "sales_2026_q2",
+                  "sales_2026_q3"
+                ],
+                "allowed_tables_count": 3,
+                "allow_mutations": false,
+                "mutation_skills_mode": "deny_all",
+                "mutation_skills": [],
+                "mutation_skills_count": 0
+              }
+            },
+            {
+              "connection_id": "rich_mutation_sqlite",
+              "db_type": "sqlite",
+              "is_default": false,
+              "query_timeout_seconds": 30,
+              "connect_timeout_seconds": 10,
+              "policy": {
+                "read_mode": "allowlist",
+                "read_enabled": true,
+                "allow_union": false,
+                "allowed_tables_mode": "allowlist",
+                "allowed_tables": [
+                  "customers",
+                  "order_items",
+                  "orders"
+                ],
+                "allowed_tables_count": 3,
+                "allow_mutations": true,
+                "mutation_skills_mode": "allowlist",
+                "mutation_skills": [
+                  "sample-reset-order-to-pending",
+                  "sample-update-order-status"
+                ],
+                "mutation_skills_count": 2
+              }
+            }
+          ],
+          "hint": "Configuration only; no database was inspected. allowed_tables is an access policy, not proof of table existence or a complete table inventory. Say 'configured to allow orders', not 'the database only has orders'."
+        },
+        "isError": false
+      },
+      "at": "2026-10-15 06:56:59 UTC",
+      "id": 1,
+      "expected": "Both selected aliases have configured expected database types",
+      "passed": true,
+      "text_structured_matches": true
+    },
+    {
+      "name": "query",
+      "args": {
+        "connection_id": "trade_analysis_mysql",
+        "sql": "SELECT 1 AS n"
+      },
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":true,\"data\":[{\"n\":1}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null,\"query\":\"SELECT 1 AS n\",\"connection_id\":\"trade_analysis_mysql\",\"db_type\":\"mysql\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": true,
+          "data": [
+            {
+              "n": 1
+            }
+          ],
+          "row_count": 1,
+          "total_rows": 1,
+          "truncated": false,
+          "truncation_note": null,
+          "query": "SELECT 1 AS n",
+          "connection_id": "trade_analysis_mysql",
+          "db_type": "mysql"
+        },
+        "isError": false
+      },
+      "at": "2026-10-15 06:57:11 UTC",
+      "id": 2,
+      "expected": "n = 1",
+      "passed": true,
+      "text_structured_matches": true
+    },
+    {
+      "name": "query",
+      "args": {
+        "connection_id": "analytics_demo_sqlite",
+        "sql": "SELECT 1 AS n"
+      },
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":true,\"data\":[{\"n\":1}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null,\"query\":\"SELECT 1 AS n\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": true,
+          "data": [
+            {
+              "n": 1
+            }
+          ],
+          "row_count": 1,
+          "total_rows": 1,
+          "truncated": false,
+          "truncation_note": null,
+          "query": "SELECT 1 AS n",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      },
+      "at": "2026-10-15 06:57:11 UTC",
+      "id": 3,
+      "expected": "n = 1",
+      "passed": true,
+      "text_structured_matches": true
+    },
+    {
+      "name": "list_tables",
+      "args": {
+        "connection_id": "trade_analysis_mysql"
+      },
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":true,\"database_name\":\"trade_data_analysis\",\"db_type\":\"mysql\",\"connection_id\":\"trade_analysis_mysql\",\"returned_table_count\":8,\"total_tables\":8,\"tables\":[{\"table_name\":\"orders\",\"row_count\":8},{\"table_name\":\"trade_data_analysis_log\",\"row_count\":145740},{\"table_name\":\"va_manual_rerun_1772291866_20686\",\"row_count\":288},{\"table_name\":\"va_manual_rerun_1772291978_20962\",\"row_count\":288},{\"table_name\":\"va_manual_rerun_1772293121_23069\",\"row_count\":288},{\"table_name\":\"va_manual_txt_1772289976_17217_51895f9a\",\"row_count\":8},{\"table_name\":\"va_manual_txt_1772290540_18325_72d67129\",\"row_count\":151},{\"table_name\":\"widgets\",\"row_count\":0}],\"row_count_approximate\":true,\"truncated\":false,\"truncation_note\":null,\"hint\":\"Row counts are estimates; null means an estimate is unavailable, not that the table is empty. For broad columns, call get_full_schema(detail_level='compact') directly; for one selected table's full adapter-visible column metadata, use describe_table(table_name=...). This is not complete DDL. total_tables = visible after allowlist. DB type: mysql\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": true,
+          "database_name": "trade_data_analysis",
+          "db_type": "mysql",
+          "connection_id": "trade_analysis_mysql",
+          "returned_table_count": 8,
+          "total_tables": 8,
+          "tables": [
+            {
+              "table_name": "orders",
+              "row_count": 8
+            },
+            {
+              "table_name": "trade_data_analysis_log",
+              "row_count": 145740
+            },
+            {
+              "table_name": "va_manual_rerun_1772291866_20686",
+              "row_count": 288
+            },
+            {
+              "table_name": "va_manual_rerun_1772291978_20962",
+              "row_count": 288
+            },
+            {
+              "table_name": "va_manual_rerun_1772293121_23069",
+              "row_count": 288
+            },
+            {
+              "table_name": "va_manual_txt_1772289976_17217_51895f9a",
+              "row_count": 8
+            },
+            {
+              "table_name": "va_manual_txt_1772290540_18325_72d67129",
+              "row_count": 151
+            },
+            {
+              "table_name": "widgets",
+              "row_count": 0
+            }
+          ],
+          "row_count_approximate": true,
+          "truncated": false,
+          "truncation_note": null,
+          "hint": "Row counts are estimates; null means an estimate is unavailable, not that the table is empty. For broad columns, call get_full_schema(detail_level='compact') directly; for one selected table's full adapter-visible column metadata, use describe_table(table_name=...). This is not complete DDL. total_tables = visible after allowlist. DB type: mysql"
+        },
+        "isError": false
+      },
+      "at": "2026-10-15 06:57:12 UTC",
+      "id": 4,
+      "expected": "Authorized orders is visible",
+      "passed": true,
+      "text_structured_matches": true
+    },
+    {
+      "name": "list_tables",
+      "args": {
+        "connection_id": "analytics_demo_sqlite"
+      },
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":true,\"database_name\":\"sqlite:analytics_demo_sqlite\",\"db_type\":\"sqlite\",\"connection_id\":\"analytics_demo_sqlite\",\"returned_table_count\":1,\"total_tables\":1,\"tables\":[{\"table_name\":\"orders\",\"row_count\":5}],\"row_count_approximate\":true,\"truncated\":false,\"truncation_note\":null,\"hint\":\"Row counts are estimates; null means an estimate is unavailable, not that the table is empty. For broad columns, call get_full_schema(detail_level='compact') directly; for one selected table's full adapter-visible column metadata, use describe_table(table_name=...). This is not complete DDL. total_tables = visible after allowlist. DB type: sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": true,
+          "database_name": "sqlite:analytics_demo_sqlite",
+          "db_type": "sqlite",
+          "connection_id": "analytics_demo_sqlite",
+          "returned_table_count": 1,
+          "total_tables": 1,
+          "tables": [
+            {
+              "table_name": "orders",
+              "row_count": 5
+            }
+          ],
+          "row_count_approximate": true,
+          "truncated": false,
+          "truncation_note": null,
+          "hint": "Row counts are estimates; null means an estimate is unavailable, not that the table is empty. For broad columns, call get_full_schema(detail_level='compact') directly; for one selected table's full adapter-visible column metadata, use describe_table(table_name=...). This is not complete DDL. total_tables = visible after allowlist. DB type: sqlite"
+        },
+        "isError": false
+      },
+      "at": "2026-10-15 06:57:12 UTC",
+      "id": 5,
+      "expected": "Authorized orders is visible",
+      "passed": true,
+      "text_structured_matches": true
+    },
+    {
+      "name": "describe_table",
+      "args": {
+        "connection_id": "trade_analysis_mysql",
+        "table_name": "orders"
+      },
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":true,\"table_name\":\"orders\",\"db_type\":\"mysql\",\"connection_id\":\"trade_analysis_mysql\",\"row_count\":8,\"row_count_approximate\":true,\"column_count\":7,\"columns\":[{\"column_name\":\"id\",\"data_type\":\"int\",\"nullable\":\"NO\",\"key_type\":\"PRI\",\"default_value\":null},{\"column_name\":\"order_date\",\"data_type\":\"datetime\",\"nullable\":\"NO\",\"key_type\":\"MUL\",\"default_value\":null},{\"column_name\":\"amount\",\"data_type\":\"decimal\",\"nullable\":\"NO\",\"key_type\":\"\",\"default_value\":null},{\"column_name\":\"total_amount\",\"data_type\":\"decimal\",\"nullable\":\"NO\",\"key_type\":\"\",\"default_value\":null},{\"column_name\":\"status\",\"data_type\":\"varchar\",\"nullable\":\"NO\",\"key_type\":\"MUL\",\"default_value\":\"pending\"},{\"column_name\":\"created_at\",\"data_type\":\"timestamp\",\"nullable\":\"YES\",\"key_type\":\"\",\"default_value\":\"CURRENT_TIMESTAMP\"},{\"column_name\":\"updated_at\",\"data_type\":\"timestamp\",\"nullable\":\"YES\",\"key_type\":\"\",\"default_value\":\"CURRENT_TIMESTAMP\"}],\"is_large\":false,\"indexes\":[{\"name\":\"PRIMARY\",\"primary\":true,\"unique\":true,\"columns\":[\"id\"],\"key_parts\":[{\"column\":\"id\",\"prefix_length\":null,\"sort_order\":\"asc\"}],\"visible\":true},{\"name\":\"idx_orders_order_date\",\"primary\":false,\"unique\":false,\"columns\":[\"order_date\"],\"key_parts\":[{\"column\":\"order_date\",\"prefix_length\":null,\"sort_order\":\"asc\"}],\"visible\":true},{\"name\":\"idx_orders_status\",\"primary\":false,\"unique\":false,\"columns\":[\"status\"],\"key_parts\":[{\"column\":\"status\",\"prefix_length\":null,\"sort_order\":\"asc\"}],\"visible\":true}],\"indexes_status\":\"complete\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": true,
+          "table_name": "orders",
+          "db_type": "mysql",
+          "connection_id": "trade_analysis_mysql",
+          "row_count": 8,
+          "row_count_approximate": true,
+          "column_count": 7,
+          "columns": [
+            {
+              "column_name": "id",
+              "data_type": "int",
+              "nullable": "NO",
+              "key_type": "PRI",
+              "default_value": null
+            },
+            {
+              "column_name": "order_date",
+              "data_type": "datetime",
+              "nullable": "NO",
+              "key_type": "MUL",
+              "default_value": null
+            },
+            {
+              "column_name": "amount",
+              "data_type": "decimal",
+              "nullable": "NO",
+              "key_type": "",
+              "default_value": null
+            },
+            {
+              "column_name": "total_amount",
+              "data_type": "decimal",
+              "nullable": "NO",
+              "key_type": "",
+              "default_value": null
+            },
+            {
+              "column_name": "status",
+              "data_type": "varchar",
+              "nullable": "NO",
+              "key_type": "MUL",
+              "default_value": "pending"
+            },
+            {
+              "column_name": "created_at",
+              "data_type": "timestamp",
+              "nullable": "YES",
+              "key_type": "",
+              "default_value": "CURRENT_TIMESTAMP"
+            },
+            {
+              "column_name": "updated_at",
+              "data_type": "timestamp",
+              "nullable": "YES",
+              "key_type": "",
+              "default_value": "CURRENT_TIMESTAMP"
+            }
+          ],
+          "is_large": false,
+          "indexes": [
+            {
+              "name": "PRIMARY",
+              "primary": true,
+              "unique": true,
+              "columns": [
+                "id"
+              ],
+              "key_parts": [
+                {
+                  "column": "id",
+                  "prefix_length": null,
+                  "sort_order": "asc"
+                }
+              ],
+              "visible": true
+            },
+            {
+              "name": "idx_orders_order_date",
+              "primary": false,
+              "unique": false,
+              "columns": [
+                "order_date"
+              ],
+              "key_parts": [
+                {
+                  "column": "order_date",
+                  "prefix_length": null,
+                  "sort_order": "asc"
+                }
+              ],
+              "visible": true
+            },
+            {
+              "name": "idx_orders_status",
+              "primary": false,
+              "unique": false,
+              "columns": [
+                "status"
+              ],
+              "key_parts": [
+                {
+                  "column": "status",
+                  "prefix_length": null,
+                  "sort_order": "asc"
+                }
+              ],
+              "visible": true
+            }
+          ],
+          "indexes_status": "complete"
+        },
+        "isError": false
+      },
+      "at": "2026-10-15 06:57:12 UTC",
+      "id": 6,
+      "expected": "orders columns available and index status complete",
+      "passed": true,
+      "text_structured_matches": true
+    },
+    {
+      "name": "describe_table",
+      "args": {
+        "connection_id": "analytics_demo_sqlite",
+        "table_name": "orders"
+      },
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":true,\"table_name\":\"orders\",\"db_type\":\"sqlite\",\"connection_id\":\"analytics_demo_sqlite\",\"row_count\":5,\"row_count_approximate\":true,\"column_count\":5,\"columns\":[{\"column_name\":\"id\",\"data_type\":\"INTEGER\",\"nullable\":\"YES\",\"key_type\":\"PRI\",\"default_value\":null},{\"column_name\":\"customer_id\",\"data_type\":\"INTEGER\",\"nullable\":\"NO\",\"key_type\":\"\",\"default_value\":null},{\"column_name\":\"order_date\",\"data_type\":\"TEXT\",\"nullable\":\"YES\",\"key_type\":\"\",\"default_value\":\"datetime('now')\"},{\"column_name\":\"status\",\"data_type\":\"TEXT\",\"nullable\":\"YES\",\"key_type\":\"\",\"default_value\":\"'pending'\"},{\"column_name\":\"total_amount\",\"data_type\":\"REAL\",\"nullable\":\"YES\",\"key_type\":\"\",\"default_value\":null}],\"is_large\":false,\"indexes\":[{\"name\":null,\"primary\":true,\"unique\":true,\"columns\":[\"id\"],\"key_parts\":[{\"column\":\"id\",\"sort_order\":null,\"collation\":null}],\"partial\":false}],\"indexes_status\":\"complete\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": true,
+          "table_name": "orders",
+          "db_type": "sqlite",
+          "connection_id": "analytics_demo_sqlite",
+          "row_count": 5,
+          "row_count_approximate": true,
+          "column_count": 5,
+          "columns": [
+            {
+              "column_name": "id",
+              "data_type": "INTEGER",
+              "nullable": "YES",
+              "key_type": "PRI",
+              "default_value": null
+            },
+            {
+              "column_name": "customer_id",
+              "data_type": "INTEGER",
+              "nullable": "NO",
+              "key_type": "",
+              "default_value": null
+            },
+            {
+              "column_name": "order_date",
+              "data_type": "TEXT",
+              "nullable": "YES",
+              "key_type": "",
+              "default_value": "datetime('now')"
+            },
+            {
+              "column_name": "status",
+              "data_type": "TEXT",
+              "nullable": "YES",
+              "key_type": "",
+              "default_value": "'pending'"
+            },
+            {
+              "column_name": "total_amount",
+              "data_type": "REAL",
+              "nullable": "YES",
+              "key_type": "",
+              "default_value": null
+            }
+          ],
+          "is_large": false,
+          "indexes": [
+            {
+              "name": null,
+              "primary": true,
+              "unique": true,
+              "columns": [
+                "id"
+              ],
+              "key_parts": [
+                {
+                  "column": "id",
+                  "sort_order": null,
+                  "collation": null
+                }
+              ],
+              "partial": false
+            }
+          ],
+          "indexes_status": "complete"
+        },
+        "isError": false
+      },
+      "at": "2026-10-15 06:57:12 UTC",
+      "id": 7,
+      "expected": "orders columns available and index status complete",
+      "passed": true,
+      "text_structured_matches": true
+    },
+    {
+      "name": "get_full_schema",
+      "args": {
+        "connection_id": "analytics_demo_sqlite",
+        "detail_level": "full"
+      },
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":true,\"schema\":{\"orders\":{\"row_count\":5,\"columns\":[{\"name\":\"id\",\"type\":\"INTEGER\",\"nullable\":\"YES\",\"key\":\"PRI\",\"default\":null},{\"name\":\"customer_id\",\"type\":\"INTEGER\",\"nullable\":\"NO\",\"key\":\"\",\"default\":null},{\"name\":\"order_date\",\"type\":\"TEXT\",\"nullable\":\"YES\",\"key\":\"\",\"default\":\"datetime('now')\"},{\"name\":\"status\",\"type\":\"TEXT\",\"nullable\":\"YES\",\"key\":\"\",\"default\":\"'pending'\"},{\"name\":\"total_amount\",\"type\":\"REAL\",\"nullable\":\"YES\",\"key\":\"\",\"default\":null}]}},\"db_type\":\"sqlite\",\"connection_id\":\"analytics_demo_sqlite\",\"detail_level\":\"full\",\"returned_table_count\":1,\"total_tables\":1,\"total_columns\":5,\"row_count_approximate\":true,\"truncated\":false,\"truncation_note\":null,\"hint\":\"Row counts are estimates; null means unavailable, not empty. Full adapter column metadata is shown. Use LIMIT for large tables (row_count > 1000). total_tables = visible after allowlist. DB type: sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": true,
+          "schema": {
+            "orders": {
+              "row_count": 5,
+              "columns": [
+                {
+                  "name": "id",
+                  "type": "INTEGER",
+                  "nullable": "YES",
+                  "key": "PRI",
+                  "default": null
+                },
+                {
+                  "name": "customer_id",
+                  "type": "INTEGER",
+                  "nullable": "NO",
+                  "key": "",
+                  "default": null
+                },
+                {
+                  "name": "order_date",
+                  "type": "TEXT",
+                  "nullable": "YES",
+                  "key": "",
+                  "default": "datetime('now')"
+                },
+                {
+                  "name": "status",
+                  "type": "TEXT",
+                  "nullable": "YES",
+                  "key": "",
+                  "default": "'pending'"
+                },
+                {
+                  "name": "total_amount",
+                  "type": "REAL",
+                  "nullable": "YES",
+                  "key": "",
+                  "default": null
+                }
+              ]
+            }
+          },
+          "db_type": "sqlite",
+          "connection_id": "analytics_demo_sqlite",
+          "detail_level": "full",
+          "returned_table_count": 1,
+          "total_tables": 1,
+          "total_columns": 5,
+          "row_count_approximate": true,
+          "truncated": false,
+          "truncation_note": null,
+          "hint": "Row counts are estimates; null means unavailable, not empty. Full adapter column metadata is shown. Use LIMIT for large tables (row_count > 1000). total_tables = visible after allowlist. DB type: sqlite"
+        },
+        "isError": false
+      },
+      "at": "2026-10-15 06:57:12 UTC",
+      "id": 8,
+      "expected": "Authorized orders schema available",
+      "passed": true,
+      "text_structured_matches": true
+    },
+    {
+      "name": "list_skills",
+      "args": {
+        "connection_id": "analytics_demo_sqlite",
+        "detail_level": "full",
+        "available_only": false,
+        "search": "sample-monthly-sales-report-sqlite"
+      },
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":true,\"skills\":[{\"name\":\"sample-monthly-sales-report\",\"type\":\"query\",\"description\":\"Generate a monthly sales summary report including daily revenue, order count, and average order value for a specified month.\",\"risk\":\"low\",\"category\":\"reporting\",\"executable\":false,\"profile_allowed\":true,\"db_compatible\":false,\"connection_scope_allowed\":true,\"policy_allowed\":true,\"schema_ready\":true,\"disabled_reason\":\"Target connection database type 'sqlite' is not compatible; supported: ['mysql'].\",\"source\":\"query.sql\",\"triggers\":[\"monthly sales\",\"revenue report\",\"sales summary\",\"monthly revenue\"],\"idempotent\":true,\"databases\":[\"mysql\"],\"connection_ids\":null,\"configured_connection_ids\":[],\"unconfigured_connection_ids\":[],\"connection_type_conflicts\":[],\"profiles\":[\"demo\"],\"related_skills\":[\"sample-monthly-sales-report-sqlite\"],\"params\":{\"year\":{\"type\":\"int\",\"required\":true,\"description\":\"Year (e.g. 2026)\"},\"month\":{\"type\":\"int\",\"required\":true,\"min\":1,\"max\":12,\"description\":\"Month (1-12)\"}},\"version\":\"1.0\",\"requires_confirmation\":false,\"tables\":[\"orders\"],\"schema_check_enabled\":true,\"schema_check_available\":true,\"missing_tables\":[],\"unverified_tables\":[],\"declared_tables\":[],\"inferred_tables\":[\"orders\"]},{\"name\":\"sample-monthly-sales-report-sqlite\",\"type\":\"query\",\"description\":\"Generate a SQLite monthly sales summary report including daily revenue, order count, and average order value for a specified month.\",\"risk\":\"low\",\"category\":\"reporting\",\"executable\":true,\"profile_allowed\":true,\"db_compatible\":true,\"connection_scope_allowed\":true,\"policy_allowed\":true,\"schema_ready\":true,\"source\":\"query.sql\",\"triggers\":[\"monthly sales\",\"revenue report\",\"sales summary\",\"monthly revenue\",\"sqlite monthly sales\"],\"idempotent\":true,\"databases\":[\"sqlite\"],\"connection_ids\":null,\"configured_connection_ids\":[],\"unconfigured_connection_ids\":[],\"connection_type_conflicts\":[],\"profiles\":[\"demo\"],\"related_skills\":[\"sample-monthly-sales-report\"],\"params\":{\"year\":{\"type\":\"int\",\"required\":true,\"description\":\"Year (e.g. 2026)\"},\"month\":{\"type\":\"int\",\"required\":true,\"min\":1,\"max\":12,\"description\":\"Month (1-12)\"}},\"version\":\"1.0\",\"requires_confirmation\":false,\"tables\":[\"orders\"],\"schema_check_enabled\":true,\"schema_check_available\":true,\"missing_tables\":[],\"unverified_tables\":[],\"declared_tables\":[],\"inferred_tables\":[\"orders\"]},{\"name\":\"sample-update-order-status\",\"type\":\"mutation\",\"description\":\"Update order status through the forward lifecycle pending to confirmed to shipped to delivered; cancelled and returned are terminal branches. Backward transitions such as delivered to shipped are rejected.\",\"risk\":\"medium\",\"category\":\"order-management\",\"executable\":false,\"profile_allowed\":true,\"db_compatible\":true,\"connection_scope_allowed\":true,\"policy_allowed\":false,\"schema_ready\":true,\"mutation_connection_supported\":false,\"mutation_policy_allowed\":false,\"disabled_reason\":\"Target connection is not authorized by skills.mutation.allowed_connections.\",\"source\":\"mutation.py\",\"triggers\":[\"update order status\",\"ship order\",\"confirm order\",\"cancel order\",\"deliver order\"],\"idempotent\":false,\"databases\":[\"mysql\",\"sqlite\"],\"connection_ids\":null,\"configured_connection_ids\":[],\"unconfigured_connection_ids\":[],\"connection_type_conflicts\":[],\"profiles\":[\"demo\"],\"related_skills\":[\"sample-reset-order-to-pending\",\"sample-monthly-sales-report\",\"sample-monthly-sales-report-sqlite\"],\"params\":{\"order_id\":{\"type\":\"int\",\"required\":true,\"description\":\"Order ID to update\"},\"new_status\":{\"type\":\"str\",\"required\":true,\"enum\":[\"pending\",\"confirmed\",\"shipped\",\"delivered\",\"cancelled\",\"returned\"],\"description\":\"Target status\"}},\"version\":\"1.0\",\"requires_confirmation\":true,\"tables\":[\"orders\"],\"schema_check_enabled\":true,\"schema_check_available\":true,\"missing_tables\":[],\"unverified_tables\":[]}],\"total_skills\":4,\"matched_skills\":3,\"matched_catalog_skills\":3,\"available_skills\":1,\"unavailable_skills\":2,\"filtered_unavailable_skills\":0,\"schema_unready_skills\":0,\"policy_blocked_skills\":1,\"connection_scope_blocked_skills\":0,\"connection_type_conflict_skills\":0,\"profile_excluded_skills\":0,\"query_skills\":2,\"mutation_skills\":1,\"mutations_enabled\":true,\"schema_check_enabled\":true,\"schema_check_available\":true,\"excluded_profiles\":[],\"detail_level\":\"full\",\"available_only\":false,\"current_database_type\":\"sqlite\",\"connection_id\":\"analytics_demo_sqlite\",\"search\":\"sample-monthly-sales-report-sqlite\",\"category\":null,\"categories\":[{\"category\":\"order-management\",\"count\":1},{\"category\":\"reporting\",\"count\":2}]}"
+          }
+        ],
+        "structuredContent": {
+          "success": true,
+          "skills": [
+            {
+              "name": "sample-monthly-sales-report",
+              "type": "query",
+              "description": "Generate a monthly sales summary report including daily revenue, order count, and average order value for a specified month.",
+              "risk": "low",
+              "category": "reporting",
+              "executable": false,
+              "profile_allowed": true,
+              "db_compatible": false,
+              "connection_scope_allowed": true,
+              "policy_allowed": true,
+              "schema_ready": true,
+              "disabled_reason": "Target connection database type 'sqlite' is not compatible; supported: ['mysql'].",
+              "source": "query.sql",
+              "triggers": [
+                "monthly sales",
+                "revenue report",
+                "sales summary",
+                "monthly revenue"
+              ],
+              "idempotent": true,
+              "databases": [
+                "mysql"
+              ],
+              "connection_ids": null,
+              "configured_connection_ids": [],
+              "unconfigured_connection_ids": [],
+              "connection_type_conflicts": [],
+              "profiles": [
+                "demo"
+              ],
+              "related_skills": [
+                "sample-monthly-sales-report-sqlite"
+              ],
+              "params": {
+                "year": {
+                  "type": "int",
+                  "required": true,
+                  "description": "Year (e.g. 2026)"
+                },
+                "month": {
+                  "type": "int",
+                  "required": true,
+                  "min": 1,
+                  "max": 12,
+                  "description": "Month (1-12)"
+                }
+              },
+              "version": "1.0",
+              "requires_confirmation": false,
+              "tables": [
+                "orders"
+              ],
+              "schema_check_enabled": true,
+              "schema_check_available": true,
+              "missing_tables": [],
+              "unverified_tables": [],
+              "declared_tables": [],
+              "inferred_tables": [
+                "orders"
+              ]
+            },
+            {
+              "name": "sample-monthly-sales-report-sqlite",
+              "type": "query",
+              "description": "Generate a SQLite monthly sales summary report including daily revenue, order count, and average order value for a specified month.",
+              "risk": "low",
+              "category": "reporting",
+              "executable": true,
+              "profile_allowed": true,
+              "db_compatible": true,
+              "connection_scope_allowed": true,
+              "policy_allowed": true,
+              "schema_ready": true,
+              "source": "query.sql",
+              "triggers": [
+                "monthly sales",
+                "revenue report",
+                "sales summary",
+                "monthly revenue",
+                "sqlite monthly sales"
+              ],
+              "idempotent": true,
+              "databases": [
+                "sqlite"
+              ],
+              "connection_ids": null,
+              "configured_connection_ids": [],
+              "unconfigured_connection_ids": [],
+              "connection_type_conflicts": [],
+              "profiles": [
+                "demo"
+              ],
+              "related_skills": [
+                "sample-monthly-sales-report"
+              ],
+              "params": {
+                "year": {
+                  "type": "int",
+                  "required": true,
+                  "description": "Year (e.g. 2026)"
+                },
+                "month": {
+                  "type": "int",
+                  "required": true,
+                  "min": 1,
+                  "max": 12,
+                  "description": "Month (1-12)"
+                }
+              },
+              "version": "1.0",
+              "requires_confirmation": false,
+              "tables": [
+                "orders"
+              ],
+              "schema_check_enabled": true,
+              "schema_check_available": true,
+              "missing_tables": [],
+              "unverified_tables": [],
+              "declared_tables": [],
+              "inferred_tables": [
+                "orders"
+              ]
+            },
+            {
+              "name": "sample-update-order-status",
+              "type": "mutation",
+              "description": "Update order status through the forward lifecycle pending to confirmed to shipped to delivered; cancelled and returned are terminal branches. Backward transitions such as delivered to shipped are rejected.",
+              "risk": "medium",
+              "category": "order-management",
+              "executable": false,
+              "profile_allowed": true,
+              "db_compatible": true,
+              "connection_scope_allowed": true,
+              "policy_allowed": false,
+              "schema_ready": true,
+              "mutation_connection_supported": false,
+              "mutation_policy_allowed": false,
+              "disabled_reason": "Target connection is not authorized by skills.mutation.allowed_connections.",
+              "source": "mutation.py",
+              "triggers": [
+                "update order status",
+                "ship order",
+                "confirm order",
+                "cancel order",
+                "deliver order"
+              ],
+              "idempotent": false,
+              "databases": [
+                "mysql",
+                "sqlite"
+              ],
+              "connection_ids": null,
+              "configured_connection_ids": [],
+              "unconfigured_connection_ids": [],
+              "connection_type_conflicts": [],
+              "profiles": [
+                "demo"
+              ],
+              "related_skills": [
+                "sample-reset-order-to-pending",
+                "sample-monthly-sales-report",
+                "sample-monthly-sales-report-sqlite"
+              ],
+              "params": {
+                "order_id": {
+                  "type": "int",
+                  "required": true,
+                  "description": "Order ID to update"
+                },
+                "new_status": {
+                  "type": "str",
+                  "required": true,
+                  "enum": [
+                    "pending",
+                    "confirmed",
+                    "shipped",
+                    "delivered",
+                    "cancelled",
+                    "returned"
+                  ],
+                  "description": "Target status"
+                }
+              },
+              "version": "1.0",
+              "requires_confirmation": true,
+              "tables": [
+                "orders"
+              ],
+              "schema_check_enabled": true,
+              "schema_check_available": true,
+              "missing_tables": [],
+              "unverified_tables": []
+            }
+          ],
+          "total_skills": 4,
+          "matched_skills": 3,
+          "matched_catalog_skills": 3,
+          "available_skills": 1,
+          "unavailable_skills": 2,
+          "filtered_unavailable_skills": 0,
+          "schema_unready_skills": 0,
+          "policy_blocked_skills": 1,
+          "connection_scope_blocked_skills": 0,
+          "connection_type_conflict_skills": 0,
+          "profile_excluded_skills": 0,
+          "query_skills": 2,
+          "mutation_skills": 1,
+          "mutations_enabled": true,
+          "schema_check_enabled": true,
+          "schema_check_available": true,
+          "excluded_profiles": [],
+          "detail_level": "full",
+          "available_only": false,
+          "current_database_type": "sqlite",
+          "connection_id": "analytics_demo_sqlite",
+          "search": "sample-monthly-sales-report-sqlite",
+          "category": null,
+          "categories": [
+            {
+              "category": "order-management",
+              "count": 1
+            },
+            {
+              "category": "reporting",
+              "count": 2
+            }
+          ]
+        },
+        "isError": false
+      },
+      "at": "2026-10-15 06:57:22 UTC",
+      "id": 9,
+      "expected": "Target dialect Skill executable, schema verified, no missing/unverified dependencies",
+      "passed": true,
+      "text_structured_matches": true
+    },
+    {
+      "name": "list_skills",
+      "args": {
+        "connection_id": "trade_analysis_mysql",
+        "detail_level": "full",
+        "available_only": false,
+        "search": "sample-monthly-sales-report"
+      },
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":true,\"skills\":[{\"name\":\"sample-monthly-sales-report\",\"type\":\"query\",\"description\":\"Generate a monthly sales summary report including daily revenue, order count, and average order value for a specified month.\",\"risk\":\"low\",\"category\":\"reporting\",\"executable\":true,\"profile_allowed\":true,\"db_compatible\":true,\"connection_scope_allowed\":true,\"policy_allowed\":true,\"schema_ready\":true,\"source\":\"query.sql\",\"triggers\":[\"monthly sales\",\"revenue report\",\"sales summary\",\"monthly revenue\"],\"idempotent\":true,\"databases\":[\"mysql\"],\"connection_ids\":null,\"configured_connection_ids\":[],\"unconfigured_connection_ids\":[],\"connection_type_conflicts\":[],\"profiles\":[\"demo\"],\"related_skills\":[\"sample-monthly-sales-report-sqlite\"],\"params\":{\"year\":{\"type\":\"int\",\"required\":true,\"description\":\"Year (e.g. 2026)\"},\"month\":{\"type\":\"int\",\"required\":true,\"min\":1,\"max\":12,\"description\":\"Month (1-12)\"}},\"version\":\"1.0\",\"requires_confirmation\":false,\"tables\":[\"orders\"],\"schema_check_enabled\":true,\"schema_check_available\":true,\"missing_tables\":[],\"unverified_tables\":[],\"declared_tables\":[],\"inferred_tables\":[\"orders\"]},{\"name\":\"sample-monthly-sales-report-sqlite\",\"type\":\"query\",\"description\":\"Generate a SQLite monthly sales summary report including daily revenue, order count, and average order value for a specified month.\",\"risk\":\"low\",\"category\":\"reporting\",\"executable\":false,\"profile_allowed\":true,\"db_compatible\":false,\"connection_scope_allowed\":true,\"policy_allowed\":true,\"schema_ready\":true,\"disabled_reason\":\"Target connection database type 'mysql' is not compatible; supported: ['sqlite'].\",\"source\":\"query.sql\",\"triggers\":[\"monthly sales\",\"revenue report\",\"sales summary\",\"monthly revenue\",\"sqlite monthly sales\"],\"idempotent\":true,\"databases\":[\"sqlite\"],\"connection_ids\":null,\"configured_connection_ids\":[],\"unconfigured_connection_ids\":[],\"connection_type_conflicts\":[],\"profiles\":[\"demo\"],\"related_skills\":[\"sample-monthly-sales-report\"],\"params\":{\"year\":{\"type\":\"int\",\"required\":true,\"description\":\"Year (e.g. 2026)\"},\"month\":{\"type\":\"int\",\"required\":true,\"min\":1,\"max\":12,\"description\":\"Month (1-12)\"}},\"version\":\"1.0\",\"requires_confirmation\":false,\"tables\":[\"orders\"],\"schema_check_enabled\":true,\"schema_check_available\":true,\"missing_tables\":[],\"unverified_tables\":[],\"declared_tables\":[],\"inferred_tables\":[\"orders\"]},{\"name\":\"sample-update-order-status\",\"type\":\"mutation\",\"description\":\"Update order status through the forward lifecycle pending to confirmed to shipped to delivered; cancelled and returned are terminal branches. Backward transitions such as delivered to shipped are rejected.\",\"risk\":\"medium\",\"category\":\"order-management\",\"executable\":false,\"profile_allowed\":true,\"db_compatible\":true,\"connection_scope_allowed\":true,\"policy_allowed\":false,\"schema_ready\":true,\"mutation_connection_supported\":false,\"mutation_policy_allowed\":false,\"disabled_reason\":\"Target connection is not authorized by skills.mutation.allowed_connections.\",\"source\":\"mutation.py\",\"triggers\":[\"update order status\",\"ship order\",\"confirm order\",\"cancel order\",\"deliver order\"],\"idempotent\":false,\"databases\":[\"mysql\",\"sqlite\"],\"connection_ids\":null,\"configured_connection_ids\":[],\"unconfigured_connection_ids\":[],\"connection_type_conflicts\":[],\"profiles\":[\"demo\"],\"related_skills\":[\"sample-reset-order-to-pending\",\"sample-monthly-sales-report\",\"sample-monthly-sales-report-sqlite\"],\"params\":{\"order_id\":{\"type\":\"int\",\"required\":true,\"description\":\"Order ID to update\"},\"new_status\":{\"type\":\"str\",\"required\":true,\"enum\":[\"pending\",\"confirmed\",\"shipped\",\"delivered\",\"cancelled\",\"returned\"],\"description\":\"Target status\"}},\"version\":\"1.0\",\"requires_confirmation\":true,\"tables\":[\"orders\"],\"schema_check_enabled\":true,\"schema_check_available\":true,\"missing_tables\":[],\"unverified_tables\":[]}],\"total_skills\":4,\"matched_skills\":3,\"matched_catalog_skills\":3,\"available_skills\":1,\"unavailable_skills\":2,\"filtered_unavailable_skills\":0,\"schema_unready_skills\":0,\"policy_blocked_skills\":1,\"connection_scope_blocked_skills\":0,\"connection_type_conflict_skills\":0,\"profile_excluded_skills\":0,\"query_skills\":2,\"mutation_skills\":1,\"mutations_enabled\":true,\"schema_check_enabled\":true,\"schema_check_available\":true,\"excluded_profiles\":[],\"detail_level\":\"full\",\"available_only\":false,\"current_database_type\":\"mysql\",\"connection_id\":\"trade_analysis_mysql\",\"search\":\"sample-monthly-sales-report\",\"category\":null,\"categories\":[{\"category\":\"order-management\",\"count\":1},{\"category\":\"reporting\",\"count\":2}]}"
+          }
+        ],
+        "structuredContent": {
+          "success": true,
+          "skills": [
+            {
+              "name": "sample-monthly-sales-report",
+              "type": "query",
+              "description": "Generate a monthly sales summary report including daily revenue, order count, and average order value for a specified month.",
+              "risk": "low",
+              "category": "reporting",
+              "executable": true,
+              "profile_allowed": true,
+              "db_compatible": true,
+              "connection_scope_allowed": true,
+              "policy_allowed": true,
+              "schema_ready": true,
+              "source": "query.sql",
+              "triggers": [
+                "monthly sales",
+                "revenue report",
+                "sales summary",
+                "monthly revenue"
+              ],
+              "idempotent": true,
+              "databases": [
+                "mysql"
+              ],
+              "connection_ids": null,
+              "configured_connection_ids": [],
+              "unconfigured_connection_ids": [],
+              "connection_type_conflicts": [],
+              "profiles": [
+                "demo"
+              ],
+              "related_skills": [
+                "sample-monthly-sales-report-sqlite"
+              ],
+              "params": {
+                "year": {
+                  "type": "int",
+                  "required": true,
+                  "description": "Year (e.g. 2026)"
+                },
+                "month": {
+                  "type": "int",
+                  "required": true,
+                  "min": 1,
+                  "max": 12,
+                  "description": "Month (1-12)"
+                }
+              },
+              "version": "1.0",
+              "requires_confirmation": false,
+              "tables": [
+                "orders"
+              ],
+              "schema_check_enabled": true,
+              "schema_check_available": true,
+              "missing_tables": [],
+              "unverified_tables": [],
+              "declared_tables": [],
+              "inferred_tables": [
+                "orders"
+              ]
+            },
+            {
+              "name": "sample-monthly-sales-report-sqlite",
+              "type": "query",
+              "description": "Generate a SQLite monthly sales summary report including daily revenue, order count, and average order value for a specified month.",
+              "risk": "low",
+              "category": "reporting",
+              "executable": false,
+              "profile_allowed": true,
+              "db_compatible": false,
+              "connection_scope_allowed": true,
+              "policy_allowed": true,
+              "schema_ready": true,
+              "disabled_reason": "Target connection database type 'mysql' is not compatible; supported: ['sqlite'].",
+              "source": "query.sql",
+              "triggers": [
+                "monthly sales",
+                "revenue report",
+                "sales summary",
+                "monthly revenue",
+                "sqlite monthly sales"
+              ],
+              "idempotent": true,
+              "databases": [
+                "sqlite"
+              ],
+              "connection_ids": null,
+              "configured_connection_ids": [],
+              "unconfigured_connection_ids": [],
+              "connection_type_conflicts": [],
+              "profiles": [
+                "demo"
+              ],
+              "related_skills": [
+                "sample-monthly-sales-report"
+              ],
+              "params": {
+                "year": {
+                  "type": "int",
+                  "required": true,
+                  "description": "Year (e.g. 2026)"
+                },
+                "month": {
+                  "type": "int",
+                  "required": true,
+                  "min": 1,
+                  "max": 12,
+                  "description": "Month (1-12)"
+                }
+              },
+              "version": "1.0",
+              "requires_confirmation": false,
+              "tables": [
+                "orders"
+              ],
+              "schema_check_enabled": true,
+              "schema_check_available": true,
+              "missing_tables": [],
+              "unverified_tables": [],
+              "declared_tables": [],
+              "inferred_tables": [
+                "orders"
+              ]
+            },
+            {
+              "name": "sample-update-order-status",
+              "type": "mutation",
+              "description": "Update order status through the forward lifecycle pending to confirmed to shipped to delivered; cancelled and returned are terminal branches. Backward transitions such as delivered to shipped are rejected.",
+              "risk": "medium",
+              "category": "order-management",
+              "executable": false,
+              "profile_allowed": true,
+              "db_compatible": true,
+              "connection_scope_allowed": true,
+              "policy_allowed": false,
+              "schema_ready": true,
+              "mutation_connection_supported": false,
+              "mutation_policy_allowed": false,
+              "disabled_reason": "Target connection is not authorized by skills.mutation.allowed_connections.",
+              "source": "mutation.py",
+              "triggers": [
+                "update order status",
+                "ship order",
+                "confirm order",
+                "cancel order",
+                "deliver order"
+              ],
+              "idempotent": false,
+              "databases": [
+                "mysql",
+                "sqlite"
+              ],
+              "connection_ids": null,
+              "configured_connection_ids": [],
+              "unconfigured_connection_ids": [],
+              "connection_type_conflicts": [],
+              "profiles": [
+                "demo"
+              ],
+              "related_skills": [
+                "sample-reset-order-to-pending",
+                "sample-monthly-sales-report",
+                "sample-monthly-sales-report-sqlite"
+              ],
+              "params": {
+                "order_id": {
+                  "type": "int",
+                  "required": true,
+                  "description": "Order ID to update"
+                },
+                "new_status": {
+                  "type": "str",
+                  "required": true,
+                  "enum": [
+                    "pending",
+                    "confirmed",
+                    "shipped",
+                    "delivered",
+                    "cancelled",
+                    "returned"
+                  ],
+                  "description": "Target status"
+                }
+              },
+              "version": "1.0",
+              "requires_confirmation": true,
+              "tables": [
+                "orders"
+              ],
+              "schema_check_enabled": true,
+              "schema_check_available": true,
+              "missing_tables": [],
+              "unverified_tables": []
+            }
+          ],
+          "total_skills": 4,
+          "matched_skills": 3,
+          "matched_catalog_skills": 3,
+          "available_skills": 1,
+          "unavailable_skills": 2,
+          "filtered_unavailable_skills": 0,
+          "schema_unready_skills": 0,
+          "policy_blocked_skills": 1,
+          "connection_scope_blocked_skills": 0,
+          "connection_type_conflict_skills": 0,
+          "profile_excluded_skills": 0,
+          "query_skills": 2,
+          "mutation_skills": 1,
+          "mutations_enabled": true,
+          "schema_check_enabled": true,
+          "schema_check_available": true,
+          "excluded_profiles": [],
+          "detail_level": "full",
+          "available_only": false,
+          "current_database_type": "mysql",
+          "connection_id": "trade_analysis_mysql",
+          "search": "sample-monthly-sales-report",
+          "category": null,
+          "categories": [
+            {
+              "category": "order-management",
+              "count": 1
+            },
+            {
+              "category": "reporting",
+              "count": 2
+            }
+          ]
+        },
+        "isError": false
+      },
+      "at": "2026-10-15 06:57:22 UTC",
+      "id": 10,
+      "expected": "Target dialect Skill executable, schema verified, no missing/unverified dependencies",
+      "passed": true,
+      "text_structured_matches": true
+    },
+    {
+      "name": "get_skill_detail",
+      "args": {
+        "connection_id": "analytics_demo_sqlite",
+        "skill_name": "sample-monthly-sales-report-sqlite",
+        "detail_level": "full"
+      },
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":true,\"skill\":{\"name\":\"sample-monthly-sales-report-sqlite\",\"type\":\"query\",\"description\":\"Generate a SQLite monthly sales summary report including daily revenue, order count, and average order value for a specified month.\",\"risk\":\"low\",\"category\":\"reporting\",\"executable\":true,\"profile_allowed\":true,\"db_compatible\":true,\"connection_scope_allowed\":true,\"policy_allowed\":true,\"schema_ready\":true,\"source\":\"query.sql\",\"triggers\":[\"monthly sales\",\"revenue report\",\"sales summary\",\"monthly revenue\",\"sqlite monthly sales\"],\"idempotent\":true,\"databases\":[\"sqlite\"],\"connection_ids\":null,\"configured_connection_ids\":[],\"unconfigured_connection_ids\":[],\"connection_type_conflicts\":[],\"profiles\":[\"demo\"],\"related_skills\":[\"sample-monthly-sales-report\"],\"params\":{\"year\":{\"type\":\"int\",\"required\":true,\"description\":\"Year (e.g. 2026)\"},\"month\":{\"type\":\"int\",\"required\":true,\"min\":1,\"max\":12,\"description\":\"Month (1-12)\"}},\"version\":\"1.0\",\"requires_confirmation\":false,\"tables\":[\"orders\"],\"schema_check_enabled\":true,\"schema_check_available\":true,\"missing_tables\":[],\"unverified_tables\":[],\"declared_tables\":[],\"inferred_tables\":[\"orders\"]},\"connection_id\":\"analytics_demo_sqlite\",\"current_database_type\":\"sqlite\",\"usage_hint\":\"Call execute_query_skill(skill_name, params, connection_id) with this same target connection and params matching the schema.\",\"mutations_enabled\":true,\"schema_check_enabled\":true,\"schema_check_available\":true}"
+          }
+        ],
+        "structuredContent": {
+          "success": true,
+          "skill": {
+            "name": "sample-monthly-sales-report-sqlite",
+            "type": "query",
+            "description": "Generate a SQLite monthly sales summary report including daily revenue, order count, and average order value for a specified month.",
+            "risk": "low",
+            "category": "reporting",
+            "executable": true,
+            "profile_allowed": true,
+            "db_compatible": true,
+            "connection_scope_allowed": true,
+            "policy_allowed": true,
+            "schema_ready": true,
+            "source": "query.sql",
+            "triggers": [
+              "monthly sales",
+              "revenue report",
+              "sales summary",
+              "monthly revenue",
+              "sqlite monthly sales"
+            ],
+            "idempotent": true,
+            "databases": [
+              "sqlite"
+            ],
+            "connection_ids": null,
+            "configured_connection_ids": [],
+            "unconfigured_connection_ids": [],
+            "connection_type_conflicts": [],
+            "profiles": [
+              "demo"
+            ],
+            "related_skills": [
+              "sample-monthly-sales-report"
+            ],
+            "params": {
+              "year": {
+                "type": "int",
+                "required": true,
+                "description": "Year (e.g. 2026)"
+              },
+              "month": {
+                "type": "int",
+                "required": true,
+                "min": 1,
+                "max": 12,
+                "description": "Month (1-12)"
+              }
+            },
+            "version": "1.0",
+            "requires_confirmation": false,
+            "tables": [
+              "orders"
+            ],
+            "schema_check_enabled": true,
+            "schema_check_available": true,
+            "missing_tables": [],
+            "unverified_tables": [],
+            "declared_tables": [],
+            "inferred_tables": [
+              "orders"
+            ]
+          },
+          "connection_id": "analytics_demo_sqlite",
+          "current_database_type": "sqlite",
+          "usage_hint": "Call execute_query_skill(skill_name, params, connection_id) with this same target connection and params matching the schema.",
+          "mutations_enabled": true,
+          "schema_check_enabled": true,
+          "schema_check_available": true
+        },
+        "isError": false
+      },
+      "at": "2026-10-15 06:57:22 UTC",
+      "id": 11,
+      "expected": "Target dialect Skill executable, schema verified, no missing/unverified dependencies",
+      "passed": true,
+      "text_structured_matches": true
+    },
+    {
+      "name": "get_skill_detail",
+      "args": {
+        "connection_id": "trade_analysis_mysql",
+        "skill_name": "sample-monthly-sales-report",
+        "detail_level": "full"
+      },
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":true,\"skill\":{\"name\":\"sample-monthly-sales-report\",\"type\":\"query\",\"description\":\"Generate a monthly sales summary report including daily revenue, order count, and average order value for a specified month.\",\"risk\":\"low\",\"category\":\"reporting\",\"executable\":true,\"profile_allowed\":true,\"db_compatible\":true,\"connection_scope_allowed\":true,\"policy_allowed\":true,\"schema_ready\":true,\"source\":\"query.sql\",\"triggers\":[\"monthly sales\",\"revenue report\",\"sales summary\",\"monthly revenue\"],\"idempotent\":true,\"databases\":[\"mysql\"],\"connection_ids\":null,\"configured_connection_ids\":[],\"unconfigured_connection_ids\":[],\"connection_type_conflicts\":[],\"profiles\":[\"demo\"],\"related_skills\":[\"sample-monthly-sales-report-sqlite\"],\"params\":{\"year\":{\"type\":\"int\",\"required\":true,\"description\":\"Year (e.g. 2026)\"},\"month\":{\"type\":\"int\",\"required\":true,\"min\":1,\"max\":12,\"description\":\"Month (1-12)\"}},\"version\":\"1.0\",\"requires_confirmation\":false,\"tables\":[\"orders\"],\"schema_check_enabled\":true,\"schema_check_available\":true,\"missing_tables\":[],\"unverified_tables\":[],\"declared_tables\":[],\"inferred_tables\":[\"orders\"]},\"connection_id\":\"trade_analysis_mysql\",\"current_database_type\":\"mysql\",\"usage_hint\":\"Call execute_query_skill(skill_name, params, connection_id) with this same target connection and params matching the schema.\",\"mutations_enabled\":true,\"schema_check_enabled\":true,\"schema_check_available\":true}"
+          }
+        ],
+        "structuredContent": {
+          "success": true,
+          "skill": {
+            "name": "sample-monthly-sales-report",
+            "type": "query",
+            "description": "Generate a monthly sales summary report including daily revenue, order count, and average order value for a specified month.",
+            "risk": "low",
+            "category": "reporting",
+            "executable": true,
+            "profile_allowed": true,
+            "db_compatible": true,
+            "connection_scope_allowed": true,
+            "policy_allowed": true,
+            "schema_ready": true,
+            "source": "query.sql",
+            "triggers": [
+              "monthly sales",
+              "revenue report",
+              "sales summary",
+              "monthly revenue"
+            ],
+            "idempotent": true,
+            "databases": [
+              "mysql"
+            ],
+            "connection_ids": null,
+            "configured_connection_ids": [],
+            "unconfigured_connection_ids": [],
+            "connection_type_conflicts": [],
+            "profiles": [
+              "demo"
+            ],
+            "related_skills": [
+              "sample-monthly-sales-report-sqlite"
+            ],
+            "params": {
+              "year": {
+                "type": "int",
+                "required": true,
+                "description": "Year (e.g. 2026)"
+              },
+              "month": {
+                "type": "int",
+                "required": true,
+                "min": 1,
+                "max": 12,
+                "description": "Month (1-12)"
+              }
+            },
+            "version": "1.0",
+            "requires_confirmation": false,
+            "tables": [
+              "orders"
+            ],
+            "schema_check_enabled": true,
+            "schema_check_available": true,
+            "missing_tables": [],
+            "unverified_tables": [],
+            "declared_tables": [],
+            "inferred_tables": [
+              "orders"
+            ]
+          },
+          "connection_id": "trade_analysis_mysql",
+          "current_database_type": "mysql",
+          "usage_hint": "Call execute_query_skill(skill_name, params, connection_id) with this same target connection and params matching the schema.",
+          "mutations_enabled": true,
+          "schema_check_enabled": true,
+          "schema_check_available": true
+        },
+        "isError": false
+      },
+      "at": "2026-10-15 06:57:22 UTC",
+      "id": 12,
+      "expected": "Target dialect Skill executable, schema verified, no missing/unverified dependencies",
+      "passed": true,
+      "text_structured_matches": true
+    },
+    {
+      "name": "execute_query_skill",
+      "args": {
+        "connection_id": "analytics_demo_sqlite",
+        "skill_name": "sample-monthly-sales-report-sqlite",
+        "params": {
+          "year": 2026,
+          "month": 1
+        }
+      },
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":true,\"skill_name\":\"sample-monthly-sales-report-sqlite\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\",\"data\":[{\"date\":\"2026-01-10\",\"order_count\":1,\"revenue\":1349.98,\"avg_order_value\":1349.98},{\"date\":\"2026-01-11\",\"order_count\":1,\"revenue\":84.99,\"avg_order_value\":84.99},{\"date\":\"2026-01-12\",\"order_count\":1,\"revenue\":45.0,\"avg_order_value\":45.0},{\"date\":\"2026-01-13\",\"order_count\":1,\"revenue\":139.97,\"avg_order_value\":139.97},{\"date\":\"2026-01-14\",\"order_count\":1,\"revenue\":89.99,\"avg_order_value\":89.99}],\"row_count\":5,\"total_rows\":5,\"truncated\":false,\"truncation_note\":null}"
+          }
+        ],
+        "structuredContent": {
+          "success": true,
+          "skill_name": "sample-monthly-sales-report-sqlite",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite",
+          "data": [
+            {
+              "date": "2026-01-10",
+              "order_count": 1,
+              "revenue": 1349.98,
+              "avg_order_value": 1349.98
+            },
+            {
+              "date": "2026-01-11",
+              "order_count": 1,
+              "revenue": 84.99,
+              "avg_order_value": 84.99
+            },
+            {
+              "date": "2026-01-12",
+              "order_count": 1,
+              "revenue": 45,
+              "avg_order_value": 45
+            },
+            {
+              "date": "2026-01-13",
+              "order_count": 1,
+              "revenue": 139.97,
+              "avg_order_value": 139.97
+            },
+            {
+              "date": "2026-01-14",
+              "order_count": 1,
+              "revenue": 89.99,
+              "avg_order_value": 89.99
+            }
+          ],
+          "row_count": 5,
+          "total_rows": 5,
+          "truncated": false,
+          "truncation_note": null
+        },
+        "isError": false
+      },
+      "at": "2026-10-15 06:57:22 UTC",
+      "id": 13,
+      "expected": "5 daily report rows; summed order count = 5",
+      "passed": true,
+      "text_structured_matches": true
+    },
+    {
+      "name": "execute_query_skill",
+      "args": {
+        "connection_id": "trade_analysis_mysql",
+        "skill_name": "sample-monthly-sales-report",
+        "params": {
+          "year": 2026,
+          "month": 1
+        }
+      },
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":true,\"skill_name\":\"sample-monthly-sales-report\",\"connection_id\":\"trade_analysis_mysql\",\"db_type\":\"mysql\",\"data\":[],\"row_count\":0,\"total_rows\":0,\"truncated\":false,\"truncation_note\":null}"
+          }
+        ],
+        "structuredContent": {
+          "success": true,
+          "skill_name": "sample-monthly-sales-report",
+          "connection_id": "trade_analysis_mysql",
+          "db_type": "mysql",
+          "data": [],
+          "row_count": 0,
+          "total_rows": 0,
+          "truncated": false,
+          "truncation_note": null
+        },
+        "isError": false
+      },
+      "at": "2026-10-15 06:57:22 UTC",
+      "id": 14,
+      "expected": "Successful empty report (independent count = 0)",
+      "passed": true,
+      "text_structured_matches": true
+    },
+    {
+      "name": "query",
+      "args": {
+        "connection_id": "analytics_demo_sqlite",
+        "sql": "SELECT COUNT(*) AS n FROM orders WHERE order_date >= '2026-01-01' AND order_date < '2026-02-01'"
+      },
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":true,\"data\":[{\"n\":5}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null,\"query\":\"SELECT COUNT(*) AS n FROM orders WHERE order_date >= '2026-01-01' AND order_date < '2026-02-01'\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": true,
+          "data": [
+            {
+              "n": 5
+            }
+          ],
+          "row_count": 1,
+          "total_rows": 1,
+          "truncated": false,
+          "truncation_note": null,
+          "query": "SELECT COUNT(*) AS n FROM orders WHERE order_date >= '2026-01-01' AND order_date < '2026-02-01'",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      },
+      "at": "2026-10-15 06:57:22 UTC",
+      "id": 15,
+      "expected": "n = 5",
+      "passed": true,
+      "text_structured_matches": true
+    },
+    {
+      "name": "query",
+      "args": {
+        "connection_id": "trade_analysis_mysql",
+        "sql": "SELECT COUNT(*) AS n FROM orders WHERE YEAR(order_date) = 2026 AND MONTH(order_date) = 1"
+      },
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":true,\"data\":[{\"n\":0}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null,\"query\":\"SELECT COUNT(*) AS n FROM orders WHERE YEAR(order_date) = 2026 AND MONTH(order_date) = 1\",\"connection_id\":\"trade_analysis_mysql\",\"db_type\":\"mysql\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": true,
+          "data": [
+            {
+              "n": 0
+            }
+          ],
+          "row_count": 1,
+          "total_rows": 1,
+          "truncated": false,
+          "truncation_note": null,
+          "query": "SELECT COUNT(*) AS n FROM orders WHERE YEAR(order_date) = 2026 AND MONTH(order_date) = 1",
+          "connection_id": "trade_analysis_mysql",
+          "db_type": "mysql"
+        },
+        "isError": false
+      },
+      "at": "2026-10-15 06:57:22 UTC",
+      "id": 16,
+      "expected": "n = 0",
+      "passed": true,
+      "text_structured_matches": true
+    }
+  ]
+}
+

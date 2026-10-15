@@ -1,0 +1,319 @@
+{
+  "before": {
+    "sqlite_version": "3.45.1",
+    "policy_sha256": "ab25a08c17f2307078f82fded19eff03e20954868f00eebd808286bb293885dd",
+    "cases": [
+      {
+        "physical_name": "  f  ",
+        "other_name": " f ",
+        "sql": "WITH \" f \" AS (SELECT 7 AS id) SELECT id FROM \"  f  \"",
+        "native_rows": [
+          [
+            999
+          ]
+        ],
+        "normalized_sql": "WITH \" f \" AS (SELECT 7 AS id) SELECT id FROM \" f \"",
+        "dependencies": [],
+        "other_grant": {
+          "allowed": true,
+          "error_code": null,
+          "message": null,
+          "hint": null
+        },
+        "exact_grant": {
+          "allowed": true,
+          "error_code": null,
+          "message": null,
+          "hint": null
+        }
+      },
+      {
+        "physical_name": "[f]",
+        "other_name": "f",
+        "sql": "WITH \"f\" AS (SELECT 7 AS id) SELECT id FROM \"[f]\"",
+        "native_rows": [
+          [
+            999
+          ]
+        ],
+        "normalized_sql": "WITH \"f\" AS (SELECT 7 AS id) SELECT id FROM \"[f]\"",
+        "dependencies": [],
+        "other_grant": {
+          "allowed": true,
+          "error_code": null,
+          "message": null,
+          "hint": null
+        },
+        "exact_grant": {
+          "allowed": true,
+          "error_code": null,
+          "message": null,
+          "hint": null
+        }
+      },
+      {
+        "physical_name": "a\"b",
+        "other_name": "a\"\"b",
+        "sql": "WITH \"a\"\"\"\"b\" AS (SELECT 7 AS id) SELECT id FROM \"a\"\"b\"",
+        "native_rows": [
+          [
+            999
+          ]
+        ],
+        "normalized_sql": "WITH \"a\"\"\"\"b\" AS (SELECT 7 AS id) SELECT id FROM \"a\"\"b\"",
+        "dependencies": [
+          "a\"\"b"
+        ],
+        "other_grant": {
+          "allowed": true,
+          "error_code": null,
+          "message": null,
+          "hint": null
+        },
+        "exact_grant": {
+          "allowed": false,
+          "error_code": "table_access_denied",
+          "message": "Access denied to table(s): a\"\"b. Only allowed tables: a\"b",
+          "hint": "Keep the same connection and use authorized tables. If CTE name rules are unknown or case-sensitive, match the declaration's exact case."
+        }
+      },
+      {
+        "physical_name": "a`b",
+        "other_name": "a``b",
+        "sql": "WITH \"a``b\" AS (SELECT 7 AS id) SELECT id FROM \"a`b\"",
+        "native_rows": [
+          [
+            999
+          ]
+        ],
+        "normalized_sql": "WITH \"a``b\" AS (SELECT 7 AS id) SELECT id FROM \"a`b\"",
+        "dependencies": [
+          "a`b"
+        ],
+        "other_grant": {
+          "allowed": false,
+          "error_code": "table_access_denied",
+          "message": "Access denied to table(s): a`b. Only allowed tables: a``b",
+          "hint": "Keep the same connection and use authorized tables. If CTE name rules are unknown or case-sensitive, match the declaration's exact case."
+        },
+        "exact_grant": {
+          "allowed": true,
+          "error_code": null,
+          "message": null,
+          "hint": null
+        }
+      },
+      {
+        "physical_name": "\tf\t",
+        "other_name": " f ",
+        "sql": "WITH \" f \" AS (SELECT 7 AS id) SELECT id FROM \"\tf\t\"",
+        "native_rows": [
+          [
+            999
+          ]
+        ],
+        "normalized_sql": "WITH \" f \" AS (SELECT 7 AS id) SELECT id FROM \" f \"",
+        "dependencies": [],
+        "other_grant": {
+          "allowed": true,
+          "error_code": null,
+          "message": null,
+          "hint": null
+        },
+        "exact_grant": {
+          "allowed": true,
+          "error_code": null,
+          "message": null,
+          "hint": null
+        }
+      },
+      {
+        "physical_name": "f\nx",
+        "other_name": "f x",
+        "sql": "WITH \"f x\" AS (SELECT 7 AS id) SELECT id FROM \"f\nx\"",
+        "native_rows": [
+          [
+            999
+          ]
+        ],
+        "normalized_sql": "WITH \"f x\" AS (SELECT 7 AS id) SELECT id FROM \"f x\"",
+        "dependencies": [],
+        "other_grant": {
+          "allowed": true,
+          "error_code": null,
+          "message": null,
+          "hint": null
+        },
+        "exact_grant": {
+          "allowed": true,
+          "error_code": null,
+          "message": null,
+          "hint": null
+        }
+      }
+    ]
+  },
+  "after": {
+    "sqlite_version": "3.45.1",
+    "policy_sha256": "a14529b17d7ecd8c22e55f55cf58fba8a9aa9d69af9d2565ed88f03672fd3265",
+    "cases": [
+      {
+        "physical_name": "  f  ",
+        "other_name": " f ",
+        "sql": "WITH \" f \" AS (SELECT 7 AS id) SELECT id FROM \"  f  \"",
+        "native_rows": [
+          [
+            999
+          ]
+        ],
+        "normalized_sql": "WITH \" f \" AS (SELECT 7 AS id) SELECT id FROM \"  f  \"",
+        "dependencies": [
+          "  f  "
+        ],
+        "other_grant": {
+          "allowed": false,
+          "error_code": "table_access_denied",
+          "message": "Access denied to table(s):   f  . Only allowed tables:  f ",
+          "hint": "Keep the same connection and use authorized tables. If CTE name rules are unknown or case-sensitive, match the declaration's exact case."
+        },
+        "exact_grant": {
+          "allowed": true,
+          "error_code": null,
+          "message": null,
+          "hint": null
+        }
+      },
+      {
+        "physical_name": "[f]",
+        "other_name": "f",
+        "sql": "WITH \"f\" AS (SELECT 7 AS id) SELECT id FROM \"[f]\"",
+        "native_rows": [
+          [
+            999
+          ]
+        ],
+        "normalized_sql": "WITH \"f\" AS (SELECT 7 AS id) SELECT id FROM \"[f]\"",
+        "dependencies": [
+          "[f]"
+        ],
+        "other_grant": {
+          "allowed": false,
+          "error_code": "table_access_denied",
+          "message": "Access denied to table(s): [f]. Only allowed tables: f",
+          "hint": "Keep the same connection and use authorized tables. If CTE name rules are unknown or case-sensitive, match the declaration's exact case."
+        },
+        "exact_grant": {
+          "allowed": true,
+          "error_code": null,
+          "message": null,
+          "hint": null
+        }
+      },
+      {
+        "physical_name": "a\"b",
+        "other_name": "a\"\"b",
+        "sql": "WITH \"a\"\"\"\"b\" AS (SELECT 7 AS id) SELECT id FROM \"a\"\"b\"",
+        "native_rows": [
+          [
+            999
+          ]
+        ],
+        "normalized_sql": "WITH \"a\"\"\"\"b\" AS (SELECT 7 AS id) SELECT id FROM \"a\"\"b\"",
+        "dependencies": [
+          "a\"b"
+        ],
+        "other_grant": {
+          "allowed": false,
+          "error_code": "table_access_denied",
+          "message": "Access denied to table(s): a\"b. Only allowed tables: a\"\"b",
+          "hint": "Keep the same connection and use authorized tables. If CTE name rules are unknown or case-sensitive, match the declaration's exact case."
+        },
+        "exact_grant": {
+          "allowed": true,
+          "error_code": null,
+          "message": null,
+          "hint": null
+        }
+      },
+      {
+        "physical_name": "a`b",
+        "other_name": "a``b",
+        "sql": "WITH \"a``b\" AS (SELECT 7 AS id) SELECT id FROM \"a`b\"",
+        "native_rows": [
+          [
+            999
+          ]
+        ],
+        "normalized_sql": "WITH \"a``b\" AS (SELECT 7 AS id) SELECT id FROM \"a`b\"",
+        "dependencies": [
+          "a`b"
+        ],
+        "other_grant": {
+          "allowed": false,
+          "error_code": "table_access_denied",
+          "message": "Access denied to table(s): a`b. Only allowed tables: a``b",
+          "hint": "Keep the same connection and use authorized tables. If CTE name rules are unknown or case-sensitive, match the declaration's exact case."
+        },
+        "exact_grant": {
+          "allowed": true,
+          "error_code": null,
+          "message": null,
+          "hint": null
+        }
+      },
+      {
+        "physical_name": "\tf\t",
+        "other_name": " f ",
+        "sql": "WITH \" f \" AS (SELECT 7 AS id) SELECT id FROM \"\tf\t\"",
+        "native_rows": [
+          [
+            999
+          ]
+        ],
+        "normalized_sql": "WITH \" f \" AS (SELECT 7 AS id) SELECT id FROM \"\tf\t\"",
+        "dependencies": [
+          "\tf\t"
+        ],
+        "other_grant": {
+          "allowed": false,
+          "error_code": "table_access_denied",
+          "message": "Access denied to table(s): \tf\t. Only allowed tables:  f ",
+          "hint": "Keep the same connection and use authorized tables. If CTE name rules are unknown or case-sensitive, match the declaration's exact case."
+        },
+        "exact_grant": {
+          "allowed": true,
+          "error_code": null,
+          "message": null,
+          "hint": null
+        }
+      },
+      {
+        "physical_name": "f\nx",
+        "other_name": "f x",
+        "sql": "WITH \"f x\" AS (SELECT 7 AS id) SELECT id FROM \"f\nx\"",
+        "native_rows": [
+          [
+            999
+          ]
+        ],
+        "normalized_sql": "WITH \"f x\" AS (SELECT 7 AS id) SELECT id FROM \"f\nx\"",
+        "dependencies": [
+          "f\nx"
+        ],
+        "other_grant": {
+          "allowed": false,
+          "error_code": "table_access_denied",
+          "message": "Access denied to table(s): f\nx. Only allowed tables: f x",
+          "hint": "Keep the same connection and use authorized tables. If CTE name rules are unknown or case-sensitive, match the declaration's exact case."
+        },
+        "exact_grant": {
+          "allowed": true,
+          "error_code": null,
+          "message": null,
+          "hint": null
+        }
+      }
+    ]
+  },
+  "scope": "Private in-memory SQLite only; no existing database writes. Preceding source hashes verified in baseline_source.json."
+}

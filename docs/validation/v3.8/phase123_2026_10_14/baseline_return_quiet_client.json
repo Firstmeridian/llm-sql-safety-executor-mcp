@@ -1,0 +1,734 @@
+{
+  "stage": "baseline_return_quiet",
+  "records": [
+    {
+      "protocol": "2026-07-28",
+      "metadata_path": "baseline_return_quiet-metadata-2026-07-28.json.gz",
+      "metadata_sha256": "680fb7e3d05f6f16c883bb553ee9cf3da1eb1b8a34c06cce9719b1ec5f894651",
+      "fixed_metadata_characters_without_output_schema": 22681,
+      "output_schema_characters": 3048,
+      "samples_ms": [
+        [
+          38.511936,
+          14.156007,
+          11.945222,
+          10.201549,
+          80.672274
+        ],
+        [
+          18.623941,
+          13.658135,
+          9.87753,
+          10.005085,
+          11.518698
+        ],
+        [
+          16.425228,
+          11.653608,
+          10.181657,
+          13.095294,
+          11.891404
+        ],
+        [
+          16.561959,
+          13.349535,
+          8.930467,
+          9.742252,
+          11.048408
+        ],
+        [
+          16.174649,
+          15.603133,
+          16.946551,
+          10.555805,
+          12.567625
+        ],
+        [
+          16.461145,
+          12.864877,
+          10.347636,
+          10.02575,
+          10.421392
+        ],
+        [
+          20.752612,
+          11.675774,
+          10.738662,
+          10.439386,
+          10.821042
+        ],
+        [
+          18.871626,
+          11.55324,
+          9.622895,
+          16.830731,
+          11.026842
+        ],
+        [
+          19.602444,
+          11.647588,
+          9.900336,
+          13.619387,
+          11.244472
+        ],
+        [
+          17.271667,
+          12.562301,
+          8.511546,
+          10.437114,
+          11.445624
+        ],
+        [
+          15.558933,
+          18.775255,
+          10.93504,
+          10.120054,
+          11.979461
+        ],
+        [
+          16.200494,
+          12.624237,
+          10.542926,
+          9.842119,
+          78.333195
+        ]
+      ],
+      "trace_median_ms": 64.427476,
+      "trace": [
+        {
+          "tool": "query",
+          "params": {
+            "sql": "WITH F AS (SELECT COUNT(*) AS n FROM orders) SELECT n FROM f",
+            "connection_id": "probe"
+          },
+          "result": {
+            "content": [
+              {
+                "type": "text",
+                "text": "{\"success\":true,\"data\":[{\"n\":3}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null,\"query\":\"WITH F AS (SELECT COUNT(*) AS n FROM orders) SELECT n FROM f\",\"connection_id\":\"probe\",\"db_type\":\"sqlite\"}"
+              }
+            ],
+            "structuredContent": {
+              "success": true,
+              "data": [
+                {
+                  "n": 3
+                }
+              ],
+              "row_count": 1,
+              "total_rows": 1,
+              "truncated": false,
+              "truncation_note": null,
+              "query": "WITH F AS (SELECT COUNT(*) AS n FROM orders) SELECT n FROM f",
+              "connection_id": "probe",
+              "db_type": "sqlite"
+            },
+            "isError": false,
+            "meta": {
+              "tool_name": "query",
+              "db_type": "sqlite",
+              "connection_id": "probe",
+              "execution_ms": 28.443,
+              "success": true,
+              "row_count": 1,
+              "total_rows": 1,
+              "truncated": false,
+              "io.modelcontextprotocol/serverInfo": {
+                "name": "sql-safety-executor",
+                "version": "3.8.1"
+              }
+            }
+          }
+        },
+        {
+          "tool": "query",
+          "params": {
+            "sql": "SELECT 'SLEEP(99)' AS label, ABS(-7) AS n",
+            "connection_id": "probe"
+          },
+          "result": {
+            "content": [
+              {
+                "type": "text",
+                "text": "{\"success\":true,\"data\":[{\"label\":\"SLEEP(99)\",\"n\":7}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null,\"query\":\"SELECT 'SLEEP(99)' AS label, ABS(-7) AS n\",\"connection_id\":\"probe\",\"db_type\":\"sqlite\"}"
+              }
+            ],
+            "structuredContent": {
+              "success": true,
+              "data": [
+                {
+                  "label": "SLEEP(99)",
+                  "n": 7
+                }
+              ],
+              "row_count": 1,
+              "total_rows": 1,
+              "truncated": false,
+              "truncation_note": null,
+              "query": "SELECT 'SLEEP(99)' AS label, ABS(-7) AS n",
+              "connection_id": "probe",
+              "db_type": "sqlite"
+            },
+            "isError": false,
+            "meta": {
+              "tool_name": "query",
+              "db_type": "sqlite",
+              "connection_id": "probe",
+              "execution_ms": 11.26,
+              "success": true,
+              "row_count": 1,
+              "total_rows": 1,
+              "truncated": false,
+              "io.modelcontextprotocol/serverInfo": {
+                "name": "sql-safety-executor",
+                "version": "3.8.1"
+              }
+            }
+          }
+        },
+        {
+          "tool": "query",
+          "params": {
+            "sql": "SELECT SLEEP(0) AS n",
+            "connection_id": "probe"
+          },
+          "result": {
+            "content": [
+              {
+                "type": "text",
+                "text": "{\"success\":false,\"error_code\":\"unknown_function\",\"error\":\"SQL function not found for this database dialect.\",\"hint\":\"Use a function supported by the returned db_type; check the SQL dialect.\",\"query\":\"SELECT SLEEP(0) AS n\",\"connection_id\":\"probe\",\"db_type\":\"sqlite\"}"
+              }
+            ],
+            "structuredContent": {
+              "success": false,
+              "error_code": "unknown_function",
+              "error": "SQL function not found for this database dialect.",
+              "hint": "Use a function supported by the returned db_type; check the SQL dialect.",
+              "query": "SELECT SLEEP(0) AS n",
+              "connection_id": "probe",
+              "db_type": "sqlite"
+            },
+            "isError": false,
+            "meta": {
+              "tool_name": "query",
+              "db_type": "sqlite",
+              "connection_id": "probe",
+              "execution_ms": 9.644,
+              "success": false,
+              "io.modelcontextprotocol/serverInfo": {
+                "name": "sql-safety-executor",
+                "version": "3.8.1"
+              }
+            }
+          }
+        },
+        {
+          "tool": "query",
+          "params": {
+            "sql": "SELECT GET_LOCK('probe',0) AS n",
+            "connection_id": "probe"
+          },
+          "result": {
+            "content": [
+              {
+                "type": "text",
+                "text": "{\"success\":false,\"error_code\":\"unknown_function\",\"error\":\"SQL function not found for this database dialect.\",\"hint\":\"Use a function supported by the returned db_type; check the SQL dialect.\",\"query\":\"SELECT GET_LOCK('probe',0) AS n\",\"connection_id\":\"probe\",\"db_type\":\"sqlite\"}"
+              }
+            ],
+            "structuredContent": {
+              "success": false,
+              "error_code": "unknown_function",
+              "error": "SQL function not found for this database dialect.",
+              "hint": "Use a function supported by the returned db_type; check the SQL dialect.",
+              "query": "SELECT GET_LOCK('probe',0) AS n",
+              "connection_id": "probe",
+              "db_type": "sqlite"
+            },
+            "isError": false,
+            "meta": {
+              "tool_name": "query",
+              "db_type": "sqlite",
+              "connection_id": "probe",
+              "execution_ms": 7.709,
+              "success": false,
+              "io.modelcontextprotocol/serverInfo": {
+                "name": "sql-safety-executor",
+                "version": "3.8.1"
+              }
+            }
+          }
+        },
+        {
+          "tool": "execute_query_skill",
+          "params": {
+            "skill_name": "delay-probe",
+            "params": {},
+            "connection_id": "probe"
+          },
+          "result": {
+            "content": [
+              {
+                "type": "text",
+                "text": "{\"success\":false,\"error_code\":\"unknown_function\",\"error\":\"SQL function not found for this database dialect.\",\"hint\":\"Use a function supported by the returned db_type; check the SQL dialect.\",\"skill_name\":\"delay-probe\",\"connection_id\":\"probe\",\"db_type\":\"sqlite\"}"
+              }
+            ],
+            "structuredContent": {
+              "success": false,
+              "error_code": "unknown_function",
+              "error": "SQL function not found for this database dialect.",
+              "hint": "Use a function supported by the returned db_type; check the SQL dialect.",
+              "skill_name": "delay-probe",
+              "connection_id": "probe",
+              "db_type": "sqlite"
+            },
+            "isError": false,
+            "meta": {
+              "tool_name": "execute_query_skill",
+              "db_type": "sqlite",
+              "connection_id": "probe",
+              "execution_ms": 9.659,
+              "success": false,
+              "io.modelcontextprotocol/serverInfo": {
+                "name": "sql-safety-executor",
+                "version": "3.8.1"
+              }
+            }
+          }
+        }
+      ],
+      "discovery": {
+        "success": true,
+        "skills": [
+          {
+            "name": "delay-probe",
+            "type": "query",
+            "description": "Controlled delay-function refusal",
+            "risk": "low",
+            "category": "uncategorized",
+            "executable": true,
+            "profile_allowed": true,
+            "db_compatible": true,
+            "connection_scope_allowed": true,
+            "policy_allowed": true,
+            "schema_ready": true,
+            "source": "query.sql",
+            "triggers": [],
+            "idempotent": false,
+            "databases": null,
+            "connection_ids": null,
+            "configured_connection_ids": [],
+            "unconfigured_connection_ids": [],
+            "connection_type_conflicts": [],
+            "profiles": [],
+            "params": {},
+            "version": "1.0",
+            "requires_confirmation": false,
+            "related_skills": [],
+            "tables": [],
+            "declared_tables": [],
+            "inferred_tables": []
+          }
+        ],
+        "total_skills": 1,
+        "matched_skills": 1,
+        "matched_catalog_skills": 1,
+        "available_skills": 1,
+        "unavailable_skills": 0,
+        "filtered_unavailable_skills": 0,
+        "schema_unready_skills": 0,
+        "policy_blocked_skills": 0,
+        "connection_scope_blocked_skills": 0,
+        "connection_type_conflict_skills": 0,
+        "profile_excluded_skills": 0,
+        "query_skills": 1,
+        "mutation_skills": 0,
+        "mutations_enabled": false,
+        "schema_check_enabled": false,
+        "schema_check_available": false,
+        "excluded_profiles": [],
+        "detail_level": "full",
+        "available_only": false,
+        "current_database_type": "sqlite",
+        "connection_id": "probe",
+        "search": null,
+        "category": null,
+        "categories": [
+          {
+            "category": "uncategorized",
+            "count": 1
+          }
+        ]
+      },
+      "structured_result_characters": [
+        217,
+        218,
+        265,
+        276,
+        261
+      ],
+      "text_result_characters": [
+        217,
+        218,
+        265,
+        276,
+        261
+      ]
+    },
+    {
+      "protocol": "2025-11-25",
+      "metadata_path": "baseline_return_quiet-metadata-2025-11-25.json.gz",
+      "metadata_sha256": "1ed17b713f9cd692ffb36363cd0c528f6c20c09d5debcba0fff0c55dbdbfe73c",
+      "fixed_metadata_characters_without_output_schema": 22681,
+      "output_schema_characters": 3048,
+      "samples_ms": [
+        [
+          34.959338,
+          21.521317,
+          15.149065,
+          24.932795,
+          34.489022
+        ],
+        [
+          28.010843,
+          21.878765,
+          42.600036,
+          37.680827,
+          51.547191
+        ],
+        [
+          68.432411,
+          55.766704,
+          50.586447,
+          53.465709,
+          55.589474
+        ],
+        [
+          71.501673,
+          68.858682,
+          61.401782,
+          57.91175,
+          54.594091
+        ],
+        [
+          82.254146,
+          65.926791,
+          58.407275,
+          51.849782,
+          60.964808
+        ],
+        [
+          112.58117,
+          103.664659,
+          58.866738,
+          57.583939,
+          62.14139
+        ],
+        [
+          123.067371,
+          98.68372,
+          66.134601,
+          44.328714,
+          50.267621
+        ],
+        [
+          93.069157,
+          90.778983,
+          75.862202,
+          85.721887,
+          50.409789
+        ],
+        [
+          44.053684,
+          33.407672,
+          33.70668,
+          30.501647,
+          27.423062
+        ],
+        [
+          41.336141,
+          30.67632,
+          32.351968,
+          30.539047,
+          26.65208
+        ],
+        [
+          37.567313,
+          30.165913,
+          25.442198,
+          26.061802,
+          27.548929
+        ],
+        [
+          38.022661,
+          24.458806,
+          24.153829,
+          31.648201,
+          30.195078
+        ]
+      ],
+      "trace_median_ms": 283.84074499999997,
+      "trace": [
+        {
+          "tool": "query",
+          "params": {
+            "sql": "WITH F AS (SELECT COUNT(*) AS n FROM orders) SELECT n FROM f",
+            "connection_id": "probe"
+          },
+          "result": {
+            "content": [
+              {
+                "type": "text",
+                "text": "{\"success\":true,\"data\":[{\"n\":3}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null,\"query\":\"WITH F AS (SELECT COUNT(*) AS n FROM orders) SELECT n FROM f\",\"connection_id\":\"probe\",\"db_type\":\"sqlite\"}"
+              }
+            ],
+            "structuredContent": {
+              "success": true,
+              "data": [
+                {
+                  "n": 3
+                }
+              ],
+              "row_count": 1,
+              "total_rows": 1,
+              "truncated": false,
+              "truncation_note": null,
+              "query": "WITH F AS (SELECT COUNT(*) AS n FROM orders) SELECT n FROM f",
+              "connection_id": "probe",
+              "db_type": "sqlite"
+            },
+            "isError": false,
+            "meta": {
+              "tool_name": "query",
+              "db_type": "sqlite",
+              "connection_id": "probe",
+              "execution_ms": 28.416,
+              "success": true,
+              "row_count": 1,
+              "total_rows": 1,
+              "truncated": false
+            }
+          }
+        },
+        {
+          "tool": "query",
+          "params": {
+            "sql": "SELECT 'SLEEP(99)' AS label, ABS(-7) AS n",
+            "connection_id": "probe"
+          },
+          "result": {
+            "content": [
+              {
+                "type": "text",
+                "text": "{\"success\":true,\"data\":[{\"label\":\"SLEEP(99)\",\"n\":7}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null,\"query\":\"SELECT 'SLEEP(99)' AS label, ABS(-7) AS n\",\"connection_id\":\"probe\",\"db_type\":\"sqlite\"}"
+              }
+            ],
+            "structuredContent": {
+              "success": true,
+              "data": [
+                {
+                  "label": "SLEEP(99)",
+                  "n": 7
+                }
+              ],
+              "row_count": 1,
+              "total_rows": 1,
+              "truncated": false,
+              "truncation_note": null,
+              "query": "SELECT 'SLEEP(99)' AS label, ABS(-7) AS n",
+              "connection_id": "probe",
+              "db_type": "sqlite"
+            },
+            "isError": false,
+            "meta": {
+              "tool_name": "query",
+              "db_type": "sqlite",
+              "connection_id": "probe",
+              "execution_ms": 14.598,
+              "success": true,
+              "row_count": 1,
+              "total_rows": 1,
+              "truncated": false
+            }
+          }
+        },
+        {
+          "tool": "query",
+          "params": {
+            "sql": "SELECT SLEEP(0) AS n",
+            "connection_id": "probe"
+          },
+          "result": {
+            "content": [
+              {
+                "type": "text",
+                "text": "{\"success\":false,\"error_code\":\"unknown_function\",\"error\":\"SQL function not found for this database dialect.\",\"hint\":\"Use a function supported by the returned db_type; check the SQL dialect.\",\"query\":\"SELECT SLEEP(0) AS n\",\"connection_id\":\"probe\",\"db_type\":\"sqlite\"}"
+              }
+            ],
+            "structuredContent": {
+              "success": false,
+              "error_code": "unknown_function",
+              "error": "SQL function not found for this database dialect.",
+              "hint": "Use a function supported by the returned db_type; check the SQL dialect.",
+              "query": "SELECT SLEEP(0) AS n",
+              "connection_id": "probe",
+              "db_type": "sqlite"
+            },
+            "isError": false,
+            "meta": {
+              "tool_name": "query",
+              "db_type": "sqlite",
+              "connection_id": "probe",
+              "execution_ms": 9.861,
+              "success": false
+            }
+          }
+        },
+        {
+          "tool": "query",
+          "params": {
+            "sql": "SELECT GET_LOCK('probe',0) AS n",
+            "connection_id": "probe"
+          },
+          "result": {
+            "content": [
+              {
+                "type": "text",
+                "text": "{\"success\":false,\"error_code\":\"unknown_function\",\"error\":\"SQL function not found for this database dialect.\",\"hint\":\"Use a function supported by the returned db_type; check the SQL dialect.\",\"query\":\"SELECT GET_LOCK('probe',0) AS n\",\"connection_id\":\"probe\",\"db_type\":\"sqlite\"}"
+              }
+            ],
+            "structuredContent": {
+              "success": false,
+              "error_code": "unknown_function",
+              "error": "SQL function not found for this database dialect.",
+              "hint": "Use a function supported by the returned db_type; check the SQL dialect.",
+              "query": "SELECT GET_LOCK('probe',0) AS n",
+              "connection_id": "probe",
+              "db_type": "sqlite"
+            },
+            "isError": false,
+            "meta": {
+              "tool_name": "query",
+              "db_type": "sqlite",
+              "connection_id": "probe",
+              "execution_ms": 16.313,
+              "success": false
+            }
+          }
+        },
+        {
+          "tool": "execute_query_skill",
+          "params": {
+            "skill_name": "delay-probe",
+            "params": {},
+            "connection_id": "probe"
+          },
+          "result": {
+            "content": [
+              {
+                "type": "text",
+                "text": "{\"success\":false,\"error_code\":\"unknown_function\",\"error\":\"SQL function not found for this database dialect.\",\"hint\":\"Use a function supported by the returned db_type; check the SQL dialect.\",\"skill_name\":\"delay-probe\",\"connection_id\":\"probe\",\"db_type\":\"sqlite\"}"
+              }
+            ],
+            "structuredContent": {
+              "success": false,
+              "error_code": "unknown_function",
+              "error": "SQL function not found for this database dialect.",
+              "hint": "Use a function supported by the returned db_type; check the SQL dialect.",
+              "skill_name": "delay-probe",
+              "connection_id": "probe",
+              "db_type": "sqlite"
+            },
+            "isError": false,
+            "meta": {
+              "tool_name": "execute_query_skill",
+              "db_type": "sqlite",
+              "connection_id": "probe",
+              "execution_ms": 13.894,
+              "success": false
+            }
+          }
+        }
+      ],
+      "discovery": {
+        "success": true,
+        "skills": [
+          {
+            "name": "delay-probe",
+            "type": "query",
+            "description": "Controlled delay-function refusal",
+            "risk": "low",
+            "category": "uncategorized",
+            "executable": true,
+            "profile_allowed": true,
+            "db_compatible": true,
+            "connection_scope_allowed": true,
+            "policy_allowed": true,
+            "schema_ready": true,
+            "source": "query.sql",
+            "triggers": [],
+            "idempotent": false,
+            "databases": null,
+            "connection_ids": null,
+            "configured_connection_ids": [],
+            "unconfigured_connection_ids": [],
+            "connection_type_conflicts": [],
+            "profiles": [],
+            "params": {},
+            "version": "1.0",
+            "requires_confirmation": false,
+            "related_skills": [],
+            "tables": [],
+            "declared_tables": [],
+            "inferred_tables": []
+          }
+        ],
+        "total_skills": 1,
+        "matched_skills": 1,
+        "matched_catalog_skills": 1,
+        "available_skills": 1,
+        "unavailable_skills": 0,
+        "filtered_unavailable_skills": 0,
+        "schema_unready_skills": 0,
+        "policy_blocked_skills": 0,
+        "connection_scope_blocked_skills": 0,
+        "connection_type_conflict_skills": 0,
+        "profile_excluded_skills": 0,
+        "query_skills": 1,
+        "mutation_skills": 0,
+        "mutations_enabled": false,
+        "schema_check_enabled": false,
+        "schema_check_available": false,
+        "excluded_profiles": [],
+        "detail_level": "full",
+        "available_only": false,
+        "current_database_type": "sqlite",
+        "connection_id": "probe",
+        "search": null,
+        "category": null,
+        "categories": [
+          {
+            "category": "uncategorized",
+            "count": 1
+          }
+        ]
+      },
+      "structured_result_characters": [
+        217,
+        218,
+        265,
+        276,
+        261
+      ],
+      "text_result_characters": [
+        217,
+        218,
+        265,
+        276,
+        261
+      ]
+    }
+  ],
+  "scope": "Actual in-process Client, decoded application results; repeated returned payloads stored once",
+  "limits": "No full transport capture; characters are not model tokens; fixed trace does not imply model billing",
+  "writes": "Only private temporary SQLite fixture; no configured database modified"
+}

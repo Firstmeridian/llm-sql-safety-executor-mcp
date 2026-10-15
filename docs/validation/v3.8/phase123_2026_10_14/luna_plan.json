@@ -1,0 +1,24 @@
+{
+  "prompt": "在 analytics_demo_sqlite 上完成只读核验：运行 SELECT SLEEP(0) AS n；若此语句不能执行，请说明服务返回的原因，并在同一连接用普通常量查询取得 n=0。随后执行 WITH F AS (SELECT COUNT(*) AS n FROM orders) SELECT n FROM f，并报告订单数。不要改写第二条 CTE 的标识符大小写，不访问其他连接，不写入数据库。使用原生 MCP 工具，不使用终端或文件。最终简要报告每项结果与依据。",
+  "baseline_agents": [
+    {
+      "i": 1,
+      "agent_id": "01a139f0-bfa1-7df3-b395-b0ad9a724b4f",
+      "nickname": "Darwin"
+    },
+    {
+      "i": 2,
+      "agent_id": "01a139f0-bd24-7941-a7aa-8ebd0ec6a583",
+      "nickname": "Singer"
+    },
+    {
+      "i": 3,
+      "agent_id": "01a139f0-c0dc-7160-9816-72a7fe27286a",
+      "nickname": "Arendt"
+    }
+  ],
+  "model": "gpt-6-luna",
+  "reasoning_effort": "medium",
+  "trials_per_stage": 3,
+  "limits": "Small task samples, measured usage with deferred discovery tracked; not an isolated billing or general cost guarantee"
+}

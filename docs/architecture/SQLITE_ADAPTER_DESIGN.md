@@ -1,5 +1,7 @@
 > Historical v3.7.0 design. The environment configuration and root-module paths below are not v3.8 startup instructions. See [current architecture](V3_8_IMPLEMENTATION_ZH.md) and [TOML migration](../guides/CONFIGURATION_ZH.md).
 
+> The list-or-error-string interface and is_sql_safe-only examples below belong to that historical design. Current read adapters return rows or raise DatabaseQueryError; metadata failures use MetadataQueryError, and MCP raw/Skill reads apply the shared structured target policy. See [current query contracts](../validation/v3.8/V3_8_1_FOLLOWUP_2026_10_13_ZH.md).
+
 # SQLite Adapter Design Document
 
 **Version:** 3.7.0
@@ -682,3 +684,11 @@ execute must use the same connection-bound `preview_token`.
 - [SQLite set_progress_handler](https://docs.python.org/3/library/sqlite3.html#sqlite3.Connection.set_progress_handler)
 - [aiosqlite (for future async)](https://github.com/omnilib/aiosqlite)
 - [SQLite PRAGMA statements](https://www.sqlite.org/pragma.html)
+
+## October 15 metadata identity and view readiness
+
+Internally generated sample/exact-count SQL now uses the same authorized RelationReference and explicitly quotes main and the object separately. Missing main objects cannot fall back to temp/attached schemas; temporary views are covered too. Raw SQL retains engine resolution. get_read_relations observes main tables/views without row estimates, independently of table-only get_tables. Schema/name identity survives into Skill readiness; this does not authorize underlying view sources for arbitrary raw queries. Production authorizer/cache/lifecycle integration remains deferred. [Evidence and limits](../validation/v3.8/V3_8_1_SCHEMA_BINDING_2026_10_15_ZH.md).
+
+## October 15 literal internal-name prefix
+
+Table-only get_tables and table/view get_read_relations share a literal sqlite_ prefix predicate, using substr(name, 1, 7) with ASCII NOCASE rather than an unescaped LIKE underscore. Legitimate sqliteX... names survive directory/readiness observation; true internal names remain excluded. No raw authorization or metadata identifier grammar is widened. [Regression and installed CLI evidence](../validation/v3.8/V3_8_1_SQLITE_PREFIX_2026_10_15_ZH.md).

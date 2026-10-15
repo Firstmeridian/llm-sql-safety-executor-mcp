@@ -1,0 +1,8 @@
+{
+  "version": "30.22.0",
+  "wheel": "sqlglot-30.22.0-py3-none-any.whl",
+  "sha256": "90aa461490fcd95d14ec3842a97506ae20f6d3e9313307ad31be793d479cca65",
+  "url": "https://files.pythonhosted.org/packages/b4/4c/b8474b02b572d9c7a2903e364335d566d52b6128b834b92a7cdfe5597823/sqlglot-30.22.0-py3-none-any.whl",
+  "upload_time": "2026-10-09T16:08:59.070166Z",
+  "installation": "Isolated /tmp extraction; project runtime dependencies/lock unchanged"
+}

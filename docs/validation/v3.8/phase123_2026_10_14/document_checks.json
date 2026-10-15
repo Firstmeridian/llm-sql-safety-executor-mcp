@@ -1,0 +1,10 @@
+{
+  "relative_document_links": 538,
+  "bilingual_drr_ids": 87,
+  "continuous_unique_ids": true,
+  "tested_source_hashes_match": true,
+  "runtime_dependencies_unchanged": true,
+  "version": "3.8.1",
+  "diff_check": "passed",
+  "scope": "File targets; not remote URLs/heading anchors"
+}

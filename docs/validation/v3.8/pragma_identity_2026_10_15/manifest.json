@@ -1,0 +1,224 @@
+{
+  "version": "3.8.1",
+  "source_reference": "automation.json#source_sha256",
+  "recording_profile": "Source/test hashes, compressed application results and build/check logs; not full protocol frames",
+  "omitted": [
+    "Full JSON-RPC frames/notifications",
+    "No new model usage/cost or MySQL Unicode matrix"
+  ],
+  "cleanup": "Only task-private SQLite/build/install processes and directories; configured resident/database/TOML untouched",
+  "prior_evidence": "Prior manifests byte-verified; prior dated source/model results not relabeled",
+  "artifacts": [
+    {
+      "path": "after-calls.json.gz",
+      "bytes": 7370,
+      "sha256": "60fb0cc52dcfd6b5dd1a17c6c909a7e5692c9dcc893e8848d69d63d336ed0e06",
+      "uncompressed_bytes": 77865,
+      "uncompressed_sha256": "9c1614340149ab0673d7f61fbbc5a25b6d3bd4bf4896009dbe1446f67f806bc5"
+    },
+    {
+      "path": "automation.json",
+      "bytes": 14730,
+      "sha256": "f64d591a8b97c78a3ad444977cf873f0fbaccca78fd0466e97fe17cf6a42c173"
+    },
+    {
+      "path": "baseline_policy.py.gz",
+      "bytes": 10990,
+      "sha256": "1250babe950c3363774bf2736dce95b66f5eff50a9f03098a2c2b7ef10c060df",
+      "uncompressed_bytes": 42849,
+      "uncompressed_sha256": "6f280db24acbfe3e95364a453dcaac68f9016a976aec7dc85142368bb69ac67f"
+    },
+    {
+      "path": "baseline_source.json",
+      "bytes": 8152,
+      "sha256": "046dde22fdb629f01689b479a0ed47e076d0d485e6b4a2259c9964d491a93ea7"
+    },
+    {
+      "path": "before-calls.json.gz",
+      "bytes": 5280,
+      "sha256": "3a6fb378746e1492b1ce204176430aface93bb2b3ae13015c26bb89140a246ec",
+      "uncompressed_bytes": 38927,
+      "uncompressed_sha256": "530145af8f87f6dd422243950a6a2c244f2458fe904fd9545cd08eeaeff0af67"
+    },
+    {
+      "path": "build.log.gz",
+      "bytes": 158,
+      "sha256": "54aca4cf4c01fb0c887ef88893d5a7b9472844697ba6ffe896b194a38c40924d",
+      "uncompressed_bytes": 267,
+      "uncompressed_sha256": "eff72480fb874ab4a3c07b9189d1dfa8274b2295fa894fb29b38b127ee6f21bb"
+    },
+    {
+      "path": "change_from_prior.patch",
+      "bytes": 3605,
+      "sha256": "0b1839befd5a8485453ec69832bb0ebfd3280ec6805a8a244a8dad314e97c57c"
+    },
+    {
+      "path": "document_checks.json",
+      "bytes": 367,
+      "sha256": "f6c1650fba20fa9bab3b695bc7b7ae8d57770a7c8a84857c40c9b7e057f04de7"
+    },
+    {
+      "path": "finalize.py.gz",
+      "bytes": 3474,
+      "sha256": "3793c4dd4c0d16ecd1b1cafe1bfa0b5f7cf8c6711de0f271c357e4271726c235",
+      "uncompressed_bytes": 8738,
+      "uncompressed_sha256": "9a1b08a2e18bda3b602f1277ae191b77ed54852c53a850a14dc78c6f25e61e5c"
+    },
+    {
+      "path": "first-attempt-build.log.gz",
+      "bytes": 158,
+      "sha256": "54aca4cf4c01fb0c887ef88893d5a7b9472844697ba6ffe896b194a38c40924d",
+      "uncompressed_bytes": 267,
+      "uncompressed_sha256": "eff72480fb874ab4a3c07b9189d1dfa8274b2295fa894fb29b38b127ee6f21bb"
+    },
+    {
+      "path": "first-attempt-install.log.gz",
+      "bytes": 146,
+      "sha256": "347a19c5d896ea3de48e03b0938e44a360de4e19d2799daedb5730438d91fdb0",
+      "uncompressed_bytes": 185,
+      "uncompressed_sha256": "419aae78126088568594a6d8bba3c6b77238f71584aabc51d9622140c4e989ab"
+    },
+    {
+      "path": "first-attempt-installed-legacy.log.gz",
+      "bytes": 406,
+      "sha256": "031427c82b7fdb2904235d7004873c62d65872408db7c04f365f793d38df08b0",
+      "uncompressed_bytes": 915,
+      "uncompressed_sha256": "5c1c2c3ce1d3e8a617ba397b0055fb27d017bc882c07033775cc3d1be6d38178"
+    },
+    {
+      "path": "install.log.gz",
+      "bytes": 146,
+      "sha256": "347a19c5d896ea3de48e03b0938e44a360de4e19d2799daedb5730438d91fdb0",
+      "uncompressed_bytes": 185,
+      "uncompressed_sha256": "419aae78126088568594a6d8bba3c6b77238f71584aabc51d9622140c4e989ab"
+    },
+    {
+      "path": "installed-auto.log.gz",
+      "bytes": 856,
+      "sha256": "889a79e3433aa84a9a3341d9dbf0b2da7cbae109a7c7033a1619ed467c9179fb",
+      "uncompressed_bytes": 3809,
+      "uncompressed_sha256": "2c3fa9db7d13c5591a498c91f2a1735418ff45b77fd560cebb1b56d4b88e300f"
+    },
+    {
+      "path": "installed-legacy.log.gz",
+      "bytes": 1058,
+      "sha256": "04bade804989af4319ab428183d173e655d54128b157a37584caf87bcd023b48",
+      "uncompressed_bytes": 6594,
+      "uncompressed_sha256": "8421cf899a7504ffcecc1ee31d57d32657e6986348edc95f63b75f3bba98d14f"
+    },
+    {
+      "path": "installed_check.py.gz",
+      "bytes": 2299,
+      "sha256": "23f4ac1806a4ed37c5dce2d01bd1357a1c635c0f4ee5d679e9766b42896a00a4",
+      "uncompressed_bytes": 5920,
+      "uncompressed_sha256": "4652b088058aec161bb7e891afaefc5ddcfdbe40ca16db338711bc0d4a8f112a"
+    },
+    {
+      "path": "installed_first_attempt.json",
+      "bytes": 774,
+      "sha256": "2966a3d4064298b9846aff5d837766a0d57dbe70feb7a1aa60759cefb3b34d42"
+    },
+    {
+      "path": "installed_scenarios.py.gz",
+      "bytes": 95,
+      "sha256": "8088263528a39ad910ffac67b45c008c8a61cf42bd2f6508a62d661188eede63",
+      "uncompressed_bytes": 90,
+      "uncompressed_sha256": "c595724cda378ca892fa29925f4deb97601e0cdfb29f0d875d1e6b8dd56086cc"
+    },
+    {
+      "path": "installed_wheel.json",
+      "bytes": 79821,
+      "sha256": "2d408330f3354dab8713ca0de70941be672a1aba82d9bbb6475b2df4499d1ef7"
+    },
+    {
+      "path": "native_after_restart.json",
+      "bytes": 9278,
+      "sha256": "473b3cc793d0e6020c699aaf3f85f0c197d6e5c6bb311ceb0f794613aacb2bca"
+    },
+    {
+      "path": "native_before_restart.json",
+      "bytes": 3872,
+      "sha256": "9c091aceb2c3ff9d477475727b479442df3805d9463579a057134f085378a140"
+    },
+    {
+      "path": "native_before_restart_corrected.json",
+      "bytes": 4068,
+      "sha256": "dd711947b1582a2e94dfe618f6bbe725f4afa219a10e0cc188dff70ace829b0b"
+    },
+    {
+      "path": "probe.py.gz",
+      "bytes": 1097,
+      "sha256": "fc215162ad4e9e317e53a75e7089b61fb8cf5504070a32b03f906e2ce2146c98",
+      "uncompressed_bytes": 2245,
+      "uncompressed_sha256": "5f728da16b6d967bc598a32f8b61cf39769169f83bf5cadbbb94fae1c91129e0"
+    },
+    {
+      "path": "restart_probe_source_checks.json",
+      "bytes": 2188,
+      "sha256": "c4dc8be41aef955b17f8887074bc58c45fad141bc5febff8d08c799dc8a34b6b"
+    },
+    {
+      "path": "scenarios.py.gz",
+      "bytes": 1911,
+      "sha256": "6caf5b31eb3f06434d934306f6a46c82db1b2d64a86c508d5400dfcf2297c030",
+      "uncompressed_bytes": 5406,
+      "uncompressed_sha256": "ceaa1193ecea36a5c984992519cf880815b41d5015a12144cd9072696665ad71"
+    },
+    {
+      "path": "v381-unicode-after.log.gz",
+      "bytes": 1275,
+      "sha256": "738510e54803707622b1286c491afad94896d76b76731543bd4ca5bb7ff6fd95",
+      "uncompressed_bytes": 13422,
+      "uncompressed_sha256": "a4e2dc2e7ca9608dc65d6f82021fbce02a4159bb665b52bacc18b5030b816789"
+    },
+    {
+      "path": "v381-unicode-focused.log.gz",
+      "bytes": 384,
+      "sha256": "60e89b4528b668288ce30dcb0b274a19405aad92b28f291a55e582a94f65f261",
+      "uncompressed_bytes": 631,
+      "uncompressed_sha256": "6718bdbf5941101c5dc97dd4536332ed497329ac795b9e293425c495419ebe79"
+    },
+    {
+      "path": "v381-unicode-full.log.gz",
+      "bytes": 605,
+      "sha256": "e472067f74d37d4bf9e4059f8a1202fe49ec3ef6d24a6927eaecab9c3e80b857",
+      "uncompressed_bytes": 2450,
+      "uncompressed_sha256": "6b3b4eef2d6f6cdee4d849e3654c3af9303054ae9692774cb19efccb72fc7a31"
+    },
+    {
+      "path": "v381-unicode-installed-first.log.gz",
+      "bytes": 20,
+      "sha256": "f61f27bd17de546264aa58f40f3aafaac7021e0ef69c17f6b1b4cd7664a037ec",
+      "uncompressed_bytes": 0,
+      "uncompressed_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "v381-unicode-installed.log.gz",
+      "bytes": 654,
+      "sha256": "051b0cdbaaef7d0b8d5f9a7c8e2b6f0f3e511ee9d34de5b91039b0066c64d0b9",
+      "uncompressed_bytes": 6787,
+      "uncompressed_sha256": "abbcb58808deab3ebbe93b27be7bf47b4e77b37f1fda2fcb1e92b696b0959447"
+    },
+    {
+      "path": "v381-unicode-prompt.log.gz",
+      "bytes": 74,
+      "sha256": "090e5d838501a835953ba08eeacb177cf0ecef59e67add02b2bcb919113e87ea",
+      "uncompressed_bytes": 55,
+      "uncompressed_sha256": "f0e0a884c0914987015a830aea57daf3a52000e3ea17c4899a6df1db394a16f2"
+    },
+    {
+      "path": "v381-unicode-pyright-first.log.gz",
+      "bytes": 775,
+      "sha256": "30754262ca2107d236c27c59ac70bb58f693b6bc7c13129af77326b78c16c0a0",
+      "uncompressed_bytes": 10631,
+      "uncompressed_sha256": "6eab967c2ce6ad4a3fece3a651a255cd5c0da31125522e8f5ffd29c6c257d3ee"
+    },
+    {
+      "path": "v381-unicode-pyright.log.gz",
+      "bytes": 53,
+      "sha256": "c8f40ac3b3f577d99ca528dc797ac395a63bdcedd0b425151e1b76ffc54e42f5",
+      "uncompressed_bytes": 37,
+      "uncompressed_sha256": "6d88a1b220adb7a3d62092b6e38431f0b3fe8babe9864fab90e5849766260332"
+    }
+  ]
+}

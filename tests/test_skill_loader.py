@@ -444,7 +444,8 @@ class TestDiscover:
         assert skills["test-query"].type == "query"
         assert skills["test-mutation"].type == "mutation"
         assert skills["test-query"].profiles == ["demo"]
-        assert skills["test-query"].tables == ["orders"]
+        assert skills["test-query"].tables == []
+        assert [table.display_name for table in skills["test-query"]._inferred_tables[False]] == ["orders"]
         assert skills["test-mutation"].profiles == ["demo"]
         assert skills["test-mutation"].tables == ["orders"]
 
@@ -716,7 +717,8 @@ class TestDiscover:
         (q / "query.sql").write_text("SELECT 1", encoding="utf-8")
 
         def reject_all(_sql):
-            return False, "blocked by test policy"
+            from sql_safety_executor.core.decisions import PolicyDecision
+            return PolicyDecision.deny("test_policy", "blocked by test policy")
 
         skills = discover(sd, query_validator=reject_all)
         assert "policy-rejected-query" not in skills

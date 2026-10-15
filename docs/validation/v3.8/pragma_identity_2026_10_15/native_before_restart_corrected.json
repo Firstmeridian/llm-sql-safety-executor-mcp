@@ -1,0 +1,82 @@
+{
+  "version": "3.8.1",
+  "phase": "before_maintainer_restart",
+  "corrects": "First native probes with quoted CTE column lists were unsuitable for current scoped parsing; preserve original separately, use only this corrected same-input set for restart comparison",
+  "scope": "Current Host native constant CTEs without column lists; no physical fixture or writes",
+  "at_utc": "2026-10-15 08:52:29 UTC",
+  "records": [
+    {
+      "name": "unicode_pragma_from",
+      "args": {
+        "connection_id": "analytics_demo_sqlite",
+        "sql": "WITH \"pragma_locKing_mode\" AS (SELECT 7 AS n) SELECT n FROM \"pragma_locKing_mode\""
+      },
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":false,\"error_code\":\"server_state_denied\",\"error\":\"SQLite PRAGMA table-valued functions are not allowed in queries; use list_tables() or describe_table() instead (describe_table() also returns indexes).\",\"query\":\"WITH \\\"pragma_locKing_mode\\\" AS (SELECT 7 AS n) SELECT n FROM \\\"pragma_locKing_mode\\\"\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": false,
+          "error_code": "server_state_denied",
+          "error": "SQLite PRAGMA table-valued functions are not allowed in queries; use list_tables() or describe_table() instead (describe_table() also returns indexes).",
+          "query": "WITH \"pragma_locKing_mode\" AS (SELECT 7 AS n) SELECT n FROM \"pragma_locKing_mode\"",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      }
+    },
+    {
+      "name": "unicode_pragma_in",
+      "args": {
+        "connection_id": "analytics_demo_sqlite",
+        "sql": "WITH \"pragma_locKing_mode\" AS (SELECT 7 AS n) SELECT 7 AS n WHERE 7 IN \"pragma_locKing_mode\""
+      },
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":false,\"error_code\":\"server_state_denied\",\"error\":\"SQLite PRAGMA table-valued functions are not allowed in queries; use list_tables() or describe_table() instead (describe_table() also returns indexes).\",\"query\":\"WITH \\\"pragma_locKing_mode\\\" AS (SELECT 7 AS n) SELECT 7 AS n WHERE 7 IN \\\"pragma_locKing_mode\\\"\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": false,
+          "error_code": "server_state_denied",
+          "error": "SQLite PRAGMA table-valued functions are not allowed in queries; use list_tables() or describe_table() instead (describe_table() also returns indexes).",
+          "query": "WITH \"pragma_locKing_mode\" AS (SELECT 7 AS n) SELECT 7 AS n WHERE 7 IN \"pragma_locKing_mode\"",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      }
+    },
+    {
+      "name": "unicode_account_column",
+      "args": {
+        "connection_id": "analytics_demo_sqlite",
+        "sql": "WITH business AS (SELECT 7 AS current_uſer) SELECT current_uſer AS n FROM business"
+      },
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":false,\"error_code\":\"server_state_denied\",\"error\":\"Account and role functions are not allowed in queries.\",\"query\":\"WITH business AS (SELECT 7 AS current_uſer) SELECT current_uſer AS n FROM business\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": false,
+          "error_code": "server_state_denied",
+          "error": "Account and role functions are not allowed in queries.",
+          "query": "WITH business AS (SELECT 7 AS current_uſer) SELECT current_uſer AS n FROM business",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      }
+    }
+  ]
+}
+

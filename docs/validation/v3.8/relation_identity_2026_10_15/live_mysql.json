@@ -1,0 +1,697 @@
+{
+  "version": "3.8.1",
+  "connection_id": "trade_analysis_mysql",
+  "scope": "Isolated policy/catalog with configured real MySQL; SELECT/metadata only",
+  "real_database_writes": false,
+  "calls": [
+    {
+      "mode": "legacy",
+      "requests": [
+        {
+          "tool": "query",
+          "arguments": {
+            "sql": "SELECT COUNT(*) AS n FROM `trade_data_analysis`.`orders`",
+            "connection_id": "trade_analysis_mysql"
+          }
+        },
+        {
+          "tool": "list_skills",
+          "arguments": {
+            "connection_id": "trade_analysis_mysql",
+            "detail_level": "full"
+          }
+        },
+        {
+          "tool": "get_skill_detail",
+          "arguments": {
+            "skill_name": "qualified-mysql-probe",
+            "connection_id": "trade_analysis_mysql"
+          }
+        },
+        {
+          "tool": "execute_query_skill",
+          "arguments": {
+            "skill_name": "qualified-mysql-probe",
+            "params": {},
+            "connection_id": "trade_analysis_mysql"
+          }
+        },
+        {
+          "tool": "list_tables",
+          "arguments": {
+            "connection_id": "trade_analysis_mysql"
+          }
+        },
+        {
+          "tool": "describe_table",
+          "arguments": {
+            "table_name": "orders",
+            "connection_id": "trade_analysis_mysql"
+          }
+        }
+      ],
+      "responses": [
+        {
+          "isError": false,
+          "structuredContent": {
+            "success": true,
+            "data": [
+              {
+                "n": 8
+              }
+            ],
+            "row_count": 1,
+            "total_rows": 1,
+            "truncated": false,
+            "truncation_note": null,
+            "query": "SELECT COUNT(*) AS n FROM `trade_data_analysis`.`orders`",
+            "connection_id": "trade_analysis_mysql",
+            "db_type": "mysql"
+          }
+        },
+        {
+          "isError": false,
+          "structuredContent": {
+            "success": true,
+            "skills": [
+              {
+                "name": "qualified-mysql-probe",
+                "type": "query",
+                "description": "Qualified scope check",
+                "risk": "low",
+                "category": "uncategorized",
+                "executable": true,
+                "profile_allowed": true,
+                "db_compatible": true,
+                "connection_scope_allowed": true,
+                "policy_allowed": true,
+                "schema_ready": true,
+                "source": "query.sql",
+                "triggers": [],
+                "idempotent": false,
+                "databases": null,
+                "connection_ids": null,
+                "configured_connection_ids": [],
+                "unconfigured_connection_ids": [],
+                "connection_type_conflicts": [],
+                "profiles": [],
+                "params": {},
+                "version": "1.0",
+                "requires_confirmation": false,
+                "related_skills": [],
+                "tables": [
+                  "trade_data_analysis.orders"
+                ],
+                "schema_check_enabled": true,
+                "schema_check_available": true,
+                "missing_tables": [],
+                "unverified_tables": [],
+                "declared_tables": [],
+                "inferred_tables": [
+                  "trade_data_analysis.orders"
+                ]
+              }
+            ],
+            "total_skills": 1,
+            "matched_skills": 1,
+            "matched_catalog_skills": 1,
+            "available_skills": 1,
+            "unavailable_skills": 0,
+            "filtered_unavailable_skills": 0,
+            "schema_unready_skills": 0,
+            "policy_blocked_skills": 0,
+            "connection_scope_blocked_skills": 0,
+            "connection_type_conflict_skills": 0,
+            "profile_excluded_skills": 0,
+            "query_skills": 1,
+            "mutation_skills": 0,
+            "mutations_enabled": false,
+            "schema_check_enabled": true,
+            "schema_check_available": true,
+            "excluded_profiles": [],
+            "detail_level": "full",
+            "available_only": true,
+            "current_database_type": "mysql",
+            "connection_id": "trade_analysis_mysql",
+            "search": null,
+            "category": null,
+            "categories": [
+              {
+                "category": "uncategorized",
+                "count": 1
+              }
+            ]
+          }
+        },
+        {
+          "isError": false,
+          "structuredContent": {
+            "success": true,
+            "skill": {
+              "name": "qualified-mysql-probe",
+              "type": "query",
+              "description": "Qualified scope check",
+              "risk": "low",
+              "category": "uncategorized",
+              "executable": true,
+              "profile_allowed": true,
+              "db_compatible": true,
+              "connection_scope_allowed": true,
+              "policy_allowed": true,
+              "schema_ready": true,
+              "source": "query.sql",
+              "triggers": [],
+              "idempotent": false,
+              "databases": null,
+              "connection_ids": null,
+              "configured_connection_ids": [],
+              "unconfigured_connection_ids": [],
+              "connection_type_conflicts": [],
+              "profiles": [],
+              "params": {},
+              "version": "1.0",
+              "requires_confirmation": false,
+              "related_skills": [],
+              "tables": [
+                "trade_data_analysis.orders"
+              ],
+              "schema_check_enabled": true,
+              "schema_check_available": true,
+              "missing_tables": [],
+              "unverified_tables": [],
+              "declared_tables": [],
+              "inferred_tables": [
+                "trade_data_analysis.orders"
+              ]
+            },
+            "connection_id": "trade_analysis_mysql",
+            "current_database_type": "mysql",
+            "usage_hint": "Call execute_query_skill(skill_name, params, connection_id) with this same target connection and params matching the schema.",
+            "mutations_enabled": false,
+            "schema_check_enabled": true,
+            "schema_check_available": true
+          }
+        },
+        {
+          "isError": false,
+          "structuredContent": {
+            "success": true,
+            "skill_name": "qualified-mysql-probe",
+            "connection_id": "trade_analysis_mysql",
+            "db_type": "mysql",
+            "data": [
+              {
+                "n": 8
+              }
+            ],
+            "row_count": 1,
+            "total_rows": 1,
+            "truncated": false,
+            "truncation_note": null
+          }
+        },
+        {
+          "isError": false,
+          "structuredContent": {
+            "success": true,
+            "database_name": "trade_data_analysis",
+            "db_type": "mysql",
+            "connection_id": "trade_analysis_mysql",
+            "returned_table_count": 1,
+            "total_tables": 1,
+            "tables": [
+              {
+                "table_name": "orders",
+                "row_count": 8
+              }
+            ],
+            "row_count_approximate": true,
+            "truncated": false,
+            "truncation_note": null,
+            "hint": "Row counts are estimates; null means an estimate is unavailable, not that the table is empty. For broad columns, call get_full_schema(detail_level='compact') directly; for one selected table's full adapter-visible column metadata, use describe_table(table_name=...). This is not complete DDL. total_tables = visible after allowlist. DB type: mysql"
+          }
+        },
+        {
+          "isError": false,
+          "structuredContent": {
+            "success": true,
+            "table_name": "orders",
+            "db_type": "mysql",
+            "connection_id": "trade_analysis_mysql",
+            "row_count": 8,
+            "row_count_approximate": true,
+            "column_count": 7,
+            "columns": [
+              {
+                "column_name": "id",
+                "data_type": "int",
+                "nullable": "NO",
+                "key_type": "PRI",
+                "default_value": null
+              },
+              {
+                "column_name": "order_date",
+                "data_type": "datetime",
+                "nullable": "NO",
+                "key_type": "MUL",
+                "default_value": null
+              },
+              {
+                "column_name": "amount",
+                "data_type": "decimal",
+                "nullable": "NO",
+                "key_type": "",
+                "default_value": null
+              },
+              {
+                "column_name": "total_amount",
+                "data_type": "decimal",
+                "nullable": "NO",
+                "key_type": "",
+                "default_value": null
+              },
+              {
+                "column_name": "status",
+                "data_type": "varchar",
+                "nullable": "NO",
+                "key_type": "MUL",
+                "default_value": "pending"
+              },
+              {
+                "column_name": "created_at",
+                "data_type": "timestamp",
+                "nullable": "YES",
+                "key_type": "",
+                "default_value": "CURRENT_TIMESTAMP"
+              },
+              {
+                "column_name": "updated_at",
+                "data_type": "timestamp",
+                "nullable": "YES",
+                "key_type": "",
+                "default_value": "CURRENT_TIMESTAMP"
+              }
+            ],
+            "is_large": false,
+            "indexes": [
+              {
+                "name": "PRIMARY",
+                "primary": true,
+                "unique": true,
+                "columns": [
+                  "id"
+                ],
+                "key_parts": [
+                  {
+                    "column": "id",
+                    "prefix_length": null,
+                    "sort_order": "asc"
+                  }
+                ],
+                "visible": true
+              },
+              {
+                "name": "idx_orders_order_date",
+                "primary": false,
+                "unique": false,
+                "columns": [
+                  "order_date"
+                ],
+                "key_parts": [
+                  {
+                    "column": "order_date",
+                    "prefix_length": null,
+                    "sort_order": "asc"
+                  }
+                ],
+                "visible": true
+              },
+              {
+                "name": "idx_orders_status",
+                "primary": false,
+                "unique": false,
+                "columns": [
+                  "status"
+                ],
+                "key_parts": [
+                  {
+                    "column": "status",
+                    "prefix_length": null,
+                    "sort_order": "asc"
+                  }
+                ],
+                "visible": true
+              }
+            ],
+            "indexes_status": "complete"
+          }
+        }
+      ]
+    },
+    {
+      "mode": "auto",
+      "requests": [
+        {
+          "tool": "query",
+          "arguments": {
+            "sql": "SELECT COUNT(*) AS n FROM `trade_data_analysis`.`orders`",
+            "connection_id": "trade_analysis_mysql"
+          }
+        },
+        {
+          "tool": "list_skills",
+          "arguments": {
+            "connection_id": "trade_analysis_mysql",
+            "detail_level": "full"
+          }
+        },
+        {
+          "tool": "get_skill_detail",
+          "arguments": {
+            "skill_name": "qualified-mysql-probe",
+            "connection_id": "trade_analysis_mysql"
+          }
+        },
+        {
+          "tool": "execute_query_skill",
+          "arguments": {
+            "skill_name": "qualified-mysql-probe",
+            "params": {},
+            "connection_id": "trade_analysis_mysql"
+          }
+        },
+        {
+          "tool": "list_tables",
+          "arguments": {
+            "connection_id": "trade_analysis_mysql"
+          }
+        },
+        {
+          "tool": "describe_table",
+          "arguments": {
+            "table_name": "orders",
+            "connection_id": "trade_analysis_mysql"
+          }
+        }
+      ],
+      "responses": [
+        {
+          "isError": false,
+          "structuredContent": {
+            "success": true,
+            "data": [
+              {
+                "n": 8
+              }
+            ],
+            "row_count": 1,
+            "total_rows": 1,
+            "truncated": false,
+            "truncation_note": null,
+            "query": "SELECT COUNT(*) AS n FROM `trade_data_analysis`.`orders`",
+            "connection_id": "trade_analysis_mysql",
+            "db_type": "mysql"
+          }
+        },
+        {
+          "isError": false,
+          "structuredContent": {
+            "success": true,
+            "skills": [
+              {
+                "name": "qualified-mysql-probe",
+                "type": "query",
+                "description": "Qualified scope check",
+                "risk": "low",
+                "category": "uncategorized",
+                "executable": true,
+                "profile_allowed": true,
+                "db_compatible": true,
+                "connection_scope_allowed": true,
+                "policy_allowed": true,
+                "schema_ready": true,
+                "source": "query.sql",
+                "triggers": [],
+                "idempotent": false,
+                "databases": null,
+                "connection_ids": null,
+                "configured_connection_ids": [],
+                "unconfigured_connection_ids": [],
+                "connection_type_conflicts": [],
+                "profiles": [],
+                "params": {},
+                "version": "1.0",
+                "requires_confirmation": false,
+                "related_skills": [],
+                "tables": [
+                  "trade_data_analysis.orders"
+                ],
+                "schema_check_enabled": true,
+                "schema_check_available": true,
+                "missing_tables": [],
+                "unverified_tables": [],
+                "declared_tables": [],
+                "inferred_tables": [
+                  "trade_data_analysis.orders"
+                ]
+              }
+            ],
+            "total_skills": 1,
+            "matched_skills": 1,
+            "matched_catalog_skills": 1,
+            "available_skills": 1,
+            "unavailable_skills": 0,
+            "filtered_unavailable_skills": 0,
+            "schema_unready_skills": 0,
+            "policy_blocked_skills": 0,
+            "connection_scope_blocked_skills": 0,
+            "connection_type_conflict_skills": 0,
+            "profile_excluded_skills": 0,
+            "query_skills": 1,
+            "mutation_skills": 0,
+            "mutations_enabled": false,
+            "schema_check_enabled": true,
+            "schema_check_available": true,
+            "excluded_profiles": [],
+            "detail_level": "full",
+            "available_only": true,
+            "current_database_type": "mysql",
+            "connection_id": "trade_analysis_mysql",
+            "search": null,
+            "category": null,
+            "categories": [
+              {
+                "category": "uncategorized",
+                "count": 1
+              }
+            ]
+          }
+        },
+        {
+          "isError": false,
+          "structuredContent": {
+            "success": true,
+            "skill": {
+              "name": "qualified-mysql-probe",
+              "type": "query",
+              "description": "Qualified scope check",
+              "risk": "low",
+              "category": "uncategorized",
+              "executable": true,
+              "profile_allowed": true,
+              "db_compatible": true,
+              "connection_scope_allowed": true,
+              "policy_allowed": true,
+              "schema_ready": true,
+              "source": "query.sql",
+              "triggers": [],
+              "idempotent": false,
+              "databases": null,
+              "connection_ids": null,
+              "configured_connection_ids": [],
+              "unconfigured_connection_ids": [],
+              "connection_type_conflicts": [],
+              "profiles": [],
+              "params": {},
+              "version": "1.0",
+              "requires_confirmation": false,
+              "related_skills": [],
+              "tables": [
+                "trade_data_analysis.orders"
+              ],
+              "schema_check_enabled": true,
+              "schema_check_available": true,
+              "missing_tables": [],
+              "unverified_tables": [],
+              "declared_tables": [],
+              "inferred_tables": [
+                "trade_data_analysis.orders"
+              ]
+            },
+            "connection_id": "trade_analysis_mysql",
+            "current_database_type": "mysql",
+            "usage_hint": "Call execute_query_skill(skill_name, params, connection_id) with this same target connection and params matching the schema.",
+            "mutations_enabled": false,
+            "schema_check_enabled": true,
+            "schema_check_available": true
+          }
+        },
+        {
+          "isError": false,
+          "structuredContent": {
+            "success": true,
+            "skill_name": "qualified-mysql-probe",
+            "connection_id": "trade_analysis_mysql",
+            "db_type": "mysql",
+            "data": [
+              {
+                "n": 8
+              }
+            ],
+            "row_count": 1,
+            "total_rows": 1,
+            "truncated": false,
+            "truncation_note": null
+          }
+        },
+        {
+          "isError": false,
+          "structuredContent": {
+            "success": true,
+            "database_name": "trade_data_analysis",
+            "db_type": "mysql",
+            "connection_id": "trade_analysis_mysql",
+            "returned_table_count": 1,
+            "total_tables": 1,
+            "tables": [
+              {
+                "table_name": "orders",
+                "row_count": 8
+              }
+            ],
+            "row_count_approximate": true,
+            "truncated": false,
+            "truncation_note": null,
+            "hint": "Row counts are estimates; null means an estimate is unavailable, not that the table is empty. For broad columns, call get_full_schema(detail_level='compact') directly; for one selected table's full adapter-visible column metadata, use describe_table(table_name=...). This is not complete DDL. total_tables = visible after allowlist. DB type: mysql"
+          }
+        },
+        {
+          "isError": false,
+          "structuredContent": {
+            "success": true,
+            "table_name": "orders",
+            "db_type": "mysql",
+            "connection_id": "trade_analysis_mysql",
+            "row_count": 8,
+            "row_count_approximate": true,
+            "column_count": 7,
+            "columns": [
+              {
+                "column_name": "id",
+                "data_type": "int",
+                "nullable": "NO",
+                "key_type": "PRI",
+                "default_value": null
+              },
+              {
+                "column_name": "order_date",
+                "data_type": "datetime",
+                "nullable": "NO",
+                "key_type": "MUL",
+                "default_value": null
+              },
+              {
+                "column_name": "amount",
+                "data_type": "decimal",
+                "nullable": "NO",
+                "key_type": "",
+                "default_value": null
+              },
+              {
+                "column_name": "total_amount",
+                "data_type": "decimal",
+                "nullable": "NO",
+                "key_type": "",
+                "default_value": null
+              },
+              {
+                "column_name": "status",
+                "data_type": "varchar",
+                "nullable": "NO",
+                "key_type": "MUL",
+                "default_value": "pending"
+              },
+              {
+                "column_name": "created_at",
+                "data_type": "timestamp",
+                "nullable": "YES",
+                "key_type": "",
+                "default_value": "CURRENT_TIMESTAMP"
+              },
+              {
+                "column_name": "updated_at",
+                "data_type": "timestamp",
+                "nullable": "YES",
+                "key_type": "",
+                "default_value": "CURRENT_TIMESTAMP"
+              }
+            ],
+            "is_large": false,
+            "indexes": [
+              {
+                "name": "PRIMARY",
+                "primary": true,
+                "unique": true,
+                "columns": [
+                  "id"
+                ],
+                "key_parts": [
+                  {
+                    "column": "id",
+                    "prefix_length": null,
+                    "sort_order": "asc"
+                  }
+                ],
+                "visible": true
+              },
+              {
+                "name": "idx_orders_order_date",
+                "primary": false,
+                "unique": false,
+                "columns": [
+                  "order_date"
+                ],
+                "key_parts": [
+                  {
+                    "column": "order_date",
+                    "prefix_length": null,
+                    "sort_order": "asc"
+                  }
+                ],
+                "visible": true
+              },
+              {
+                "name": "idx_orders_status",
+                "primary": false,
+                "unique": false,
+                "columns": [
+                  "status"
+                ],
+                "key_parts": [
+                  {
+                    "column": "status",
+                    "prefix_length": null,
+                    "sort_order": "asc"
+                  }
+                ],
+                "visible": true
+              }
+            ],
+            "indexes_status": "complete"
+          }
+        }
+      ]
+    }
+  ],
+  "total_calls": 12
+}

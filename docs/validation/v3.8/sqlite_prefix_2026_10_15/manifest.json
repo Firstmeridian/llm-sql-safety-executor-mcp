@@ -1,0 +1,246 @@
+{
+  "version": "3.8.1",
+  "source_reference": "automation.json#source_sha256",
+  "recording_profile": "Application input/results in gzip, source/test hashes and compressed build/stdio logs; not full transport frames",
+  "omitted": [
+    "Complete JSON-RPC frames/IDs/notifications",
+    "No new model usage/cost trial"
+  ],
+  "cleanup": "Private SQLite directories and installed targets/processes removed; no configured database/TOML writes",
+  "history": "Previous source/Host batches and old verbose draft preserved with their attribution",
+  "artifacts": [
+    {
+      "path": "after-calls.json.gz",
+      "bytes": 8948,
+      "sha256": "66ecf82e6d74161b1429851d1f8883dc10fc65a0d7a2d96bcce74d48011bcf8c",
+      "uncompressed_bytes": 219832,
+      "uncompressed_sha256": "e489af0599d616e45ca23f04a821a7daf980f6e96f12971d7698d183631a6a0c"
+    },
+    {
+      "path": "automation.json",
+      "bytes": 13956,
+      "sha256": "6f54b5018aaaad5203f9b4822f916f3660179c238c73949a1ecdf3790208bf7d"
+    },
+    {
+      "path": "baseline-calls.json.gz",
+      "bytes": 10044,
+      "sha256": "b35607b691eafa752fe868ceb8da2f44b8e62cd70cf5e883090c613c137fbfee",
+      "uncompressed_bytes": 204313,
+      "uncompressed_sha256": "ca15ce5e27b62537874ca3c78f4c5a2536df34981da48b0ada3ee0bcd19e8bee"
+    },
+    {
+      "path": "baseline-probe.log.gz",
+      "bytes": 1473,
+      "sha256": "630f13755da192b9c93394f980d557eeb9b4b6b5e39c296086a860c9d9e730b6",
+      "uncompressed_bytes": 39939,
+      "uncompressed_sha256": "229bf78bbf309a34ff30ab9609b00361fb8ccffb978453c6222016ab7ccde42e"
+    },
+    {
+      "path": "baseline-probe.py.gz",
+      "bytes": 2058,
+      "sha256": "a57c12d148bf90e6ccc856f73e3b75e08038f54c9b1947b9ae73e1da2f869490",
+      "uncompressed_bytes": 5408,
+      "uncompressed_sha256": "b83b9f2b0b21badc9131cfdd5e6ac21a62167255a1da22fddd1c80a2c4c4e2df"
+    },
+    {
+      "path": "baseline_package_source.tar.gz",
+      "bytes": 106721,
+      "sha256": "dadb49933b5256ae526d8ac227e285c2dcd0bbaec59bf3681c7b38680e920008",
+      "uncompressed_bytes": 573440,
+      "uncompressed_sha256": "df604225fd8b1022520f7960563950c6956ece8c1537c4d4cfec414485271e32"
+    },
+    {
+      "path": "baseline_source.json",
+      "bytes": 8152,
+      "sha256": "e6ddb7a4d92d89116bca0ceddb5b361fdc8fd5d553f9da23ad9fe9a890071d15"
+    },
+    {
+      "path": "build.log.gz",
+      "bytes": 158,
+      "sha256": "54aca4cf4c01fb0c887ef88893d5a7b9472844697ba6ffe896b194a38c40924d",
+      "uncompressed_bytes": 267,
+      "uncompressed_sha256": "eff72480fb874ab4a3c07b9189d1dfa8274b2295fa894fb29b38b127ee6f21bb"
+    },
+    {
+      "path": "change_from_prior.patch",
+      "bytes": 1525,
+      "sha256": "a7ac03e352b72a5f718956e96820182f3f9e0301d0804b71e1b84782def4bcc6"
+    },
+    {
+      "path": "document_checks.json",
+      "bytes": 261,
+      "sha256": "c4242acf3d604193d63bbe75af750686066a8f74e015884da0bc307f62b8ad69"
+    },
+    {
+      "path": "finalize.py.gz",
+      "bytes": 3245,
+      "sha256": "b0e4750663d2624ecf59bcf4d9c3ca1a7b7de83ff1eba57047ae41cddf509ae0",
+      "uncompressed_bytes": 8284,
+      "uncompressed_sha256": "01dc589d51fce480084eb780bcc493e8889006cc9c0c2911c40b9e7d29262803"
+    },
+    {
+      "path": "install.log.gz",
+      "bytes": 146,
+      "sha256": "347a19c5d896ea3de48e03b0938e44a360de4e19d2799daedb5730438d91fdb0",
+      "uncompressed_bytes": 185,
+      "uncompressed_sha256": "419aae78126088568594a6d8bba3c6b77238f71584aabc51d9622140c4e989ab"
+    },
+    {
+      "path": "installed-auto-table-SQLITEXorders.log.gz",
+      "bytes": 655,
+      "sha256": "5caa57d7fc28354e6467dfcf63cf7ca11be396edae67a59c15cdcd809264eb7b",
+      "uncompressed_bytes": 2320,
+      "uncompressed_sha256": "d0a40a1787e3270d5e8cc48eae0bb795676bc5364d6e34ce75d100f6c33d7fe9"
+    },
+    {
+      "path": "installed-auto-table-sqlite.log.gz",
+      "bytes": 646,
+      "sha256": "4f668029fca5427213e248c391de6cb13dfcccb9befecb258c43406d0e41d11b",
+      "uncompressed_bytes": 2313,
+      "uncompressed_sha256": "92731fa1cfc3c85fa3d796ca82f4198c22e302998e1816503967f13645d8ebaa"
+    },
+    {
+      "path": "installed-auto-table-sqliteXorders.log.gz",
+      "bytes": 652,
+      "sha256": "b3e1346ad21a76f5adb63a3310ae507a774c25b4657d60363f38e6eaa2c07b2f",
+      "uncompressed_bytes": 2320,
+      "uncompressed_sha256": "0bba24c22dd8e35920ce8f639bd3aaabcd49fdbd8cc646b471761ee6f0a863b6"
+    },
+    {
+      "path": "installed-auto-view-SQLITEXorders.log.gz",
+      "bytes": 655,
+      "sha256": "a5d4ab6e7bf55d23118ed036e5feb07f06960c3b3db2fe058cd72a24fa629e5a",
+      "uncompressed_bytes": 2320,
+      "uncompressed_sha256": "18bfbeb2bb2cabf1297eef14fd0aa39236718282249bdfd67462e88ac7e138cc"
+    },
+    {
+      "path": "installed-auto-view-sqlite.log.gz",
+      "bytes": 643,
+      "sha256": "486ab1a6c238178eb425d7bbe4ed9b1b4c494dd16d8081090e152e62cae83d45",
+      "uncompressed_bytes": 2313,
+      "uncompressed_sha256": "abefe1e0fb3b62d544fae02d452c5e931a8fab8cc98a09581add9173761c49e5"
+    },
+    {
+      "path": "installed-auto-view-sqliteXorders.log.gz",
+      "bytes": 648,
+      "sha256": "2d1d55670c75ecca3c35817497a3d36be290a24a64ab388471585ad6d879668a",
+      "uncompressed_bytes": 2320,
+      "uncompressed_sha256": "3268649e1dc18a32e9ea42008b9a2c113f102434701e4bfdb5ef3b126e763f27"
+    },
+    {
+      "path": "installed-legacy-table-SQLITEXorders.log.gz",
+      "bytes": 883,
+      "sha256": "0845a4e77a79ea87fb448e477d70d90e12a3fdd3427fcd9db0427af09011a632",
+      "uncompressed_bytes": 4485,
+      "uncompressed_sha256": "9894f457cca0c3f7b68808b6a08674c3883defb363262871110cda8b92f121bb"
+    },
+    {
+      "path": "installed-legacy-table-sqlite.log.gz",
+      "bytes": 881,
+      "sha256": "e9b700474e6feced6bba743a7a02e2fd288bc5159e12b51ded845396c42c6981",
+      "uncompressed_bytes": 4485,
+      "uncompressed_sha256": "73b2151dae1e2a932eac319742ced1dc5d8b31ce6d94afb07a45af758f13d35f"
+    },
+    {
+      "path": "installed-legacy-table-sqliteXorders.log.gz",
+      "bytes": 888,
+      "sha256": "50e448b2b4b3d16b559fb1efa6941d9ed3938af861e3c25810bd4a8ea2597a62",
+      "uncompressed_bytes": 4485,
+      "uncompressed_sha256": "31f1b738e24cac5cdc732f5dba61b63e0372b0a0b42e18998be775400b17069e"
+    },
+    {
+      "path": "installed-legacy-view-SQLITEXorders.log.gz",
+      "bytes": 885,
+      "sha256": "7c36132b79d554819a215609d63e38288c06e12120ea91f22558385f11d56ce0",
+      "uncompressed_bytes": 4485,
+      "uncompressed_sha256": "1476ebbfb76b803c913555e51def4e822be9968dfe90cb0104ab690d95a18f9a"
+    },
+    {
+      "path": "installed-legacy-view-sqlite.log.gz",
+      "bytes": 877,
+      "sha256": "056760169744ffdad2794f7815c1aa5670da15ae03a23ac5b848be0e048ff85b",
+      "uncompressed_bytes": 4485,
+      "uncompressed_sha256": "393079e6db419158c61874a4d13cd5cb0bc3237d8a1b5e6ebfc8a7b9fd067e88"
+    },
+    {
+      "path": "installed-legacy-view-sqliteXorders.log.gz",
+      "bytes": 878,
+      "sha256": "9402ee0c1d423a1bae1bd0f418b90654534d5494cefdf455ad78c5bf2fada51c",
+      "uncompressed_bytes": 4485,
+      "uncompressed_sha256": "95a5d9c716795f20c1afc92d033285cb76eb5e36ff9c4fb1c0c301fbcdac9e41"
+    },
+    {
+      "path": "installed_check.py.gz",
+      "bytes": 2284,
+      "sha256": "e304dd5b81c16e7d43ad2ef8f252620050dd03d76ba7abd789b42156e72a352f",
+      "uncompressed_bytes": 5905,
+      "uncompressed_sha256": "416f36c755084e99890e2e8ec16438ce4711a4ee42b6e20f460d90fb7e3eba0a"
+    },
+    {
+      "path": "installed_scenarios.py.gz",
+      "bytes": 1592,
+      "sha256": "f173921b8eb93f4d012a61122e7cd0f26d151cbd3af3e0150ab1d0e7ca0daed6",
+      "uncompressed_bytes": 4432,
+      "uncompressed_sha256": "06cf5587d8abdab06953ff99051bf59a87571f8d2880d742a8c845645911750b"
+    },
+    {
+      "path": "installed_wheel.json",
+      "bytes": 245691,
+      "sha256": "db3423c5a7717268ee9bb07bc50efc7abfbb170059953e460b831a5396b22d0b"
+    },
+    {
+      "path": "native_after_restart.json",
+      "bytes": 72524,
+      "sha256": "b2c4451a5eb07bf270c142bc5f4404e1ba553e006e227fc7b0aff436b8a754fc"
+    },
+    {
+      "path": "probe.py.gz",
+      "bytes": 2141,
+      "sha256": "6ac91200b703079c4e72892c025af47955da51d9d90f197c3f04b0b0a5e59c03",
+      "uncompressed_bytes": 5721,
+      "uncompressed_sha256": "1022e6124a195441274d005df3c410c3d20ceb7d32879f02c12be4b86cc71231"
+    },
+    {
+      "path": "v381-prefix-after.log.gz",
+      "bytes": 1374,
+      "sha256": "dd472f0c29f7565e948853c8fb51e8320a3c243c0b31ded01468d7a4b2f190e8",
+      "uncompressed_bytes": 40731,
+      "uncompressed_sha256": "a290ecd85427b0d2f6d5a2c6c7b69ba07fceecd301c7509e2c199778d8675f00"
+    },
+    {
+      "path": "v381-prefix-focused.log.gz",
+      "bytes": 398,
+      "sha256": "398ffb7457536d4eeeee86529e64f8070a94919aef9cd7c34046da12c2d9efd3",
+      "uncompressed_bytes": 731,
+      "uncompressed_sha256": "d0767adac13e0700d754ea3265901413667b676a2f0188413665cf83498f71fe"
+    },
+    {
+      "path": "v381-prefix-full.log.gz",
+      "bytes": 592,
+      "sha256": "e58a52ee643cf555d23cff5d77495ffbaa679678d92ac1608618eb38ebf48592",
+      "uncompressed_bytes": 2404,
+      "uncompressed_sha256": "36332052191bb7a2d489f710636f74cdb6e86ebedb386ff51213eca50de9440f"
+    },
+    {
+      "path": "v381-prefix-installed.log.gz",
+      "bytes": 908,
+      "sha256": "65e71be65d5e8e0d8d1bdbe9e1c7b41e907ecbdd21eb3e60028d05e6e067f99e",
+      "uncompressed_bytes": 25817,
+      "uncompressed_sha256": "0baf36106a0d3244fe3989bd18c164ce5b70c9b5ed27246767dbe61d8b9ef577"
+    },
+    {
+      "path": "v381-prefix-prompt.log.gz",
+      "bytes": 74,
+      "sha256": "090e5d838501a835953ba08eeacb177cf0ecef59e67add02b2bcb919113e87ea",
+      "uncompressed_bytes": 55,
+      "uncompressed_sha256": "f0e0a884c0914987015a830aea57daf3a52000e3ea17c4899a6df1db394a16f2"
+    },
+    {
+      "path": "v381-prefix-pyright.log.gz",
+      "bytes": 53,
+      "sha256": "c8f40ac3b3f577d99ca528dc797ac395a63bdcedd0b425151e1b76ffc54e42f5",
+      "uncompressed_bytes": 37,
+      "uncompressed_sha256": "6d88a1b220adb7a3d62092b6e38431f0b3fe8babe9864fab90e5849766260332"
+    }
+  ]
+}

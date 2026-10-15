@@ -436,7 +436,7 @@ class TestErrorSanitization:
 
         # Error should be sanitized (not contain raw stack trace)
         error_msg = str(exc_info.value)
-        assert "Error:" in error_msg
+        assert "Table not found" in error_msg
         # Should NOT contain internal details like file paths
         assert "sqlalchemy" not in error_msg.lower()
 

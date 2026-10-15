@@ -6,6 +6,7 @@ from pydantic_core import to_json
 
 from sql_safety_executor.database.base import DatabaseAdapter
 from sql_safety_executor.database.models import ConnectionPolicy, DatabaseConfig
+from sql_safety_executor.database.relations import RelationReference
 
 
 class OperationError(Exception):
@@ -52,9 +53,18 @@ class ConnectionContext:
     def db_type(self) -> str:
         return self.config.db_type
 
+    @property
+    def default_schema(self) -> str | None:
+        return "main" if self.db_type == "sqlite" else self.config.mysql_database
+
+    def metadata_relation(self, name: str) -> RelationReference:
+        """Bind a decoded metadata-tool name once, before authorization/rendering."""
+        return RelationReference(name, self.default_schema)
+
 
 @dataclass(frozen=True)
 class SkillSchemaSnapshot:
     enabled: bool
     available: bool
-    table_names: frozenset[str]
+    table_names: frozenset[RelationReference]
+    schema_name: str | None = None

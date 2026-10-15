@@ -1,0 +1,450 @@
+--- before/src/sql_safety_executor/core/mutations.py
++++ after/src/sql_safety_executor/core/mutations.py
+@@ -18,6 +18,7 @@
+     resolve_managed_plan_values,
+     run_managed_mutation,
+     validate_managed_preview,
++    normalize_mutation_validation,
+ )
+ 
+ logger = logging.getLogger(__name__)
+@@ -151,7 +152,7 @@
+                 raise RuntimeError(
+                     "Mutation framework did not instantiate the preview Skill."
+                 )
+-            validation = mutation.validate(validated_params)
++            validation = normalize_mutation_validation(mutation.validate(validated_params))
+             if not validation.get("valid", False):
+                 errors = validation.get("errors", ["Validation failed"])
+                 await ctx.warning(f"Validation failed: {errors}")
+@@ -377,7 +378,7 @@
+                     "Mutation framework did not instantiate the imperative Skill."
+                 )
+             try:
+-                validation = mutation.validate(validated_params)
++                validation = normalize_mutation_validation(mutation.validate(validated_params))
+             except ToolError as validation_error:
+                 validation = {
+                     "valid": False,
+@@ -387,12 +388,6 @@
+                 validation = {
+                     "valid": False,
+                     "errors": [str(adapter._handle_error(validation_error))],
+-                }
+-
+-            if not isinstance(validation, dict):
+-                validation = {
+-                    "valid": False,
+-                    "errors": ["Mutation validation returned an invalid result."],
+                 }
+ 
+         if not validation.get("valid", False):
+--- before/src/sql_safety_executor/core/schema.py
++++ after/src/sql_safety_executor/core/schema.py
+@@ -20,7 +20,7 @@
+     _public_database_name,
+     _resolve_connection_context,
+ )
+-from sql_safety_executor.core.policy import _is_table_allowed, _is_valid_identifier
++from sql_safety_executor.core.policy import _is_valid_identifier
+ from sql_safety_executor.core.results import (
+     _metadata_failure_result,
+     _normalize_schema_detail_level,
+@@ -91,7 +91,7 @@
+     allowed_tables = connection.policy.allowed_tables
+     if allowed_tables is not None and "*" not in allowed_tables:
+         original_count = len(tables)
+-        tables = [t for t in tables if connection.policy.allows_metadata_table(t["table_name"], connection.default_schema)]
++        tables = [t for t in tables if connection.policy.allows_metadata_relation(connection.metadata_relation(t["table_name"]))]
+         if len(tables) < original_count:
+             await ctx.info(
+                 f"Filtered {original_count - len(tables)} tables by allowlist"
+@@ -180,7 +180,8 @@
+         )
+ 
+     # Check table allowlist (P1 Security)
+-    if not _is_table_allowed(runtime, table_name, connection.policy, schema=connection.default_schema):
++    relation = connection.metadata_relation(table_name)
++    if not connection.policy.allows_metadata_relation(relation):
+         await ctx.warning(f"Table access denied by allowlist: {table_name}")
+         return _tool_result(
+             runtime,
+@@ -392,7 +393,7 @@
+     allowed_tables = connection.policy.allowed_tables
+     if allowed_tables is not None and "*" not in allowed_tables:
+         tables_data = [
+-            t for t in tables_data if connection.policy.allows_metadata_table(t["table_name"], connection.default_schema)
++            t for t in tables_data if connection.policy.allows_metadata_relation(connection.metadata_relation(t["table_name"]))
+         ]
+         await ctx.info(f"Allowlist active: showing {len(tables_data)} allowed tables")
+ 
+@@ -615,7 +616,8 @@
+         )
+ 
+     # Check table allowlist (P1 Security)
+-    if not _is_table_allowed(runtime, table_name, connection.policy, schema=connection.default_schema):
++    relation = connection.metadata_relation(table_name)
++    if not connection.policy.allows_metadata_relation(relation):
+         await ctx.warning(f"Table access denied by allowlist: {table_name}")
+         return _tool_result(
+             runtime,
+@@ -645,8 +647,7 @@
+         await ctx.warning(
+             f"Running COUNT(*) on {table_name} - may be slow on large tables"
+         )
+-        quote = "`" if adapter.db_type == "mysql" else '"'
+-        count_sql = f"SELECT COUNT(*) as total_rows FROM {quote}{table_name}{quote}"
++        count_sql = f"SELECT COUNT(*) as total_rows FROM {adapter.render_metadata_relation(relation)}"
+         try:
+             count_result = adapter.execute(count_sql)
+         except DatabaseQueryError as error:
+@@ -797,7 +798,8 @@
+         )
+ 
+     # Check table allowlist (P1 Security)
+-    if not _is_table_allowed(runtime, table_name, connection.policy, schema=connection.default_schema):
++    relation = connection.metadata_relation(table_name)
++    if not connection.policy.allows_metadata_relation(relation):
+         await ctx.warning(f"Table access denied by allowlist: {table_name}")
+         return _tool_result(
+             runtime,
+@@ -824,10 +826,8 @@
+         f"Sampling {limit} rows from connection '{connection.connection_id}': {table_name}"
+     )
+ 
+-    # Use adapter-compatible quoting (backticks for MySQL, double-quotes for SQLite)
+     adapter = connection.adapter
+-    quote = "`" if adapter.db_type == "mysql" else '"'
+-    sql = f"SELECT * FROM {quote}{table_name}{quote} LIMIT {limit}"
++    sql = f"SELECT * FROM {adapter.render_metadata_relation(relation)} LIMIT {limit}"
+     try:
+         result = adapter.execute(sql)
+     except DatabaseQueryError as error:
+--- before/src/sql_safety_executor/core/types.py
++++ after/src/sql_safety_executor/core/types.py
+@@ -57,6 +57,10 @@
+     def default_schema(self) -> str | None:
+         return "main" if self.db_type == "sqlite" else self.config.mysql_database
+ 
++    def metadata_relation(self, name: str) -> RelationReference:
++        """Bind a decoded metadata-tool name once, before authorization/rendering."""
++        return RelationReference(name, self.default_schema)
++
+ 
+ @dataclass(frozen=True)
+ class SkillSchemaSnapshot:
+--- before/src/sql_safety_executor/database/base.py
++++ after/src/sql_safety_executor/database/base.py
+@@ -5,13 +5,13 @@
+ 
+ from .outcomes import MetadataQueryError
+ from .errors import DatabaseQueryError
++from .relations import ReadRelation, RelationReference, render_relation_for_text
+ 
+ logger = logging.getLogger(__name__)
+ 
+ 
+ class DatabaseAdapter(ABC):
+     """
+-
+     Abstract base class for database adapters.
+ 
+     Provides unified interface for different database backends.
+@@ -22,6 +22,18 @@
+     - Reserves extension point for PostgreSQL and other databases
+     - Methods return consistent formats across all implementations
+     """
++
++    @property
++    @abstractmethod
++    def metadata_schema(self) -> str:
++        """Configured schema for metadata and internally generated reads; no I/O."""
++        raise NotImplementedError
++
++    def render_metadata_relation(self, reference: RelationReference) -> str:
++        """Render the same scoped identity that the metadata tool authorized."""
++        if reference.schema != self.metadata_schema:
++            raise ValueError("Metadata relation must use the adapter's configured schema")
++        return render_relation_for_text(reference, self.db_type)
+ 
+     @property
+     def cte_case_sensitive(self) -> bool | None:
+@@ -107,6 +119,16 @@
+             MetadataQueryError: If the metadata query cannot be completed
+         """
+         pass
++
++    @abstractmethod
++    def get_read_relations(self) -> list[ReadRelation]:
++        """Observe table/view identities for readiness, without row estimates.
++
++        This is distinct from table-only discovery. MetadataQueryError means
++        observation failed; an empty list means no observed readable relations.
++        It does not prove query executability or grant access to view sources.
++        """
++        raise NotImplementedError
+ 
+     @abstractmethod
+     def get_columns(self, table_name: str) -> list[dict[str, Any]]:
+--- before/src/sql_safety_executor/database/models.py
++++ after/src/sql_safety_executor/database/models.py
+@@ -44,8 +44,12 @@
+ 
+     def allows_metadata_table(self, name: str, schema: str | None) -> bool:
+         """Metadata is bound to a known schema; names here are already decoded."""
+-        return self.allows_relation(RelationReference(name)) or (
+-            schema is not None and self.allows_relation(RelationReference(name, schema))
++        return self.allows_metadata_relation(RelationReference(name, schema))
++
++    def allows_metadata_relation(self, relation: RelationReference) -> bool:
++        """A bare declaration can authorize metadata in its fixed schema."""
++        return self.allows_relation(RelationReference(relation.name)) or (
++            relation.schema is not None and self.allows_relation(relation)
+         )
+ 
+ 
+--- before/src/sql_safety_executor/database/mysql.py
++++ after/src/sql_safety_executor/database/mysql.py
+@@ -25,6 +25,7 @@
+ )
+ from .identifiers import _adapter_logging_name, _metadata_identifier_is_rejected
+ from .indexes import IndexMetadataBudget, MAX_INDEX_KEY_PARTS
++from .relations import ReadRelation, RelationReference
+ 
+ # Both definitions contain constants and the final SELECT has no FROM clause:
+ # the probe never names or reads a physical table, even on case-sensitive servers.
+@@ -74,6 +75,12 @@
+     @property
+     def db_type(self) -> str:
+         return "mysql"
++
++    @property
++    def metadata_schema(self) -> str:
++        if self._db_name is None:
++            raise ValueError("MySQL metadata requires a configured database")
++        return self._db_name
+ 
+     @property
+     def cte_case_sensitive(self) -> bool | None:
+@@ -373,13 +380,23 @@
+                 TABLE_NAME as table_name, 
+                 TABLE_ROWS as row_count
+             FROM INFORMATION_SCHEMA.TABLES
+-            WHERE TABLE_SCHEMA = DATABASE() AND TABLE_TYPE = 'BASE TABLE'
++            WHERE TABLE_SCHEMA = :schema_name AND TABLE_TYPE = 'BASE TABLE'
+             ORDER BY TABLE_NAME
+         """
+-        result = self._execute_metadata(sql, 'listing tables')
++        result = self._execute_metadata(sql, 'listing tables', params={"schema_name": self.metadata_schema})
+ 
+ 
+         return [{"table_name": row[0], "row_count": row[1]} for row in result]
++
++    def get_read_relations(self) -> list[ReadRelation]:
++        rows = self._execute_metadata(
++            "SELECT TABLE_NAME, TABLE_TYPE FROM INFORMATION_SCHEMA.TABLES "
++            "WHERE TABLE_SCHEMA = :schema_name AND TABLE_TYPE IN ('BASE TABLE', 'VIEW') "
++            "ORDER BY TABLE_NAME",
++            "observing read relations", params={"schema_name": self.metadata_schema},
++        )
++        return [ReadRelation(RelationReference(row[0], self.metadata_schema),
++                            "view" if row[1] == "VIEW" else "table") for row in rows]
+ 
+     def get_columns(self, table_name: str) -> list[dict[str, Any]]:
+         """Get column information from INFORMATION_SCHEMA."""
+@@ -394,10 +411,10 @@
+                 COLUMN_KEY,
+                 COLUMN_DEFAULT
+             FROM INFORMATION_SCHEMA.COLUMNS
+-            WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = :table_name
++            WHERE TABLE_SCHEMA = :schema_name AND TABLE_NAME = :table_name
+             ORDER BY ORDINAL_POSITION
+         """
+-        result = self._execute_metadata(sql, 'reading table columns', params={"table_name": table_name})
++        result = self._execute_metadata(sql, 'reading table columns', params={"schema_name": self.metadata_schema, "table_name": table_name})
+ 
+ 
+         return [
+@@ -433,7 +450,7 @@
+             SELECT INDEX_NAME, NON_UNIQUE, SEQ_IN_INDEX, COLUMN_NAME, INDEX_TYPE,
+                    SUB_PART, COLLATION, {visibility_column}
+             FROM INFORMATION_SCHEMA.STATISTICS
+-            WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = :table_name
++            WHERE TABLE_SCHEMA = :schema_name AND TABLE_NAME = :table_name
+             ORDER BY INDEX_NAME, SEQ_IN_INDEX
+             LIMIT :row_limit
+         """
+@@ -441,7 +458,7 @@
+             self._execute_metadata(
+                 sql, 'reading table indexes',
+                 timeout=budget.remaining(),
+-                params={"table_name": table_name, "row_limit": MAX_INDEX_KEY_PARTS + 1},
++                params={"schema_name": self.metadata_schema, "table_name": table_name, "row_limit": MAX_INDEX_KEY_PARTS + 1},
+             )
+         )
+ 
+@@ -484,9 +501,9 @@
+         sql = """
+             SELECT TABLE_ROWS
+             FROM INFORMATION_SCHEMA.TABLES
+-            WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = :table_name
+-        """
+-        result = self._execute_metadata(sql, 'estimating table rows', params={"table_name": table_name})
++            WHERE TABLE_SCHEMA = :schema_name AND TABLE_NAME = :table_name
++        """
++        result = self._execute_metadata(sql, 'estimating table rows', params={"schema_name": self.metadata_schema, "table_name": table_name})
+ 
+         if not result:
+             return None
+--- before/src/sql_safety_executor/database/relations.py
++++ after/src/sql_safety_executor/database/relations.py
+@@ -1,6 +1,7 @@
+ """Relation identity; display text never decides schema or object boundaries."""
+ 
+ from dataclasses import dataclass
++from typing import Literal
+ from .identifiers import ascii_identifier_lower
+ 
+ 
+@@ -36,3 +37,32 @@
+ 
+     def in_schema(self, schema: str | None) -> "RelationReference":
+         return self if self.schema is not None else RelationReference(self.name, schema)
++
++
++@dataclass(frozen=True)
++class ReadRelation:
++    """A table or view observed in one adapter's fixed metadata schema."""
++
++    reference: RelationReference
++    kind: Literal["table", "view"]
++
++
++def render_relation_for_text(reference: RelationReference, db_type: str) -> str:
++    """Quote components separately for generated SQL passed to SQLAlchemy text.
++
++    Metadata table-name validation belongs to the caller; configured schema
++    names may contain characters outside that conservative table-name grammar.
++    Escape colons for text()'s bind parser, without changing identifier data in
++    the SQL sent to the driver. This never rewrites user-supplied SQL.
++    """
++    if db_type not in ("sqlite", "mysql"):
++        raise ValueError("Unsupported relation quoting dialect")
++    delimiter = "`" if db_type == "mysql" else '"'
++
++    def quote(value: str) -> str:
++        if not value or "\x00" in value:
++            raise ValueError("Invalid relation component")
++        return delimiter + value.replace(delimiter, delimiter * 2).replace(":", r"\:") + delimiter
++
++    name = quote(reference.name)
++    return name if reference.schema is None else f"{quote(reference.schema)}.{name}"
+--- before/src/sql_safety_executor/database/sqlite.py
++++ after/src/sql_safety_executor/database/sqlite.py
+@@ -13,6 +13,7 @@
+ from .base import DatabaseAdapter
+ from .errors import DatabaseQueryError, classify_database_error
+ from .indexes import IndexMetadataBudget, MAX_INDEX_KEY_PARTS
++from .relations import ReadRelation, RelationReference
+ from .outcomes import (
+     MetadataQueryError,
+     WriteExecutionOutcome,
+@@ -78,6 +79,10 @@
+     @property
+     def db_type(self) -> str:
+         return "sqlite"
++
++    @property
++    def metadata_schema(self) -> str:
++        return "main"
+ 
+     def connect(self) -> bool:
+         """Create a business StaticPool or a disposable diagnostic NullPool."""
+@@ -379,6 +384,14 @@
+ 
+         return tables
+ 
++    def get_read_relations(self) -> list[ReadRelation]:
++        rows = self._execute_metadata(
++            "SELECT name, type FROM main.sqlite_master "
++            "WHERE type IN ('table', 'view') AND name NOT LIKE 'sqlite_%' ORDER BY name",
++            "observing read relations",
++        )
++        return [ReadRelation(RelationReference(row[0], self.metadata_schema), row[1]) for row in rows]
++
+     def get_columns(self, table_name: str) -> list[dict[str, Any]]:
+         """
+         Get column information using PRAGMA table_info.
+--- before/src/sql_safety_executor/skills/access.py
++++ after/src/sql_safety_executor/skills/access.py
+@@ -198,7 +198,7 @@
+         )
+ 
+     try:
+-        tables = connection.adapter.get_tables()
++        relations = connection.adapter.get_read_relations()
+     except MetadataQueryError as exc:
+         logger.warning("Skills schema readiness check unavailable: %s", exc)
+         return _SkillSchemaSnapshot(
+@@ -211,11 +211,8 @@
+         enabled=True,
+         available=connection.default_schema is not None,
+         table_names=frozenset(
+-            connection.policy.relation_key(RelationReference(
+-                str(table["table_name"]), connection.default_schema,
+-            ))
+-            for table in tables
+-            if table.get("table_name")
++            connection.policy.relation_key(relation.reference)
++            for relation in relations
+         ),
+         schema_name=connection.default_schema,
+     )
+--- before/src/sql_safety_executor/skills/mutation.py
++++ after/src/sql_safety_executor/skills/mutation.py
+@@ -40,6 +40,7 @@
+ 
+ import sqlparse
+ from sqlalchemy import text
++from pydantic_core import to_json
+ 
+ from sql_safety_executor.core.types import OperationError as ToolError
+ from sql_safety_executor.database.outcomes import (
+@@ -48,6 +49,27 @@
+ )
+ 
+ logger = logging.getLogger(__name__)
++
++
++def normalize_mutation_validation(result: Any) -> dict[str, Any]:
++    """Enforce the callback result contract before preview/token or execution.
++
++    Preserve serializable business fields, but never stringify arbitrary
++    callback objects or expose their exception text to the caller.
++    """
++    invalid = {"valid": False, "errors": ["Mutation validation returned an invalid result."]}
++    if not isinstance(result, dict) or type(result.get("valid")) is not bool:
++        return invalid
++    if "errors" in result and (
++        not isinstance(result["errors"], list)
++        or any(not isinstance(reason, str) for reason in result["errors"])
++    ):
++        return invalid
++    try:
++        to_json(result)
++    except (TypeError, ValueError):
++        return invalid
++    return result
+ 
+ 
+ _MANAGED_WRITE_TYPES = frozenset({"INSERT", "UPDATE", "DELETE"})
+@@ -274,6 +296,9 @@
+         Returns:
+             {"valid": True} on success
+             {"valid": False, "errors": ["reason1", ...]} on failure
++            valid must be a strict bool, errors (when present) a list of safe
++            strings, and additional business fields JSON-serializable. Invalid
++            returns become a fixed validation_failed result before execution.
+         """
+         pass
+ 

@@ -1,0 +1,7 @@
+{
+  "reference": "../phase123_2026_10_14/automation.json#source_sha256",
+  "source_files_verified": 68,
+  "policy_sha256": "ab25a08c17f2307078f82fded19eff03e20954868f00eebd808286bb293885dd",
+  "reconstruction": "Reversed only the new identity patch; all 68 file hashes verified against preceding tested source",
+  "policy_source_archive": "policy_before.py.gz"
+}

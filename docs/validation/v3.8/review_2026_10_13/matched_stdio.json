@@ -1,0 +1,1712 @@
+{
+  "scope": "same interpreter/dependencies/config/database/stdio protocol; reversed order, 2 rounds, one warm-up per case; no RSS/first-call/population-equivalence claim",
+  "samples": [
+    {
+      "stage": "baseline",
+      "repetition": 0,
+      "case": "sqlite_read",
+      "milliseconds": 19.663373999719624,
+      "data": [
+        {
+          "id": 1,
+          "status": "completed"
+        },
+        {
+          "id": 2,
+          "status": "completed"
+        },
+        {
+          "id": 3,
+          "status": "shipped"
+        }
+      ]
+    },
+    {
+      "stage": "baseline",
+      "repetition": 0,
+      "case": "sqlite_read",
+      "milliseconds": 18.389044999821635,
+      "data": [
+        {
+          "id": 1,
+          "status": "completed"
+        },
+        {
+          "id": 2,
+          "status": "completed"
+        },
+        {
+          "id": 3,
+          "status": "shipped"
+        }
+      ]
+    },
+    {
+      "stage": "baseline",
+      "repetition": 0,
+      "case": "sqlite_read",
+      "milliseconds": 22.75476599970716,
+      "data": [
+        {
+          "id": 1,
+          "status": "completed"
+        },
+        {
+          "id": 2,
+          "status": "completed"
+        },
+        {
+          "id": 3,
+          "status": "shipped"
+        }
+      ]
+    },
+    {
+      "stage": "baseline",
+      "repetition": 0,
+      "case": "sqlite_read",
+      "milliseconds": 18.5003130000041,
+      "data": [
+        {
+          "id": 1,
+          "status": "completed"
+        },
+        {
+          "id": 2,
+          "status": "completed"
+        },
+        {
+          "id": 3,
+          "status": "shipped"
+        }
+      ]
+    },
+    {
+      "stage": "baseline",
+      "repetition": 0,
+      "case": "sqlite_read",
+      "milliseconds": 24.008010000216018,
+      "data": [
+        {
+          "id": 1,
+          "status": "completed"
+        },
+        {
+          "id": 2,
+          "status": "completed"
+        },
+        {
+          "id": 3,
+          "status": "shipped"
+        }
+      ]
+    },
+    {
+      "stage": "baseline",
+      "repetition": 0,
+      "case": "sqlite_read",
+      "milliseconds": 18.082985000546614,
+      "data": [
+        {
+          "id": 1,
+          "status": "completed"
+        },
+        {
+          "id": 2,
+          "status": "completed"
+        },
+        {
+          "id": 3,
+          "status": "shipped"
+        }
+      ]
+    },
+    {
+      "stage": "baseline",
+      "repetition": 0,
+      "case": "sqlite_read",
+      "milliseconds": 18.097205000231043,
+      "data": [
+        {
+          "id": 1,
+          "status": "completed"
+        },
+        {
+          "id": 2,
+          "status": "completed"
+        },
+        {
+          "id": 3,
+          "status": "shipped"
+        }
+      ]
+    },
+    {
+      "stage": "baseline",
+      "repetition": 0,
+      "case": "sqlite_read",
+      "milliseconds": 19.804229000328633,
+      "data": [
+        {
+          "id": 1,
+          "status": "completed"
+        },
+        {
+          "id": 2,
+          "status": "completed"
+        },
+        {
+          "id": 3,
+          "status": "shipped"
+        }
+      ]
+    },
+    {
+      "stage": "baseline",
+      "repetition": 0,
+      "case": "sqlite_cte",
+      "milliseconds": 29.33854999992036,
+      "data": [
+        {
+          "id": 1,
+          "status": "completed"
+        },
+        {
+          "id": 2,
+          "status": "completed"
+        },
+        {
+          "id": 3,
+          "status": "shipped"
+        }
+      ]
+    },
+    {
+      "stage": "baseline",
+      "repetition": 0,
+      "case": "sqlite_cte",
+      "milliseconds": 25.364558000546822,
+      "data": [
+        {
+          "id": 1,
+          "status": "completed"
+        },
+        {
+          "id": 2,
+          "status": "completed"
+        },
+        {
+          "id": 3,
+          "status": "shipped"
+        }
+      ]
+    },
+    {
+      "stage": "baseline",
+      "repetition": 0,
+      "case": "sqlite_cte",
+      "milliseconds": 22.33631899980537,
+      "data": [
+        {
+          "id": 1,
+          "status": "completed"
+        },
+        {
+          "id": 2,
+          "status": "completed"
+        },
+        {
+          "id": 3,
+          "status": "shipped"
+        }
+      ]
+    },
+    {
+      "stage": "baseline",
+      "repetition": 0,
+      "case": "sqlite_cte",
+      "milliseconds": 26.85523199943418,
+      "data": [
+        {
+          "id": 1,
+          "status": "completed"
+        },
+        {
+          "id": 2,
+          "status": "completed"
+        },
+        {
+          "id": 3,
+          "status": "shipped"
+        }
+      ]
+    },
+    {
+      "stage": "baseline",
+      "repetition": 0,
+      "case": "sqlite_cte",
+      "milliseconds": 26.75267399990844,
+      "data": [
+        {
+          "id": 1,
+          "status": "completed"
+        },
+        {
+          "id": 2,
+          "status": "completed"
+        },
+        {
+          "id": 3,
+          "status": "shipped"
+        }
+      ]
+    },
+    {
+      "stage": "baseline",
+      "repetition": 0,
+      "case": "sqlite_cte",
+      "milliseconds": 21.427093999591307,
+      "data": [
+        {
+          "id": 1,
+          "status": "completed"
+        },
+        {
+          "id": 2,
+          "status": "completed"
+        },
+        {
+          "id": 3,
+          "status": "shipped"
+        }
+      ]
+    },
+    {
+      "stage": "baseline",
+      "repetition": 0,
+      "case": "sqlite_cte",
+      "milliseconds": 24.17074599998159,
+      "data": [
+        {
+          "id": 1,
+          "status": "completed"
+        },
+        {
+          "id": 2,
+          "status": "completed"
+        },
+        {
+          "id": 3,
+          "status": "shipped"
+        }
+      ]
+    },
+    {
+      "stage": "baseline",
+      "repetition": 0,
+      "case": "sqlite_cte",
+      "milliseconds": 23.647115000130725,
+      "data": [
+        {
+          "id": 1,
+          "status": "completed"
+        },
+        {
+          "id": 2,
+          "status": "completed"
+        },
+        {
+          "id": 3,
+          "status": "shipped"
+        }
+      ]
+    },
+    {
+      "stage": "baseline",
+      "repetition": 0,
+      "case": "mysql_read",
+      "milliseconds": 28.15895499952603,
+      "data": [
+        {
+          "n": 8
+        }
+      ]
+    },
+    {
+      "stage": "baseline",
+      "repetition": 0,
+      "case": "mysql_read",
+      "milliseconds": 30.030289000023913,
+      "data": [
+        {
+          "n": 8
+        }
+      ]
+    },
+    {
+      "stage": "baseline",
+      "repetition": 0,
+      "case": "mysql_read",
+      "milliseconds": 28.303721999691334,
+      "data": [
+        {
+          "n": 8
+        }
+      ]
+    },
+    {
+      "stage": "baseline",
+      "repetition": 0,
+      "case": "mysql_read",
+      "milliseconds": 28.510338000160118,
+      "data": [
+        {
+          "n": 8
+        }
+      ]
+    },
+    {
+      "stage": "baseline",
+      "repetition": 0,
+      "case": "mysql_read",
+      "milliseconds": 39.31486700003006,
+      "data": [
+        {
+          "n": 8
+        }
+      ]
+    },
+    {
+      "stage": "baseline",
+      "repetition": 0,
+      "case": "mysql_read",
+      "milliseconds": 25.768190999770013,
+      "data": [
+        {
+          "n": 8
+        }
+      ]
+    },
+    {
+      "stage": "baseline",
+      "repetition": 0,
+      "case": "mysql_read",
+      "milliseconds": 25.87152900014189,
+      "data": [
+        {
+          "n": 8
+        }
+      ]
+    },
+    {
+      "stage": "baseline",
+      "repetition": 0,
+      "case": "mysql_read",
+      "milliseconds": 28.786195000066073,
+      "data": [
+        {
+          "n": 8
+        }
+      ]
+    },
+    {
+      "stage": "after",
+      "repetition": 0,
+      "case": "sqlite_read",
+      "milliseconds": 22.38592600042466,
+      "data": [
+        {
+          "id": 1,
+          "status": "completed"
+        },
+        {
+          "id": 2,
+          "status": "completed"
+        },
+        {
+          "id": 3,
+          "status": "shipped"
+        }
+      ]
+    },
+    {
+      "stage": "after",
+      "repetition": 0,
+      "case": "sqlite_read",
+      "milliseconds": 21.70115400076611,
+      "data": [
+        {
+          "id": 1,
+          "status": "completed"
+        },
+        {
+          "id": 2,
+          "status": "completed"
+        },
+        {
+          "id": 3,
+          "status": "shipped"
+        }
+      ]
+    },
+    {
+      "stage": "after",
+      "repetition": 0,
+      "case": "sqlite_read",
+      "milliseconds": 17.80944000074669,
+      "data": [
+        {
+          "id": 1,
+          "status": "completed"
+        },
+        {
+          "id": 2,
+          "status": "completed"
+        },
+        {
+          "id": 3,
+          "status": "shipped"
+        }
+      ]
+    },
+    {
+      "stage": "after",
+      "repetition": 0,
+      "case": "sqlite_read",
+      "milliseconds": 21.03589899979852,
+      "data": [
+        {
+          "id": 1,
+          "status": "completed"
+        },
+        {
+          "id": 2,
+          "status": "completed"
+        },
+        {
+          "id": 3,
+          "status": "shipped"
+        }
+      ]
+    },
+    {
+      "stage": "after",
+      "repetition": 0,
+      "case": "sqlite_read",
+      "milliseconds": 15.728287999991153,
+      "data": [
+        {
+          "id": 1,
+          "status": "completed"
+        },
+        {
+          "id": 2,
+          "status": "completed"
+        },
+        {
+          "id": 3,
+          "status": "shipped"
+        }
+      ]
+    },
+    {
+      "stage": "after",
+      "repetition": 0,
+      "case": "sqlite_read",
+      "milliseconds": 23.242759999448026,
+      "data": [
+        {
+          "id": 1,
+          "status": "completed"
+        },
+        {
+          "id": 2,
+          "status": "completed"
+        },
+        {
+          "id": 3,
+          "status": "shipped"
+        }
+      ]
+    },
+    {
+      "stage": "after",
+      "repetition": 0,
+      "case": "sqlite_read",
+      "milliseconds": 21.286146999955236,
+      "data": [
+        {
+          "id": 1,
+          "status": "completed"
+        },
+        {
+          "id": 2,
+          "status": "completed"
+        },
+        {
+          "id": 3,
+          "status": "shipped"
+        }
+      ]
+    },
+    {
+      "stage": "after",
+      "repetition": 0,
+      "case": "sqlite_read",
+      "milliseconds": 20.585656000548624,
+      "data": [
+        {
+          "id": 1,
+          "status": "completed"
+        },
+        {
+          "id": 2,
+          "status": "completed"
+        },
+        {
+          "id": 3,
+          "status": "shipped"
+        }
+      ]
+    },
+    {
+      "stage": "after",
+      "repetition": 0,
+      "case": "sqlite_cte",
+      "milliseconds": 31.298144000174943,
+      "data": [
+        {
+          "id": 1,
+          "status": "completed"
+        },
+        {
+          "id": 2,
+          "status": "completed"
+        },
+        {
+          "id": 3,
+          "status": "shipped"
+        }
+      ]
+    },
+    {
+      "stage": "after",
+      "repetition": 0,
+      "case": "sqlite_cte",
+      "milliseconds": 26.41144599965628,
+      "data": [
+        {
+          "id": 1,
+          "status": "completed"
+        },
+        {
+          "id": 2,
+          "status": "completed"
+        },
+        {
+          "id": 3,
+          "status": "shipped"
+        }
+      ]
+    },
+    {
+      "stage": "after",
+      "repetition": 0,
+      "case": "sqlite_cte",
+      "milliseconds": 23.53321899954608,
+      "data": [
+        {
+          "id": 1,
+          "status": "completed"
+        },
+        {
+          "id": 2,
+          "status": "completed"
+        },
+        {
+          "id": 3,
+          "status": "shipped"
+        }
+      ]
+    },
+    {
+      "stage": "after",
+      "repetition": 0,
+      "case": "sqlite_cte",
+      "milliseconds": 23.482261000026483,
+      "data": [
+        {
+          "id": 1,
+          "status": "completed"
+        },
+        {
+          "id": 2,
+          "status": "completed"
+        },
+        {
+          "id": 3,
+          "status": "shipped"
+        }
+      ]
+    },
+    {
+      "stage": "after",
+      "repetition": 0,
+      "case": "sqlite_cte",
+      "milliseconds": 24.85197399983008,
+      "data": [
+        {
+          "id": 1,
+          "status": "completed"
+        },
+        {
+          "id": 2,
+          "status": "completed"
+        },
+        {
+          "id": 3,
+          "status": "shipped"
+        }
+      ]
+    },
+    {
+      "stage": "after",
+      "repetition": 0,
+      "case": "sqlite_cte",
+      "milliseconds": 24.31198799968115,
+      "data": [
+        {
+          "id": 1,
+          "status": "completed"
+        },
+        {
+          "id": 2,
+          "status": "completed"
+        },
+        {
+          "id": 3,
+          "status": "shipped"
+        }
+      ]
+    },
+    {
+      "stage": "after",
+      "repetition": 0,
+      "case": "sqlite_cte",
+      "milliseconds": 24.87423000002309,
+      "data": [
+        {
+          "id": 1,
+          "status": "completed"
+        },
+        {
+          "id": 2,
+          "status": "completed"
+        },
+        {
+          "id": 3,
+          "status": "shipped"
+        }
+      ]
+    },
+    {
+      "stage": "after",
+      "repetition": 0,
+      "case": "sqlite_cte",
+      "milliseconds": 21.216174000073806,
+      "data": [
+        {
+          "id": 1,
+          "status": "completed"
+        },
+        {
+          "id": 2,
+          "status": "completed"
+        },
+        {
+          "id": 3,
+          "status": "shipped"
+        }
+      ]
+    },
+    {
+      "stage": "after",
+      "repetition": 0,
+      "case": "mysql_read",
+      "milliseconds": 33.564061999641126,
+      "data": [
+        {
+          "n": 8
+        }
+      ]
+    },
+    {
+      "stage": "after",
+      "repetition": 0,
+      "case": "mysql_read",
+      "milliseconds": 30.171514000358002,
+      "data": [
+        {
+          "n": 8
+        }
+      ]
+    },
+    {
+      "stage": "after",
+      "repetition": 0,
+      "case": "mysql_read",
+      "milliseconds": 31.22982700006105,
+      "data": [
+        {
+          "n": 8
+        }
+      ]
+    },
+    {
+      "stage": "after",
+      "repetition": 0,
+      "case": "mysql_read",
+      "milliseconds": 26.75784199982445,
+      "data": [
+        {
+          "n": 8
+        }
+      ]
+    },
+    {
+      "stage": "after",
+      "repetition": 0,
+      "case": "mysql_read",
+      "milliseconds": 24.643109999487933,
+      "data": [
+        {
+          "n": 8
+        }
+      ]
+    },
+    {
+      "stage": "after",
+      "repetition": 0,
+      "case": "mysql_read",
+      "milliseconds": 28.5532729994884,
+      "data": [
+        {
+          "n": 8
+        }
+      ]
+    },
+    {
+      "stage": "after",
+      "repetition": 0,
+      "case": "mysql_read",
+      "milliseconds": 29.459575000146287,
+      "data": [
+        {
+          "n": 8
+        }
+      ]
+    },
+    {
+      "stage": "after",
+      "repetition": 0,
+      "case": "mysql_read",
+      "milliseconds": 25.052067000615352,
+      "data": [
+        {
+          "n": 8
+        }
+      ]
+    },
+    {
+      "stage": "after",
+      "repetition": 1,
+      "case": "sqlite_read",
+      "milliseconds": 19.736663999537996,
+      "data": [
+        {
+          "id": 1,
+          "status": "completed"
+        },
+        {
+          "id": 2,
+          "status": "completed"
+        },
+        {
+          "id": 3,
+          "status": "shipped"
+        }
+      ]
+    },
+    {
+      "stage": "after",
+      "repetition": 1,
+      "case": "sqlite_read",
+      "milliseconds": 19.591619000493665,
+      "data": [
+        {
+          "id": 1,
+          "status": "completed"
+        },
+        {
+          "id": 2,
+          "status": "completed"
+        },
+        {
+          "id": 3,
+          "status": "shipped"
+        }
+      ]
+    },
+    {
+      "stage": "after",
+      "repetition": 1,
+      "case": "sqlite_read",
+      "milliseconds": 23.088779000318027,
+      "data": [
+        {
+          "id": 1,
+          "status": "completed"
+        },
+        {
+          "id": 2,
+          "status": "completed"
+        },
+        {
+          "id": 3,
+          "status": "shipped"
+        }
+      ]
+    },
+    {
+      "stage": "after",
+      "repetition": 1,
+      "case": "sqlite_read",
+      "milliseconds": 17.109406000599847,
+      "data": [
+        {
+          "id": 1,
+          "status": "completed"
+        },
+        {
+          "id": 2,
+          "status": "completed"
+        },
+        {
+          "id": 3,
+          "status": "shipped"
+        }
+      ]
+    },
+    {
+      "stage": "after",
+      "repetition": 1,
+      "case": "sqlite_read",
+      "milliseconds": 21.097520000694203,
+      "data": [
+        {
+          "id": 1,
+          "status": "completed"
+        },
+        {
+          "id": 2,
+          "status": "completed"
+        },
+        {
+          "id": 3,
+          "status": "shipped"
+        }
+      ]
+    },
+    {
+      "stage": "after",
+      "repetition": 1,
+      "case": "sqlite_read",
+      "milliseconds": 20.30791000015597,
+      "data": [
+        {
+          "id": 1,
+          "status": "completed"
+        },
+        {
+          "id": 2,
+          "status": "completed"
+        },
+        {
+          "id": 3,
+          "status": "shipped"
+        }
+      ]
+    },
+    {
+      "stage": "after",
+      "repetition": 1,
+      "case": "sqlite_read",
+      "milliseconds": 20.579120000547846,
+      "data": [
+        {
+          "id": 1,
+          "status": "completed"
+        },
+        {
+          "id": 2,
+          "status": "completed"
+        },
+        {
+          "id": 3,
+          "status": "shipped"
+        }
+      ]
+    },
+    {
+      "stage": "after",
+      "repetition": 1,
+      "case": "sqlite_read",
+      "milliseconds": 23.551618999590573,
+      "data": [
+        {
+          "id": 1,
+          "status": "completed"
+        },
+        {
+          "id": 2,
+          "status": "completed"
+        },
+        {
+          "id": 3,
+          "status": "shipped"
+        }
+      ]
+    },
+    {
+      "stage": "after",
+      "repetition": 1,
+      "case": "sqlite_cte",
+      "milliseconds": 27.010201999473793,
+      "data": [
+        {
+          "id": 1,
+          "status": "completed"
+        },
+        {
+          "id": 2,
+          "status": "completed"
+        },
+        {
+          "id": 3,
+          "status": "shipped"
+        }
+      ]
+    },
+    {
+      "stage": "after",
+      "repetition": 1,
+      "case": "sqlite_cte",
+      "milliseconds": 25.578992000191647,
+      "data": [
+        {
+          "id": 1,
+          "status": "completed"
+        },
+        {
+          "id": 2,
+          "status": "completed"
+        },
+        {
+          "id": 3,
+          "status": "shipped"
+        }
+      ]
+    },
+    {
+      "stage": "after",
+      "repetition": 1,
+      "case": "sqlite_cte",
+      "milliseconds": 27.02421100002539,
+      "data": [
+        {
+          "id": 1,
+          "status": "completed"
+        },
+        {
+          "id": 2,
+          "status": "completed"
+        },
+        {
+          "id": 3,
+          "status": "shipped"
+        }
+      ]
+    },
+    {
+      "stage": "after",
+      "repetition": 1,
+      "case": "sqlite_cte",
+      "milliseconds": 26.950491999741644,
+      "data": [
+        {
+          "id": 1,
+          "status": "completed"
+        },
+        {
+          "id": 2,
+          "status": "completed"
+        },
+        {
+          "id": 3,
+          "status": "shipped"
+        }
+      ]
+    },
+    {
+      "stage": "after",
+      "repetition": 1,
+      "case": "sqlite_cte",
+      "milliseconds": 27.92715000032331,
+      "data": [
+        {
+          "id": 1,
+          "status": "completed"
+        },
+        {
+          "id": 2,
+          "status": "completed"
+        },
+        {
+          "id": 3,
+          "status": "shipped"
+        }
+      ]
+    },
+    {
+      "stage": "after",
+      "repetition": 1,
+      "case": "sqlite_cte",
+      "milliseconds": 23.282088000087242,
+      "data": [
+        {
+          "id": 1,
+          "status": "completed"
+        },
+        {
+          "id": 2,
+          "status": "completed"
+        },
+        {
+          "id": 3,
+          "status": "shipped"
+        }
+      ]
+    },
+    {
+      "stage": "after",
+      "repetition": 1,
+      "case": "sqlite_cte",
+      "milliseconds": 29.275781999785977,
+      "data": [
+        {
+          "id": 1,
+          "status": "completed"
+        },
+        {
+          "id": 2,
+          "status": "completed"
+        },
+        {
+          "id": 3,
+          "status": "shipped"
+        }
+      ]
+    },
+    {
+      "stage": "after",
+      "repetition": 1,
+      "case": "sqlite_cte",
+      "milliseconds": 25.28768000047421,
+      "data": [
+        {
+          "id": 1,
+          "status": "completed"
+        },
+        {
+          "id": 2,
+          "status": "completed"
+        },
+        {
+          "id": 3,
+          "status": "shipped"
+        }
+      ]
+    },
+    {
+      "stage": "after",
+      "repetition": 1,
+      "case": "mysql_read",
+      "milliseconds": 29.71954900021956,
+      "data": [
+        {
+          "n": 8
+        }
+      ]
+    },
+    {
+      "stage": "after",
+      "repetition": 1,
+      "case": "mysql_read",
+      "milliseconds": 30.303851000098803,
+      "data": [
+        {
+          "n": 8
+        }
+      ]
+    },
+    {
+      "stage": "after",
+      "repetition": 1,
+      "case": "mysql_read",
+      "milliseconds": 28.23206700031733,
+      "data": [
+        {
+          "n": 8
+        }
+      ]
+    },
+    {
+      "stage": "after",
+      "repetition": 1,
+      "case": "mysql_read",
+      "milliseconds": 28.48431299935328,
+      "data": [
+        {
+          "n": 8
+        }
+      ]
+    },
+    {
+      "stage": "after",
+      "repetition": 1,
+      "case": "mysql_read",
+      "milliseconds": 32.35280600074475,
+      "data": [
+        {
+          "n": 8
+        }
+      ]
+    },
+    {
+      "stage": "after",
+      "repetition": 1,
+      "case": "mysql_read",
+      "milliseconds": 28.06507000059355,
+      "data": [
+        {
+          "n": 8
+        }
+      ]
+    },
+    {
+      "stage": "after",
+      "repetition": 1,
+      "case": "mysql_read",
+      "milliseconds": 28.85316199990484,
+      "data": [
+        {
+          "n": 8
+        }
+      ]
+    },
+    {
+      "stage": "after",
+      "repetition": 1,
+      "case": "mysql_read",
+      "milliseconds": 24.56300399990141,
+      "data": [
+        {
+          "n": 8
+        }
+      ]
+    },
+    {
+      "stage": "baseline",
+      "repetition": 1,
+      "case": "sqlite_read",
+      "milliseconds": 26.642071999958716,
+      "data": [
+        {
+          "id": 1,
+          "status": "completed"
+        },
+        {
+          "id": 2,
+          "status": "completed"
+        },
+        {
+          "id": 3,
+          "status": "shipped"
+        }
+      ]
+    },
+    {
+      "stage": "baseline",
+      "repetition": 1,
+      "case": "sqlite_read",
+      "milliseconds": 33.30549899965263,
+      "data": [
+        {
+          "id": 1,
+          "status": "completed"
+        },
+        {
+          "id": 2,
+          "status": "completed"
+        },
+        {
+          "id": 3,
+          "status": "shipped"
+        }
+      ]
+    },
+    {
+      "stage": "baseline",
+      "repetition": 1,
+      "case": "sqlite_read",
+      "milliseconds": 22.5372779996178,
+      "data": [
+        {
+          "id": 1,
+          "status": "completed"
+        },
+        {
+          "id": 2,
+          "status": "completed"
+        },
+        {
+          "id": 3,
+          "status": "shipped"
+        }
+      ]
+    },
+    {
+      "stage": "baseline",
+      "repetition": 1,
+      "case": "sqlite_read",
+      "milliseconds": 23.6114750005072,
+      "data": [
+        {
+          "id": 1,
+          "status": "completed"
+        },
+        {
+          "id": 2,
+          "status": "completed"
+        },
+        {
+          "id": 3,
+          "status": "shipped"
+        }
+      ]
+    },
+    {
+      "stage": "baseline",
+      "repetition": 1,
+      "case": "sqlite_read",
+      "milliseconds": 26.16814599969075,
+      "data": [
+        {
+          "id": 1,
+          "status": "completed"
+        },
+        {
+          "id": 2,
+          "status": "completed"
+        },
+        {
+          "id": 3,
+          "status": "shipped"
+        }
+      ]
+    },
+    {
+      "stage": "baseline",
+      "repetition": 1,
+      "case": "sqlite_read",
+      "milliseconds": 24.46890099963639,
+      "data": [
+        {
+          "id": 1,
+          "status": "completed"
+        },
+        {
+          "id": 2,
+          "status": "completed"
+        },
+        {
+          "id": 3,
+          "status": "shipped"
+        }
+      ]
+    },
+    {
+      "stage": "baseline",
+      "repetition": 1,
+      "case": "sqlite_read",
+      "milliseconds": 23.15992700005154,
+      "data": [
+        {
+          "id": 1,
+          "status": "completed"
+        },
+        {
+          "id": 2,
+          "status": "completed"
+        },
+        {
+          "id": 3,
+          "status": "shipped"
+        }
+      ]
+    },
+    {
+      "stage": "baseline",
+      "repetition": 1,
+      "case": "sqlite_read",
+      "milliseconds": 21.58682499975839,
+      "data": [
+        {
+          "id": 1,
+          "status": "completed"
+        },
+        {
+          "id": 2,
+          "status": "completed"
+        },
+        {
+          "id": 3,
+          "status": "shipped"
+        }
+      ]
+    },
+    {
+      "stage": "baseline",
+      "repetition": 1,
+      "case": "sqlite_cte",
+      "milliseconds": 35.26113699990674,
+      "data": [
+        {
+          "id": 1,
+          "status": "completed"
+        },
+        {
+          "id": 2,
+          "status": "completed"
+        },
+        {
+          "id": 3,
+          "status": "shipped"
+        }
+      ]
+    },
+    {
+      "stage": "baseline",
+      "repetition": 1,
+      "case": "sqlite_cte",
+      "milliseconds": 33.62807700068515,
+      "data": [
+        {
+          "id": 1,
+          "status": "completed"
+        },
+        {
+          "id": 2,
+          "status": "completed"
+        },
+        {
+          "id": 3,
+          "status": "shipped"
+        }
+      ]
+    },
+    {
+      "stage": "baseline",
+      "repetition": 1,
+      "case": "sqlite_cte",
+      "milliseconds": 39.04522399989219,
+      "data": [
+        {
+          "id": 1,
+          "status": "completed"
+        },
+        {
+          "id": 2,
+          "status": "completed"
+        },
+        {
+          "id": 3,
+          "status": "shipped"
+        }
+      ]
+    },
+    {
+      "stage": "baseline",
+      "repetition": 1,
+      "case": "sqlite_cte",
+      "milliseconds": 36.20573000080185,
+      "data": [
+        {
+          "id": 1,
+          "status": "completed"
+        },
+        {
+          "id": 2,
+          "status": "completed"
+        },
+        {
+          "id": 3,
+          "status": "shipped"
+        }
+      ]
+    },
+    {
+      "stage": "baseline",
+      "repetition": 1,
+      "case": "sqlite_cte",
+      "milliseconds": 33.27205799996591,
+      "data": [
+        {
+          "id": 1,
+          "status": "completed"
+        },
+        {
+          "id": 2,
+          "status": "completed"
+        },
+        {
+          "id": 3,
+          "status": "shipped"
+        }
+      ]
+    },
+    {
+      "stage": "baseline",
+      "repetition": 1,
+      "case": "sqlite_cte",
+      "milliseconds": 53.38149399995018,
+      "data": [
+        {
+          "id": 1,
+          "status": "completed"
+        },
+        {
+          "id": 2,
+          "status": "completed"
+        },
+        {
+          "id": 3,
+          "status": "shipped"
+        }
+      ]
+    },
+    {
+      "stage": "baseline",
+      "repetition": 1,
+      "case": "sqlite_cte",
+      "milliseconds": 33.264254999266996,
+      "data": [
+        {
+          "id": 1,
+          "status": "completed"
+        },
+        {
+          "id": 2,
+          "status": "completed"
+        },
+        {
+          "id": 3,
+          "status": "shipped"
+        }
+      ]
+    },
+    {
+      "stage": "baseline",
+      "repetition": 1,
+      "case": "sqlite_cte",
+      "milliseconds": 34.04672899978323,
+      "data": [
+        {
+          "id": 1,
+          "status": "completed"
+        },
+        {
+          "id": 2,
+          "status": "completed"
+        },
+        {
+          "id": 3,
+          "status": "shipped"
+        }
+      ]
+    },
+    {
+      "stage": "baseline",
+      "repetition": 1,
+      "case": "mysql_read",
+      "milliseconds": 42.950895999638306,
+      "data": [
+        {
+          "n": 8
+        }
+      ]
+    },
+    {
+      "stage": "baseline",
+      "repetition": 1,
+      "case": "mysql_read",
+      "milliseconds": 40.56934599975648,
+      "data": [
+        {
+          "n": 8
+        }
+      ]
+    },
+    {
+      "stage": "baseline",
+      "repetition": 1,
+      "case": "mysql_read",
+      "milliseconds": 54.0089509995596,
+      "data": [
+        {
+          "n": 8
+        }
+      ]
+    },
+    {
+      "stage": "baseline",
+      "repetition": 1,
+      "case": "mysql_read",
+      "milliseconds": 68.93869200030167,
+      "data": [
+        {
+          "n": 8
+        }
+      ]
+    },
+    {
+      "stage": "baseline",
+      "repetition": 1,
+      "case": "mysql_read",
+      "milliseconds": 70.21214699943812,
+      "data": [
+        {
+          "n": 8
+        }
+      ]
+    },
+    {
+      "stage": "baseline",
+      "repetition": 1,
+      "case": "mysql_read",
+      "milliseconds": 41.9812889995228,
+      "data": [
+        {
+          "n": 8
+        }
+      ]
+    },
+    {
+      "stage": "baseline",
+      "repetition": 1,
+      "case": "mysql_read",
+      "milliseconds": 51.814258999911544,
+      "data": [
+        {
+          "n": 8
+        }
+      ]
+    },
+    {
+      "stage": "baseline",
+      "repetition": 1,
+      "case": "mysql_read",
+      "milliseconds": 37.88468499988085,
+      "data": [
+        {
+          "n": 8
+        }
+      ]
+    }
+  ],
+  "metrics": [
+    {
+      "case": "sqlite_read",
+      "baseline": {
+        "n": 16,
+        "median_ms": 22.64602199966248,
+        "min_ms": 18.082985000546614,
+        "max_ms": 33.30549899965263
+      },
+      "after": {
+        "n": 16,
+        "median_ms": 20.81077750017357,
+        "min_ms": 15.728287999991153,
+        "max_ms": 23.551618999590573
+      }
+    },
+    {
+      "case": "sqlite_cte",
+      "baseline": {
+        "n": 16,
+        "median_ms": 31.301402499593678,
+        "min_ms": 21.427093999591307,
+        "max_ms": 53.38149399995018
+      },
+      "after": {
+        "n": 16,
+        "median_ms": 25.43333600033293,
+        "min_ms": 21.216174000073806,
+        "max_ms": 31.298144000174943
+      }
+    },
+    {
+      "case": "mysql_read",
+      "baseline": {
+        "n": 16,
+        "median_ms": 38.599775999955455,
+        "min_ms": 25.768190999770013,
+        "max_ms": 70.21214699943812
+      },
+      "after": {
+        "n": 16,
+        "median_ms": 28.70321749969662,
+        "min_ms": 24.56300399990141,
+        "max_ms": 33.564061999641126
+      }
+    }
+  ],
+  "metadata_chars": {
+    "baseline": {
+      "instructions_chars": 4494,
+      "tool_json_chars": 23049
+    },
+    "after": {
+      "instructions_chars": 4528,
+      "tool_json_chars": 23367
+    }
+  },
+  "queries": [
+    {
+      "case": "sqlite_read",
+      "connection_id": "analytics_demo_sqlite",
+      "sql": "SELECT id,status FROM orders ORDER BY id LIMIT 3"
+    },
+    {
+      "case": "sqlite_cte",
+      "connection_id": "analytics_demo_sqlite",
+      "sql": "WITH c AS (SELECT id,status FROM orders) SELECT id,status FROM c ORDER BY id LIMIT 3"
+    },
+    {
+      "case": "mysql_read",
+      "connection_id": "trade_analysis_mysql",
+      "sql": "SELECT COUNT(*) AS n FROM orders"
+    }
+  ],
+  "data_equal_across_stages": true
+}

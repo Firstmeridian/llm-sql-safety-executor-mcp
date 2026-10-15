@@ -1,0 +1,384 @@
+{
+  "version": "3.8.1",
+  "observed_at": "2026-10-15 09:51:41 UTC",
+  "source_reference": "automation.json#source_sha256",
+  "checks": {
+    "passed": 10,
+    "failed": 0,
+    "details": [
+      {
+        "id": "quoted_header_sleep",
+        "passed": true
+      },
+      {
+        "id": "quoted_header_account",
+        "passed": true
+      },
+      {
+        "id": "quoted_header_file",
+        "passed": true
+      },
+      {
+        "id": "quoted_header_lock",
+        "passed": true
+      },
+      {
+        "id": "contextual_relation_scope",
+        "passed": true
+      },
+      {
+        "id": "reserved_name_cte",
+        "passed": true
+      },
+      {
+        "id": "cte_column_declaration",
+        "passed": true
+      },
+      {
+        "id": "unicode_pragma_identity",
+        "passed": true
+      },
+      {
+        "id": "mysql_reserved_name_cte",
+        "passed": true
+      },
+      {
+        "id": "normal_query_skill",
+        "passed": true
+      }
+    ]
+  },
+  "scope": "Actual current Host application results after maintainer restart. First two arguments identical to native_before_restart.json and native_refresh_checkpoint.json; further function/table denials and normal SQLite/MySQL CTE and report Skill controls. No configured DB writes. Native allowlist behavior and isolated all-scope reproduction remain distinct; no full loaded-code attestation or cache root-cause claim.",
+  "recording_profile": "MCP content/structuredContent/isError exposed to Host, not complete JSON-RPC frames/notifications",
+  "records": [
+    {
+      "id": "quoted_header_sleep",
+      "args": {
+        "connection_id": "analytics_demo_sqlite",
+        "sql": "WITH \"x\"(n) AS (SELECT SLEEP(0)) SELECT n FROM \"x\""
+      },
+      "code": "expensive_function_denied",
+      "tool": "query",
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":false,\"error_code\":\"expensive_function_denied\",\"error\":\"Delay or benchmark function SLEEP() is not allowed in read queries.\",\"hint\":\"Keep the same connection and use ordinary SQL expressions, filters and aggregates; remove deliberate sleeps and benchmarking calls.\",\"query\":\"WITH \\\"x\\\"(n) AS (SELECT SLEEP(0)) SELECT n FROM \\\"x\\\"\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": false,
+          "error_code": "expensive_function_denied",
+          "error": "Delay or benchmark function SLEEP() is not allowed in read queries.",
+          "hint": "Keep the same connection and use ordinary SQL expressions, filters and aggregates; remove deliberate sleeps and benchmarking calls.",
+          "query": "WITH \"x\"(n) AS (SELECT SLEEP(0)) SELECT n FROM \"x\"",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      }
+    },
+    {
+      "id": "quoted_header_account",
+      "args": {
+        "connection_id": "analytics_demo_sqlite",
+        "sql": "WITH \"x\"(n) AS (SELECT USER()) SELECT n FROM \"x\""
+      },
+      "code": "server_state_denied",
+      "tool": "query",
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":false,\"error_code\":\"server_state_denied\",\"error\":\"Account and role functions are not allowed in queries.\",\"query\":\"WITH \\\"x\\\"(n) AS (SELECT USER()) SELECT n FROM \\\"x\\\"\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": false,
+          "error_code": "server_state_denied",
+          "error": "Account and role functions are not allowed in queries.",
+          "query": "WITH \"x\"(n) AS (SELECT USER()) SELECT n FROM \"x\"",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      }
+    },
+    {
+      "id": "quoted_header_file",
+      "args": {
+        "connection_id": "analytics_demo_sqlite",
+        "sql": "WITH \"x\"(n) AS (SELECT LOAD_FILE(NULL)) SELECT n FROM \"x\""
+      },
+      "code": "file_operation_denied",
+      "tool": "query",
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":false,\"error_code\":\"file_operation_denied\",\"error\":\"MySQL server-side file operations are not allowed\",\"query\":\"WITH \\\"x\\\"(n) AS (SELECT LOAD_FILE(NULL)) SELECT n FROM \\\"x\\\"\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": false,
+          "error_code": "file_operation_denied",
+          "error": "MySQL server-side file operations are not allowed",
+          "query": "WITH \"x\"(n) AS (SELECT LOAD_FILE(NULL)) SELECT n FROM \"x\"",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      }
+    },
+    {
+      "id": "quoted_header_lock",
+      "args": {
+        "connection_id": "analytics_demo_sqlite",
+        "sql": "WITH \"x\"(n) AS (SELECT GET_LOCK('fixture',0)) SELECT n FROM \"x\""
+      },
+      "code": "lock_function_denied",
+      "tool": "query",
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":false,\"error_code\":\"lock_function_denied\",\"error\":\"Lock function GET_LOCK() is not allowed in read queries.\",\"hint\":\"Keep the same connection and use ordinary reads. Lock coordination requires a trusted operation managing acquisition and release on one connection.\",\"query\":\"WITH \\\"x\\\"(n) AS (SELECT GET_LOCK('fixture',0)) SELECT n FROM \\\"x\\\"\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": false,
+          "error_code": "lock_function_denied",
+          "error": "Lock function GET_LOCK() is not allowed in read queries.",
+          "hint": "Keep the same connection and use ordinary reads. Lock coordination requires a trusted operation managing acquisition and release on one connection.",
+          "query": "WITH \"x\"(n) AS (SELECT GET_LOCK('fixture',0)) SELECT n FROM \"x\"",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      }
+    },
+    {
+      "id": "contextual_relation_scope",
+      "args": {
+        "connection_id": "analytics_demo_sqlite",
+        "sql": "SELECT 7 AS n FROM window"
+      },
+      "code": "table_access_denied",
+      "tool": "query",
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":false,\"error_code\":\"table_access_denied\",\"error\":\"Access denied to table(s): window. Only allowed tables: orders\",\"hint\":\"Keep the same connection and use authorized tables. If CTE name rules are unknown or case-sensitive, match the declaration's exact case.\",\"query\":\"SELECT 7 AS n FROM window\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": false,
+          "error_code": "table_access_denied",
+          "error": "Access denied to table(s): window. Only allowed tables: orders",
+          "hint": "Keep the same connection and use authorized tables. If CTE name rules are unknown or case-sensitive, match the declaration's exact case.",
+          "query": "SELECT 7 AS n FROM window",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      }
+    },
+    {
+      "id": "reserved_name_cte",
+      "args": {
+        "connection_id": "analytics_demo_sqlite",
+        "sql": "WITH \"SLEEP\" AS (SELECT 7 AS n) SELECT n FROM \"SLEEP\""
+      },
+      "code": null,
+      "tool": "query",
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":true,\"data\":[{\"n\":7}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null,\"query\":\"WITH \\\"SLEEP\\\" AS (SELECT 7 AS n) SELECT n FROM \\\"SLEEP\\\"\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": true,
+          "data": [
+            {
+              "n": 7
+            }
+          ],
+          "row_count": 1,
+          "total_rows": 1,
+          "truncated": false,
+          "truncation_note": null,
+          "query": "WITH \"SLEEP\" AS (SELECT 7 AS n) SELECT n FROM \"SLEEP\"",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      }
+    },
+    {
+      "id": "cte_column_declaration",
+      "args": {
+        "connection_id": "analytics_demo_sqlite",
+        "sql": "WITH user(n) AS (SELECT 7) SELECT n FROM user"
+      },
+      "code": null,
+      "tool": "query",
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":true,\"data\":[{\"n\":7}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null,\"query\":\"WITH user(n) AS (SELECT 7) SELECT n FROM user\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": true,
+          "data": [
+            {
+              "n": 7
+            }
+          ],
+          "row_count": 1,
+          "total_rows": 1,
+          "truncated": false,
+          "truncation_note": null,
+          "query": "WITH user(n) AS (SELECT 7) SELECT n FROM user",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      }
+    },
+    {
+      "id": "unicode_pragma_identity",
+      "args": {
+        "connection_id": "analytics_demo_sqlite",
+        "sql": "WITH \"pragma_locKing_mode\" AS (SELECT 7 AS n) SELECT n FROM \"pragma_locKing_mode\""
+      },
+      "code": null,
+      "tool": "query",
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":true,\"data\":[{\"n\":7}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null,\"query\":\"WITH \\\"pragma_locKing_mode\\\" AS (SELECT 7 AS n) SELECT n FROM \\\"pragma_locKing_mode\\\"\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": true,
+          "data": [
+            {
+              "n": 7
+            }
+          ],
+          "row_count": 1,
+          "total_rows": 1,
+          "truncated": false,
+          "truncation_note": null,
+          "query": "WITH \"pragma_locKing_mode\" AS (SELECT 7 AS n) SELECT n FROM \"pragma_locKing_mode\"",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      }
+    },
+    {
+      "id": "mysql_reserved_name_cte",
+      "args": {
+        "connection_id": "trade_analysis_mysql",
+        "sql": "WITH `SLEEP`(n) AS (SELECT 7) SELECT n FROM `SLEEP`"
+      },
+      "code": null,
+      "tool": "query",
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":true,\"data\":[{\"n\":7}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null,\"query\":\"WITH `SLEEP`(n) AS (SELECT 7) SELECT n FROM `SLEEP`\",\"connection_id\":\"trade_analysis_mysql\",\"db_type\":\"mysql\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": true,
+          "data": [
+            {
+              "n": 7
+            }
+          ],
+          "row_count": 1,
+          "total_rows": 1,
+          "truncated": false,
+          "truncation_note": null,
+          "query": "WITH `SLEEP`(n) AS (SELECT 7) SELECT n FROM `SLEEP`",
+          "connection_id": "trade_analysis_mysql",
+          "db_type": "mysql"
+        },
+        "isError": false
+      }
+    },
+    {
+      "id": "normal_query_skill",
+      "tool": "execute_query_skill",
+      "args": {
+        "connection_id": "analytics_demo_sqlite",
+        "skill_name": "sample-monthly-sales-report-sqlite",
+        "params": {
+          "year": 2026,
+          "month": 1
+        }
+      },
+      "code": null,
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":true,\"skill_name\":\"sample-monthly-sales-report-sqlite\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\",\"data\":[{\"date\":\"2026-01-10\",\"order_count\":1,\"revenue\":1349.98,\"avg_order_value\":1349.98},{\"date\":\"2026-01-11\",\"order_count\":1,\"revenue\":84.99,\"avg_order_value\":84.99},{\"date\":\"2026-01-12\",\"order_count\":1,\"revenue\":45.0,\"avg_order_value\":45.0},{\"date\":\"2026-01-13\",\"order_count\":1,\"revenue\":139.97,\"avg_order_value\":139.97},{\"date\":\"2026-01-14\",\"order_count\":1,\"revenue\":89.99,\"avg_order_value\":89.99}],\"row_count\":5,\"total_rows\":5,\"truncated\":false,\"truncation_note\":null}"
+          }
+        ],
+        "structuredContent": {
+          "success": true,
+          "skill_name": "sample-monthly-sales-report-sqlite",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite",
+          "data": [
+            {
+              "date": "2026-01-10",
+              "order_count": 1,
+              "revenue": 1349.98,
+              "avg_order_value": 1349.98
+            },
+            {
+              "date": "2026-01-11",
+              "order_count": 1,
+              "revenue": 84.99,
+              "avg_order_value": 84.99
+            },
+            {
+              "date": "2026-01-12",
+              "order_count": 1,
+              "revenue": 45,
+              "avg_order_value": 45
+            },
+            {
+              "date": "2026-01-13",
+              "order_count": 1,
+              "revenue": 139.97,
+              "avg_order_value": 139.97
+            },
+            {
+              "date": "2026-01-14",
+              "order_count": 1,
+              "revenue": 89.99,
+              "avg_order_value": 89.99
+            }
+          ],
+          "row_count": 5,
+          "total_rows": 5,
+          "truncated": false,
+          "truncation_note": null
+        },
+        "isError": false
+      }
+    }
+  ]
+}

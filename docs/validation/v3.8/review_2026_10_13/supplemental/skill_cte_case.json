@@ -1,0 +1,1114 @@
+{
+  "status": "Known unresolved defect reproduced; not a repair acceptance",
+  "calls": 20,
+  "existing_config_modified": false,
+  "fixture_removed": true,
+  "records": [
+    {
+      "client_mode": "legacy",
+      "protocol_version": "2025-11-25",
+      "connection_id": "allowlisted",
+      "inferred_tables": {
+        "case-exact": [
+          "orders"
+        ],
+        "case-mixed": [
+          "orders",
+          "f"
+        ]
+      },
+      "requests": [
+        {
+          "tool": "query",
+          "arguments": {
+            "sql": "WITH F AS (SELECT id FROM orders) SELECT id FROM f",
+            "connection_id": "allowlisted"
+          }
+        },
+        {
+          "tool": "list_skills",
+          "arguments": {
+            "available_only": true,
+            "connection_id": "allowlisted"
+          }
+        },
+        {
+          "tool": "list_skills",
+          "arguments": {
+            "available_only": false,
+            "detail_level": "full",
+            "connection_id": "allowlisted"
+          }
+        },
+        {
+          "tool": "execute_query_skill",
+          "arguments": {
+            "skill_name": "case-exact",
+            "params": {},
+            "connection_id": "allowlisted"
+          }
+        },
+        {
+          "tool": "execute_query_skill",
+          "arguments": {
+            "skill_name": "case-mixed",
+            "params": {},
+            "connection_id": "allowlisted"
+          }
+        }
+      ],
+      "responses": [
+        {
+          "isError": false,
+          "structuredContent": {
+            "success": true,
+            "data": [
+              {
+                "id": 1
+              }
+            ],
+            "row_count": 1,
+            "total_rows": 1,
+            "truncated": false,
+            "truncation_note": null,
+            "query": "WITH F AS (SELECT id FROM orders) SELECT id FROM f",
+            "connection_id": "allowlisted",
+            "db_type": "sqlite"
+          },
+          "text": [
+            "{\"success\":true,\"data\":[{\"id\":1}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null,\"query\":\"WITH F AS (SELECT id FROM orders) SELECT id FROM f\",\"connection_id\":\"allowlisted\",\"db_type\":\"sqlite\"}"
+          ]
+        },
+        {
+          "isError": false,
+          "structuredContent": {
+            "success": true,
+            "skills": [
+              {
+                "name": "case-exact",
+                "type": "query",
+                "description": "Isolated CTE case probe",
+                "risk": "low",
+                "category": "uncategorized",
+                "executable": true,
+                "profile_allowed": true,
+                "db_compatible": true,
+                "connection_scope_allowed": true,
+                "policy_allowed": true,
+                "schema_ready": true,
+                "source": "query.sql",
+                "triggers": [],
+                "idempotent": false,
+                "databases": null,
+                "connection_ids": null,
+                "configured_connection_ids": [],
+                "unconfigured_connection_ids": [],
+                "connection_type_conflicts": [],
+                "profiles": []
+              }
+            ],
+            "total_skills": 2,
+            "matched_skills": 1,
+            "matched_catalog_skills": 2,
+            "available_skills": 1,
+            "unavailable_skills": 1,
+            "filtered_unavailable_skills": 1,
+            "schema_unready_skills": 1,
+            "policy_blocked_skills": 1,
+            "connection_scope_blocked_skills": 0,
+            "connection_type_conflict_skills": 0,
+            "profile_excluded_skills": 0,
+            "query_skills": 1,
+            "mutation_skills": 0,
+            "mutations_enabled": false,
+            "schema_check_enabled": true,
+            "schema_check_available": true,
+            "excluded_profiles": [],
+            "detail_level": "summary",
+            "available_only": true,
+            "current_database_type": "sqlite",
+            "connection_id": "allowlisted",
+            "search": null,
+            "category": null,
+            "categories": [
+              {
+                "category": "uncategorized",
+                "count": 1
+              }
+            ],
+            "hint": "If params are not already known, call get_skill_detail(skill_name, connection_id, detail_level='execution') with the same target connection before execution."
+          },
+          "text": [
+            "{\"success\":true,\"skills\":[{\"name\":\"case-exact\",\"type\":\"query\",\"description\":\"Isolated CTE case probe\",\"risk\":\"low\",\"category\":\"uncategorized\",\"executable\":true,\"profile_allowed\":true,\"db_compatible\":true,\"connection_scope_allowed\":true,\"policy_allowed\":true,\"schema_ready\":true,\"source\":\"query.sql\",\"triggers\":[],\"idempotent\":false,\"databases\":null,\"connection_ids\":null,\"configured_connection_ids\":[],\"unconfigured_connection_ids\":[],\"connection_type_conflicts\":[],\"profiles\":[]}],\"total_skills\":2,\"matched_skills\":1,\"matched_catalog_skills\":2,\"available_skills\":1,\"unavailable_skills\":1,\"filtered_unavailable_skills\":1,\"schema_unready_skills\":1,\"policy_blocked_skills\":1,\"connection_scope_blocked_skills\":0,\"connection_type_conflict_skills\":0,\"profile_excluded_skills\":0,\"query_skills\":1,\"mutation_skills\":0,\"mutations_enabled\":false,\"schema_check_enabled\":true,\"schema_check_available\":true,\"excluded_profiles\":[],\"detail_level\":\"summary\",\"available_only\":true,\"current_database_type\":\"sqlite\",\"connection_id\":\"allowlisted\",\"search\":null,\"category\":null,\"categories\":[{\"category\":\"uncategorized\",\"count\":1}],\"hint\":\"If params are not already known, call get_skill_detail(skill_name, connection_id, detail_level='execution') with the same target connection before execution.\"}"
+          ]
+        },
+        {
+          "isError": false,
+          "structuredContent": {
+            "success": true,
+            "skills": [
+              {
+                "name": "case-exact",
+                "type": "query",
+                "description": "Isolated CTE case probe",
+                "risk": "low",
+                "category": "uncategorized",
+                "executable": true,
+                "profile_allowed": true,
+                "db_compatible": true,
+                "connection_scope_allowed": true,
+                "policy_allowed": true,
+                "schema_ready": true,
+                "source": "query.sql",
+                "triggers": [],
+                "idempotent": false,
+                "databases": null,
+                "connection_ids": null,
+                "configured_connection_ids": [],
+                "unconfigured_connection_ids": [],
+                "connection_type_conflicts": [],
+                "profiles": [],
+                "params": {},
+                "version": "1.0",
+                "requires_confirmation": false,
+                "related_skills": [],
+                "tables": [
+                  "orders"
+                ]
+              },
+              {
+                "name": "case-mixed",
+                "type": "query",
+                "description": "Isolated CTE case probe",
+                "risk": "low",
+                "category": "uncategorized",
+                "executable": false,
+                "profile_allowed": true,
+                "db_compatible": true,
+                "connection_scope_allowed": true,
+                "policy_allowed": false,
+                "schema_ready": false,
+                "disabled_reason": "Skill 'case-mixed' failed SQL safety policy: Skill 'case-mixed' requires table(s) blocked by target connection policy: ['f'] Required table(s) are missing from the current database schema: ['f'].",
+                "missing_tables": [
+                  "f"
+                ],
+                "blocked_tables": [
+                  "f"
+                ],
+                "source": "query.sql",
+                "triggers": [],
+                "idempotent": false,
+                "databases": null,
+                "connection_ids": null,
+                "configured_connection_ids": [],
+                "unconfigured_connection_ids": [],
+                "connection_type_conflicts": [],
+                "profiles": [],
+                "params": {},
+                "version": "1.0",
+                "requires_confirmation": false,
+                "related_skills": [],
+                "tables": [
+                  "orders",
+                  "f"
+                ]
+              }
+            ],
+            "total_skills": 2,
+            "matched_skills": 2,
+            "matched_catalog_skills": 2,
+            "available_skills": 1,
+            "unavailable_skills": 1,
+            "filtered_unavailable_skills": 0,
+            "schema_unready_skills": 1,
+            "policy_blocked_skills": 1,
+            "connection_scope_blocked_skills": 0,
+            "connection_type_conflict_skills": 0,
+            "profile_excluded_skills": 0,
+            "query_skills": 2,
+            "mutation_skills": 0,
+            "mutations_enabled": false,
+            "schema_check_enabled": true,
+            "schema_check_available": true,
+            "excluded_profiles": [],
+            "detail_level": "full",
+            "available_only": false,
+            "current_database_type": "sqlite",
+            "connection_id": "allowlisted",
+            "search": null,
+            "category": null,
+            "categories": [
+              {
+                "category": "uncategorized",
+                "count": 2
+              }
+            ]
+          },
+          "text": [
+            "{\"success\":true,\"skills\":[{\"name\":\"case-exact\",\"type\":\"query\",\"description\":\"Isolated CTE case probe\",\"risk\":\"low\",\"category\":\"uncategorized\",\"executable\":true,\"profile_allowed\":true,\"db_compatible\":true,\"connection_scope_allowed\":true,\"policy_allowed\":true,\"schema_ready\":true,\"source\":\"query.sql\",\"triggers\":[],\"idempotent\":false,\"databases\":null,\"connection_ids\":null,\"configured_connection_ids\":[],\"unconfigured_connection_ids\":[],\"connection_type_conflicts\":[],\"profiles\":[],\"params\":{},\"version\":\"1.0\",\"requires_confirmation\":false,\"related_skills\":[],\"tables\":[\"orders\"]},{\"name\":\"case-mixed\",\"type\":\"query\",\"description\":\"Isolated CTE case probe\",\"risk\":\"low\",\"category\":\"uncategorized\",\"executable\":false,\"profile_allowed\":true,\"db_compatible\":true,\"connection_scope_allowed\":true,\"policy_allowed\":false,\"schema_ready\":false,\"disabled_reason\":\"Skill 'case-mixed' failed SQL safety policy: Skill 'case-mixed' requires table(s) blocked by target connection policy: ['f'] Required table(s) are missing from the current database schema: ['f'].\",\"missing_tables\":[\"f\"],\"blocked_tables\":[\"f\"],\"source\":\"query.sql\",\"triggers\":[],\"idempotent\":false,\"databases\":null,\"connection_ids\":null,\"configured_connection_ids\":[],\"unconfigured_connection_ids\":[],\"connection_type_conflicts\":[],\"profiles\":[],\"params\":{},\"version\":\"1.0\",\"requires_confirmation\":false,\"related_skills\":[],\"tables\":[\"orders\",\"f\"]}],\"total_skills\":2,\"matched_skills\":2,\"matched_catalog_skills\":2,\"available_skills\":1,\"unavailable_skills\":1,\"filtered_unavailable_skills\":0,\"schema_unready_skills\":1,\"policy_blocked_skills\":1,\"connection_scope_blocked_skills\":0,\"connection_type_conflict_skills\":0,\"profile_excluded_skills\":0,\"query_skills\":2,\"mutation_skills\":0,\"mutations_enabled\":false,\"schema_check_enabled\":true,\"schema_check_available\":true,\"excluded_profiles\":[],\"detail_level\":\"full\",\"available_only\":false,\"current_database_type\":\"sqlite\",\"connection_id\":\"allowlisted\",\"search\":null,\"category\":null,\"categories\":[{\"category\":\"uncategorized\",\"count\":2}]}"
+          ]
+        },
+        {
+          "isError": false,
+          "structuredContent": {
+            "success": true,
+            "skill_name": "case-exact",
+            "connection_id": "allowlisted",
+            "db_type": "sqlite",
+            "data": [
+              {
+                "id": 1
+              }
+            ],
+            "row_count": 1,
+            "total_rows": 1,
+            "truncated": false,
+            "truncation_note": null
+          },
+          "text": [
+            "{\"success\":true,\"skill_name\":\"case-exact\",\"connection_id\":\"allowlisted\",\"db_type\":\"sqlite\",\"data\":[{\"id\":1}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null}"
+          ]
+        },
+        {
+          "isError": false,
+          "structuredContent": {
+            "success": false,
+            "error_code": "table_access_denied",
+            "error": "Skill 'case-mixed' requires table(s) blocked by target connection policy: ['f']",
+            "hint": "Use a Skill whose declared dependencies are authorized on the same connection.",
+            "skill_name": "case-mixed",
+            "connection_id": "allowlisted",
+            "db_type": "sqlite"
+          },
+          "text": [
+            "{\"success\":false,\"error_code\":\"table_access_denied\",\"error\":\"Skill 'case-mixed' requires table(s) blocked by target connection policy: ['f']\",\"hint\":\"Use a Skill whose declared dependencies are authorized on the same connection.\",\"skill_name\":\"case-mixed\",\"connection_id\":\"allowlisted\",\"db_type\":\"sqlite\"}"
+          ]
+        }
+      ]
+    },
+    {
+      "client_mode": "legacy",
+      "protocol_version": "2025-11-25",
+      "connection_id": "unrestricted",
+      "inferred_tables": {
+        "case-exact": [
+          "orders"
+        ],
+        "case-mixed": [
+          "orders",
+          "f"
+        ]
+      },
+      "requests": [
+        {
+          "tool": "query",
+          "arguments": {
+            "sql": "WITH F AS (SELECT id FROM orders) SELECT id FROM f",
+            "connection_id": "unrestricted"
+          }
+        },
+        {
+          "tool": "list_skills",
+          "arguments": {
+            "available_only": true,
+            "connection_id": "unrestricted"
+          }
+        },
+        {
+          "tool": "list_skills",
+          "arguments": {
+            "available_only": false,
+            "detail_level": "full",
+            "connection_id": "unrestricted"
+          }
+        },
+        {
+          "tool": "execute_query_skill",
+          "arguments": {
+            "skill_name": "case-exact",
+            "params": {},
+            "connection_id": "unrestricted"
+          }
+        },
+        {
+          "tool": "execute_query_skill",
+          "arguments": {
+            "skill_name": "case-mixed",
+            "params": {},
+            "connection_id": "unrestricted"
+          }
+        }
+      ],
+      "responses": [
+        {
+          "isError": false,
+          "structuredContent": {
+            "success": true,
+            "data": [
+              {
+                "id": 1
+              }
+            ],
+            "row_count": 1,
+            "total_rows": 1,
+            "truncated": false,
+            "truncation_note": null,
+            "query": "WITH F AS (SELECT id FROM orders) SELECT id FROM f",
+            "connection_id": "unrestricted",
+            "db_type": "sqlite"
+          },
+          "text": [
+            "{\"success\":true,\"data\":[{\"id\":1}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null,\"query\":\"WITH F AS (SELECT id FROM orders) SELECT id FROM f\",\"connection_id\":\"unrestricted\",\"db_type\":\"sqlite\"}"
+          ]
+        },
+        {
+          "isError": false,
+          "structuredContent": {
+            "success": true,
+            "skills": [
+              {
+                "name": "case-exact",
+                "type": "query",
+                "description": "Isolated CTE case probe",
+                "risk": "low",
+                "category": "uncategorized",
+                "executable": true,
+                "profile_allowed": true,
+                "db_compatible": true,
+                "connection_scope_allowed": true,
+                "policy_allowed": true,
+                "schema_ready": true,
+                "source": "query.sql",
+                "triggers": [],
+                "idempotent": false,
+                "databases": null,
+                "connection_ids": null,
+                "configured_connection_ids": [],
+                "unconfigured_connection_ids": [],
+                "connection_type_conflicts": [],
+                "profiles": []
+              }
+            ],
+            "total_skills": 2,
+            "matched_skills": 1,
+            "matched_catalog_skills": 2,
+            "available_skills": 1,
+            "unavailable_skills": 1,
+            "filtered_unavailable_skills": 1,
+            "schema_unready_skills": 1,
+            "policy_blocked_skills": 0,
+            "connection_scope_blocked_skills": 0,
+            "connection_type_conflict_skills": 0,
+            "profile_excluded_skills": 0,
+            "query_skills": 1,
+            "mutation_skills": 0,
+            "mutations_enabled": false,
+            "schema_check_enabled": true,
+            "schema_check_available": true,
+            "excluded_profiles": [],
+            "detail_level": "summary",
+            "available_only": true,
+            "current_database_type": "sqlite",
+            "connection_id": "unrestricted",
+            "search": null,
+            "category": null,
+            "categories": [
+              {
+                "category": "uncategorized",
+                "count": 1
+              }
+            ],
+            "hint": "If params are not already known, call get_skill_detail(skill_name, connection_id, detail_level='execution') with the same target connection before execution."
+          },
+          "text": [
+            "{\"success\":true,\"skills\":[{\"name\":\"case-exact\",\"type\":\"query\",\"description\":\"Isolated CTE case probe\",\"risk\":\"low\",\"category\":\"uncategorized\",\"executable\":true,\"profile_allowed\":true,\"db_compatible\":true,\"connection_scope_allowed\":true,\"policy_allowed\":true,\"schema_ready\":true,\"source\":\"query.sql\",\"triggers\":[],\"idempotent\":false,\"databases\":null,\"connection_ids\":null,\"configured_connection_ids\":[],\"unconfigured_connection_ids\":[],\"connection_type_conflicts\":[],\"profiles\":[]}],\"total_skills\":2,\"matched_skills\":1,\"matched_catalog_skills\":2,\"available_skills\":1,\"unavailable_skills\":1,\"filtered_unavailable_skills\":1,\"schema_unready_skills\":1,\"policy_blocked_skills\":0,\"connection_scope_blocked_skills\":0,\"connection_type_conflict_skills\":0,\"profile_excluded_skills\":0,\"query_skills\":1,\"mutation_skills\":0,\"mutations_enabled\":false,\"schema_check_enabled\":true,\"schema_check_available\":true,\"excluded_profiles\":[],\"detail_level\":\"summary\",\"available_only\":true,\"current_database_type\":\"sqlite\",\"connection_id\":\"unrestricted\",\"search\":null,\"category\":null,\"categories\":[{\"category\":\"uncategorized\",\"count\":1}],\"hint\":\"If params are not already known, call get_skill_detail(skill_name, connection_id, detail_level='execution') with the same target connection before execution.\"}"
+          ]
+        },
+        {
+          "isError": false,
+          "structuredContent": {
+            "success": true,
+            "skills": [
+              {
+                "name": "case-exact",
+                "type": "query",
+                "description": "Isolated CTE case probe",
+                "risk": "low",
+                "category": "uncategorized",
+                "executable": true,
+                "profile_allowed": true,
+                "db_compatible": true,
+                "connection_scope_allowed": true,
+                "policy_allowed": true,
+                "schema_ready": true,
+                "source": "query.sql",
+                "triggers": [],
+                "idempotent": false,
+                "databases": null,
+                "connection_ids": null,
+                "configured_connection_ids": [],
+                "unconfigured_connection_ids": [],
+                "connection_type_conflicts": [],
+                "profiles": [],
+                "params": {},
+                "version": "1.0",
+                "requires_confirmation": false,
+                "related_skills": [],
+                "tables": [
+                  "orders"
+                ]
+              },
+              {
+                "name": "case-mixed",
+                "type": "query",
+                "description": "Isolated CTE case probe",
+                "risk": "low",
+                "category": "uncategorized",
+                "executable": false,
+                "profile_allowed": true,
+                "db_compatible": true,
+                "connection_scope_allowed": true,
+                "policy_allowed": true,
+                "schema_ready": false,
+                "disabled_reason": "Required table(s) are missing from the current database schema: ['f'].",
+                "missing_tables": [
+                  "f"
+                ],
+                "source": "query.sql",
+                "triggers": [],
+                "idempotent": false,
+                "databases": null,
+                "connection_ids": null,
+                "configured_connection_ids": [],
+                "unconfigured_connection_ids": [],
+                "connection_type_conflicts": [],
+                "profiles": [],
+                "params": {},
+                "version": "1.0",
+                "requires_confirmation": false,
+                "related_skills": [],
+                "tables": [
+                  "orders",
+                  "f"
+                ]
+              }
+            ],
+            "total_skills": 2,
+            "matched_skills": 2,
+            "matched_catalog_skills": 2,
+            "available_skills": 1,
+            "unavailable_skills": 1,
+            "filtered_unavailable_skills": 0,
+            "schema_unready_skills": 1,
+            "policy_blocked_skills": 0,
+            "connection_scope_blocked_skills": 0,
+            "connection_type_conflict_skills": 0,
+            "profile_excluded_skills": 0,
+            "query_skills": 2,
+            "mutation_skills": 0,
+            "mutations_enabled": false,
+            "schema_check_enabled": true,
+            "schema_check_available": true,
+            "excluded_profiles": [],
+            "detail_level": "full",
+            "available_only": false,
+            "current_database_type": "sqlite",
+            "connection_id": "unrestricted",
+            "search": null,
+            "category": null,
+            "categories": [
+              {
+                "category": "uncategorized",
+                "count": 2
+              }
+            ]
+          },
+          "text": [
+            "{\"success\":true,\"skills\":[{\"name\":\"case-exact\",\"type\":\"query\",\"description\":\"Isolated CTE case probe\",\"risk\":\"low\",\"category\":\"uncategorized\",\"executable\":true,\"profile_allowed\":true,\"db_compatible\":true,\"connection_scope_allowed\":true,\"policy_allowed\":true,\"schema_ready\":true,\"source\":\"query.sql\",\"triggers\":[],\"idempotent\":false,\"databases\":null,\"connection_ids\":null,\"configured_connection_ids\":[],\"unconfigured_connection_ids\":[],\"connection_type_conflicts\":[],\"profiles\":[],\"params\":{},\"version\":\"1.0\",\"requires_confirmation\":false,\"related_skills\":[],\"tables\":[\"orders\"]},{\"name\":\"case-mixed\",\"type\":\"query\",\"description\":\"Isolated CTE case probe\",\"risk\":\"low\",\"category\":\"uncategorized\",\"executable\":false,\"profile_allowed\":true,\"db_compatible\":true,\"connection_scope_allowed\":true,\"policy_allowed\":true,\"schema_ready\":false,\"disabled_reason\":\"Required table(s) are missing from the current database schema: ['f'].\",\"missing_tables\":[\"f\"],\"source\":\"query.sql\",\"triggers\":[],\"idempotent\":false,\"databases\":null,\"connection_ids\":null,\"configured_connection_ids\":[],\"unconfigured_connection_ids\":[],\"connection_type_conflicts\":[],\"profiles\":[],\"params\":{},\"version\":\"1.0\",\"requires_confirmation\":false,\"related_skills\":[],\"tables\":[\"orders\",\"f\"]}],\"total_skills\":2,\"matched_skills\":2,\"matched_catalog_skills\":2,\"available_skills\":1,\"unavailable_skills\":1,\"filtered_unavailable_skills\":0,\"schema_unready_skills\":1,\"policy_blocked_skills\":0,\"connection_scope_blocked_skills\":0,\"connection_type_conflict_skills\":0,\"profile_excluded_skills\":0,\"query_skills\":2,\"mutation_skills\":0,\"mutations_enabled\":false,\"schema_check_enabled\":true,\"schema_check_available\":true,\"excluded_profiles\":[],\"detail_level\":\"full\",\"available_only\":false,\"current_database_type\":\"sqlite\",\"connection_id\":\"unrestricted\",\"search\":null,\"category\":null,\"categories\":[{\"category\":\"uncategorized\",\"count\":2}]}"
+          ]
+        },
+        {
+          "isError": false,
+          "structuredContent": {
+            "success": true,
+            "skill_name": "case-exact",
+            "connection_id": "unrestricted",
+            "db_type": "sqlite",
+            "data": [
+              {
+                "id": 1
+              }
+            ],
+            "row_count": 1,
+            "total_rows": 1,
+            "truncated": false,
+            "truncation_note": null
+          },
+          "text": [
+            "{\"success\":true,\"skill_name\":\"case-exact\",\"connection_id\":\"unrestricted\",\"db_type\":\"sqlite\",\"data\":[{\"id\":1}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null}"
+          ]
+        },
+        {
+          "isError": true,
+          "structuredContent": null,
+          "text": [
+            "Skill 'case-mixed' requires table(s) not found in the target connection schema: ['f']"
+          ]
+        }
+      ]
+    },
+    {
+      "client_mode": "auto",
+      "protocol_version": "2026-07-28",
+      "connection_id": "allowlisted",
+      "inferred_tables": {
+        "case-exact": [
+          "orders"
+        ],
+        "case-mixed": [
+          "orders",
+          "f"
+        ]
+      },
+      "requests": [
+        {
+          "tool": "query",
+          "arguments": {
+            "sql": "WITH F AS (SELECT id FROM orders) SELECT id FROM f",
+            "connection_id": "allowlisted"
+          }
+        },
+        {
+          "tool": "list_skills",
+          "arguments": {
+            "available_only": true,
+            "connection_id": "allowlisted"
+          }
+        },
+        {
+          "tool": "list_skills",
+          "arguments": {
+            "available_only": false,
+            "detail_level": "full",
+            "connection_id": "allowlisted"
+          }
+        },
+        {
+          "tool": "execute_query_skill",
+          "arguments": {
+            "skill_name": "case-exact",
+            "params": {},
+            "connection_id": "allowlisted"
+          }
+        },
+        {
+          "tool": "execute_query_skill",
+          "arguments": {
+            "skill_name": "case-mixed",
+            "params": {},
+            "connection_id": "allowlisted"
+          }
+        }
+      ],
+      "responses": [
+        {
+          "isError": false,
+          "structuredContent": {
+            "success": true,
+            "data": [
+              {
+                "id": 1
+              }
+            ],
+            "row_count": 1,
+            "total_rows": 1,
+            "truncated": false,
+            "truncation_note": null,
+            "query": "WITH F AS (SELECT id FROM orders) SELECT id FROM f",
+            "connection_id": "allowlisted",
+            "db_type": "sqlite"
+          },
+          "text": [
+            "{\"success\":true,\"data\":[{\"id\":1}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null,\"query\":\"WITH F AS (SELECT id FROM orders) SELECT id FROM f\",\"connection_id\":\"allowlisted\",\"db_type\":\"sqlite\"}"
+          ]
+        },
+        {
+          "isError": false,
+          "structuredContent": {
+            "success": true,
+            "skills": [
+              {
+                "name": "case-exact",
+                "type": "query",
+                "description": "Isolated CTE case probe",
+                "risk": "low",
+                "category": "uncategorized",
+                "executable": true,
+                "profile_allowed": true,
+                "db_compatible": true,
+                "connection_scope_allowed": true,
+                "policy_allowed": true,
+                "schema_ready": true,
+                "source": "query.sql",
+                "triggers": [],
+                "idempotent": false,
+                "databases": null,
+                "connection_ids": null,
+                "configured_connection_ids": [],
+                "unconfigured_connection_ids": [],
+                "connection_type_conflicts": [],
+                "profiles": []
+              }
+            ],
+            "total_skills": 2,
+            "matched_skills": 1,
+            "matched_catalog_skills": 2,
+            "available_skills": 1,
+            "unavailable_skills": 1,
+            "filtered_unavailable_skills": 1,
+            "schema_unready_skills": 1,
+            "policy_blocked_skills": 1,
+            "connection_scope_blocked_skills": 0,
+            "connection_type_conflict_skills": 0,
+            "profile_excluded_skills": 0,
+            "query_skills": 1,
+            "mutation_skills": 0,
+            "mutations_enabled": false,
+            "schema_check_enabled": true,
+            "schema_check_available": true,
+            "excluded_profiles": [],
+            "detail_level": "summary",
+            "available_only": true,
+            "current_database_type": "sqlite",
+            "connection_id": "allowlisted",
+            "search": null,
+            "category": null,
+            "categories": [
+              {
+                "category": "uncategorized",
+                "count": 1
+              }
+            ],
+            "hint": "If params are not already known, call get_skill_detail(skill_name, connection_id, detail_level='execution') with the same target connection before execution."
+          },
+          "text": [
+            "{\"success\":true,\"skills\":[{\"name\":\"case-exact\",\"type\":\"query\",\"description\":\"Isolated CTE case probe\",\"risk\":\"low\",\"category\":\"uncategorized\",\"executable\":true,\"profile_allowed\":true,\"db_compatible\":true,\"connection_scope_allowed\":true,\"policy_allowed\":true,\"schema_ready\":true,\"source\":\"query.sql\",\"triggers\":[],\"idempotent\":false,\"databases\":null,\"connection_ids\":null,\"configured_connection_ids\":[],\"unconfigured_connection_ids\":[],\"connection_type_conflicts\":[],\"profiles\":[]}],\"total_skills\":2,\"matched_skills\":1,\"matched_catalog_skills\":2,\"available_skills\":1,\"unavailable_skills\":1,\"filtered_unavailable_skills\":1,\"schema_unready_skills\":1,\"policy_blocked_skills\":1,\"connection_scope_blocked_skills\":0,\"connection_type_conflict_skills\":0,\"profile_excluded_skills\":0,\"query_skills\":1,\"mutation_skills\":0,\"mutations_enabled\":false,\"schema_check_enabled\":true,\"schema_check_available\":true,\"excluded_profiles\":[],\"detail_level\":\"summary\",\"available_only\":true,\"current_database_type\":\"sqlite\",\"connection_id\":\"allowlisted\",\"search\":null,\"category\":null,\"categories\":[{\"category\":\"uncategorized\",\"count\":1}],\"hint\":\"If params are not already known, call get_skill_detail(skill_name, connection_id, detail_level='execution') with the same target connection before execution.\"}"
+          ]
+        },
+        {
+          "isError": false,
+          "structuredContent": {
+            "success": true,
+            "skills": [
+              {
+                "name": "case-exact",
+                "type": "query",
+                "description": "Isolated CTE case probe",
+                "risk": "low",
+                "category": "uncategorized",
+                "executable": true,
+                "profile_allowed": true,
+                "db_compatible": true,
+                "connection_scope_allowed": true,
+                "policy_allowed": true,
+                "schema_ready": true,
+                "source": "query.sql",
+                "triggers": [],
+                "idempotent": false,
+                "databases": null,
+                "connection_ids": null,
+                "configured_connection_ids": [],
+                "unconfigured_connection_ids": [],
+                "connection_type_conflicts": [],
+                "profiles": [],
+                "params": {},
+                "version": "1.0",
+                "requires_confirmation": false,
+                "related_skills": [],
+                "tables": [
+                  "orders"
+                ]
+              },
+              {
+                "name": "case-mixed",
+                "type": "query",
+                "description": "Isolated CTE case probe",
+                "risk": "low",
+                "category": "uncategorized",
+                "executable": false,
+                "profile_allowed": true,
+                "db_compatible": true,
+                "connection_scope_allowed": true,
+                "policy_allowed": false,
+                "schema_ready": false,
+                "disabled_reason": "Skill 'case-mixed' failed SQL safety policy: Skill 'case-mixed' requires table(s) blocked by target connection policy: ['f'] Required table(s) are missing from the current database schema: ['f'].",
+                "missing_tables": [
+                  "f"
+                ],
+                "blocked_tables": [
+                  "f"
+                ],
+                "source": "query.sql",
+                "triggers": [],
+                "idempotent": false,
+                "databases": null,
+                "connection_ids": null,
+                "configured_connection_ids": [],
+                "unconfigured_connection_ids": [],
+                "connection_type_conflicts": [],
+                "profiles": [],
+                "params": {},
+                "version": "1.0",
+                "requires_confirmation": false,
+                "related_skills": [],
+                "tables": [
+                  "orders",
+                  "f"
+                ]
+              }
+            ],
+            "total_skills": 2,
+            "matched_skills": 2,
+            "matched_catalog_skills": 2,
+            "available_skills": 1,
+            "unavailable_skills": 1,
+            "filtered_unavailable_skills": 0,
+            "schema_unready_skills": 1,
+            "policy_blocked_skills": 1,
+            "connection_scope_blocked_skills": 0,
+            "connection_type_conflict_skills": 0,
+            "profile_excluded_skills": 0,
+            "query_skills": 2,
+            "mutation_skills": 0,
+            "mutations_enabled": false,
+            "schema_check_enabled": true,
+            "schema_check_available": true,
+            "excluded_profiles": [],
+            "detail_level": "full",
+            "available_only": false,
+            "current_database_type": "sqlite",
+            "connection_id": "allowlisted",
+            "search": null,
+            "category": null,
+            "categories": [
+              {
+                "category": "uncategorized",
+                "count": 2
+              }
+            ]
+          },
+          "text": [
+            "{\"success\":true,\"skills\":[{\"name\":\"case-exact\",\"type\":\"query\",\"description\":\"Isolated CTE case probe\",\"risk\":\"low\",\"category\":\"uncategorized\",\"executable\":true,\"profile_allowed\":true,\"db_compatible\":true,\"connection_scope_allowed\":true,\"policy_allowed\":true,\"schema_ready\":true,\"source\":\"query.sql\",\"triggers\":[],\"idempotent\":false,\"databases\":null,\"connection_ids\":null,\"configured_connection_ids\":[],\"unconfigured_connection_ids\":[],\"connection_type_conflicts\":[],\"profiles\":[],\"params\":{},\"version\":\"1.0\",\"requires_confirmation\":false,\"related_skills\":[],\"tables\":[\"orders\"]},{\"name\":\"case-mixed\",\"type\":\"query\",\"description\":\"Isolated CTE case probe\",\"risk\":\"low\",\"category\":\"uncategorized\",\"executable\":false,\"profile_allowed\":true,\"db_compatible\":true,\"connection_scope_allowed\":true,\"policy_allowed\":false,\"schema_ready\":false,\"disabled_reason\":\"Skill 'case-mixed' failed SQL safety policy: Skill 'case-mixed' requires table(s) blocked by target connection policy: ['f'] Required table(s) are missing from the current database schema: ['f'].\",\"missing_tables\":[\"f\"],\"blocked_tables\":[\"f\"],\"source\":\"query.sql\",\"triggers\":[],\"idempotent\":false,\"databases\":null,\"connection_ids\":null,\"configured_connection_ids\":[],\"unconfigured_connection_ids\":[],\"connection_type_conflicts\":[],\"profiles\":[],\"params\":{},\"version\":\"1.0\",\"requires_confirmation\":false,\"related_skills\":[],\"tables\":[\"orders\",\"f\"]}],\"total_skills\":2,\"matched_skills\":2,\"matched_catalog_skills\":2,\"available_skills\":1,\"unavailable_skills\":1,\"filtered_unavailable_skills\":0,\"schema_unready_skills\":1,\"policy_blocked_skills\":1,\"connection_scope_blocked_skills\":0,\"connection_type_conflict_skills\":0,\"profile_excluded_skills\":0,\"query_skills\":2,\"mutation_skills\":0,\"mutations_enabled\":false,\"schema_check_enabled\":true,\"schema_check_available\":true,\"excluded_profiles\":[],\"detail_level\":\"full\",\"available_only\":false,\"current_database_type\":\"sqlite\",\"connection_id\":\"allowlisted\",\"search\":null,\"category\":null,\"categories\":[{\"category\":\"uncategorized\",\"count\":2}]}"
+          ]
+        },
+        {
+          "isError": false,
+          "structuredContent": {
+            "success": true,
+            "skill_name": "case-exact",
+            "connection_id": "allowlisted",
+            "db_type": "sqlite",
+            "data": [
+              {
+                "id": 1
+              }
+            ],
+            "row_count": 1,
+            "total_rows": 1,
+            "truncated": false,
+            "truncation_note": null
+          },
+          "text": [
+            "{\"success\":true,\"skill_name\":\"case-exact\",\"connection_id\":\"allowlisted\",\"db_type\":\"sqlite\",\"data\":[{\"id\":1}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null}"
+          ]
+        },
+        {
+          "isError": false,
+          "structuredContent": {
+            "success": false,
+            "error_code": "table_access_denied",
+            "error": "Skill 'case-mixed' requires table(s) blocked by target connection policy: ['f']",
+            "hint": "Use a Skill whose declared dependencies are authorized on the same connection.",
+            "skill_name": "case-mixed",
+            "connection_id": "allowlisted",
+            "db_type": "sqlite"
+          },
+          "text": [
+            "{\"success\":false,\"error_code\":\"table_access_denied\",\"error\":\"Skill 'case-mixed' requires table(s) blocked by target connection policy: ['f']\",\"hint\":\"Use a Skill whose declared dependencies are authorized on the same connection.\",\"skill_name\":\"case-mixed\",\"connection_id\":\"allowlisted\",\"db_type\":\"sqlite\"}"
+          ]
+        }
+      ]
+    },
+    {
+      "client_mode": "auto",
+      "protocol_version": "2026-07-28",
+      "connection_id": "unrestricted",
+      "inferred_tables": {
+        "case-exact": [
+          "orders"
+        ],
+        "case-mixed": [
+          "orders",
+          "f"
+        ]
+      },
+      "requests": [
+        {
+          "tool": "query",
+          "arguments": {
+            "sql": "WITH F AS (SELECT id FROM orders) SELECT id FROM f",
+            "connection_id": "unrestricted"
+          }
+        },
+        {
+          "tool": "list_skills",
+          "arguments": {
+            "available_only": true,
+            "connection_id": "unrestricted"
+          }
+        },
+        {
+          "tool": "list_skills",
+          "arguments": {
+            "available_only": false,
+            "detail_level": "full",
+            "connection_id": "unrestricted"
+          }
+        },
+        {
+          "tool": "execute_query_skill",
+          "arguments": {
+            "skill_name": "case-exact",
+            "params": {},
+            "connection_id": "unrestricted"
+          }
+        },
+        {
+          "tool": "execute_query_skill",
+          "arguments": {
+            "skill_name": "case-mixed",
+            "params": {},
+            "connection_id": "unrestricted"
+          }
+        }
+      ],
+      "responses": [
+        {
+          "isError": false,
+          "structuredContent": {
+            "success": true,
+            "data": [
+              {
+                "id": 1
+              }
+            ],
+            "row_count": 1,
+            "total_rows": 1,
+            "truncated": false,
+            "truncation_note": null,
+            "query": "WITH F AS (SELECT id FROM orders) SELECT id FROM f",
+            "connection_id": "unrestricted",
+            "db_type": "sqlite"
+          },
+          "text": [
+            "{\"success\":true,\"data\":[{\"id\":1}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null,\"query\":\"WITH F AS (SELECT id FROM orders) SELECT id FROM f\",\"connection_id\":\"unrestricted\",\"db_type\":\"sqlite\"}"
+          ]
+        },
+        {
+          "isError": false,
+          "structuredContent": {
+            "success": true,
+            "skills": [
+              {
+                "name": "case-exact",
+                "type": "query",
+                "description": "Isolated CTE case probe",
+                "risk": "low",
+                "category": "uncategorized",
+                "executable": true,
+                "profile_allowed": true,
+                "db_compatible": true,
+                "connection_scope_allowed": true,
+                "policy_allowed": true,
+                "schema_ready": true,
+                "source": "query.sql",
+                "triggers": [],
+                "idempotent": false,
+                "databases": null,
+                "connection_ids": null,
+                "configured_connection_ids": [],
+                "unconfigured_connection_ids": [],
+                "connection_type_conflicts": [],
+                "profiles": []
+              }
+            ],
+            "total_skills": 2,
+            "matched_skills": 1,
+            "matched_catalog_skills": 2,
+            "available_skills": 1,
+            "unavailable_skills": 1,
+            "filtered_unavailable_skills": 1,
+            "schema_unready_skills": 1,
+            "policy_blocked_skills": 0,
+            "connection_scope_blocked_skills": 0,
+            "connection_type_conflict_skills": 0,
+            "profile_excluded_skills": 0,
+            "query_skills": 1,
+            "mutation_skills": 0,
+            "mutations_enabled": false,
+            "schema_check_enabled": true,
+            "schema_check_available": true,
+            "excluded_profiles": [],
+            "detail_level": "summary",
+            "available_only": true,
+            "current_database_type": "sqlite",
+            "connection_id": "unrestricted",
+            "search": null,
+            "category": null,
+            "categories": [
+              {
+                "category": "uncategorized",
+                "count": 1
+              }
+            ],
+            "hint": "If params are not already known, call get_skill_detail(skill_name, connection_id, detail_level='execution') with the same target connection before execution."
+          },
+          "text": [
+            "{\"success\":true,\"skills\":[{\"name\":\"case-exact\",\"type\":\"query\",\"description\":\"Isolated CTE case probe\",\"risk\":\"low\",\"category\":\"uncategorized\",\"executable\":true,\"profile_allowed\":true,\"db_compatible\":true,\"connection_scope_allowed\":true,\"policy_allowed\":true,\"schema_ready\":true,\"source\":\"query.sql\",\"triggers\":[],\"idempotent\":false,\"databases\":null,\"connection_ids\":null,\"configured_connection_ids\":[],\"unconfigured_connection_ids\":[],\"connection_type_conflicts\":[],\"profiles\":[]}],\"total_skills\":2,\"matched_skills\":1,\"matched_catalog_skills\":2,\"available_skills\":1,\"unavailable_skills\":1,\"filtered_unavailable_skills\":1,\"schema_unready_skills\":1,\"policy_blocked_skills\":0,\"connection_scope_blocked_skills\":0,\"connection_type_conflict_skills\":0,\"profile_excluded_skills\":0,\"query_skills\":1,\"mutation_skills\":0,\"mutations_enabled\":false,\"schema_check_enabled\":true,\"schema_check_available\":true,\"excluded_profiles\":[],\"detail_level\":\"summary\",\"available_only\":true,\"current_database_type\":\"sqlite\",\"connection_id\":\"unrestricted\",\"search\":null,\"category\":null,\"categories\":[{\"category\":\"uncategorized\",\"count\":1}],\"hint\":\"If params are not already known, call get_skill_detail(skill_name, connection_id, detail_level='execution') with the same target connection before execution.\"}"
+          ]
+        },
+        {
+          "isError": false,
+          "structuredContent": {
+            "success": true,
+            "skills": [
+              {
+                "name": "case-exact",
+                "type": "query",
+                "description": "Isolated CTE case probe",
+                "risk": "low",
+                "category": "uncategorized",
+                "executable": true,
+                "profile_allowed": true,
+                "db_compatible": true,
+                "connection_scope_allowed": true,
+                "policy_allowed": true,
+                "schema_ready": true,
+                "source": "query.sql",
+                "triggers": [],
+                "idempotent": false,
+                "databases": null,
+                "connection_ids": null,
+                "configured_connection_ids": [],
+                "unconfigured_connection_ids": [],
+                "connection_type_conflicts": [],
+                "profiles": [],
+                "params": {},
+                "version": "1.0",
+                "requires_confirmation": false,
+                "related_skills": [],
+                "tables": [
+                  "orders"
+                ]
+              },
+              {
+                "name": "case-mixed",
+                "type": "query",
+                "description": "Isolated CTE case probe",
+                "risk": "low",
+                "category": "uncategorized",
+                "executable": false,
+                "profile_allowed": true,
+                "db_compatible": true,
+                "connection_scope_allowed": true,
+                "policy_allowed": true,
+                "schema_ready": false,
+                "disabled_reason": "Required table(s) are missing from the current database schema: ['f'].",
+                "missing_tables": [
+                  "f"
+                ],
+                "source": "query.sql",
+                "triggers": [],
+                "idempotent": false,
+                "databases": null,
+                "connection_ids": null,
+                "configured_connection_ids": [],
+                "unconfigured_connection_ids": [],
+                "connection_type_conflicts": [],
+                "profiles": [],
+                "params": {},
+                "version": "1.0",
+                "requires_confirmation": false,
+                "related_skills": [],
+                "tables": [
+                  "orders",
+                  "f"
+                ]
+              }
+            ],
+            "total_skills": 2,
+            "matched_skills": 2,
+            "matched_catalog_skills": 2,
+            "available_skills": 1,
+            "unavailable_skills": 1,
+            "filtered_unavailable_skills": 0,
+            "schema_unready_skills": 1,
+            "policy_blocked_skills": 0,
+            "connection_scope_blocked_skills": 0,
+            "connection_type_conflict_skills": 0,
+            "profile_excluded_skills": 0,
+            "query_skills": 2,
+            "mutation_skills": 0,
+            "mutations_enabled": false,
+            "schema_check_enabled": true,
+            "schema_check_available": true,
+            "excluded_profiles": [],
+            "detail_level": "full",
+            "available_only": false,
+            "current_database_type": "sqlite",
+            "connection_id": "unrestricted",
+            "search": null,
+            "category": null,
+            "categories": [
+              {
+                "category": "uncategorized",
+                "count": 2
+              }
+            ]
+          },
+          "text": [
+            "{\"success\":true,\"skills\":[{\"name\":\"case-exact\",\"type\":\"query\",\"description\":\"Isolated CTE case probe\",\"risk\":\"low\",\"category\":\"uncategorized\",\"executable\":true,\"profile_allowed\":true,\"db_compatible\":true,\"connection_scope_allowed\":true,\"policy_allowed\":true,\"schema_ready\":true,\"source\":\"query.sql\",\"triggers\":[],\"idempotent\":false,\"databases\":null,\"connection_ids\":null,\"configured_connection_ids\":[],\"unconfigured_connection_ids\":[],\"connection_type_conflicts\":[],\"profiles\":[],\"params\":{},\"version\":\"1.0\",\"requires_confirmation\":false,\"related_skills\":[],\"tables\":[\"orders\"]},{\"name\":\"case-mixed\",\"type\":\"query\",\"description\":\"Isolated CTE case probe\",\"risk\":\"low\",\"category\":\"uncategorized\",\"executable\":false,\"profile_allowed\":true,\"db_compatible\":true,\"connection_scope_allowed\":true,\"policy_allowed\":true,\"schema_ready\":false,\"disabled_reason\":\"Required table(s) are missing from the current database schema: ['f'].\",\"missing_tables\":[\"f\"],\"source\":\"query.sql\",\"triggers\":[],\"idempotent\":false,\"databases\":null,\"connection_ids\":null,\"configured_connection_ids\":[],\"unconfigured_connection_ids\":[],\"connection_type_conflicts\":[],\"profiles\":[],\"params\":{},\"version\":\"1.0\",\"requires_confirmation\":false,\"related_skills\":[],\"tables\":[\"orders\",\"f\"]}],\"total_skills\":2,\"matched_skills\":2,\"matched_catalog_skills\":2,\"available_skills\":1,\"unavailable_skills\":1,\"filtered_unavailable_skills\":0,\"schema_unready_skills\":1,\"policy_blocked_skills\":0,\"connection_scope_blocked_skills\":0,\"connection_type_conflict_skills\":0,\"profile_excluded_skills\":0,\"query_skills\":2,\"mutation_skills\":0,\"mutations_enabled\":false,\"schema_check_enabled\":true,\"schema_check_available\":true,\"excluded_profiles\":[],\"detail_level\":\"full\",\"available_only\":false,\"current_database_type\":\"sqlite\",\"connection_id\":\"unrestricted\",\"search\":null,\"category\":null,\"categories\":[{\"category\":\"uncategorized\",\"count\":2}]}"
+          ]
+        },
+        {
+          "isError": false,
+          "structuredContent": {
+            "success": true,
+            "skill_name": "case-exact",
+            "connection_id": "unrestricted",
+            "db_type": "sqlite",
+            "data": [
+              {
+                "id": 1
+              }
+            ],
+            "row_count": 1,
+            "total_rows": 1,
+            "truncated": false,
+            "truncation_note": null
+          },
+          "text": [
+            "{\"success\":true,\"skill_name\":\"case-exact\",\"connection_id\":\"unrestricted\",\"db_type\":\"sqlite\",\"data\":[{\"id\":1}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null}"
+          ]
+        },
+        {
+          "isError": true,
+          "structuredContent": null,
+          "text": [
+            "Skill 'case-mixed' requires table(s) not found in the target connection schema: ['f']"
+          ]
+        }
+      ]
+    }
+  ]
+}

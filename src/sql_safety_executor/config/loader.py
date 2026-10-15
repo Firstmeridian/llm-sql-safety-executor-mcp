@@ -10,6 +10,7 @@ from typing import Any, Mapping
 from pydantic import BaseModel, SecretStr, ValidationError
 
 from sql_safety_executor.database.models import DatabaseConfig
+from sql_safety_executor.database.identifiers import ascii_identifier_lower
 
 from .models import ConnectionsFile, SecretSource, ServerFile, Skills, SkillsFile
 
@@ -168,7 +169,7 @@ def load_config(path: str | Path) -> AppConfig:
             allowed_tables=frozenset({"*"})
             if connection.read.mode == "all"
             else frozenset(
-                t if case_sensitive else t.lower() for t in connection.read.tables
+                t if case_sensitive else ascii_identifier_lower(t) for t in connection.read.tables
             ),
             allow_mutations=connection.mutation.enabled,
             mutation_skills=frozenset(connection.mutation.skills),

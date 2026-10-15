@@ -1,0 +1,35 @@
+--- before/src/sql_safety_executor/database/sqlite.py
++++ after/src/sql_safety_executor/database/sqlite.py
+@@ -31,6 +31,10 @@
+     _metadata_identifier_is_rejected,
+     _quote_sqlite_identifier,
+ )
++
++# Internal names have the literal sqlite_ prefix. LIKE's unescaped underscore
++# would also hide legitimate sqliteX... names. Keep both directories aligned.
++_PUBLIC_RELATION_FILTER = "substr(name, 1, 7) COLLATE NOCASE != 'sqlite_'"
+ 
+ 
+ class SQLiteAdapter(DatabaseAdapter):
+@@ -359,10 +363,10 @@
+         Note: SQLite doesn't have INFORMATION_SCHEMA, uses sqlite_master instead.
+         Row counts are estimated via sqlite_stat1 or bounded sampling.
+         """
+-        sql = """
++        sql = f"""
+             SELECT name as table_name
+             FROM main.sqlite_master
+-            WHERE type='table' AND name NOT LIKE 'sqlite_%'
++            WHERE type='table' AND {_PUBLIC_RELATION_FILTER}
+             ORDER BY name
+         """
+         result = self._execute_metadata(sql, 'listing tables')
+@@ -387,7 +391,7 @@
+     def get_read_relations(self) -> list[ReadRelation]:
+         rows = self._execute_metadata(
+             "SELECT name, type FROM main.sqlite_master "
+-            "WHERE type IN ('table', 'view') AND name NOT LIKE 'sqlite_%' ORDER BY name",
++            f"WHERE type IN ('table', 'view') AND {_PUBLIC_RELATION_FILTER} ORDER BY name",
+             "observing read relations",
+         )
+         return [ReadRelation(RelationReference(row[0], self.metadata_schema), row[1]) for row in rows]

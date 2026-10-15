@@ -1,0 +1,657 @@
+{
+  "version": "3.8.1",
+  "non_editable_pip_target_install": true,
+  "import_outside_repository": true,
+  "build_tools": [
+    {
+      "package": "hatchling",
+      "version": "1.27.0",
+      "filename": "hatchling-1.27.0-py3-none-any.whl",
+      "url": "https://files.pythonhosted.org/packages/08/e7/ae38d7a6dfba0533684e0b2136817d667588ae3ec984c1a4e5df5eb88482/hatchling-1.27.0-py3-none-any.whl",
+      "sha256": "d3a2f3567c4f926ea39849cdf924c7e99e6686c9c8e288ae1037c8fa2a5d937b",
+      "temporary_only": true,
+      "origin": "Verified existing local build-tool cache"
+    },
+    {
+      "package": "pathspec",
+      "version": "0.12.1",
+      "filename": "pathspec-0.12.1-py3-none-any.whl",
+      "url": "https://files.pythonhosted.org/packages/cc/20/ff623b09d963f88bfde16306a54e12ee5ea43e9b597108672ff3a408aad6/pathspec-0.12.1-py3-none-any.whl",
+      "sha256": "a0d503e138a4c123b27490a4f7beda6a01c6f288df0e4a8b79c7eb0dc7b4cc08",
+      "temporary_only": true,
+      "origin": "Verified existing local build-tool cache"
+    },
+    {
+      "package": "trove-classifiers",
+      "version": "2026.9.21.13",
+      "filename": "trove_classifiers-2026.9.21.13-py3-none-any.whl",
+      "url": "https://files.pythonhosted.org/packages/30/81/0da8afb52a71d0a4f2bd3152357b1a441e393b286374802b9d3addab4ab5/trove_classifiers-2026.9.21.13-py3-none-any.whl",
+      "sha256": "8b1ff4f9c191b1040b71c37f1e445ab99732911e3cd91de52838453a854d7a17",
+      "temporary_only": true,
+      "origin": "Verified existing local build-tool cache"
+    },
+    {
+      "package": "pip",
+      "version": "25.1.1",
+      "origin": "Existing local review environment; only pure-Python pip and its dist-info copied into temporary build tools",
+      "source_sha256": "91c69589a9057e3c8cdc18eb764de1f58ecdf0a6e16030da9e0663156b9c648b",
+      "temporary_copy_only": true
+    }
+  ],
+  "artifacts": [
+    {
+      "filename": "llm_sql_safety_executor_mcp-3.8.1-py3-none-any.whl",
+      "sha256": "3af56e4fcd1bd16faa262f4c10327dca2252fd3572c1f0471efbe66b71105625",
+      "bytes": 193942
+    },
+    {
+      "filename": "llm_sql_safety_executor_mcp-3.8.1.tar.gz",
+      "sha256": "8fddf2d5505cd6e620c54a2191181d0c79c6379a2c0a1e96e7bec8a5d6e637cc",
+      "bytes": 2287248
+    }
+  ],
+  "calls": [
+    {
+      "protocol": "2025-11-25",
+      "requests": [
+        {
+          "tool": "query",
+          "arguments": {
+            "sql": "WITH F AS (SELECT id FROM orders) SELECT id FROM f"
+          }
+        },
+        {
+          "tool": "list_skills",
+          "arguments": {
+            "detail_level": "full"
+          }
+        },
+        {
+          "tool": "execute_query_skill",
+          "arguments": {
+            "skill_name": "case-probe",
+            "params": {}
+          }
+        },
+        {
+          "tool": "query",
+          "arguments": {
+            "sql": "SELECT SLEEP(0)"
+          }
+        },
+        {
+          "tool": "query",
+          "arguments": {
+            "sql": "SELECT GET_LOCK('probe',0)"
+          }
+        },
+        {
+          "tool": "query",
+          "arguments": {
+            "sql": "WITH SLEEP(n) AS (SELECT 7) SELECT n FROM SLEEP"
+          }
+        }
+      ],
+      "responses": [
+        {
+          "isError": false,
+          "structuredContent": {
+            "success": true,
+            "data": [
+              {
+                "id": 1
+              }
+            ],
+            "row_count": 1,
+            "total_rows": 1,
+            "truncated": false,
+            "truncation_note": null,
+            "query": "WITH F AS (SELECT id FROM orders) SELECT id FROM f",
+            "connection_id": "demo",
+            "db_type": "sqlite"
+          },
+          "content": [
+            {
+              "type": "text",
+              "text": "{\"success\":true,\"data\":[{\"id\":1}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null,\"query\":\"WITH F AS (SELECT id FROM orders) SELECT id FROM f\",\"connection_id\":\"demo\",\"db_type\":\"sqlite\"}"
+            }
+          ],
+          "meta": {
+            "tool_name": "query",
+            "db_type": "sqlite",
+            "connection_id": "demo",
+            "execution_ms": 44.121,
+            "success": true,
+            "row_count": 1,
+            "total_rows": 1,
+            "truncated": false
+          }
+        },
+        {
+          "isError": false,
+          "structuredContent": {
+            "success": true,
+            "skills": [
+              {
+                "name": "case-probe",
+                "type": "query",
+                "description": "Installed CTE test",
+                "risk": "low",
+                "category": "uncategorized",
+                "executable": true,
+                "profile_allowed": true,
+                "db_compatible": true,
+                "connection_scope_allowed": true,
+                "policy_allowed": true,
+                "schema_ready": true,
+                "source": "query.sql",
+                "triggers": [],
+                "idempotent": false,
+                "databases": null,
+                "connection_ids": null,
+                "configured_connection_ids": [],
+                "unconfigured_connection_ids": [],
+                "connection_type_conflicts": [],
+                "profiles": [],
+                "params": {},
+                "version": "1.0",
+                "requires_confirmation": false,
+                "related_skills": [],
+                "tables": [
+                  "orders"
+                ],
+                "declared_tables": [],
+                "inferred_tables": [
+                  "orders"
+                ]
+              }
+            ],
+            "total_skills": 1,
+            "matched_skills": 1,
+            "matched_catalog_skills": 1,
+            "available_skills": 1,
+            "unavailable_skills": 0,
+            "filtered_unavailable_skills": 0,
+            "schema_unready_skills": 0,
+            "policy_blocked_skills": 0,
+            "connection_scope_blocked_skills": 0,
+            "connection_type_conflict_skills": 0,
+            "profile_excluded_skills": 0,
+            "query_skills": 1,
+            "mutation_skills": 0,
+            "mutations_enabled": false,
+            "schema_check_enabled": true,
+            "schema_check_available": true,
+            "excluded_profiles": [],
+            "detail_level": "full",
+            "available_only": true,
+            "current_database_type": "sqlite",
+            "connection_id": "demo",
+            "search": null,
+            "category": null,
+            "categories": [
+              {
+                "category": "uncategorized",
+                "count": 1
+              }
+            ]
+          },
+          "content": [
+            {
+              "type": "text",
+              "text": "{\"success\":true,\"skills\":[{\"name\":\"case-probe\",\"type\":\"query\",\"description\":\"Installed CTE test\",\"risk\":\"low\",\"category\":\"uncategorized\",\"executable\":true,\"profile_allowed\":true,\"db_compatible\":true,\"connection_scope_allowed\":true,\"policy_allowed\":true,\"schema_ready\":true,\"source\":\"query.sql\",\"triggers\":[],\"idempotent\":false,\"databases\":null,\"connection_ids\":null,\"configured_connection_ids\":[],\"unconfigured_connection_ids\":[],\"connection_type_conflicts\":[],\"profiles\":[],\"params\":{},\"version\":\"1.0\",\"requires_confirmation\":false,\"related_skills\":[],\"tables\":[\"orders\"],\"declared_tables\":[],\"inferred_tables\":[\"orders\"]}],\"total_skills\":1,\"matched_skills\":1,\"matched_catalog_skills\":1,\"available_skills\":1,\"unavailable_skills\":0,\"filtered_unavailable_skills\":0,\"schema_unready_skills\":0,\"policy_blocked_skills\":0,\"connection_scope_blocked_skills\":0,\"connection_type_conflict_skills\":0,\"profile_excluded_skills\":0,\"query_skills\":1,\"mutation_skills\":0,\"mutations_enabled\":false,\"schema_check_enabled\":true,\"schema_check_available\":true,\"excluded_profiles\":[],\"detail_level\":\"full\",\"available_only\":true,\"current_database_type\":\"sqlite\",\"connection_id\":\"demo\",\"search\":null,\"category\":null,\"categories\":[{\"category\":\"uncategorized\",\"count\":1}]}"
+            }
+          ],
+          "meta": {
+            "tool_name": "list_skills",
+            "db_type": "sqlite",
+            "connection_id": "demo",
+            "execution_ms": 21.146,
+            "success": true,
+            "matched_skills": 1,
+            "available_skills": 1,
+            "total_skills": 1
+          }
+        },
+        {
+          "isError": false,
+          "structuredContent": {
+            "success": true,
+            "skill_name": "case-probe",
+            "connection_id": "demo",
+            "db_type": "sqlite",
+            "data": [
+              {
+                "id": 1
+              }
+            ],
+            "row_count": 1,
+            "total_rows": 1,
+            "truncated": false,
+            "truncation_note": null
+          },
+          "content": [
+            {
+              "type": "text",
+              "text": "{\"success\":true,\"skill_name\":\"case-probe\",\"connection_id\":\"demo\",\"db_type\":\"sqlite\",\"data\":[{\"id\":1}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null}"
+            }
+          ],
+          "meta": {
+            "tool_name": "execute_query_skill",
+            "skill_name": "case-probe",
+            "skill_type": "query",
+            "skill_version": "1.0",
+            "mode": "query",
+            "db_type": "sqlite",
+            "connection_id": "demo",
+            "execution_ms": 43.458,
+            "success": true,
+            "idempotent": false,
+            "row_count": 1,
+            "total_rows": 1,
+            "truncated": false,
+            "audit_logged": false
+          }
+        },
+        {
+          "isError": false,
+          "structuredContent": {
+            "success": false,
+            "error_code": "expensive_function_denied",
+            "error": "Delay or benchmark function SLEEP() is not allowed in read queries.",
+            "hint": "Keep the same connection and use ordinary SQL expressions, filters and aggregates; remove deliberate sleeps and benchmarking calls.",
+            "query": "SELECT SLEEP(0)",
+            "connection_id": "demo",
+            "db_type": "sqlite"
+          },
+          "content": [
+            {
+              "type": "text",
+              "text": "{\"success\":false,\"error_code\":\"expensive_function_denied\",\"error\":\"Delay or benchmark function SLEEP() is not allowed in read queries.\",\"hint\":\"Keep the same connection and use ordinary SQL expressions, filters and aggregates; remove deliberate sleeps and benchmarking calls.\",\"query\":\"SELECT SLEEP(0)\",\"connection_id\":\"demo\",\"db_type\":\"sqlite\"}"
+            }
+          ],
+          "meta": {
+            "tool_name": "query",
+            "db_type": "sqlite",
+            "connection_id": "demo",
+            "execution_ms": 9.049,
+            "success": false
+          }
+        },
+        {
+          "isError": false,
+          "structuredContent": {
+            "success": false,
+            "error_code": "lock_function_denied",
+            "error": "Lock function GET_LOCK() is not allowed in read queries.",
+            "hint": "Keep the same connection and use ordinary reads. Lock coordination requires a trusted operation managing acquisition and release on one connection.",
+            "query": "SELECT GET_LOCK('probe',0)",
+            "connection_id": "demo",
+            "db_type": "sqlite"
+          },
+          "content": [
+            {
+              "type": "text",
+              "text": "{\"success\":false,\"error_code\":\"lock_function_denied\",\"error\":\"Lock function GET_LOCK() is not allowed in read queries.\",\"hint\":\"Keep the same connection and use ordinary reads. Lock coordination requires a trusted operation managing acquisition and release on one connection.\",\"query\":\"SELECT GET_LOCK('probe',0)\",\"connection_id\":\"demo\",\"db_type\":\"sqlite\"}"
+            }
+          ],
+          "meta": {
+            "tool_name": "query",
+            "db_type": "sqlite",
+            "connection_id": "demo",
+            "execution_ms": 8.911,
+            "success": false
+          }
+        },
+        {
+          "isError": false,
+          "structuredContent": {
+            "success": true,
+            "data": [
+              {
+                "n": 7
+              }
+            ],
+            "row_count": 1,
+            "total_rows": 1,
+            "truncated": false,
+            "truncation_note": null,
+            "query": "WITH SLEEP(n) AS (SELECT 7) SELECT n FROM SLEEP",
+            "connection_id": "demo",
+            "db_type": "sqlite"
+          },
+          "content": [
+            {
+              "type": "text",
+              "text": "{\"success\":true,\"data\":[{\"n\":7}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null,\"query\":\"WITH SLEEP(n) AS (SELECT 7) SELECT n FROM SLEEP\",\"connection_id\":\"demo\",\"db_type\":\"sqlite\"}"
+            }
+          ],
+          "meta": {
+            "tool_name": "query",
+            "db_type": "sqlite",
+            "connection_id": "demo",
+            "execution_ms": 23.903,
+            "success": true,
+            "row_count": 1,
+            "total_rows": 1,
+            "truncated": false
+          }
+        }
+      ]
+    },
+    {
+      "protocol": "2026-07-28",
+      "requests": [
+        {
+          "tool": "query",
+          "arguments": {
+            "sql": "WITH F AS (SELECT id FROM orders) SELECT id FROM f"
+          }
+        },
+        {
+          "tool": "list_skills",
+          "arguments": {
+            "detail_level": "full"
+          }
+        },
+        {
+          "tool": "execute_query_skill",
+          "arguments": {
+            "skill_name": "case-probe",
+            "params": {}
+          }
+        },
+        {
+          "tool": "query",
+          "arguments": {
+            "sql": "SELECT SLEEP(0)"
+          }
+        },
+        {
+          "tool": "query",
+          "arguments": {
+            "sql": "SELECT GET_LOCK('probe',0)"
+          }
+        },
+        {
+          "tool": "query",
+          "arguments": {
+            "sql": "WITH SLEEP(n) AS (SELECT 7) SELECT n FROM SLEEP"
+          }
+        }
+      ],
+      "responses": [
+        {
+          "isError": false,
+          "structuredContent": {
+            "success": true,
+            "data": [
+              {
+                "id": 1
+              }
+            ],
+            "row_count": 1,
+            "total_rows": 1,
+            "truncated": false,
+            "truncation_note": null,
+            "query": "WITH F AS (SELECT id FROM orders) SELECT id FROM f",
+            "connection_id": "demo",
+            "db_type": "sqlite"
+          },
+          "content": [
+            {
+              "type": "text",
+              "text": "{\"success\":true,\"data\":[{\"id\":1}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null,\"query\":\"WITH F AS (SELECT id FROM orders) SELECT id FROM f\",\"connection_id\":\"demo\",\"db_type\":\"sqlite\"}"
+            }
+          ],
+          "meta": {
+            "tool_name": "query",
+            "db_type": "sqlite",
+            "connection_id": "demo",
+            "execution_ms": 42.458,
+            "success": true,
+            "row_count": 1,
+            "total_rows": 1,
+            "truncated": false,
+            "io.modelcontextprotocol/serverInfo": {
+              "name": "sql-safety-executor",
+              "version": "3.8.1"
+            }
+          }
+        },
+        {
+          "isError": false,
+          "structuredContent": {
+            "success": true,
+            "skills": [
+              {
+                "name": "case-probe",
+                "type": "query",
+                "description": "Installed CTE test",
+                "risk": "low",
+                "category": "uncategorized",
+                "executable": true,
+                "profile_allowed": true,
+                "db_compatible": true,
+                "connection_scope_allowed": true,
+                "policy_allowed": true,
+                "schema_ready": true,
+                "source": "query.sql",
+                "triggers": [],
+                "idempotent": false,
+                "databases": null,
+                "connection_ids": null,
+                "configured_connection_ids": [],
+                "unconfigured_connection_ids": [],
+                "connection_type_conflicts": [],
+                "profiles": [],
+                "params": {},
+                "version": "1.0",
+                "requires_confirmation": false,
+                "related_skills": [],
+                "tables": [
+                  "orders"
+                ],
+                "declared_tables": [],
+                "inferred_tables": [
+                  "orders"
+                ]
+              }
+            ],
+            "total_skills": 1,
+            "matched_skills": 1,
+            "matched_catalog_skills": 1,
+            "available_skills": 1,
+            "unavailable_skills": 0,
+            "filtered_unavailable_skills": 0,
+            "schema_unready_skills": 0,
+            "policy_blocked_skills": 0,
+            "connection_scope_blocked_skills": 0,
+            "connection_type_conflict_skills": 0,
+            "profile_excluded_skills": 0,
+            "query_skills": 1,
+            "mutation_skills": 0,
+            "mutations_enabled": false,
+            "schema_check_enabled": true,
+            "schema_check_available": true,
+            "excluded_profiles": [],
+            "detail_level": "full",
+            "available_only": true,
+            "current_database_type": "sqlite",
+            "connection_id": "demo",
+            "search": null,
+            "category": null,
+            "categories": [
+              {
+                "category": "uncategorized",
+                "count": 1
+              }
+            ]
+          },
+          "content": [
+            {
+              "type": "text",
+              "text": "{\"success\":true,\"skills\":[{\"name\":\"case-probe\",\"type\":\"query\",\"description\":\"Installed CTE test\",\"risk\":\"low\",\"category\":\"uncategorized\",\"executable\":true,\"profile_allowed\":true,\"db_compatible\":true,\"connection_scope_allowed\":true,\"policy_allowed\":true,\"schema_ready\":true,\"source\":\"query.sql\",\"triggers\":[],\"idempotent\":false,\"databases\":null,\"connection_ids\":null,\"configured_connection_ids\":[],\"unconfigured_connection_ids\":[],\"connection_type_conflicts\":[],\"profiles\":[],\"params\":{},\"version\":\"1.0\",\"requires_confirmation\":false,\"related_skills\":[],\"tables\":[\"orders\"],\"declared_tables\":[],\"inferred_tables\":[\"orders\"]}],\"total_skills\":1,\"matched_skills\":1,\"matched_catalog_skills\":1,\"available_skills\":1,\"unavailable_skills\":0,\"filtered_unavailable_skills\":0,\"schema_unready_skills\":0,\"policy_blocked_skills\":0,\"connection_scope_blocked_skills\":0,\"connection_type_conflict_skills\":0,\"profile_excluded_skills\":0,\"query_skills\":1,\"mutation_skills\":0,\"mutations_enabled\":false,\"schema_check_enabled\":true,\"schema_check_available\":true,\"excluded_profiles\":[],\"detail_level\":\"full\",\"available_only\":true,\"current_database_type\":\"sqlite\",\"connection_id\":\"demo\",\"search\":null,\"category\":null,\"categories\":[{\"category\":\"uncategorized\",\"count\":1}]}"
+            }
+          ],
+          "meta": {
+            "tool_name": "list_skills",
+            "db_type": "sqlite",
+            "connection_id": "demo",
+            "execution_ms": 22.577,
+            "success": true,
+            "matched_skills": 1,
+            "available_skills": 1,
+            "total_skills": 1,
+            "io.modelcontextprotocol/serverInfo": {
+              "name": "sql-safety-executor",
+              "version": "3.8.1"
+            }
+          }
+        },
+        {
+          "isError": false,
+          "structuredContent": {
+            "success": true,
+            "skill_name": "case-probe",
+            "connection_id": "demo",
+            "db_type": "sqlite",
+            "data": [
+              {
+                "id": 1
+              }
+            ],
+            "row_count": 1,
+            "total_rows": 1,
+            "truncated": false,
+            "truncation_note": null
+          },
+          "content": [
+            {
+              "type": "text",
+              "text": "{\"success\":true,\"skill_name\":\"case-probe\",\"connection_id\":\"demo\",\"db_type\":\"sqlite\",\"data\":[{\"id\":1}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null}"
+            }
+          ],
+          "meta": {
+            "tool_name": "execute_query_skill",
+            "skill_name": "case-probe",
+            "skill_type": "query",
+            "skill_version": "1.0",
+            "mode": "query",
+            "db_type": "sqlite",
+            "connection_id": "demo",
+            "execution_ms": 30.633,
+            "success": true,
+            "idempotent": false,
+            "row_count": 1,
+            "total_rows": 1,
+            "truncated": false,
+            "audit_logged": false,
+            "io.modelcontextprotocol/serverInfo": {
+              "name": "sql-safety-executor",
+              "version": "3.8.1"
+            }
+          }
+        },
+        {
+          "isError": false,
+          "structuredContent": {
+            "success": false,
+            "error_code": "expensive_function_denied",
+            "error": "Delay or benchmark function SLEEP() is not allowed in read queries.",
+            "hint": "Keep the same connection and use ordinary SQL expressions, filters and aggregates; remove deliberate sleeps and benchmarking calls.",
+            "query": "SELECT SLEEP(0)",
+            "connection_id": "demo",
+            "db_type": "sqlite"
+          },
+          "content": [
+            {
+              "type": "text",
+              "text": "{\"success\":false,\"error_code\":\"expensive_function_denied\",\"error\":\"Delay or benchmark function SLEEP() is not allowed in read queries.\",\"hint\":\"Keep the same connection and use ordinary SQL expressions, filters and aggregates; remove deliberate sleeps and benchmarking calls.\",\"query\":\"SELECT SLEEP(0)\",\"connection_id\":\"demo\",\"db_type\":\"sqlite\"}"
+            }
+          ],
+          "meta": {
+            "tool_name": "query",
+            "db_type": "sqlite",
+            "connection_id": "demo",
+            "execution_ms": 5.577,
+            "success": false,
+            "io.modelcontextprotocol/serverInfo": {
+              "name": "sql-safety-executor",
+              "version": "3.8.1"
+            }
+          }
+        },
+        {
+          "isError": false,
+          "structuredContent": {
+            "success": false,
+            "error_code": "lock_function_denied",
+            "error": "Lock function GET_LOCK() is not allowed in read queries.",
+            "hint": "Keep the same connection and use ordinary reads. Lock coordination requires a trusted operation managing acquisition and release on one connection.",
+            "query": "SELECT GET_LOCK('probe',0)",
+            "connection_id": "demo",
+            "db_type": "sqlite"
+          },
+          "content": [
+            {
+              "type": "text",
+              "text": "{\"success\":false,\"error_code\":\"lock_function_denied\",\"error\":\"Lock function GET_LOCK() is not allowed in read queries.\",\"hint\":\"Keep the same connection and use ordinary reads. Lock coordination requires a trusted operation managing acquisition and release on one connection.\",\"query\":\"SELECT GET_LOCK('probe',0)\",\"connection_id\":\"demo\",\"db_type\":\"sqlite\"}"
+            }
+          ],
+          "meta": {
+            "tool_name": "query",
+            "db_type": "sqlite",
+            "connection_id": "demo",
+            "execution_ms": 4.613,
+            "success": false,
+            "io.modelcontextprotocol/serverInfo": {
+              "name": "sql-safety-executor",
+              "version": "3.8.1"
+            }
+          }
+        },
+        {
+          "isError": false,
+          "structuredContent": {
+            "success": true,
+            "data": [
+              {
+                "n": 7
+              }
+            ],
+            "row_count": 1,
+            "total_rows": 1,
+            "truncated": false,
+            "truncation_note": null,
+            "query": "WITH SLEEP(n) AS (SELECT 7) SELECT n FROM SLEEP",
+            "connection_id": "demo",
+            "db_type": "sqlite"
+          },
+          "content": [
+            {
+              "type": "text",
+              "text": "{\"success\":true,\"data\":[{\"n\":7}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null,\"query\":\"WITH SLEEP(n) AS (SELECT 7) SELECT n FROM SLEEP\",\"connection_id\":\"demo\",\"db_type\":\"sqlite\"}"
+            }
+          ],
+          "meta": {
+            "tool_name": "query",
+            "db_type": "sqlite",
+            "connection_id": "demo",
+            "execution_ms": 17.543,
+            "success": true,
+            "row_count": 1,
+            "total_rows": 1,
+            "truncated": false,
+            "io.modelcontextprotocol/serverInfo": {
+              "name": "sql-safety-executor",
+              "version": "3.8.1"
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "recording_profile": "Application results including content blocks/meta; not a complete JSON-RPC trace",
+  "temporary_build_and_fixture_directories_removed_on_exit": true
+}

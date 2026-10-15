@@ -1,0 +1,19 @@
+{
+  "commit": "af3420f58d426b4f657b1214949dc48544afde56",
+  "policy_sha256": "457855d52016113184ba7ccf069d44a7a69089772920813e219be93586f3ea02",
+  "scope": "Historical extractor invoked with current import dependencies; not a historical full-server test",
+  "projection": [
+    {
+      "sql": "SELECT n FROM main.orders",
+      "dependencies": [
+        "main.orders"
+      ]
+    },
+    {
+      "sql": "SELECT n FROM \"main.orders\"",
+      "dependencies": [
+        "main.orders"
+      ]
+    }
+  ]
+}

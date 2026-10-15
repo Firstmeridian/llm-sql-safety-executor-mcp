@@ -1,0 +1,9 @@
+{
+  "relative_document_links": 570,
+  "bilingual_drr_ids": 87,
+  "tested_source_files": 68,
+  "source_sha256_matches": true,
+  "version_and_runtime_dependencies_unchanged": true,
+  "diff_check": "passed",
+  "scope": "File targets; remote URLs and heading anchors not automatically validated"
+}

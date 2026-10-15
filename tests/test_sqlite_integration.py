@@ -20,6 +20,7 @@ from tests.support import SCENARIO
 
 import sqlite3
 import pytest
+from sql_safety_executor.database.errors import DatabaseQueryError
 from unittest.mock import patch
 
 
@@ -244,25 +245,21 @@ class TestSQLiteErrorHandling:
 
     def test_nonexistent_table_error(self, sqlite_adapter):
         """Test error message for nonexistent table."""
-        result = sqlite_adapter.execute("SELECT * FROM fake_table")
-
-        assert isinstance(result, str)
-        assert "Error:" in result
-        assert "not found" in result.lower()
+        with pytest.raises(DatabaseQueryError) as raised:
+            sqlite_adapter.execute("SELECT * FROM fake_table")
+        assert raised.value.error_code == "unknown_table"
 
     def test_syntax_error(self, sqlite_adapter):
         """Test error message for SQL syntax error."""
-        result = sqlite_adapter.execute("SELCT * FROM users")  # Typo
-
-        assert isinstance(result, str)
-        assert "Error:" in result
+        with pytest.raises(DatabaseQueryError) as raised:
+            sqlite_adapter.execute("SELCT * FROM users")
+        assert raised.value.error_code == "sql_syntax_error"
 
     def test_column_not_found_error(self, sqlite_adapter):
         """Test error for nonexistent column."""
-        result = sqlite_adapter.execute("SELECT fake_column FROM users")
-
-        assert isinstance(result, str)
-        assert "Error:" in result
+        with pytest.raises(DatabaseQueryError) as raised:
+            sqlite_adapter.execute("SELECT fake_column FROM users")
+        assert raised.value.error_code == "unknown_column"
 
 
 # =============================================================================

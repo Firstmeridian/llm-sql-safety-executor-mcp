@@ -10,4 +10,6 @@ Args:
     params: Parameter dict matching the skill's frontmatter schema
 
 Returns:
-    Query results (same format as query() tool, plus skill_name)
+    Query results (same format as query(), plus skill_name). SQL/policy
+    failures return success=false, error_code, a safe error and an optional
+    hint; discovery does not authorize writes or bypass the target policy.

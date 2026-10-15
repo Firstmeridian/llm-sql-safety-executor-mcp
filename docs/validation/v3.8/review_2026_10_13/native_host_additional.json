@@ -1,0 +1,124 @@
+{
+  "scope": "Post-restart native Host extra read-only probes; no database writes",
+  "calls": [
+    {
+      "arguments": {
+        "connection_id": "analytics_demo_sqlite",
+        "sql": "SELECT id FROM orders WHERE id IN customers"
+      },
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":false,\"error_code\":\"table_access_denied\",\"error\":\"Access denied to table(s): customers. Only allowed tables: orders\",\"hint\":\"Keep the same connection and use authorized tables. For a CTE reference, use the declaration's exact case on MySQL connections.\",\"query\":\"SELECT id FROM orders WHERE id IN customers\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": false,
+          "error_code": "table_access_denied",
+          "error": "Access denied to table(s): customers. Only allowed tables: orders",
+          "hint": "Keep the same connection and use authorized tables. For a CTE reference, use the declaration's exact case on MySQL connections.",
+          "query": "SELECT id FROM orders WHERE id IN customers",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      }
+    },
+    {
+      "arguments": {
+        "connection_id": "analytics_demo_sqlite",
+        "sql": "SELECT 1 IN pragma_database_list"
+      },
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":false,\"error_code\":\"server_state_denied\",\"error\":\"SQLite PRAGMA table-valued functions are not allowed in queries; use list_tables() or describe_table() instead (describe_table() also returns indexes).\",\"query\":\"SELECT 1 IN pragma_database_list\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": false,
+          "error_code": "server_state_denied",
+          "error": "SQLite PRAGMA table-valued functions are not allowed in queries; use list_tables() or describe_table() instead (describe_table() also returns indexes).",
+          "query": "SELECT 1 IN pragma_database_list",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      }
+    },
+    {
+      "arguments": {
+        "connection_id": "trade_analysis_mysql",
+        "sql": "SELECT review_missing_column FROM orders LIMIT 1"
+      },
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":false,\"error_code\":\"unknown_column\",\"error\":\"Column not found.\",\"hint\":\"Use describe_table() to check columns on the same connection.\",\"query\":\"SELECT review_missing_column FROM orders LIMIT 1\",\"connection_id\":\"trade_analysis_mysql\",\"db_type\":\"mysql\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": false,
+          "error_code": "unknown_column",
+          "error": "Column not found.",
+          "hint": "Use describe_table() to check columns on the same connection.",
+          "query": "SELECT review_missing_column FROM orders LIMIT 1",
+          "connection_id": "trade_analysis_mysql",
+          "db_type": "mysql"
+        },
+        "isError": false
+      }
+    },
+    {
+      "arguments": {
+        "connection_id": "trade_analysis_mysql",
+        "sql": "SELECT strftime('%Y', '2026-10-13')"
+      },
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":false,\"error_code\":\"unknown_function\",\"error\":\"SQL function not found for this database dialect.\",\"hint\":\"Use a function supported by the returned db_type; check the SQL dialect.\",\"query\":\"SELECT strftime('%Y', '2026-10-13')\",\"connection_id\":\"trade_analysis_mysql\",\"db_type\":\"mysql\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": false,
+          "error_code": "unknown_function",
+          "error": "SQL function not found for this database dialect.",
+          "hint": "Use a function supported by the returned db_type; check the SQL dialect.",
+          "query": "SELECT strftime('%Y', '2026-10-13')",
+          "connection_id": "trade_analysis_mysql",
+          "db_type": "mysql"
+        },
+        "isError": false
+      }
+    },
+    {
+      "arguments": {
+        "connection_id": "trade_analysis_mysql",
+        "sql": "SELECT id FROM orders WHERE"
+      },
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":false,\"error_code\":\"sql_syntax_error\",\"error\":\"SQL syntax error.\",\"hint\":\"Check SQL syntax for the returned db_type.\",\"query\":\"SELECT id FROM orders WHERE\",\"connection_id\":\"trade_analysis_mysql\",\"db_type\":\"mysql\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": false,
+          "error_code": "sql_syntax_error",
+          "error": "SQL syntax error.",
+          "hint": "Check SQL syntax for the returned db_type.",
+          "query": "SELECT id FROM orders WHERE",
+          "connection_id": "trade_analysis_mysql",
+          "db_type": "mysql"
+        },
+        "isError": false
+      }
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "captured_utc": "2026-10-14T13:30:55.508Z",
+  "route": "Primary Host native freshness check after local precommit patch",
+  "args": {
+    "connection_id": "analytics_demo_sqlite",
+    "sql": "WITH \"__mcp  identity__\" AS (SELECT 7 AS n) SELECT n FROM \"__mcp identity__\""
+  },
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"success\":false,\"error_code\":\"unknown_table\",\"error\":\"Table not found.\",\"hint\":\"Use list_tables() to discover authorized tables on the same connection.\",\"query\":\"WITH \\\"__mcp  identity__\\\" AS (SELECT 7 AS n) SELECT n FROM \\\"__mcp identity__\\\"\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\"}"
+      }
+    ],
+    "structuredContent": {
+      "success": false,
+      "error_code": "unknown_table",
+      "error": "Table not found.",
+      "hint": "Use list_tables() to discover authorized tables on the same connection.",
+      "query": "WITH \"__mcp  identity__\" AS (SELECT 7 AS n) SELECT n FROM \"__mcp identity__\"",
+      "connection_id": "analytics_demo_sqlite",
+      "db_type": "sqlite"
+    },
+    "isError": false
+  }
+}

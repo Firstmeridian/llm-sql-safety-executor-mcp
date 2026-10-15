@@ -1,0 +1,327 @@
+--- before/src/sql_safety_executor/core/policy.py
++++ after/src/sql_safety_executor/core/policy.py
+@@ -4,11 +4,12 @@
+ import sqlparse
+ from collections.abc import Callable
+ from sqlparse import tokens as sql_tokens
+-from sqlparse.sql import Function, Identifier, IdentifierList, Parenthesis, TokenList
++from sqlparse.sql import Function, Identifier, IdentifierList, Parenthesis, TokenList, Where
+ from typing import Any
+ from sql_safety_executor.core.sql import (
+     classify_sql_statement,
+     has_unsafe_mysql_comment_semantics,
++    sql_token_upper,
+ )
+ from .decisions import PolicyDecision
+ from sql_safety_executor.database.models import ConnectionPolicy
+@@ -110,7 +111,7 @@
+             index
+             for index, token in enumerate(tokens)
+             if token.ttype in sql_tokens.Keyword.CTE
+-            and token.normalized.upper() == "WITH"
++            and sql_token_upper(token) == "WITH"
+         ),
+         None,
+     )
+@@ -118,7 +119,7 @@
+         return set()
+ 
+     index = with_index + 1
+-    if index < len(tokens) and tokens[index].normalized.upper() == "RECURSIVE":
++    if index < len(tokens) and sql_token_upper(tokens[index]) == "RECURSIVE":
+         index += 1
+     if index >= len(tokens):
+         raise ValueError("Incomplete WITH clause")
+@@ -196,7 +197,12 @@
+             raise ValueError("DML table target has no resolvable name")
+         return [RelationReference(fold(_identifier_name_parts(token)[1]))]
+ 
+-    if token.ttype in sql_tokens.Name:
++    if token.ttype in sql_tokens.Name or (
++        token.ttype in sql_tokens.Keyword and token.value.isidentifier()
++    ):
++        # Contextual names such as window/offset are legal SQLite targets.
++        # The lexer also labels Unicode lookalikes as keywords. They must
++        # still produce an authorized relation, never disappear as syntax.
+         table_name = _normalize_sql_identifier(token.value)
+         if cte_fold(table_name) in cte_names:
+             return []
+@@ -223,7 +229,7 @@
+     if dml_index is None:
+         return []
+ 
+-    command = top_level[dml_index].normalized.upper()
++    command = sql_token_upper(top_level[dml_index])
+     if command == "DELETE":
+         # MySQL's second multi-table form is:
+         # DELETE [modifiers] FROM target_list USING table_references ...
+@@ -232,12 +238,12 @@
+         from_index = dml_index + 1
+         while (
+             from_index < len(top_level)
+-            and top_level[from_index].normalized.upper() in _EXPLAIN_DELETE_MODIFIERS
++            and sql_token_upper(top_level[from_index]) in _EXPLAIN_DELETE_MODIFIERS
+         ):
+             from_index += 1
+         if (
+             from_index >= len(top_level)
+-            or top_level[from_index].normalized.upper() != "FROM"
++            or sql_token_upper(top_level[from_index]) != "FROM"
+         ):
+             return []
+         using_index = next(
+@@ -245,7 +251,7 @@
+                 index
+                 for index in range(from_index + 1, len(top_level))
+                 if top_level[index].ttype in sql_tokens.Keyword
+-                and top_level[index].normalized.upper() == "USING"
++                and sql_token_upper(top_level[index]) == "USING"
+             ),
+             None,
+         )
+@@ -273,13 +279,13 @@
+     modifiers = modifiers_by_command[command]
+     while (
+         target_index < len(top_level)
+-        and top_level[target_index].normalized.upper() in modifiers
++        and sql_token_upper(top_level[target_index]) in modifiers
+     ):
+         target_index += 1
+     if (
+         command in {"INSERT", "REPLACE"}
+         and target_index < len(top_level)
+-        and top_level[target_index].normalized.upper() == "INTO"
++        and sql_token_upper(top_level[target_index]) == "INTO"
+     ):
+         target_index += 1
+     if target_index >= len(top_level):
+@@ -308,7 +314,7 @@
+     with_index = next(
+         (index for index, token in enumerate(tokens)
+          if token.ttype in sql_tokens.Keyword.CTE
+-         and token.normalized.upper() == "WITH"),
++         and sql_token_upper(token) == "WITH"),
+         None,
+     )
+     if with_index is not None:
+@@ -319,7 +325,7 @@
+         definition_index = with_index + 1
+         recursive = (
+             definition_index < len(tokens)
+-            and tokens[definition_index].normalized.upper() == "RECURSIVE"
++            and sql_token_upper(tokens[definition_index]) == "RECURSIVE"
+         )
+         if recursive:
+             definition_index += 1
+@@ -415,7 +421,7 @@
+     top_level = _significant_sql_tokens(statement)
+ 
+     if top_level:
+-        command = top_level[0].normalized.upper()
++        command = sql_token_upper(top_level[0])
+         has_explained_dml = command in {"EXPLAIN", "DESCRIBE", "DESC"} and any(
+             token.ttype is sql_tokens.DML for token in top_level[1:]
+         )
+@@ -485,7 +491,7 @@
+     if not policy.case_sensitive_tables:
+         return _extract_relation_references(sql, strict=strict, case_sensitive=True, cte_case_sensitive=False)
+     exact = _extract_relation_references(sql, strict=strict, case_sensitive=True, cte_case_sensitive=True)
+-    if adapter is None or "WITH" not in sql.upper():
++    if adapter is None or "with" not in _ascii_identifier_lower(sql):
+         return exact
+     folded = _extract_relation_references(sql, strict=strict, case_sensitive=True, cte_case_sensitive=False)
+     if exact == folded:
+@@ -543,7 +549,7 @@
+         return extended
+     # All-scope Skills also need correct inferred readiness dependencies.
+     # Structural refusal must occur before even this constant metadata probe.
+-    if effective.read_mode == "all" and effective.case_sensitive_tables and adapter is not None and "WITH" in sql.upper():
++    if effective.read_mode == "all" and effective.case_sensitive_tables and adapter is not None and "with" in _ascii_identifier_lower(sql):
+         _resolve_query_tables(sql, effective, adapter=adapter, strict=False, probe=True)
+     return _check_table_allowlist(runtime, sql, policy, adapter=adapter)
+ 
+@@ -620,10 +626,10 @@
+     excluded: set[int] = set()
+     tokens = _significant_sql_tokens(token_list)
+     for index, token in enumerate(tokens):
+-        if token.ttype not in sql_tokens.Keyword.CTE or token.normalized.upper() != "WITH":
++        if token.ttype not in sql_tokens.Keyword.CTE or sql_token_upper(token) != "WITH":
+             continue
+         index += 1
+-        if index < len(tokens) and tokens[index].normalized.upper() == "RECURSIVE":
++        if index < len(tokens) and sql_token_upper(tokens[index]) == "RECURSIVE":
+             index += 1
+         if index >= len(tokens):
+             continue
+@@ -633,7 +639,7 @@
+             if not isinstance(entry, Identifier):
+                 continue
+             for part in _significant_sql_tokens(entry):
+-                if part.ttype in sql_tokens.Keyword and part.normalized.upper() == "AS":
++                if part.ttype in sql_tokens.Keyword and sql_token_upper(part) == "AS":
+                     break
+                 if isinstance(part, TokenList):
+                     excluded.update(id(leaf) for leaf in part.flatten())
+@@ -657,6 +663,10 @@
+             if current.ttype in sql_tokens.String.Single:
+                 continue
+             name = _ascii_identifier_lower(_normalize_sql_identifier(current.value))
++            if name == "load_file":
++                return PolicyDecision.deny("file_operation_denied", "MySQL server-side file operations are not allowed")
++            if name in _ACCOUNT_FUNCTIONS:
++                return PolicyDecision.deny("server_state_denied", "Account and role functions are not allowed in queries.")
+             if name in _LOCK_FUNCTIONS:
+                 return PolicyDecision.deny("lock_function_denied", f"Lock function {name.upper()}() is not allowed in read queries.",
+                     "Keep the same connection and use ordinary reads. Lock coordination requires a trusted operation managing acquisition and release on one connection.")
+@@ -742,7 +752,7 @@
+     """
+     targets = []
+     for index, token in enumerate(tokens):
+-        if token.ttype not in sql_tokens.Keyword or token.normalized.upper() not in {"IN", "NOT IN"}:
++        if token.ttype not in sql_tokens.Keyword or sql_token_upper(token) not in {"IN", "NOT IN"}:
+             continue
+         if index + 1 >= len(tokens):
+             raise ValueError("IN has no right-hand operand")
+@@ -766,11 +776,17 @@
+     in_from = False
+     expect_target = False
+     for index, token in enumerate(tokens):
+-        command = token.normalized.upper()
+-        if command.startswith("WHERE ") or command in {
+-            "WHERE", "GROUP BY", "ORDER BY", "HAVING", "LIMIT", "OFFSET",
+-            "UNION", "UNION ALL", "INTERSECT", "EXCEPT", "WINDOW", "FOR", "LOCK",
+-        }:
++        command = sql_token_upper(token)
++        # A target immediately after FROM/JOIN/comma takes precedence over a
++        # contextual keyword spelling. Otherwise window/offset/lock vanish
++        # before authorization. Unicode lexer labels do not establish syntax.
++        clause_boundary = isinstance(token, Where) or (
++            token.ttype in sql_tokens.Keyword and command in {
++                "WHERE", "GROUP BY", "ORDER BY", "HAVING", "LIMIT", "OFFSET",
++                "UNION", "UNION ALL", "INTERSECT", "EXCEPT", "WINDOW", "FOR", "LOCK",
++            }
++        )
++        if not expect_target and clause_boundary:
+             in_from = False
+             expect_target = False
+         if token.ttype in sql_tokens.Keyword and (
+@@ -894,13 +910,16 @@
+             "queries; use list_tables() or describe_table() instead "
+             "(describe_table() also returns indexes)."
+         )
++    functions = _read_function_decision(statements)
++    if functions.error_code == "server_state_denied":
++        return functions.message
+     tokens = [
+         token
+         for statement in statements
+         for token in statement.flatten()
+         if not token.is_whitespace and token.ttype not in sql_tokens.Comment
+     ]
+-    for index, token in enumerate(tokens):
++    for token in tokens:
+         if token.ttype in sql_tokens.String:
+             continue
+         value = _ascii_identifier_lower(token.value)
+@@ -911,10 +930,7 @@
+                 "System variables (@@...) are not allowed in queries; they "
+                 "expose server configuration rather than table data."
+             )
+-        next_value = tokens[index + 1].value if index + 1 < len(tokens) else ""
+-        if value in _ACCOUNT_FUNCTIONS and (
+-            next_value == "(" or value == "current_user"
+-        ):
++        if value == "current_user":
+             return "Account and role functions are not allowed in queries."
+     return None
+ 
+@@ -935,13 +951,13 @@
+         tokens = [token for statement in statements for token in statement.flatten()
+                   if not token.is_whitespace and token.ttype not in sql_tokens.Comment]
+         structural = [token for token in tokens if token.ttype not in sql_tokens.String]
+-        if structural and structural[0].normalized.upper() == "SHOW":
++        if structural and sql_token_upper(structural[0]) == "SHOW":
+             return PolicyDecision.deny("show_statement_denied", "SHOW statements are not allowed in raw queries.",
+                                        "Use list_tables() or describe_table(); describe_table() also returns indexes.")
+         for index, token in enumerate(structural):
+-            command = token.normalized.upper()
+-            following = structural[index + 1].normalized.upper() if index + 1 < len(structural) else ""
+-            if (command == "LOAD_FILE" and following == "(") or (token.ttype in sql_tokens.Keyword and command == "INTO" and following in {"OUTFILE", "DUMPFILE"}):
++            command = sql_token_upper(token)
++            following = sql_token_upper(structural[index + 1]) if index + 1 < len(structural) else ""
++            if token.ttype in sql_tokens.Keyword and command == "INTO" and following in {"OUTFILE", "DUMPFILE"}:
+                 return PolicyDecision.deny("file_operation_denied", "MySQL server-side file operations are not allowed")
+         server_state_error = _server_state_reference_error(normalized_sql)
+         if server_state_error:
+@@ -953,7 +969,7 @@
+         references = _extract_relation_references(normalized_sql, strict=False)
+         if any(reference.schema is not None and _ascii_identifier_lower(reference.schema) in {"mysql", "performance_schema", "information_schema", "sys"} for reference in references):
+             return PolicyDecision.deny("system_schema_denied", "Access to system databases not allowed.", "Use list_tables() or describe_table(); describe_table() also returns indexes.")
+-        if any(token.ttype in sql_tokens.Keyword and token.normalized.upper() in {"UNION", "UNION ALL"} for token in tokens):
++        if any(token.ttype in sql_tokens.Keyword and sql_token_upper(token) in {"UNION", "UNION ALL"} for token in tokens):
+             if require_union_allowlist and not effective.allow_union:
+                 return PolicyDecision.deny("union_disabled", "UNION queries disabled for security on this connection.",
+                     "Prefer one permitted query without UNION (scalar subqueries, EXISTS/NOT EXISTS, JOIN or a CTE) when it keeps the task's meaning. If you run separate queries, aggregate in SQL and check truncation, duplicates and ordering before combining; do not switch connections.")
+--- before/src/sql_safety_executor/core/sql.py
++++ after/src/sql_safety_executor/core/sql.py
+@@ -8,10 +8,23 @@
+ # Safe read-only SQL statement types
+ SAFE_SQL_TYPES = {"SELECT", "SHOW", "DESCRIBE", "DESC", "EXPLAIN"}
+ _NESTED_WRITE_DML_TYPES = {"INSERT", "UPDATE", "DELETE", "REPLACE", "MERGE"}
++_ASCII_SQL_CASE = str.maketrans("abcdefghijklmnopqrstuvwxyz", "ABCDEFGHIJKLMNOPQRSTUVWXYZ")
++
++
++def sql_token_upper(token: sqlparse.sql.Token) -> str:
++    """Compare SQL vocabulary without Unicode-folding a business name.
++
++    sqlparse's normalized keyword value already uses Unicode upper(). Read
++    the original spelling, including when its lexer labeled a name a keyword.
++    This helper neither validates syntax nor establishes relation identity.
++    """
++    return token.value.translate(_ASCII_SQL_CASE)
++
++
+ _EXECUTING_EXPLAIN_PATTERN = re.compile(
+     r"^(?:EXPLAIN|DESCRIBE|DESC)\s+"
+     r"(?:ANALYZE\b|\([^)]*\bANALYZE\b[^)]*\))",
+-    re.IGNORECASE,
++    re.IGNORECASE | re.ASCII,
+ )
+ 
+ _MYSQL_DASH_COMMENT_WHITESPACE = " \t\r\n\f\v"
+@@ -56,15 +69,15 @@
+         for token in statement.flatten()
+         if not token.is_whitespace and token.ttype not in sql_tokens.Comment
+     ]
+-    if not tokens or tokens[0].normalized.upper() not in {
++    if not tokens or sql_token_upper(tokens[0]) not in {
+         "EXPLAIN",
+         "DESCRIBE",
+         "DESC",
+     }:
+         return False
+     return any(
+-        token.normalized.upper() == "FOR"
+-        and tokens[index + 1].normalized.upper() == "CONNECTION"
++        sql_token_upper(token) == "FOR"
++        and sql_token_upper(tokens[index + 1]) == "CONNECTION"
+         for index, token in enumerate(tokens[:-1])
+     )
+ 
+@@ -129,14 +142,14 @@
+             if stmt_type == "UNKNOWN" or stmt_type is None:
+                 first_token = statement.token_first(skip_cm=True)
+                 if first_token:
+-                    stmt_type = first_token.normalized.upper()
++                    stmt_type = sql_token_upper(first_token)
+             if stmt_type not in SAFE_SQL_TYPES:
+                 if stmt_type == "PRAGMA":
+                     return PolicyDecision.deny("pragma_statement_denied", "Raw PRAGMA statements are not allowed.", "Use list_tables() or describe_table(); describe_table() also returns indexes.")
+                 return PolicyDecision.deny("read_only_required", "Only read-only queries allowed (SELECT, DESCRIBE, non-ANALYZE EXPLAIN)", "For an intended write, discover reviewed mutation Skills with list_skills(); preview and obtain explicit approval before execution. Discovery does not authorize a write.")
+             if stmt_type == "SELECT" and any(
+                 token.ttype is sql_tokens.DML
+-                and token.normalized.upper() in _NESTED_WRITE_DML_TYPES
++                and sql_token_upper(token) in _NESTED_WRITE_DML_TYPES
+                 for token in statement.flatten()
+             ):
+                 return PolicyDecision.deny("nested_write_denied", "Write statements inside a read query are not allowed.")

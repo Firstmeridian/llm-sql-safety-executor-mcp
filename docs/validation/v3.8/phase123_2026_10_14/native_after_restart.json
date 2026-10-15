@@ -1,0 +1,708 @@
+{
+  "version": "3.8.1",
+  "captured_utc": "2026-10-14T12:11:30.613Z",
+  "route": "Primary Codex Host native SQL MCP after maintainer-confirmed restart",
+  "recording_profile": "Full returned public content/structuredContent/isError/meta as exposed by the Host; no raw transport frames or notifications",
+  "scope": "Read-only queries and Skill discovery/execution; actual reserved calls expected to be denied before SQL execution",
+  "records": [
+    {
+      "name": "sqlite_sleep_freshness",
+      "tool": "query",
+      "args": {
+        "connection_id": "analytics_demo_sqlite",
+        "sql": "SELECT SLEEP(0) AS n"
+      },
+      "captured_utc": "2026-10-14T12:10:47.884Z",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":false,\"error_code\":\"expensive_function_denied\",\"error\":\"Delay or benchmark function SLEEP() is not allowed in read queries.\",\"hint\":\"Keep the same connection and use ordinary SQL expressions, filters and aggregates; remove deliberate sleeps and benchmarking calls.\",\"query\":\"SELECT SLEEP(0) AS n\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": false,
+          "error_code": "expensive_function_denied",
+          "error": "Delay or benchmark function SLEEP() is not allowed in read queries.",
+          "hint": "Keep the same connection and use ordinary SQL expressions, filters and aggregates; remove deliberate sleeps and benchmarking calls.",
+          "query": "SELECT SLEEP(0) AS n",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      }
+    },
+    {
+      "name": "sqlite_literal_and_ordinary_function",
+      "tool": "query",
+      "args": {
+        "connection_id": "analytics_demo_sqlite",
+        "sql": "SELECT 'SLEEP(99)' AS label, ABS(-7) AS n"
+      },
+      "captured_utc": "2026-10-14T12:11:03.783Z",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":true,\"data\":[{\"label\":\"SLEEP(99)\",\"n\":7}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null,\"query\":\"SELECT 'SLEEP(99)' AS label, ABS(-7) AS n\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": true,
+          "data": [
+            {
+              "label": "SLEEP(99)",
+              "n": 7
+            }
+          ],
+          "row_count": 1,
+          "total_rows": 1,
+          "truncated": false,
+          "truncation_note": null,
+          "query": "SELECT 'SLEEP(99)' AS label, ABS(-7) AS n",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      }
+    },
+    {
+      "name": "sqlite_cte_declaration_name",
+      "tool": "query",
+      "args": {
+        "connection_id": "analytics_demo_sqlite",
+        "sql": "WITH SLEEP(n) AS (SELECT 7) SELECT n FROM SLEEP"
+      },
+      "captured_utc": "2026-10-14T12:11:03.784Z",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":true,\"data\":[{\"n\":7}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null,\"query\":\"WITH SLEEP(n) AS (SELECT 7) SELECT n FROM SLEEP\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": true,
+          "data": [
+            {
+              "n": 7
+            }
+          ],
+          "row_count": 1,
+          "total_rows": 1,
+          "truncated": false,
+          "truncation_note": null,
+          "query": "WITH SLEEP(n) AS (SELECT 7) SELECT n FROM SLEEP",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      }
+    },
+    {
+      "name": "sqlite_cte_ascii_case",
+      "tool": "query",
+      "args": {
+        "connection_id": "analytics_demo_sqlite",
+        "sql": "WITH F AS (SELECT COUNT(*) AS n FROM orders) SELECT n FROM f"
+      },
+      "captured_utc": "2026-10-14T12:11:03.784Z",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":true,\"data\":[{\"n\":5}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null,\"query\":\"WITH F AS (SELECT COUNT(*) AS n FROM orders) SELECT n FROM f\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": true,
+          "data": [
+            {
+              "n": 5
+            }
+          ],
+          "row_count": 1,
+          "total_rows": 1,
+          "truncated": false,
+          "truncation_note": null,
+          "query": "WITH F AS (SELECT COUNT(*) AS n FROM orders) SELECT n FROM f",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      }
+    },
+    {
+      "name": "sqlite_quoted_benchmark",
+      "tool": "query",
+      "args": {
+        "connection_id": "analytics_demo_sqlite",
+        "sql": "SELECT \"BENCHMARK\"(0, 1) AS n"
+      },
+      "captured_utc": "2026-10-14T12:11:03.784Z",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":false,\"error_code\":\"expensive_function_denied\",\"error\":\"Delay or benchmark function BENCHMARK() is not allowed in read queries.\",\"hint\":\"Keep the same connection and use ordinary SQL expressions, filters and aggregates; remove deliberate sleeps and benchmarking calls.\",\"query\":\"SELECT \\\"BENCHMARK\\\"(0, 1) AS n\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": false,
+          "error_code": "expensive_function_denied",
+          "error": "Delay or benchmark function BENCHMARK() is not allowed in read queries.",
+          "hint": "Keep the same connection and use ordinary SQL expressions, filters and aggregates; remove deliberate sleeps and benchmarking calls.",
+          "query": "SELECT \"BENCHMARK\"(0, 1) AS n",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      }
+    },
+    {
+      "name": "mysql_sleep",
+      "tool": "query",
+      "args": {
+        "connection_id": "trade_analysis_mysql",
+        "sql": "SELECT SLEEP(0) AS n"
+      },
+      "captured_utc": "2026-10-14T12:11:03.784Z",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":false,\"error_code\":\"expensive_function_denied\",\"error\":\"Delay or benchmark function SLEEP() is not allowed in read queries.\",\"hint\":\"Keep the same connection and use ordinary SQL expressions, filters and aggregates; remove deliberate sleeps and benchmarking calls.\",\"query\":\"SELECT SLEEP(0) AS n\",\"connection_id\":\"trade_analysis_mysql\",\"db_type\":\"mysql\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": false,
+          "error_code": "expensive_function_denied",
+          "error": "Delay or benchmark function SLEEP() is not allowed in read queries.",
+          "hint": "Keep the same connection and use ordinary SQL expressions, filters and aggregates; remove deliberate sleeps and benchmarking calls.",
+          "query": "SELECT SLEEP(0) AS n",
+          "connection_id": "trade_analysis_mysql",
+          "db_type": "mysql"
+        },
+        "isError": false
+      }
+    },
+    {
+      "name": "mysql_benchmark",
+      "tool": "query",
+      "args": {
+        "connection_id": "trade_analysis_mysql",
+        "sql": "SELECT BENCHMARK(0, 1) AS n"
+      },
+      "captured_utc": "2026-10-14T12:11:03.784Z",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":false,\"error_code\":\"expensive_function_denied\",\"error\":\"Delay or benchmark function BENCHMARK() is not allowed in read queries.\",\"hint\":\"Keep the same connection and use ordinary SQL expressions, filters and aggregates; remove deliberate sleeps and benchmarking calls.\",\"query\":\"SELECT BENCHMARK(0, 1) AS n\",\"connection_id\":\"trade_analysis_mysql\",\"db_type\":\"mysql\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": false,
+          "error_code": "expensive_function_denied",
+          "error": "Delay or benchmark function BENCHMARK() is not allowed in read queries.",
+          "hint": "Keep the same connection and use ordinary SQL expressions, filters and aggregates; remove deliberate sleeps and benchmarking calls.",
+          "query": "SELECT BENCHMARK(0, 1) AS n",
+          "connection_id": "trade_analysis_mysql",
+          "db_type": "mysql"
+        },
+        "isError": false
+      }
+    },
+    {
+      "name": "mysql_lock_acquisition",
+      "tool": "query",
+      "args": {
+        "connection_id": "trade_analysis_mysql",
+        "sql": "SELECT GET_LOCK('mcp_phase123_noop', 0) AS n"
+      },
+      "captured_utc": "2026-10-14T12:11:03.784Z",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":false,\"error_code\":\"lock_function_denied\",\"error\":\"Lock function GET_LOCK() is not allowed in read queries.\",\"hint\":\"Keep the same connection and use ordinary reads. Lock coordination requires a trusted operation managing acquisition and release on one connection.\",\"query\":\"SELECT GET_LOCK('mcp_phase123_noop', 0) AS n\",\"connection_id\":\"trade_analysis_mysql\",\"db_type\":\"mysql\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": false,
+          "error_code": "lock_function_denied",
+          "error": "Lock function GET_LOCK() is not allowed in read queries.",
+          "hint": "Keep the same connection and use ordinary reads. Lock coordination requires a trusted operation managing acquisition and release on one connection.",
+          "query": "SELECT GET_LOCK('mcp_phase123_noop', 0) AS n",
+          "connection_id": "trade_analysis_mysql",
+          "db_type": "mysql"
+        },
+        "isError": false
+      }
+    },
+    {
+      "name": "mysql_lock_release",
+      "tool": "query",
+      "args": {
+        "connection_id": "trade_analysis_mysql",
+        "sql": "SELECT RELEASE_LOCK('mcp_phase123_noop') AS n"
+      },
+      "captured_utc": "2026-10-14T12:11:03.784Z",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":false,\"error_code\":\"lock_function_denied\",\"error\":\"Lock function RELEASE_LOCK() is not allowed in read queries.\",\"hint\":\"Keep the same connection and use ordinary reads. Lock coordination requires a trusted operation managing acquisition and release on one connection.\",\"query\":\"SELECT RELEASE_LOCK('mcp_phase123_noop') AS n\",\"connection_id\":\"trade_analysis_mysql\",\"db_type\":\"mysql\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": false,
+          "error_code": "lock_function_denied",
+          "error": "Lock function RELEASE_LOCK() is not allowed in read queries.",
+          "hint": "Keep the same connection and use ordinary reads. Lock coordination requires a trusted operation managing acquisition and release on one connection.",
+          "query": "SELECT RELEASE_LOCK('mcp_phase123_noop') AS n",
+          "connection_id": "trade_analysis_mysql",
+          "db_type": "mysql"
+        },
+        "isError": false
+      }
+    },
+    {
+      "name": "mysql_all_lock_release",
+      "tool": "query",
+      "args": {
+        "connection_id": "trade_analysis_mysql",
+        "sql": "SELECT RELEASE_ALL_LOCKS() AS n"
+      },
+      "captured_utc": "2026-10-14T12:11:03.784Z",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":false,\"error_code\":\"lock_function_denied\",\"error\":\"Lock function RELEASE_ALL_LOCKS() is not allowed in read queries.\",\"hint\":\"Keep the same connection and use ordinary reads. Lock coordination requires a trusted operation managing acquisition and release on one connection.\",\"query\":\"SELECT RELEASE_ALL_LOCKS() AS n\",\"connection_id\":\"trade_analysis_mysql\",\"db_type\":\"mysql\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": false,
+          "error_code": "lock_function_denied",
+          "error": "Lock function RELEASE_ALL_LOCKS() is not allowed in read queries.",
+          "hint": "Keep the same connection and use ordinary reads. Lock coordination requires a trusted operation managing acquisition and release on one connection.",
+          "query": "SELECT RELEASE_ALL_LOCKS() AS n",
+          "connection_id": "trade_analysis_mysql",
+          "db_type": "mysql"
+        },
+        "isError": false
+      }
+    },
+    {
+      "name": "mysql_cte_ascii_case",
+      "tool": "query",
+      "args": {
+        "connection_id": "trade_analysis_mysql",
+        "sql": "WITH F AS (SELECT COUNT(*) AS n FROM orders) SELECT n FROM f"
+      },
+      "captured_utc": "2026-10-14T12:11:03.784Z",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":true,\"data\":[{\"n\":8}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null,\"query\":\"WITH F AS (SELECT COUNT(*) AS n FROM orders) SELECT n FROM f\",\"connection_id\":\"trade_analysis_mysql\",\"db_type\":\"mysql\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": true,
+          "data": [
+            {
+              "n": 8
+            }
+          ],
+          "row_count": 1,
+          "total_rows": 1,
+          "truncated": false,
+          "truncation_note": null,
+          "query": "WITH F AS (SELECT COUNT(*) AS n FROM orders) SELECT n FROM f",
+          "connection_id": "trade_analysis_mysql",
+          "db_type": "mysql"
+        },
+        "isError": false
+      }
+    },
+    {
+      "name": "sqlite_skill_catalog",
+      "tool": "list_skills",
+      "args": {
+        "connection_id": "analytics_demo_sqlite",
+        "detail_level": "full",
+        "available_only": false
+      },
+      "captured_utc": "2026-10-14T12:11:14.082Z",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":true,\"skills\":[{\"name\":\"sample-monthly-sales-report\",\"type\":\"query\",\"description\":\"Generate a monthly sales summary report including daily revenue, order count, and average order value for a specified month.\",\"risk\":\"low\",\"category\":\"reporting\",\"executable\":false,\"profile_allowed\":true,\"db_compatible\":false,\"connection_scope_allowed\":true,\"policy_allowed\":true,\"schema_ready\":true,\"disabled_reason\":\"Target connection database type 'sqlite' is not compatible; supported: ['mysql'].\",\"source\":\"query.sql\",\"triggers\":[\"monthly sales\",\"revenue report\",\"sales summary\",\"monthly revenue\"],\"idempotent\":true,\"databases\":[\"mysql\"],\"connection_ids\":null,\"configured_connection_ids\":[],\"unconfigured_connection_ids\":[],\"connection_type_conflicts\":[],\"profiles\":[\"demo\"],\"related_skills\":[\"sample-monthly-sales-report-sqlite\"],\"params\":{\"year\":{\"type\":\"int\",\"required\":true,\"description\":\"Year (e.g. 2026)\"},\"month\":{\"type\":\"int\",\"required\":true,\"min\":1,\"max\":12,\"description\":\"Month (1-12)\"}},\"version\":\"1.0\",\"requires_confirmation\":false,\"tables\":[\"orders\"],\"declared_tables\":[],\"inferred_tables\":[\"orders\"]},{\"name\":\"sample-monthly-sales-report-sqlite\",\"type\":\"query\",\"description\":\"Generate a SQLite monthly sales summary report including daily revenue, order count, and average order value for a specified month.\",\"risk\":\"low\",\"category\":\"reporting\",\"executable\":true,\"profile_allowed\":true,\"db_compatible\":true,\"connection_scope_allowed\":true,\"policy_allowed\":true,\"schema_ready\":true,\"source\":\"query.sql\",\"triggers\":[\"monthly sales\",\"revenue report\",\"sales summary\",\"monthly revenue\",\"sqlite monthly sales\"],\"idempotent\":true,\"databases\":[\"sqlite\"],\"connection_ids\":null,\"configured_connection_ids\":[],\"unconfigured_connection_ids\":[],\"connection_type_conflicts\":[],\"profiles\":[\"demo\"],\"related_skills\":[\"sample-monthly-sales-report\"],\"params\":{\"year\":{\"type\":\"int\",\"required\":true,\"description\":\"Year (e.g. 2026)\"},\"month\":{\"type\":\"int\",\"required\":true,\"min\":1,\"max\":12,\"description\":\"Month (1-12)\"}},\"version\":\"1.0\",\"requires_confirmation\":false,\"tables\":[\"orders\"],\"declared_tables\":[],\"inferred_tables\":[\"orders\"]},{\"name\":\"sample-reset-order-to-pending\",\"type\":\"mutation\",\"description\":\"Reset one demo order from an explicitly expected non-pending status to pending on MySQL or SQLite.\",\"risk\":\"medium\",\"category\":\"test-operations\",\"executable\":false,\"profile_allowed\":true,\"db_compatible\":true,\"connection_scope_allowed\":true,\"policy_allowed\":false,\"schema_ready\":true,\"mutation_connection_supported\":false,\"mutation_policy_allowed\":false,\"disabled_reason\":\"Target connection is not authorized by skills.mutation.allowed_connections.\",\"source\":\"mutation.py\",\"triggers\":[\"reset demo order to pending\",\"restore demo order status\"],\"idempotent\":false,\"databases\":[\"mysql\",\"sqlite\"],\"connection_ids\":null,\"configured_connection_ids\":[],\"unconfigured_connection_ids\":[],\"connection_type_conflicts\":[],\"profiles\":[\"demo\"],\"related_skills\":[\"sample-update-order-status\"],\"params\":{\"order_id\":{\"type\":\"int\",\"required\":true,\"min\":1,\"description\":\"Demo order ID to reset\"},\"expected_status\":{\"type\":\"str\",\"required\":true,\"enum\":[\"confirmed\",\"shipped\",\"delivered\",\"cancelled\",\"returned\"],\"description\":\"Non-pending status expected before reset\"}},\"version\":\"1.0\",\"requires_confirmation\":true,\"tables\":[\"orders\"]},{\"name\":\"sample-update-order-status\",\"type\":\"mutation\",\"description\":\"Update order status through the forward lifecycle pending to confirmed to shipped to delivered; cancelled and returned are terminal branches. Backward transitions such as delivered to shipped are rejected.\",\"risk\":\"medium\",\"category\":\"order-management\",\"executable\":false,\"profile_allowed\":true,\"db_compatible\":true,\"connection_scope_allowed\":true,\"policy_allowed\":false,\"schema_ready\":true,\"mutation_connection_supported\":false,\"mutation_policy_allowed\":false,\"disabled_reason\":\"Target connection is not authorized by skills.mutation.allowed_connections.\",\"source\":\"mutation.py\",\"triggers\":[\"update order status\",\"ship order\",\"confirm order\",\"cancel order\",\"deliver order\"],\"idempotent\":false,\"databases\":[\"mysql\",\"sqlite\"],\"connection_ids\":null,\"configured_connection_ids\":[],\"unconfigured_connection_ids\":[],\"connection_type_conflicts\":[],\"profiles\":[\"demo\"],\"related_skills\":[\"sample-reset-order-to-pending\",\"sample-monthly-sales-report\",\"sample-monthly-sales-report-sqlite\"],\"params\":{\"order_id\":{\"type\":\"int\",\"required\":true,\"description\":\"Order ID to update\"},\"new_status\":{\"type\":\"str\",\"required\":true,\"enum\":[\"pending\",\"confirmed\",\"shipped\",\"delivered\",\"cancelled\",\"returned\"],\"description\":\"Target status\"}},\"version\":\"1.0\",\"requires_confirmation\":true,\"tables\":[\"orders\"]}],\"total_skills\":4,\"matched_skills\":4,\"matched_catalog_skills\":4,\"available_skills\":1,\"unavailable_skills\":3,\"filtered_unavailable_skills\":0,\"schema_unready_skills\":0,\"policy_blocked_skills\":2,\"connection_scope_blocked_skills\":0,\"connection_type_conflict_skills\":0,\"profile_excluded_skills\":0,\"query_skills\":2,\"mutation_skills\":2,\"mutations_enabled\":true,\"schema_check_enabled\":true,\"schema_check_available\":true,\"excluded_profiles\":[],\"detail_level\":\"full\",\"available_only\":false,\"current_database_type\":\"sqlite\",\"connection_id\":\"analytics_demo_sqlite\",\"search\":null,\"category\":null,\"categories\":[{\"category\":\"order-management\",\"count\":1},{\"category\":\"reporting\",\"count\":2},{\"category\":\"test-operations\",\"count\":1}]}"
+          }
+        ],
+        "structuredContent": {
+          "success": true,
+          "skills": [
+            {
+              "name": "sample-monthly-sales-report",
+              "type": "query",
+              "description": "Generate a monthly sales summary report including daily revenue, order count, and average order value for a specified month.",
+              "risk": "low",
+              "category": "reporting",
+              "executable": false,
+              "profile_allowed": true,
+              "db_compatible": false,
+              "connection_scope_allowed": true,
+              "policy_allowed": true,
+              "schema_ready": true,
+              "disabled_reason": "Target connection database type 'sqlite' is not compatible; supported: ['mysql'].",
+              "source": "query.sql",
+              "triggers": [
+                "monthly sales",
+                "revenue report",
+                "sales summary",
+                "monthly revenue"
+              ],
+              "idempotent": true,
+              "databases": [
+                "mysql"
+              ],
+              "connection_ids": null,
+              "configured_connection_ids": [],
+              "unconfigured_connection_ids": [],
+              "connection_type_conflicts": [],
+              "profiles": [
+                "demo"
+              ],
+              "related_skills": [
+                "sample-monthly-sales-report-sqlite"
+              ],
+              "params": {
+                "year": {
+                  "type": "int",
+                  "required": true,
+                  "description": "Year (e.g. 2026)"
+                },
+                "month": {
+                  "type": "int",
+                  "required": true,
+                  "min": 1,
+                  "max": 12,
+                  "description": "Month (1-12)"
+                }
+              },
+              "version": "1.0",
+              "requires_confirmation": false,
+              "tables": [
+                "orders"
+              ],
+              "declared_tables": [],
+              "inferred_tables": [
+                "orders"
+              ]
+            },
+            {
+              "name": "sample-monthly-sales-report-sqlite",
+              "type": "query",
+              "description": "Generate a SQLite monthly sales summary report including daily revenue, order count, and average order value for a specified month.",
+              "risk": "low",
+              "category": "reporting",
+              "executable": true,
+              "profile_allowed": true,
+              "db_compatible": true,
+              "connection_scope_allowed": true,
+              "policy_allowed": true,
+              "schema_ready": true,
+              "source": "query.sql",
+              "triggers": [
+                "monthly sales",
+                "revenue report",
+                "sales summary",
+                "monthly revenue",
+                "sqlite monthly sales"
+              ],
+              "idempotent": true,
+              "databases": [
+                "sqlite"
+              ],
+              "connection_ids": null,
+              "configured_connection_ids": [],
+              "unconfigured_connection_ids": [],
+              "connection_type_conflicts": [],
+              "profiles": [
+                "demo"
+              ],
+              "related_skills": [
+                "sample-monthly-sales-report"
+              ],
+              "params": {
+                "year": {
+                  "type": "int",
+                  "required": true,
+                  "description": "Year (e.g. 2026)"
+                },
+                "month": {
+                  "type": "int",
+                  "required": true,
+                  "min": 1,
+                  "max": 12,
+                  "description": "Month (1-12)"
+                }
+              },
+              "version": "1.0",
+              "requires_confirmation": false,
+              "tables": [
+                "orders"
+              ],
+              "declared_tables": [],
+              "inferred_tables": [
+                "orders"
+              ]
+            },
+            {
+              "name": "sample-reset-order-to-pending",
+              "type": "mutation",
+              "description": "Reset one demo order from an explicitly expected non-pending status to pending on MySQL or SQLite.",
+              "risk": "medium",
+              "category": "test-operations",
+              "executable": false,
+              "profile_allowed": true,
+              "db_compatible": true,
+              "connection_scope_allowed": true,
+              "policy_allowed": false,
+              "schema_ready": true,
+              "mutation_connection_supported": false,
+              "mutation_policy_allowed": false,
+              "disabled_reason": "Target connection is not authorized by skills.mutation.allowed_connections.",
+              "source": "mutation.py",
+              "triggers": [
+                "reset demo order to pending",
+                "restore demo order status"
+              ],
+              "idempotent": false,
+              "databases": [
+                "mysql",
+                "sqlite"
+              ],
+              "connection_ids": null,
+              "configured_connection_ids": [],
+              "unconfigured_connection_ids": [],
+              "connection_type_conflicts": [],
+              "profiles": [
+                "demo"
+              ],
+              "related_skills": [
+                "sample-update-order-status"
+              ],
+              "params": {
+                "order_id": {
+                  "type": "int",
+                  "required": true,
+                  "min": 1,
+                  "description": "Demo order ID to reset"
+                },
+                "expected_status": {
+                  "type": "str",
+                  "required": true,
+                  "enum": [
+                    "confirmed",
+                    "shipped",
+                    "delivered",
+                    "cancelled",
+                    "returned"
+                  ],
+                  "description": "Non-pending status expected before reset"
+                }
+              },
+              "version": "1.0",
+              "requires_confirmation": true,
+              "tables": [
+                "orders"
+              ]
+            },
+            {
+              "name": "sample-update-order-status",
+              "type": "mutation",
+              "description": "Update order status through the forward lifecycle pending to confirmed to shipped to delivered; cancelled and returned are terminal branches. Backward transitions such as delivered to shipped are rejected.",
+              "risk": "medium",
+              "category": "order-management",
+              "executable": false,
+              "profile_allowed": true,
+              "db_compatible": true,
+              "connection_scope_allowed": true,
+              "policy_allowed": false,
+              "schema_ready": true,
+              "mutation_connection_supported": false,
+              "mutation_policy_allowed": false,
+              "disabled_reason": "Target connection is not authorized by skills.mutation.allowed_connections.",
+              "source": "mutation.py",
+              "triggers": [
+                "update order status",
+                "ship order",
+                "confirm order",
+                "cancel order",
+                "deliver order"
+              ],
+              "idempotent": false,
+              "databases": [
+                "mysql",
+                "sqlite"
+              ],
+              "connection_ids": null,
+              "configured_connection_ids": [],
+              "unconfigured_connection_ids": [],
+              "connection_type_conflicts": [],
+              "profiles": [
+                "demo"
+              ],
+              "related_skills": [
+                "sample-reset-order-to-pending",
+                "sample-monthly-sales-report",
+                "sample-monthly-sales-report-sqlite"
+              ],
+              "params": {
+                "order_id": {
+                  "type": "int",
+                  "required": true,
+                  "description": "Order ID to update"
+                },
+                "new_status": {
+                  "type": "str",
+                  "required": true,
+                  "enum": [
+                    "pending",
+                    "confirmed",
+                    "shipped",
+                    "delivered",
+                    "cancelled",
+                    "returned"
+                  ],
+                  "description": "Target status"
+                }
+              },
+              "version": "1.0",
+              "requires_confirmation": true,
+              "tables": [
+                "orders"
+              ]
+            }
+          ],
+          "total_skills": 4,
+          "matched_skills": 4,
+          "matched_catalog_skills": 4,
+          "available_skills": 1,
+          "unavailable_skills": 3,
+          "filtered_unavailable_skills": 0,
+          "schema_unready_skills": 0,
+          "policy_blocked_skills": 2,
+          "connection_scope_blocked_skills": 0,
+          "connection_type_conflict_skills": 0,
+          "profile_excluded_skills": 0,
+          "query_skills": 2,
+          "mutation_skills": 2,
+          "mutations_enabled": true,
+          "schema_check_enabled": true,
+          "schema_check_available": true,
+          "excluded_profiles": [],
+          "detail_level": "full",
+          "available_only": false,
+          "current_database_type": "sqlite",
+          "connection_id": "analytics_demo_sqlite",
+          "search": null,
+          "category": null,
+          "categories": [
+            {
+              "category": "order-management",
+              "count": 1
+            },
+            {
+              "category": "reporting",
+              "count": 2
+            },
+            {
+              "category": "test-operations",
+              "count": 1
+            }
+          ]
+        },
+        "isError": false
+      }
+    },
+    {
+      "name": "sqlite_ordinary_query_skill",
+      "tool": "execute_query_skill",
+      "args": {
+        "connection_id": "analytics_demo_sqlite",
+        "skill_name": "sample-monthly-sales-report-sqlite",
+        "params": {
+          "year": 2026,
+          "month": 1
+        }
+      },
+      "captured_utc": "2026-10-14T12:11:30.451Z",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":true,\"skill_name\":\"sample-monthly-sales-report-sqlite\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\",\"data\":[{\"date\":\"2026-01-10\",\"order_count\":1,\"revenue\":1349.98,\"avg_order_value\":1349.98},{\"date\":\"2026-01-11\",\"order_count\":1,\"revenue\":84.99,\"avg_order_value\":84.99},{\"date\":\"2026-01-12\",\"order_count\":1,\"revenue\":45.0,\"avg_order_value\":45.0},{\"date\":\"2026-01-13\",\"order_count\":1,\"revenue\":139.97,\"avg_order_value\":139.97},{\"date\":\"2026-01-14\",\"order_count\":1,\"revenue\":89.99,\"avg_order_value\":89.99}],\"row_count\":5,\"total_rows\":5,\"truncated\":false,\"truncation_note\":null}"
+          }
+        ],
+        "structuredContent": {
+          "success": true,
+          "skill_name": "sample-monthly-sales-report-sqlite",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite",
+          "data": [
+            {
+              "date": "2026-01-10",
+              "order_count": 1,
+              "revenue": 1349.98,
+              "avg_order_value": 1349.98
+            },
+            {
+              "date": "2026-01-11",
+              "order_count": 1,
+              "revenue": 84.99,
+              "avg_order_value": 84.99
+            },
+            {
+              "date": "2026-01-12",
+              "order_count": 1,
+              "revenue": 45,
+              "avg_order_value": 45
+            },
+            {
+              "date": "2026-01-13",
+              "order_count": 1,
+              "revenue": 139.97,
+              "avg_order_value": 139.97
+            },
+            {
+              "date": "2026-01-14",
+              "order_count": 1,
+              "revenue": 89.99,
+              "avg_order_value": 89.99
+            }
+          ],
+          "row_count": 5,
+          "total_rows": 5,
+          "truncated": false,
+          "truncation_note": null
+        },
+        "isError": false
+      }
+    }
+  ],
+  "checks": {
+    "passed": 13,
+    "failed": 0,
+    "business_refusals": 7,
+    "successful_reads_or_discovery": 6,
+    "same_connection_hints": true,
+    "text_matches_structured_content": true,
+    "notes": "No write tools used. Pre-I/O ordering is established by regression tests; public Host results alone are not adapter traces."
+  }
+}

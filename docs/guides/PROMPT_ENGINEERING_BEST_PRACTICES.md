@@ -421,7 +421,7 @@ redundant full-schema call, or unsafe assumption.
 
 Use these maintained records alongside automated tests:
 
-- [v3.8 tests and observed Host limitations](../validation/V3_8_VALIDATION_ZH.md)
+- [v3.8 tests and observed Host limitations](../validation/v3.8/V3_8_VALIDATION_ZH.md)
 - [MCP Agent behavior validation](MCP_AGENT_BEHAVIOR_VALIDATION_ZH.md)
 - [v3.6-v3.7 live MCP tests](../validation/v3.7/LIVE_MCP_TEST_V36-V37_ZH.md)
 - [Design risk register](../security/DESIGN_RISK_REGISTER.md)

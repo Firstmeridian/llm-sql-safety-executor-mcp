@@ -27,9 +27,9 @@ class IndexMetadataBudget:
             raise MetadataQueryError("reading table indexes within budget")
         return remaining
 
-    def rows(self, result: list | str) -> list:
+    def rows(self, result: list) -> list:
         self.remaining()
-        if isinstance(result, str) or len(result) > MAX_INDEX_KEY_PARTS:
+        if len(result) > MAX_INDEX_KEY_PARTS:
             raise MetadataQueryError("reading table indexes within budget")
         return result
 

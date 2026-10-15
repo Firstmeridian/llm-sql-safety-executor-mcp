@@ -1,0 +1,267 @@
+{
+  "observed_at": "2026-10-15 13:00:32 UTC",
+  "scope": "Current Codex native pre-change baseline for bounded shared CTE repair, fixed same-input restart probes; write-shaped control must be refused before I/O, no configured writes authorized or performed.",
+  "records": [
+    {
+      "id": "bare-business",
+      "args": {
+        "connection_id": "analytics_demo_sqlite",
+        "sql": "WITH data AS (SELECT 7 AS n) SELECT n FROM data"
+      },
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":false,\"error_code\":\"sql_parse_failed\",\"error\":\"Could not safely classify this WITH statement as a supported read.\",\"hint\":\"Keep the same connection. Quote keyword-like CTE names consistently in declarations and references, or simplify to a supported read statement.\",\"query\":\"WITH data AS (SELECT 7 AS n) SELECT n FROM data\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": false,
+          "error_code": "sql_parse_failed",
+          "error": "Could not safely classify this WITH statement as a supported read.",
+          "hint": "Keep the same connection. Quote keyword-like CTE names consistently in declarations and references, or simplify to a supported read statement.",
+          "query": "WITH data AS (SELECT 7 AS n) SELECT n FROM data",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      }
+    },
+    {
+      "id": "bare-unicode",
+      "args": {
+        "connection_id": "analytics_demo_sqlite",
+        "sql": "WITH unıon AS (SELECT 7 AS n) SELECT n FROM unıon"
+      },
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":false,\"error_code\":\"sql_parse_failed\",\"error\":\"Could not safely classify this WITH statement as a supported read.\",\"hint\":\"Keep the same connection. Quote keyword-like CTE names consistently in declarations and references, or simplify to a supported read statement.\",\"query\":\"WITH unıon AS (SELECT 7 AS n) SELECT n FROM unıon\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": false,
+          "error_code": "sql_parse_failed",
+          "error": "Could not safely classify this WITH statement as a supported read.",
+          "hint": "Keep the same connection. Quote keyword-like CTE names consistently in declarations and references, or simplify to a supported read statement.",
+          "query": "WITH unıon AS (SELECT 7 AS n) SELECT n FROM unıon",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      }
+    },
+    {
+      "id": "quoted-columns",
+      "args": {
+        "connection_id": "analytics_demo_sqlite",
+        "sql": "WITH \"monthly_sales\"(n) AS (SELECT 7) SELECT n FROM \"monthly_sales\""
+      },
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":false,\"error_code\":\"relation_scope_unresolved\",\"error\":\"Table allowlist could not safely determine every referenced table\",\"hint\":\"Use supported explicit relation references and CTEs; keep schema and name case aligned with the connection policy.\",\"query\":\"WITH \\\"monthly_sales\\\"(n) AS (SELECT 7) SELECT n FROM \\\"monthly_sales\\\"\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": false,
+          "error_code": "relation_scope_unresolved",
+          "error": "Table allowlist could not safely determine every referenced table",
+          "hint": "Use supported explicit relation references and CTEs; keep schema and name case aligned with the connection policy.",
+          "query": "WITH \"monthly_sales\"(n) AS (SELECT 7) SELECT n FROM \"monthly_sales\"",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      }
+    },
+    {
+      "id": "comment-body",
+      "args": {
+        "connection_id": "analytics_demo_sqlite",
+        "sql": "WITH base AS /* body */ (SELECT 7 AS n) SELECT n FROM base"
+      },
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":false,\"error_code\":\"sql_parse_failed\",\"error\":\"Could not safely classify this WITH statement as a supported read.\",\"hint\":\"Keep the same connection. Quote keyword-like CTE names consistently in declarations and references, or simplify to a supported read statement.\",\"query\":\"WITH base AS /* body */ (SELECT 7 AS n) SELECT n FROM base\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": false,
+          "error_code": "sql_parse_failed",
+          "error": "Could not safely classify this WITH statement as a supported read.",
+          "hint": "Keep the same connection. Quote keyword-like CTE names consistently in declarations and references, or simplify to a supported read statement.",
+          "query": "WITH base AS /* body */ (SELECT 7 AS n) SELECT n FROM base",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      }
+    },
+    {
+      "id": "bare-replace",
+      "args": {
+        "connection_id": "analytics_demo_sqlite",
+        "sql": "WITH replace(n) AS (SELECT 7) SELECT n FROM replace"
+      },
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":false,\"error_code\":\"nested_write_denied\",\"error\":\"Write statements inside a read query are not allowed.\",\"query\":\"WITH replace(n) AS (SELECT 7) SELECT n FROM replace\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": false,
+          "error_code": "nested_write_denied",
+          "error": "Write statements inside a read query are not allowed.",
+          "query": "WITH replace(n) AS (SELECT 7) SELECT n FROM replace",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      }
+    },
+    {
+      "id": "materialized",
+      "args": {
+        "connection_id": "analytics_demo_sqlite",
+        "sql": "WITH base(n) AS MATERIALIZED (SELECT 7) SELECT n FROM base"
+      },
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":false,\"error_code\":\"sql_parse_failed\",\"error\":\"Could not safely classify this WITH statement as a supported read.\",\"hint\":\"Keep the same connection. Quote keyword-like CTE names consistently in declarations and references, or simplify to a supported read statement.\",\"query\":\"WITH base(n) AS MATERIALIZED (SELECT 7) SELECT n FROM base\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": false,
+          "error_code": "sql_parse_failed",
+          "error": "Could not safely classify this WITH statement as a supported read.",
+          "hint": "Keep the same connection. Quote keyword-like CTE names consistently in declarations and references, or simplify to a supported read statement.",
+          "query": "WITH base(n) AS MATERIALIZED (SELECT 7) SELECT n FROM base",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      }
+    },
+    {
+      "id": "normal",
+      "args": {
+        "connection_id": "analytics_demo_sqlite",
+        "sql": "WITH monthly_sales AS (SELECT 7 AS n) SELECT n FROM monthly_sales"
+      },
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":true,\"data\":[{\"n\":7}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null,\"query\":\"WITH monthly_sales AS (SELECT 7 AS n) SELECT n FROM monthly_sales\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": true,
+          "data": [
+            {
+              "n": 7
+            }
+          ],
+          "row_count": 1,
+          "total_rows": 1,
+          "truncated": false,
+          "truncation_note": null,
+          "query": "WITH monthly_sales AS (SELECT 7 AS n) SELECT n FROM monthly_sales",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      }
+    },
+    {
+      "id": "quoted-name",
+      "args": {
+        "connection_id": "analytics_demo_sqlite",
+        "sql": "WITH \"data\" AS (SELECT 7 AS n) SELECT n FROM \"data\""
+      },
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":true,\"data\":[{\"n\":7}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null,\"query\":\"WITH \\\"data\\\" AS (SELECT 7 AS n) SELECT n FROM \\\"data\\\"\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": true,
+          "data": [
+            {
+              "n": 7
+            }
+          ],
+          "row_count": 1,
+          "total_rows": 1,
+          "truncated": false,
+          "truncation_note": null,
+          "query": "WITH \"data\" AS (SELECT 7 AS n) SELECT n FROM \"data\"",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      }
+    },
+    {
+      "id": "reserved-body",
+      "args": {
+        "connection_id": "analytics_demo_sqlite",
+        "sql": "WITH \"data\"(n) AS (SELECT SLEEP(0)) SELECT n FROM \"data\""
+      },
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":false,\"error_code\":\"expensive_function_denied\",\"error\":\"Delay or benchmark function SLEEP() is not allowed in read queries.\",\"hint\":\"Keep the same connection and use ordinary SQL expressions, filters and aggregates; remove deliberate sleeps and benchmarking calls.\",\"query\":\"WITH \\\"data\\\"(n) AS (SELECT SLEEP(0)) SELECT n FROM \\\"data\\\"\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": false,
+          "error_code": "expensive_function_denied",
+          "error": "Delay or benchmark function SLEEP() is not allowed in read queries.",
+          "hint": "Keep the same connection and use ordinary SQL expressions, filters and aggregates; remove deliberate sleeps and benchmarking calls.",
+          "query": "WITH \"data\"(n) AS (SELECT SLEEP(0)) SELECT n FROM \"data\"",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      }
+    },
+    {
+      "id": "real-write",
+      "args": {
+        "connection_id": "analytics_demo_sqlite",
+        "sql": "WITH data AS (SELECT 7 AS n) UPDATE orders SET status = status"
+      },
+      "raw": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":false,\"error_code\":\"sql_parse_failed\",\"error\":\"Could not safely classify this WITH statement as a supported read.\",\"hint\":\"Keep the same connection. Quote keyword-like CTE names consistently in declarations and references, or simplify to a supported read statement.\",\"query\":\"WITH data AS (SELECT 7 AS n) UPDATE orders SET status = status\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": false,
+          "error_code": "sql_parse_failed",
+          "error": "Could not safely classify this WITH statement as a supported read.",
+          "hint": "Keep the same connection. Quote keyword-like CTE names consistently in declarations and references, or simplify to a supported read statement.",
+          "query": "WITH data AS (SELECT 7 AS n) UPDATE orders SET status = status",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      }
+    }
+  ]
+}
