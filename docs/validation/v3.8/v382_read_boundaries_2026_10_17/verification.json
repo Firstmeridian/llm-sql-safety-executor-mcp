@@ -1,0 +1,60 @@
+{
+  "version": "3.8.2",
+  "status": "source_and_installed_passed_awaiting_maintainer_restart",
+  "regressions": {
+    "passed": 1966,
+    "skipped": 4,
+    "warnings": 114,
+    "new_tests": 70
+  },
+  "pyright": {
+    "errors": 0,
+    "warnings": 0
+  },
+  "prompt_contract": "passed",
+  "stdio_before": {
+    "calls": 74,
+    "source": "pre-repair v3.8.2, matching previous 75-resource closure"
+  },
+  "installed_after": {
+    "new_boundary_calls": 74,
+    "existing_semantic_calls": 58,
+    "total_calls": 132,
+    "matching_resources": 75,
+    "protocols": [
+      {
+        "mode": "auto",
+        "observed": [
+          "2026-07-28"
+        ]
+      },
+      {
+        "mode": "legacy",
+        "observed": [
+          "2025-11-25"
+        ]
+      }
+    ]
+  },
+  "mysql_readonly_calls": 12,
+  "configured_database_writes": false,
+  "model_trials_rerun": false,
+  "new_cost_comparison": false,
+  "resident_host": "Pending maintainer manual restart; old native acceptance is not evidence for this repair.",
+  "artifacts": {
+    ".gitignore": {
+      "sha256": "684888c0ebb17f374298b65ee2807526c066094c701bcc7ebbe1c1095f494fc1",
+      "bytes": 1
+    },
+    "llm_sql_safety_executor_mcp-3.8.2-py3-none-any.whl": {
+      "sha256": "9c4d9e4bec8bb34ae630a84237a58cf4d1b30dee93bda6e02cfd89e7085b6821",
+      "bytes": 206982
+    },
+    "llm_sql_safety_executor_mcp-3.8.2.tar.gz": {
+      "sha256": "4928cac3b69ad03c3a9814a1ec619cec8f6552ace06fd403c737c1b8b39a2d7d",
+      "bytes": 5282896
+    }
+  },
+  "recording_limits": "Application content/structured results only; not complete protocol frames or notifications.",
+  "retained_failures": "Intermediate template/count/fixture failures, sandbox dependency visibility and interrupted IPC/full runs; do not infer an unobserved syscall/cache root cause."
+}

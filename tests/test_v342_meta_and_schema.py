@@ -454,7 +454,7 @@ def test_column_metadata_error_is_not_reported_as_not_found(base_server, monkeyp
     assert "schema_groups" not in result.structured_content
 
 
-def test_get_full_schema_distinguishes_unsupported_discovered_identifier(base_server):
+def test_get_full_schema_supports_quoted_discovered_identifier(base_server):
     adapter = base_server.get_adapter()
     adapter.execute_write('CREATE TABLE "odd-name" (id INTEGER PRIMARY KEY)', {})
 
@@ -464,7 +464,7 @@ def test_get_full_schema_distinguishes_unsupported_discovered_identifier(base_se
         for table in table_result.structured_content["tables"]
         if table["table_name"] == "odd-name"
     )
-    assert odd_table["row_count"] is None
+    assert odd_table["row_count"] == 0
     assert "null means an estimate is unavailable" in (
         table_result.structured_content["hint"]
     )
@@ -474,13 +474,9 @@ def test_get_full_schema_distinguishes_unsupported_discovered_identifier(base_se
     )
 
     _assert_common_meta(result.meta, "get_full_schema")
-    assert result.meta["success"] is False
-    assert (
-        result.structured_content["error_code"]
-        == "unsupported_metadata_identifier"
-    )
-    assert "schema_groups" not in result.structured_content
-    assert "odd-name" not in result.structured_content["error"]
+    assert result.meta["success"] is True
+    assert "schema_groups" in result.structured_content
+    assert "odd-name" in json.dumps(result.structured_content)
 
 
 def test_get_table_summary_reports_missing_table(base_server):

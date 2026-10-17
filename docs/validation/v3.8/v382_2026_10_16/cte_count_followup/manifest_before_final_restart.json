@@ -1,0 +1,130 @@
+{
+  "status": "source/install validated; final materialized-CTE native/Luna follow-up pending maintainer restart",
+  "files": {
+    "assessment_addendum.json": {
+      "sha256": "cde0b64f0f738c59412d66aa9819bfb04cd9f48c6828541a835780b6efdfbf8b",
+      "bytes": 762
+    },
+    "authorizer_before.py.gz": {
+      "sha256": "2c12bf8e682dee54536f7d8b242d031ec0fa5d012b137d591b1d6ad8427ebbed",
+      "bytes": 2469
+    },
+    "build-cte-count-fixture.log.gz": {
+      "sha256": "d92b6efff3ef59588ccb7c767889a62fb66da94643694289d9e90aa1a43ad07c",
+      "bytes": 154
+    },
+    "build-cte-count.log.gz": {
+      "sha256": "d92b6efff3ef59588ccb7c767889a62fb66da94643694289d9e90aa1a43ad07c",
+      "bytes": 154
+    },
+    "cost-cte-count-A1.log.gz": {
+      "sha256": "2dd2af8064053ae472e32bcf14b93b9ac3538bd7fa78179d71932d5fb364dc86",
+      "bytes": 270
+    },
+    "cost-cte-count-A2.log.gz": {
+      "sha256": "516d043b074476d1cfd8f2d0b230b4cd567e0b220f7f428cfcea759ab102313f",
+      "bytes": 269
+    },
+    "cost-cte-count-B.log.gz": {
+      "sha256": "48f0fe5453446e270420b2551fb8c9c3a4c490885bff41ed61cd2d6646f634c7",
+      "bytes": 269
+    },
+    "cost_A1.json.gz": {
+      "sha256": "7277b64c2f7bee63e9f34d20e4b95fa19194537bf48b83d34333eab12b379dcf",
+      "bytes": 12182
+    },
+    "cost_A2.json.gz": {
+      "sha256": "439d23c522cdd9c9404add130fa41b0e7a9947d1e1b7032ff928f0b93806532f",
+      "bytes": 12176
+    },
+    "cost_B.json.gz": {
+      "sha256": "8373ee91844771c9a5e2cfb1a9bf0b0bea123c0f3470801ef9f9ccda3988205d",
+      "bytes": 11836
+    },
+    "cost_summary.json": {
+      "sha256": "493bae255325ffa56aa189f5ff0124bbaf33d4659c04f89b6e12713e71d137b8",
+      "bytes": 5201
+    },
+    "cte-count-after.log.gz": {
+      "sha256": "909aff17c74a49a64033547ebb2252c36a8ec05124036d9129b39c11d686c449",
+      "bytes": 53
+    },
+    "cte-count-before.log.gz": {
+      "sha256": "f926390e5fc748b1223c2cfd556de3255dffd1f48ab795e84b9c9051c46e810d",
+      "bytes": 2289
+    },
+    "environment_notes.json": {
+      "sha256": "644e70391742f3e37b6a48aaf1d985acc003074527ed93cc991beb922e6bfd54",
+      "bytes": 1222
+    },
+    "full-cte-count.log.gz": {
+      "sha256": "8bd320ccbd9fa36016cd04de31014dd304329a94861a022003bceb96465b2b1e",
+      "bytes": 691
+    },
+    "install-cte-count-fixture.log.gz": {
+      "sha256": "91713b18b113bf9af5f99cad35237ad065851a032c79678112aa6331dbe2a388",
+      "bytes": 215
+    },
+    "install-cte-count.log.gz": {
+      "sha256": "5282ee70a7180c4b18a2edfc0d5e2220c27771973e9f131b35fb9e79fd830bec",
+      "bytes": 227
+    },
+    "installed-cte-count-fixture.log.gz": {
+      "sha256": "fc005c5643b5651e9bf73ea75427f19bff536bb1b33fc9819302d0afc0a1e673",
+      "bytes": 2011
+    },
+    "installed-cte-count.log.gz": {
+      "sha256": "1a52708a47485d6928843757f8ffd2cff9f8b038671f9ed55269abbb344d2c51",
+      "bytes": 487
+    },
+    "installed_semantics.json.gz": {
+      "sha256": "5e26480c41ebcc911112b193a87c272660b0200c4463251408532d2316c8f08b",
+      "bytes": 10210
+    },
+    "luna_tasks/plan.json": {
+      "sha256": "1a5e71f24872d0590847e24ae467a3bd2c031bb95ac9c0fea19febe4a58f567b",
+      "bytes": 3455
+    },
+    "native_before_final_restart.json": {
+      "sha256": "e8c1dac5284b3aecd89be428f3be6e736b145375de07135dcc54f987c9d65001",
+      "bytes": 6688
+    },
+    "original_query_after.json": {
+      "sha256": "138cff73614119d72723627bdad44cdf4ee93b22af974fa5697470a7b7cf0032",
+      "bytes": 2776
+    },
+    "probe_before.json.gz": {
+      "sha256": "cb40196e304b31c94de86ec9675cd92945229c128b750e36bc7de75ef1b583d6",
+      "bytes": 1133
+    },
+    "prompt-cte-count.log.gz": {
+      "sha256": "090e5d838501a835953ba08eeacb177cf0ecef59e67add02b2bcb919113e87ea",
+      "bytes": 74
+    },
+    "pyright-cte-count-absolute.log.gz": {
+      "sha256": "c8f40ac3b3f577d99ca528dc797ac395a63bdcedd0b425151e1b76ffc54e42f5",
+      "bytes": 53
+    },
+    "pyright-cte-count.log.gz": {
+      "sha256": "9c4ba34e3d9b22a36b31c06e8715ca29cd35930b8743226303b74ef1bde7d0ef",
+      "bytes": 831
+    },
+    "regression_before.log.gz": {
+      "sha256": "f926390e5fc748b1223c2cfd556de3255dffd1f48ab795e84b9c9051c46e810d",
+      "bytes": 2289
+    },
+    "report_before.md.gz": {
+      "sha256": "34b897fd59d4630789bfd5fe6f9cc07002ee87113f4d579b283e59b38a41f295",
+      "bytes": 7497
+    },
+    "source_current.json": {
+      "sha256": "3b45bf02d95198a4e2a40a3f7bbb8e4b5908324779b8f13a94e0fa5937e9a9d9",
+      "bytes": 15340
+    },
+    "verify-installed-cte-count.log.gz": {
+      "sha256": "79661ef0e2545b3944792b8749247b3b8d9a00dbb9897ccfae468680827fbe58",
+      "bytes": 824
+    }
+  },
+  "not_a_final_manifest": true
+}

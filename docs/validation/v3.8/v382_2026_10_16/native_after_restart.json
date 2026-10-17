@@ -1,0 +1,334 @@
+{
+  "recorded_at_utc": "2026-10-16 09:02:41 UTC",
+  "owner_reported_restart": true,
+  "scope": "Current Codex SQL MCP native calls; behavior evidence, not a loaded-code hash attestation or diagnosis of historical cache failures",
+  "checks": [
+    {
+      "name": "constant",
+      "input": {
+        "connection_id": "analytics_demo_sqlite",
+        "sql": "SELECT 7 AS n"
+      },
+      "response": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":true,\"data\":[{\"n\":7}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null,\"query\":\"SELECT 7 AS n\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": true,
+          "data": [
+            {
+              "n": 7
+            }
+          ],
+          "row_count": 1,
+          "total_rows": 1,
+          "truncated": false,
+          "truncation_note": null,
+          "query": "SELECT 7 AS n",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      },
+      "expected": {
+        "success": true,
+        "n": 7
+      },
+      "passed": true
+    },
+    {
+      "name": "forward_cte",
+      "input": {
+        "connection_id": "analytics_demo_sqlite",
+        "sql": "WITH earlier AS (SELECT n FROM later), later AS (SELECT 7 AS n) SELECT n FROM earlier"
+      },
+      "response": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":true,\"data\":[{\"n\":7}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null,\"query\":\"WITH earlier AS (SELECT n FROM later), later AS (SELECT 7 AS n) SELECT n FROM earlier\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": true,
+          "data": [
+            {
+              "n": 7
+            }
+          ],
+          "row_count": 1,
+          "total_rows": 1,
+          "truncated": false,
+          "truncation_note": null,
+          "query": "WITH earlier AS (SELECT n FROM later), later AS (SELECT 7 AS n) SELECT n FROM earlier",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      },
+      "expected": {
+        "success": true,
+        "n": 7
+      },
+      "passed": true
+    },
+    {
+      "name": "ordinary_current_user_column",
+      "input": {
+        "connection_id": "analytics_demo_sqlite",
+        "sql": "SELECT CURRENT_USER FROM orders LIMIT 0"
+      },
+      "response": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":false,\"error_code\":\"unknown_column\",\"error\":\"Column not found.\",\"hint\":\"Use describe_table() to check columns on the same connection.\",\"query\":\"SELECT CURRENT_USER FROM orders LIMIT 0\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": false,
+          "error_code": "unknown_column",
+          "error": "Column not found.",
+          "hint": "Use describe_table() to check columns on the same connection.",
+          "query": "SELECT CURRENT_USER FROM orders LIMIT 0",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      },
+      "expected": {
+        "success": false,
+        "error_code": "unknown_column"
+      },
+      "passed": true
+    },
+    {
+      "name": "reserved_current_user_call",
+      "input": {
+        "connection_id": "analytics_demo_sqlite",
+        "sql": "SELECT CURRENT_USER()"
+      },
+      "response": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":false,\"error_code\":\"server_state_denied\",\"error\":\"System variables, Account and role functions, and SQLite PRAGMA objects are not allowed in queries.\",\"hint\":\"Use list_tables() or describe_table(); describe_table() also returns indexes.\",\"query\":\"SELECT CURRENT_USER()\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": false,
+          "error_code": "server_state_denied",
+          "error": "System variables, Account and role functions, and SQLite PRAGMA objects are not allowed in queries.",
+          "hint": "Use list_tables() or describe_table(); describe_table() also returns indexes.",
+          "query": "SELECT CURRENT_USER()",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      },
+      "expected": {
+        "success": false,
+        "error_code": "server_state_denied"
+      },
+      "passed": true
+    },
+    {
+      "name": "qualified_orders",
+      "input": {
+        "connection_id": "analytics_demo_sqlite",
+        "sql": "SELECT COUNT(*) AS total_orders FROM main.orders"
+      },
+      "response": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":false,\"error_code\":\"table_access_denied\",\"error\":\"Access denied to table(s): main.orders. Only allowed tables: orders\",\"hint\":\"Keep the same connection and use authorized tables; preserve the connection's CTE name rules and explicit schema scope.\",\"query\":\"SELECT COUNT(*) AS total_orders FROM main.orders\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": false,
+          "error_code": "table_access_denied",
+          "error": "Access denied to table(s): main.orders. Only allowed tables: orders",
+          "hint": "Keep the same connection and use authorized tables; preserve the connection's CTE name rules and explicit schema scope.",
+          "query": "SELECT COUNT(*) AS total_orders FROM main.orders",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      },
+      "expected": {
+        "success": false,
+        "error_code": "table_access_denied"
+      },
+      "passed": true
+    },
+    {
+      "name": "sleep_denied",
+      "input": {
+        "connection_id": "analytics_demo_sqlite",
+        "sql": "SELECT SLEEP(0)"
+      },
+      "response": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":false,\"error_code\":\"expensive_function_denied\",\"error\":\"Delay or benchmark functions are not allowed in read queries.\",\"hint\":\"Keep the same connection and use ordinary SQL expressions, filters and aggregates; remove deliberate sleeps and benchmarking calls.\",\"query\":\"SELECT SLEEP(0)\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": false,
+          "error_code": "expensive_function_denied",
+          "error": "Delay or benchmark functions are not allowed in read queries.",
+          "hint": "Keep the same connection and use ordinary SQL expressions, filters and aggregates; remove deliberate sleeps and benchmarking calls.",
+          "query": "SELECT SLEEP(0)",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      },
+      "expected": {
+        "success": false,
+        "error_code": "expensive_function_denied"
+      },
+      "passed": true
+    },
+    {
+      "name": "lock_denied",
+      "input": {
+        "connection_id": "analytics_demo_sqlite",
+        "sql": "SELECT GET_LOCK('v382_fixture',0)"
+      },
+      "response": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":false,\"error_code\":\"lock_function_denied\",\"error\":\"Lock functions are not allowed in read queries.\",\"hint\":\"Keep the same connection and use ordinary reads. Lock coordination requires a trusted operation managing acquisition and release on one connection.\",\"query\":\"SELECT GET_LOCK('v382_fixture',0)\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": false,
+          "error_code": "lock_function_denied",
+          "error": "Lock functions are not allowed in read queries.",
+          "hint": "Keep the same connection and use ordinary reads. Lock coordination requires a trusted operation managing acquisition and release on one connection.",
+          "query": "SELECT GET_LOCK('v382_fixture',0)",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      },
+      "expected": {
+        "success": false,
+        "error_code": "lock_function_denied"
+      },
+      "passed": true
+    },
+    {
+      "name": "ungranted",
+      "input": {
+        "connection_id": "analytics_demo_sqlite",
+        "sql": "SELECT * FROM main.private_orders"
+      },
+      "response": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":false,\"error_code\":\"table_access_denied\",\"error\":\"Access denied to table(s): main.private_orders. Only allowed tables: orders\",\"hint\":\"Keep the same connection and use authorized tables; preserve the connection's CTE name rules and explicit schema scope.\",\"query\":\"SELECT * FROM main.private_orders\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": false,
+          "error_code": "table_access_denied",
+          "error": "Access denied to table(s): main.private_orders. Only allowed tables: orders",
+          "hint": "Keep the same connection and use authorized tables; preserve the connection's CTE name rules and explicit schema scope.",
+          "query": "SELECT * FROM main.private_orders",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      },
+      "expected": {
+        "success": false,
+        "error_code": "table_access_denied"
+      },
+      "passed": true
+    },
+    {
+      "name": "unicode_cte",
+      "input": {
+        "connection_id": "analytics_demo_sqlite",
+        "sql": "WITH \"unıon\"(n) AS (SELECT 7) SELECT n FROM \"unıon\""
+      },
+      "response": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":true,\"data\":[{\"n\":7}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null,\"query\":\"WITH \\\"unıon\\\"(n) AS (SELECT 7) SELECT n FROM \\\"unıon\\\"\",\"connection_id\":\"analytics_demo_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": true,
+          "data": [
+            {
+              "n": 7
+            }
+          ],
+          "row_count": 1,
+          "total_rows": 1,
+          "truncated": false,
+          "truncation_note": null,
+          "query": "WITH \"unıon\"(n) AS (SELECT 7) SELECT n FROM \"unıon\"",
+          "connection_id": "analytics_demo_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      },
+      "expected": {
+        "success": true,
+        "n": 7
+      },
+      "passed": true
+    },
+    {
+      "name": "mysql_cte_case",
+      "input": {
+        "connection_id": "trade_analysis_mysql",
+        "sql": "WITH F AS (SELECT 7 AS n) SELECT n FROM f"
+      },
+      "response": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":true,\"data\":[{\"n\":7}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null,\"query\":\"WITH F AS (SELECT 7 AS n) SELECT n FROM f\",\"connection_id\":\"trade_analysis_mysql\",\"db_type\":\"mysql\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": true,
+          "data": [
+            {
+              "n": 7
+            }
+          ],
+          "row_count": 1,
+          "total_rows": 1,
+          "truncated": false,
+          "truncation_note": null,
+          "query": "WITH F AS (SELECT 7 AS n) SELECT n FROM f",
+          "connection_id": "trade_analysis_mysql",
+          "db_type": "mysql"
+        },
+        "isError": false
+      },
+      "expected": {
+        "success": true,
+        "n": 7
+      },
+      "passed": true
+    }
+  ],
+  "passed": 10,
+  "total": 10,
+  "grant_note": "Configured bare orders grant does not automatically authorize explicit main.orders."
+}

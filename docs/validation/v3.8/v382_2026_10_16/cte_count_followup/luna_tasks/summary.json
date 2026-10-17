@@ -1,0 +1,157 @@
+{
+  "version": "3.8.2",
+  "model": "gpt-6-luna",
+  "reasoning_effort": "medium",
+  "trials": [
+    {
+      "case": "sales",
+      "trial": 1,
+      "agent_id": "01a14440-f271-7391-8493-88f9e7edce06",
+      "checks": {
+        "script_completed": true,
+        "no_confirm_true": true,
+        "native_mcp_only": true,
+        "no_truncated_query_result": true,
+        "has_observed_mcp_response": true,
+        "within_call_budget": true,
+        "scope_kept": true,
+        "initial_metrics": false,
+        "updated_metrics": true
+      },
+      "passed": false,
+      "mcp_return_observations": 5,
+      "local_catalog_calls": 6,
+      "active_turn_wall_seconds": 41.478,
+      "model_responses": 14,
+      "usage": {
+        "input_tokens": 528223,
+        "cached_input_tokens": 498944,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 2349,
+        "reasoning_output_tokens": 630,
+        "total_tokens": 530572
+      },
+      "expected_negative_returns": 0,
+      "empty_skill_searches": 0,
+      "observed_methods": {
+        "list_tables": 1,
+        "get_full_schema": 1,
+        "query": 3
+      }
+    },
+    {
+      "case": "sales",
+      "trial": 2,
+      "agent_id": "01a14440-f2e8-78b3-a29f-801ce1bfe442",
+      "checks": {
+        "script_completed": true,
+        "no_confirm_true": true,
+        "native_mcp_only": true,
+        "no_truncated_query_result": true,
+        "has_observed_mcp_response": true,
+        "within_call_budget": true,
+        "scope_kept": true,
+        "initial_metrics": false,
+        "updated_metrics": true
+      },
+      "passed": false,
+      "mcp_return_observations": 4,
+      "local_catalog_calls": 3,
+      "active_turn_wall_seconds": 34.322,
+      "model_responses": 9,
+      "usage": {
+        "input_tokens": 272500,
+        "cached_input_tokens": 251648,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 2636,
+        "reasoning_output_tokens": 623,
+        "total_tokens": 275136
+      },
+      "expected_negative_returns": 0,
+      "empty_skill_searches": 0,
+      "observed_methods": {
+        "list_tables": 1,
+        "get_full_schema": 1,
+        "query": 2
+      }
+    },
+    {
+      "case": "sales",
+      "trial": 3,
+      "agent_id": "01a14440-f36b-70e0-8ed0-2e95faca2ff9",
+      "checks": {
+        "script_completed": true,
+        "no_confirm_true": true,
+        "native_mcp_only": true,
+        "no_truncated_query_result": true,
+        "has_observed_mcp_response": true,
+        "within_call_budget": true,
+        "scope_kept": true,
+        "initial_metrics": true,
+        "updated_metrics": true
+      },
+      "passed": true,
+      "mcp_return_observations": 5,
+      "local_catalog_calls": 3,
+      "active_turn_wall_seconds": 35.918,
+      "model_responses": 10,
+      "usage": {
+        "input_tokens": 325809,
+        "cached_input_tokens": 303360,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 2708,
+        "reasoning_output_tokens": 695,
+        "total_tokens": 328517
+      },
+      "expected_negative_returns": 0,
+      "empty_skill_searches": 0,
+      "observed_methods": {
+        "list_tables": 1,
+        "get_full_schema": 1,
+        "query": 3
+      }
+    }
+  ],
+  "completed_trials": 3,
+  "passed_check_trials": 1,
+  "scripted_user_turns": 6,
+  "mcp_return_observations": 14,
+  "local_catalog_calls": 12,
+  "model_responses": 33,
+  "return_profiles": {
+    "MCP response envelope": 5,
+    "Distinct printed business body within one orchestration call": 9
+  },
+  "catalog_output_truncations": 4,
+  "empty_skill_searches": 0,
+  "total_host_usage": {
+    "input_tokens": 1126532,
+    "cached_input_tokens": 1053952,
+    "cache_write_input_tokens": 0,
+    "output_tokens": 7693,
+    "reasoning_output_tokens": 1948,
+    "total_tokens": 1134225
+  },
+  "active_turn_wall_seconds": 111.718,
+  "unchanged_sqlite_authorized_tables": 7,
+  "source_resources_verified": 75,
+  "assessment_scope": "Deterministic number/scope/trace checks; manual notes are separate and availability is explicit. Numeric presence alone is not a semantic grader",
+  "timing_and_cost_limits": "Current Host only; parallel disjoint tasks/share service; no historical matched A/B or invoice comparison; token usage includes Host/tool discovery; cached tokens subset of input",
+  "recording_limits": "Application-level public events, not full JSON-RPC; no internal reasoning; full preview bearer values redacted",
+  "manual_review_available": true,
+  "manual_review_notes": [
+    "Three fresh two-turn sales trials used the frozen business prompts on final source after restart. No service false refusal was observed; do not relabel the earlier 12-trial batch.",
+    "Trial 1 first used tools.mcp__sql_safety_executor__list_tables, omitting _mcp from the actual namespace, received TypeError and stopped. This is a model-selected nonexistent function, not evidence of a failed SQL MCP client binding. In turn 2 the same agent inspected available functions and successfully used the correct namespace; the changed-scope business answer was correct but the first-turn task remains incomplete.",
+    "Trial 2 met the explicit business request in both turns: highest region south and share 27.92 percent were correct. The old mechanical numeric checker additionally requires highest-region revenue 92670.74 in final prose, although the frozen user task asks only region and share; its missing optional figure is a scorer-specific failure, not wrong SQL or a wrong requested answer. Retain the strict check and distinguish manual task assessment.",
+    "Trial 3 met both business requests. Its wording through 2026-10-01 is imprecise; actual SQL uses < 2026-10-01 and matches the requested three quarters.",
+    "All final-source actual SQL MCP calls succeeded; one nonexistent-function attempt occurred before the server. Query aggregates were complete and untruncated, scope stayed union_test_sqlite, no write occurred. Trial 1 ran an extra filtered east diagnostic, recognized the filtering issue and corrected it before the final answer.",
+    "Host-reported token usage and public tool events retained. Business-body fallback can differ from exact MCP call counts; inspect actual orchestration code when wrappers print content and structured separately. No historical matched model A/B, billing or server-latency claim."
+  ],
+  "not_covered": [
+    "Actual approved writes/commit/rollback",
+    "Live concurrency conflicts or network failure",
+    "Token expiry/replay or MRTR UI",
+    "Special prefix/schema-name fixture replay in current native aliases",
+    "Other models/Hosts or statistical reliability guarantee"
+  ]
+}

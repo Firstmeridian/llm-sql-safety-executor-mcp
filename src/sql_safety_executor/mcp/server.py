@@ -1,6 +1,7 @@
 """FastMCP composition root; application services remain protocol-independent."""
 
 from __future__ import annotations
+from sql_safety_executor import __version__
 
 from .contracts import TOOL_DEFINITIONS
 from .context import ToolContext
@@ -82,7 +83,7 @@ def create_server(config: AppConfig) -> FastMCP:
     try:
         server = FastMCP(
             name="sql-safety-executor",
-            version="3.8.1",
+            version=__version__,
             instructions=render.instructions(config),
             lifespan=lifespan,
             mask_error_details=True,

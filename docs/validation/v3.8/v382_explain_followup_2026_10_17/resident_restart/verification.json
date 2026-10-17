@@ -1,0 +1,53 @@
+{
+  "version": "3.8.2",
+  "status": "accepted_with_explicit_native_coverage_limits",
+  "observed_utc": "2026-10-16 19:26:52 UTC",
+  "maintainer_restart": "Explicitly confirmed by the maintainer before this batch.",
+  "native": {
+    "calls": 42,
+    "passed": 42,
+    "plan_checks": 26,
+    "expected_refusals": 12,
+    "metadata_checks": 1,
+    "preflight": 1,
+    "snapshots": 2,
+    "all_five_columns_unchanged": true,
+    "text_structured_results_matching": 42,
+    "protocol": "Not exposed by this native facade."
+  },
+  "data_integrity": {
+    "connection_id": "analytics_demo_sqlite",
+    "relation": "orders",
+    "rows": 5,
+    "columns": 5,
+    "before_sha256": "e1b28fdf600dcf8ba7a5966bbf292cb36eb6195fda395d1a5458753a36b400e8",
+    "after_sha256": "e1b28fdf600dcf8ba7a5966bbf292cb36eb6195fda395d1a5458753a36b400e8",
+    "unchanged": true,
+    "write_control_scope": "Actual-DML refusal probes use WHERE 0 or empty SELECT input; only EXPLAIN probes contain value-changing payloads. No configured mutation was executed."
+  },
+  "source": {
+    "current_resources_match_parent_closure": 75,
+    "loaded_code_object_hashes": "Not introspected; disk/installed identity and native behavior are separate evidence."
+  },
+  "parent_checkpoint": {
+    "manifest": "../manifest.json",
+    "sha256": "c992c2a526ec7faf53b7333c18848580b207cf08a9fe21c94f3ad2ee1455d154",
+    "verification": "../verification.json",
+    "files_verified_unchanged": 50,
+    "scope": "The parent still records its then-pending restart status. Current status is this supplement."
+  },
+  "preserved_sealed_files_verified": {
+    "docs/validation/v3.8/v382_2026_10_16/manifest.json": 197,
+    "docs/validation/v3.8/v382_read_boundaries_2026_10_17/manifest.json": 25,
+    "docs/validation/v3.8/v382_read_boundaries_2026_10_17/resident_restart/manifest.json": 3,
+    "local_archive/v382_review/20261017_explain_followup/evidence/manifest.json": 5,
+    "local_archive/v382_review/20261017_explain_adjacency/evidence/manifest.json": 15,
+    "docs/validation/v3.8/v382_explain_followup_2026_10_17/manifest.json": 50
+  },
+  "coverage_limits": [
+    "No trigger/view/UDF/plan-Skill fixture or new connection configuration was created in configured databases. Trigger-specific/count-source/plan-Skill cases retain same-source regression and 140 new installed-stdio coverage within 272 total installed calls.",
+    "The Host exposes neither sample nor get_table_summary; their cross-entry coverage remains installed/regression evidence.",
+    "No fresh full Luna task or model-token/latency measurement was run after restart; retain prior trial attribution and serial adapter costs.",
+    "Tool catalog is Codex available-tool metadata, not a protocol tools/list frame. Application records do not include complete wire frames or notifications."
+  ]
+}

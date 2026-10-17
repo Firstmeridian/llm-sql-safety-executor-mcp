@@ -8,7 +8,8 @@ import sqlparse
 
 from sql_safety_executor import create_server, load_config
 from sql_safety_executor.core.policy import _extract_relation_references, _validate_sql_query_policy
-from sql_safety_executor.core.structure import parse_with_clause
+from sql_safety_executor.core.analysis import analyze_sql
+from sql_safety_executor.database.semantics import DialectContext
 from sql_safety_executor.database.models import ConnectionPolicy
 from sql_safety_executor.database.relations import RelationReference
 from tests.test_v38_config import bundle as bundle
@@ -44,10 +45,11 @@ def test_comments_and_materialization_preserve_body_and_output(header, hint, com
     sql = f"WITH {header} AS {comment} {hint} (SELECT n FROM orders) SELECT n FROM {target}"
     assert fixture_truth(sql) == [(7,)]
     assert _validate_sql_query_policy(None, sql, ConnectionPolicy(allowed_tables=frozenset({"orders"}))).allowed
-    clause = parse_with_clause(sqlparse.parse(sql)[0])
-    assert clause is not None and clause.definitions[0].columns == ("n",)
-    assert clause.definitions[0].materialization == (hint or None)
-    assert clause.definitions[0].body.sql == "SELECT n FROM orders"
+    analysis = analyze_sql(sql, DialectContext("sqlite"))
+    assert analysis.complete and analysis.ctes[0].columns == ("n",)
+    assert analysis.ctes[0].materialized == (None if not hint else hint == "MATERIALIZED")
+    assert analysis.source_sql == sql
+    assert analysis.relations == (RelationReference("orders"),)
 
 
 @pytest.mark.parametrize("call,code", [
@@ -63,7 +65,7 @@ def test_newly_supported_headers_never_hide_reserved_body_calls(call, code, head
     sql = f"WITH {header} AS /* body */ {hint} (SELECT {call}) SELECT n FROM {target}"
     def unexpected_io():
         pytest.fail("Reserved CTE body reached capability I/O")
-    adapter = SimpleNamespace(cte_case_sensitive=None, resolve_cte_case_sensitive=unexpected_io)
+    adapter = SimpleNamespace(analysis_context=DialectContext("sqlite"), cte_case_sensitive=None, resolve_cte_case_sensitive=unexpected_io)
     for scope in ("all", "allowlist"):
         policy = ConnectionPolicy(read_mode=scope, allowed_tables=frozenset({"*"} if scope == "all" else {"orders"}), case_sensitive_tables=True)
         decision = _validate_sql_query_policy(None, sql, policy, adapter=adapter)
@@ -80,8 +82,9 @@ def test_newly_supported_headers_never_hide_reserved_body_calls(call, code, head
     ('SELECT (WITH "data"(n) AS (SELECT n FROM blocked) SELECT n FROM "data")', RelationReference("blocked")),
 ])
 def test_new_structure_preserves_physical_self_forward_nested_and_qualified_scope(sql, reference):
-    assert reference in _extract_relation_references(sql)
-    decision = _validate_sql_query_policy(None, sql, ConnectionPolicy(allowed_tables=frozenset({"orders"})))
+    context = DialectContext("mysql", frozenset({"ANSI_QUOTES"}))
+    assert reference in _extract_relation_references(sql, context=context)
+    decision = _validate_sql_query_policy(None, sql, ConnectionPolicy(allowed_tables=frozenset({"orders"}), case_sensitive_tables=True), adapter=SimpleNamespace(analysis_context=context, resolve_analysis_context=lambda: context, cte_case_sensitive=True))
     assert not decision.allowed and decision.error_code == "table_access_denied"
 
 

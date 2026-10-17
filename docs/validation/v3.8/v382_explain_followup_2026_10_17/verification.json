@@ -1,0 +1,53 @@
+{
+  "status": "source-and-installed-accepted-resident-pending",
+  "version": "3.8.2",
+  "regression": {
+    "passed": 2067,
+    "skipped": 4,
+    "warnings": 144,
+    "new_tests": 101
+  },
+  "installed_calls": {
+    "new_plans": 140,
+    "existing_reads": 74,
+    "existing_semantics": 58,
+    "total": 272
+  },
+  "source_stdio_before": 132,
+  "source_stdio_after": 140,
+  "same_input_client_observations_before_and_after": 342,
+  "matrix_after": {
+    "successful_plans": 292,
+    "protective_refusals": 42,
+    "scope_controls": 8
+  },
+  "runtime_resources": 75,
+  "runtime_changes": [
+    "core/analysis.py",
+    "database/authorizer.py",
+    "database/sqlite.py"
+  ],
+  "prior_sealed_files_verified": {
+    "docs/validation/v3.8/v382_2026_10_16/manifest.json": 197,
+    "docs/validation/v3.8/v382_read_boundaries_2026_10_17/manifest.json": 25,
+    "docs/validation/v3.8/v382_read_boundaries_2026_10_17/resident_restart/manifest.json": 3,
+    "local_archive/v382_review/20261017_explain_followup/evidence/manifest.json": 5,
+    "local_archive/v382_review/20261017_explain_adjacency/evidence/manifest.json": 15
+  },
+  "wheel": {
+    "name": "llm_sql_safety_executor_mcp-3.8.2-py3-none-any.whl",
+    "sha256": "53938bd5ebf403e38393d836511390f8c71b5fa5272d39e806dbce9f52b51cfe",
+    "bytes": 209409,
+    "installed": {
+      "package": "/tmp/v382-tools/wheel-env/lib/python3.12/site-packages/sql_safety_executor/__init__.py",
+      "dependencies": {
+        "fastmcp": "4.0.10",
+        "mcp": "2.2.0",
+        "sqlglot": "30.22.0",
+        "SQLAlchemy": "2.1.1",
+        "pydantic": "2.13.5"
+      }
+    }
+  },
+  "scope": "No configured database writes. Full private persistent rows unchanged; serving temp/attached total_changes unchanged; harmless restricted UDF calls zero. No new full Luna task or model token claim. Native restart verification still requires maintainer; old native records retain their source attribution. Application records are not full protocol frames."
+}

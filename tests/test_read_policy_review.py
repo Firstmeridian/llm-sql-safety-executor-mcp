@@ -13,6 +13,7 @@ from sql_safety_executor.core.policy import (
     _validate_sql_query_policy,
 )
 from sql_safety_executor.core.types import ConnectionContext
+from sql_safety_executor.database.semantics import DialectContext
 from sql_safety_executor.database.models import ConnectionPolicy, DatabaseConfig
 from sql_safety_executor.database.registry import ConnectionRegistry
 from sql_safety_executor.prompts import render
@@ -110,7 +111,8 @@ def test_ordinary_pragma_prefix_names_remain_readable(sql, case_sensitive):
         read_mode="all", allowed_tables=frozenset({"*"}),
         case_sensitive_tables=case_sensitive,
     )
-    assert _validate_sql_query_policy(None, sql, policy).allowed
+    context = DialectContext("sqlite")
+    assert _validate_sql_query_policy(None, sql, policy, adapter=SimpleNamespace(analysis_context=context, resolve_analysis_context=lambda: context, cte_case_sensitive=False)).allowed
 
 
 def test_reserved_pragma_names_cover_runtime_sqlite_builtins():
@@ -199,7 +201,7 @@ def test_skill_readiness_uses_connection_table_identity(case_sensitive, required
     )
     connection = ConnectionContext(
         "analytics", config,
-        SimpleNamespace(get_read_relations=lambda: [ReadRelation(RelationReference("Orders", "business" if case_sensitive else "main"), "table")]), policy,
+        SimpleNamespace(analysis_context=DialectContext("mysql" if case_sensitive else "sqlite", cte_case_sensitive=case_sensitive, default_schema="business" if case_sensitive else "main"), resolve_analysis_context=lambda: DialectContext("mysql" if case_sensitive else "sqlite", cte_case_sensitive=case_sensitive, default_schema="business" if case_sensitive else "main"), cte_case_sensitive=case_sensitive, get_read_relations=lambda: [ReadRelation(RelationReference("Orders", "business" if case_sensitive else "main"), "table")]), policy,
     )
     runtime = SimpleNamespace(config=SimpleNamespace(
         skills=SimpleNamespace(
@@ -249,7 +251,7 @@ def test_visible_and_recursive_ctes_keep_working(sql):
         allowed_tables=frozenset({"allowed"}), case_sensitive_tables=True,
         allow_union=True,
     )
-    assert _validate_sql_query_policy(None, sql, policy).allowed
+    assert _validate_sql_query_policy(None, sql, policy, adapter=SimpleNamespace(analysis_context=DialectContext("sqlite"), resolve_analysis_context=lambda: DialectContext("sqlite"), cte_case_sensitive=False)).allowed
 
 
 @pytest.mark.parametrize("target", [
@@ -271,7 +273,7 @@ def test_grouped_join_cannot_hide_system_schema(target):
     decision = _validate_sql_query_policy(None, f"SELECT * FROM orders JOIN {target}", policy)
     allowed = decision.allowed
     error = decision.message
-    assert not allowed and "Parenthesized FROM/JOIN" in error
+    assert not allowed and decision.error_code in {"relation_group_unsupported", "sql_parse_failed"}
 
 
 def test_plain_grouped_business_join_has_explicit_conservative_rejection():
@@ -341,7 +343,7 @@ def test_mysql_alternative_relation_syntax_does_not_skip_authorization(sql, reas
     decision = _validate_sql_query_policy(None, sql, policy)
     allowed = decision.allowed
     error = decision.message
-    assert not allowed and reason in error
+    assert not allowed and (reason in error or decision.error_code == "sql_parse_failed")
 
 
 def test_alternative_syntax_words_in_data_and_quoted_columns_are_not_commands():

@@ -1,0 +1,101 @@
+{
+  "version": "3.8.2",
+  "status": "accepted_with_explicit_native_coverage_limits",
+  "observed_utc": "2026-10-17 11:10:07 UTC",
+  "maintainer_restart": "Explicitly confirmed by the maintainer before this batch.",
+  "native": {
+    "total_recorded_calls": 69,
+    "acceptance_passed": 57,
+    "acceptance_checks": 57,
+    "successful_plans": 38,
+    "required_refusals": 13,
+    "other_controls": 6,
+    "original_expectation_matches": 57,
+    "original_expectation_mismatches": 12,
+    "text_structured_results_matching": 69,
+    "protocol": "Not exposed by the native facade."
+  },
+  "exploratory_probes": {
+    "fixture_expectation_errors": {
+      "count": 10,
+      "records": [
+        "materialized_physical_update_EXPLAIN",
+        "materialized_physical_update_EXPLAIN_QUERY_PLAN",
+        "materialized_chain_replace_EXPLAIN",
+        "materialized_chain_replace_EXPLAIN_QUERY_PLAN",
+        "not_materialized_delete_EXPLAIN",
+        "not_materialized_delete_EXPLAIN_QUERY_PLAN",
+        "nested_scoped_count_update_EXPLAIN",
+        "nested_scoped_count_update_EXPLAIN_QUERY_PLAN",
+        "repeated_scopes_update_EXPLAIN",
+        "repeated_scopes_update_EXPLAIN_QUERY_PLAN"
+      ],
+      "reason": "The configured grant is bare orders; explicit main.orders is independently checked. Original positive expectations were incorrect. Raw records and expectations remain unchanged; authorized bare forms were tested separately."
+    },
+    "known_functional_limit": {
+      "count": 2,
+      "records": [
+        "repeated_scopes_update_EXPLAIN_configured_bare_grant",
+        "repeated_scopes_update_EXPLAIN_QUERY_PLAN_configured_bare_grant"
+      ],
+      "reason": "Repeated CTE labels in independent outer-query subqueries remain conservatively ambiguous. Same-input private pre/post repair checks reproduce the same refusal, and distinct-label recovery succeeds both privately and natively. Trigger-local repeated-label support must not be generalized to this case."
+    },
+    "private_comparison": {
+      "cases_per_snapshot": 6,
+      "snapshots": [
+        "before trigger-CTE repair",
+        "after trigger-CTE repair"
+      ],
+      "same_results": true,
+      "native_sqlite_accepts": true,
+      "data_unchanged": true,
+      "scope": "Policy plus adapter comparison with current dependencies; not a historical environment replay or additional native Host calls."
+    },
+    "invalid_initial_comparison": {
+      "files": [
+        "limits_before.json.gz",
+        "limits_after.json.gz"
+      ],
+      "used_as_before_after_evidence": false,
+      "reason": "The old /tmp snapshot no longer existed. The initial probe silently imported the editable current package; source-hash validation rejected that comparison. Restore all 75 old resources from the sealed before_source archive, require a real source directory and matching loaded-package identity, then rerun into separate *_verified files. Preserve both initial records."
+    }
+  },
+  "data_integrity": {
+    "connection_id": "analytics_demo_sqlite",
+    "relation": "orders",
+    "rows": 5,
+    "columns": 5,
+    "snapshots": 3,
+    "snapshot_sha256": "e1b28fdf600dcf8ba7a5966bbf292cb36eb6195fda395d1a5458753a36b400e8",
+    "unchanged": true,
+    "write_control_scope": "Real-DML refusal probes use WHERE 0 or empty SELECT; plans are non-executing. No configured mutation, fixture or grant change."
+  },
+  "source": {
+    "current_resources_match_parent_checkpoint": 75,
+    "loaded_code_object_hashes": "Not introspected; disk/package identity and observed native behavior are distinct evidence."
+  },
+  "parent_checkpoint": {
+    "manifest": "../manifest.json",
+    "sha256": "9a47f3764d7dac4cc93af58117f00e28bad4112a6095a36a06ec64b9d2bd3f67",
+    "files_verified_unchanged": 51,
+    "scope": "The parent preserves its then-pending restart checkpoint. This supplement supplies current resident observations."
+  },
+  "preserved_sealed_files_verified": {
+    "docs/validation/v3.8/v382_2026_10_16/manifest.json": 197,
+    "docs/validation/v3.8/v382_read_boundaries_2026_10_17/manifest.json": 25,
+    "docs/validation/v3.8/v382_read_boundaries_2026_10_17/resident_restart/manifest.json": 3,
+    "docs/validation/v3.8/v382_explain_followup_2026_10_17/manifest.json": 50,
+    "docs/validation/v3.8/v382_explain_followup_2026_10_17/resident_restart/manifest.json": 4,
+    "local_archive/v382_review/20261017_explain_followup/evidence/manifest.json": 5,
+    "local_archive/v382_review/20261017_explain_adjacency/evidence/manifest.json": 15,
+    "local_archive/v382_review/20261017_trigger_cte_assessment/evidence/manifest.json": 12,
+    "docs/validation/v3.8/v382_trigger_cte_2026_10_17/manifest.json": 51
+  },
+  "coverage_limits": [
+    "No configured trigger/view/UDF/plan-Skill fixture was created. Trigger-local CTE cases retain 129 regressions and 340 installed stdio calls; native CTE probes exercise existing outer-query facilities only.",
+    "Sample and get_table_summary are not exposed by this Host; their cross-entry coverage remains regression/installed evidence.",
+    "No fresh Luna full task or model-token/Host latency measurement. Previous model evidence and serial adapter costs keep their source attribution.",
+    "Tool catalog is Codex available metadata, not a wire tools/list response. Application records omit complete frames and notifications.",
+    "Repeated outer CTE labels remain a known conservative false refusal. Use distinct local labels; no claim of complete SQLite grammar or scope support."
+  ]
+}

@@ -310,12 +310,14 @@ def test_mysql_diagnostic_config_pool_and_safe_driver_failure(monkeypatch):
         return Engine()
 
     monkeypatch.setattr(sqlalchemy, "create_engine", fake_create_engine)
+    monkeypatch.setattr(sqlalchemy.event, "listen", lambda engine, name, callback, **options: captured.update(listener=name, listener_first=options.get("insert")))
     item = replace(config(), db_type="mysql", mysql_user="tester", mysql_password=__import__("pydantic").SecretStr("secret-password"),
                    mysql_host="host.example", mysql_database="demo")
     result = diagnostics.probe_connection(item)
     assert result.connected is False
     assert events == ["connect", "dispose"]
     assert captured["poolclass"] is NullPool
+    assert captured["listener"] == "connect" and captured["listener_first"] is True
     assert captured["connect_args"] == {"connect_timeout": 2, "read_timeout": 3, "write_timeout": 3}
     assert captured["url"].password == "secret-password"
     for secret in ("secret-password", "host.example", "/private/path"):

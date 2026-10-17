@@ -69,7 +69,7 @@ logger = logging.getLogger(__name__)
 # Regex for valid skill names: lowercase alphanumeric + hyphens, must start with alnum
 # Aligned with Anthropic Agent Skills spec name constraints
 _SKILL_NAME_PATTERN = re.compile(r"^[a-z0-9][a-z0-9-]*$")
-_SKILL_NAME_MAX_LENGTH = 64  # Consistent with _is_valid_identifier() limit
+_SKILL_NAME_MAX_LENGTH = 64  # Skill naming is independent of SQL object names.
 
 # Keep this syntax aligned with database.registry.CONNECTION_ID_PATTERN without
 # adding a loader dependency on runtime connection registration.
@@ -114,6 +114,7 @@ _SUPPORTED_FRONTMATTER_FIELDS = {
     "connection_ids",
     "profiles",
     "tables",
+    "relations",
 }
 
 
@@ -190,14 +191,19 @@ class SkillMetadata:
     # None = unrestricted by Skill metadata. Kept after the pre-v3.7 public
     # fields so existing positional construction does not silently change.
     connection_ids: list[str] | None = None
+    relations: list[RelationReference] = field(default_factory=list)
     # -- Internal fields (populated by discover(), not from YAML) --
     _sql_template: str | None = field(default=None, repr=False)
-    _inferred_tables: dict[bool, list[RelationReference]] = field(default_factory=dict, repr=False)
+    _inferred_tables: dict[tuple, list[RelationReference]] = field(default_factory=dict, repr=False)
     _mutation_class: type | None = field(default=None, repr=False)
     _managed_mutation_plan: "ManagedMutationPlan | None" = field(
         default=None,
         repr=False,
     )
+
+    @property
+    def declared_relations(self) -> list[RelationReference]:
+        return list(dict.fromkeys([*(RelationReference.from_declaration(name) for name in self.tables), *self.relations]))
 
 
 # =============================================================================
@@ -242,7 +248,7 @@ def generate_skills_md(skills: dict[str, SkillMetadata], output_path: Path) -> N
 
     for name in sorted(skills.keys()):
         meta = skills[name]
-        tables_str = ", ".join(meta.tables) if meta.tables else "—"
+        tables_str = ", ".join(ref.display_name for ref in meta.declared_relations) or "—"
         databases_str = ", ".join(meta.databases) if meta.databases else "all"
         connection_ids_str = (
             ", ".join(meta.connection_ids)
@@ -680,6 +686,18 @@ def _parse_skill_md(path: Path, dir_name: str) -> SkillMetadata:
     source = front["source"]
     _validate_source_filename(source, skill_type, path)
 
+    from sql_safety_executor.config.models import RelationGrant
+    declarations = front.get("relations", [])
+    if not isinstance(declarations, list):
+        raise ValueError(f"relations must be a list of schema/name mappings in {path}")
+    relations = []
+    for declaration in declarations:
+        try:
+            grant = RelationGrant.model_validate(declaration)
+        except ValueError as exc:
+            raise ValueError(f"Invalid structured relation declaration in {path}") from exc
+        relations.append(RelationReference(grant.name, grant.schema_name))
+
     return SkillMetadata(
         name=skill_name,
         type=skill_type,
@@ -727,6 +745,7 @@ def _parse_skill_md(path: Path, dir_name: str) -> SkillMetadata:
             path,
             preserve_whitespace=True,
         ),
+        relations=relations,
     )
 
 
@@ -1171,10 +1190,7 @@ class SkillCatalog:
                 # Cache the SQL template (TOCTOU mitigation)
                 metadata._sql_template = sql_template
                 # Do not merge target-dependent inference into declared policy.
-                metadata._inferred_tables = {
-                    sensitive: _extract_table_references(sql_template, cte_case_sensitive=sensitive)
-                    for sensitive in (True, False)
-                }
+                metadata._inferred_tables = {}
 
             elif metadata.type == "mutation":
                 mutation_py_path = entry / metadata.source

@@ -5,7 +5,9 @@ from typing import Any
 
 from .outcomes import MetadataQueryError
 from .errors import DatabaseQueryError
-from .relations import ReadRelation, RelationReference, render_relation_for_text
+from .relations import ReadRelation, RelationReference, render_relation
+from .semantics import DialectContext, mysql_modes
+from .execution import operation_scope
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +26,29 @@ class DatabaseAdapter(ABC):
     """
 
     @property
+    def analysis_context(self) -> DialectContext:
+        return DialectContext(
+            "mysql" if self.db_type == "mysql" else "sqlite",
+            mysql_modes(getattr(getattr(self, "_config", None), "mysql_sql_mode", None)),
+            self.cte_case_sensitive is not False,
+            self.metadata_schema,
+        )
+
+    def resolve_analysis_context(self) -> DialectContext:
+        """Return the context enforced on actual execution connections."""
+        return self.analysis_context
+
+    def execute_read(self, sql: str, timeout: int | float | None = None, params: dict | None = None, *, policy=None, analysis=None) -> list:
+        """Execution boundary for policy-approved original SQL and parameters."""
+        with operation_scope("read", analysis):
+            arguments = {}
+            if timeout is not None:
+                arguments["timeout"] = timeout
+            if params is not None:
+                arguments["params"] = params
+            return self.execute(sql, **arguments)
+
+    @property
     @abstractmethod
     def metadata_schema(self) -> str:
         """Configured schema for metadata and internally generated reads; no I/O."""
@@ -33,7 +58,10 @@ class DatabaseAdapter(ABC):
         """Render the same scoped identity that the metadata tool authorized."""
         if reference.schema != self.metadata_schema:
             raise ValueError("Metadata relation must use the adapter's configured schema")
-        return render_relation_for_text(reference, self.db_type)
+        return render_relation(reference, self.db_type)
+
+    def valid_metadata_identifier(self, name: str) -> bool:
+        return self.analysis_context.valid_name(name, "relation")
 
     @property
     def cte_case_sensitive(self) -> bool | None:
@@ -213,7 +241,8 @@ class DatabaseAdapter(ABC):
 
     def _execute_metadata(self, sql: str, operation: str, *, timeout: int | float | None = None, params: dict | None = None) -> list:
         try:
-            return self.execute(sql, timeout=timeout, params=params)
+            with operation_scope("metadata"):
+                return self.execute(sql, timeout=timeout, params=params)
         except DatabaseQueryError:
             raise MetadataQueryError(operation) from None
 

@@ -1,0 +1,22 @@
+{
+  "closed_utc": "2026-10-16T19:30:43.940629+00:00",
+  "scope": "Native post-maintainer-restart acceptance supplement. Parent checkpoint, failures and raw history remain unchanged.",
+  "files": {
+    "native.json.gz": {
+      "sha256": "c69e85a08abd425bf89286c390b94c1011e46805ef7aedfba29416b06f9f5060",
+      "bytes": 10234
+    },
+    "seal_restart.py.gz": {
+      "sha256": "78441f597fe8fa46e1259c3556d8ff86624f4490bb8e2c360b1b27ebc0bb9f5a",
+      "bytes": 2374
+    },
+    "tool_catalog.json.gz": {
+      "sha256": "30de2a7e8a57ab749a9a91b4680049ced9a50ecb84d4b476af6c956202fff772",
+      "bytes": 9512
+    },
+    "verification.json": {
+      "sha256": "4e2fdb4aa75e2b841db4c6f5cff4ef00e28e477c4be7b26c4657d5705ebd042e",
+      "bytes": 2816
+    }
+  }
+}

@@ -20,7 +20,6 @@ from sql_safety_executor.core.connections import (
     _public_database_name,
     _resolve_connection_context,
 )
-from sql_safety_executor.core.policy import _is_valid_identifier
 from sql_safety_executor.core.results import (
     _metadata_failure_result,
     _normalize_schema_detail_level,
@@ -163,7 +162,7 @@ async def describe_table(
     connection = _resolve_connection_context(runtime, connection_id)
     require_read_access(connection)
     # Validate table name to prevent SQL injection
-    if not _is_valid_identifier(table_name):
+    if not connection.adapter.valid_metadata_identifier(table_name):
         await ctx.warning(f"Invalid table name rejected: {table_name}")
         return _tool_result(
             runtime,
@@ -416,7 +415,7 @@ async def get_full_schema(
     table_metadata = []
     for table in tables_data:
         table_name = table["table_name"]
-        if not _is_valid_identifier(table_name):
+        if not connection.adapter.valid_metadata_identifier(table_name):
             return await _metadata_failure_result(
                 runtime,
                 ctx=ctx,
@@ -599,7 +598,7 @@ async def get_table_summary(
     connection = _resolve_connection_context(runtime, connection_id)
     require_read_access(connection)
     # Validate table name
-    if not _is_valid_identifier(table_name):
+    if not connection.adapter.valid_metadata_identifier(table_name):
         await ctx.warning(f"Invalid table name rejected: {table_name}")
         return _tool_result(
             runtime,
@@ -649,7 +648,7 @@ async def get_table_summary(
         )
         count_sql = f"SELECT COUNT(*) as total_rows FROM {adapter.render_metadata_relation(relation)}"
         try:
-            count_result = adapter.execute(count_sql)
+            count_result = adapter.execute_read(count_sql, policy=connection.policy)
         except DatabaseQueryError as error:
             await ctx.error(f"Failed to count rows: {error.error_code}")
             return _tool_result(
@@ -781,7 +780,7 @@ async def sample(
     connection = _resolve_connection_context(runtime, connection_id)
     require_read_access(connection)
     # Validate inputs
-    if not _is_valid_identifier(table_name):
+    if not connection.adapter.valid_metadata_identifier(table_name):
         await ctx.warning(f"Invalid table name rejected: {table_name}")
         return _tool_result(
             runtime,
@@ -829,7 +828,7 @@ async def sample(
     adapter = connection.adapter
     sql = f"SELECT * FROM {adapter.render_metadata_relation(relation)} LIMIT {limit}"
     try:
-        result = adapter.execute(sql)
+        result = adapter.execute_read(sql, policy=connection.policy)
     except DatabaseQueryError as error:
         await ctx.error(f"Failed to sample table: {error.error_code}")
         return _tool_result(

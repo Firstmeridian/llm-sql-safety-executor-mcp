@@ -59,7 +59,7 @@ def test_unicode_account_like_column_remains_business_data(sql):
     'SELECT 1 WHERE 1 IN pragma_locking_mode',
     'SELECT 1 WHERE 1 IN PRAGMA_LOCKING_MODE()',
     'SELECT USER()', 'SELECT SeSsIoN_UsEr()', 'SELECT SYSTEM_USER()',
-    'SELECT CURRENT_USER', 'SELECT current_user()', 'SELECT CURRENT_ROLE()',
+    'SELECT CURRENT_USER()', 'SELECT current_user()', 'SELECT CURRENT_ROLE()',
 ])
 def test_real_ascii_reserved_names_stay_denied_even_with_all_table_scope(sql):
     decision=_validate_sql_query_policy(None,sql,ConnectionPolicy(read_mode='all',allowed_tables=frozenset({'*'})))
@@ -77,8 +77,9 @@ async def test_unicode_raw_and_skill_paths_both_protocols(bundle,tmp_path,monkey
         'unicode-from':'SELECT n FROM main."pragma_locKing_mode"',
         'unicode-in':'SELECT 7 AS n WHERE 7 IN main."pragma_locKing_mode"',
         'unicode-account-column':'SELECT current_uſer AS n FROM main.orders',
+        'ascii-account-column':'SELECT current_user AS n FROM main.orders',
         'reserved-pragma':'SELECT n FROM main.pragma_locking_mode',
-        'reserved-account':'SELECT current_user AS n FROM main.orders',
+        'reserved-account':'SELECT current_user() AS n FROM main.orders',
     }
     for name,sql in sqls.items():
         directory=tmp_path/'skills'/name;directory.mkdir(parents=True)
@@ -90,19 +91,19 @@ async def test_unicode_raw_and_skill_paths_both_protocols(bundle,tmp_path,monkey
     try:
         async with Client(server,mode=mode) as client:
             listed=await client.call_tool('list_skills',{'detail_level':'full'})
-            assert {s['name'] for s in listed.structured_content['skills']}==set(list(sqls)[:3])
-            for name in list(sqls)[:3]:
+            assert {s['name'] for s in listed.structured_content['skills']}==set(list(sqls)[:4])
+            for name in list(sqls)[:4]:
                 raw=await client.call_tool('query',{'sql':sqls[name]})
                 detail=await client.call_tool('get_skill_detail',{'skill_name':name,'detail_level':'full'})
                 executed=await client.call_tool('execute_query_skill',{'skill_name':name,'params':{}})
-                assert raw.structured_content['data']==executed.structured_content['data']==[{'n':7}]
+                assert raw.structured_content['data']==executed.structured_content['data']==[{'n':99 if name=='ascii-account-column' else 7}]
                 state=detail.structured_content['skill']
                 assert state['schema_ready'] and state['policy_allowed'] and state['executable']
                 assert state['missing_tables']==state['unverified_tables']==[]
             def unexpected_execute(*args,**kwargs):
                 pytest.fail('Reserved ASCII state reference reached adapter.execute')
             monkeypatch.setattr(server.gateway_runtime.registry.get_adapter('demo'),'execute',unexpected_execute)
-            for sql in ['SELECT n FROM main.pragma_locking_mode','SELECT 1 WHERE 1 IN main.pragma_locking_mode','SELECT current_user AS n FROM main.orders']:
+            for sql in ['SELECT n FROM main.pragma_locking_mode','SELECT 1 WHERE 1 IN main.pragma_locking_mode','SELECT current_user() AS n FROM main.orders']:
                 result=await client.call_tool('query',{'sql':sql})
                 assert result.structured_content['error_code']=='server_state_denied'
     finally:server.gateway_runtime.close()

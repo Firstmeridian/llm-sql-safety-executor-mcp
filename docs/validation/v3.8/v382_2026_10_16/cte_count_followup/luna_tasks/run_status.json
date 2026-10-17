@@ -1,0 +1,20 @@
+{
+  "closed_utc": "2026-10-16 10:37:43 UTC",
+  "status": "completed with original model/scoring limits retained",
+  "source_record": "../source_closure.json",
+  "trials": 3,
+  "user_turns": 6,
+  "strict_numeric_coverage": {
+    "passed": 1,
+    "total": 3
+  },
+  "manual_explicit_business_goals": {
+    "passed": 2,
+    "total": 3
+  },
+  "returned_mcp_calls": 14,
+  "returned_mcp_failures": 0,
+  "pre_server_model_namespace_error": 1,
+  "data_unchanged": true,
+  "historical_trials_replaced": false
+}

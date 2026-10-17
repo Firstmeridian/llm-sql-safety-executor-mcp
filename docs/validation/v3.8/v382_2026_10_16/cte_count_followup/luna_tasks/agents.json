@@ -1,0 +1,26 @@
+[
+  {
+    "case": "sales",
+    "trial": 1,
+    "agent_id": "01a14440-f271-7391-8493-88f9e7edce06",
+    "nickname": "Lagrange",
+    "status": "complete",
+    "turn": 2
+  },
+  {
+    "case": "sales",
+    "trial": 2,
+    "agent_id": "01a14440-f2e8-78b3-a29f-801ce1bfe442",
+    "nickname": "Archimedes",
+    "status": "complete",
+    "turn": 2
+  },
+  {
+    "case": "sales",
+    "trial": 3,
+    "agent_id": "01a14440-f36b-70e0-8ed0-2e95faca2ff9",
+    "nickname": "Ptolemy",
+    "status": "complete",
+    "turn": 2
+  }
+]

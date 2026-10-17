@@ -113,19 +113,31 @@ class ServerFile(Model):
     observability: Observability = Observability()
 
 
+class RelationGrant(Model):
+    name: str = Field(min_length=1)
+    schema_name: str | None = Field(default=None, min_length=1, alias="schema")
+
+    @model_validator(mode="after")
+    def components(self):
+        if "\x00" in self.name or self.schema_name is not None and "\x00" in self.schema_name:
+            raise _config_error("invalid_relation_component")
+        return self
+
+
 class ReadPolicy(Model):
     mode: Literal["deny", "allowlist", "all"] = "deny"
     tables: tuple[str, ...] = ()
+    relations: tuple[RelationGrant, ...] = ()
     allow_union: bool = False
 
     @model_validator(mode="after")
     def table_scope(self):
-        if self.tables and self.mode != "allowlist":
+        if (self.tables or self.relations) and self.mode != "allowlist":
             raise _config_error("tables_require_allowlist_mode")
         if any(not t.strip() or "*" in t for t in self.tables):
             raise _config_error("explicit_table_names_required")
         if self.allow_union and (
-            self.mode == "deny" or self.mode == "allowlist" and not self.tables
+            self.mode == "deny" or self.mode == "allowlist" and not (self.tables or self.relations)
         ):
             raise _config_error("union_requires_explicit_table_scope")
         return self
@@ -157,6 +169,22 @@ class MySQL(Model):
     user: str = Field(min_length=1)
     database: str = Field(min_length=1)
     password: SecretSource
+    sql_mode: tuple[str, ...] | None = None
+
+    @field_validator("sql_mode", mode="before")
+    @classmethod
+    def mode_array(cls, value):
+        return tuple(value) if isinstance(value, list) else value
+
+    @field_validator("sql_mode")
+    @classmethod
+    def mode_names(cls, value):
+        import re
+        if value is not None and any(not re.fullmatch(r"[A-Za-z_]+", name) for name in value):
+            raise _config_error("invalid_sql_mode")
+        if value is not None and any(name.upper() in {"ANSI", "TRADITIONAL", "DB2", "MAXDB", "MSSQL", "MYSQL323", "MYSQL40", "ORACLE", "POSTGRESQL"} for name in value):
+            raise _config_error("sql_mode_requires_expanded_individual_modes")
+        return value
 
 
 class Connection(Model):

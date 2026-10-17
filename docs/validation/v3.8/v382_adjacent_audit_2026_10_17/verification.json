@@ -1,0 +1,97 @@
+{
+  "version": "3.8.2",
+  "status": "review_complete_P2_confirmed_runtime_unchanged",
+  "closed_utc": "2026-10-17T11:30:30.900355+00:00",
+  "source_checkpoint": "../v382_trigger_cte_2026_10_17/verification.json",
+  "source_resources_matching_checkpoint": 75,
+  "runtime_changes_in_review": false,
+  "new_P2": {
+    "scope": "Trigger WHEN begin identifier/body marker",
+    "unique_forms": 6,
+    "prefixes": 2,
+    "current_false_refusals": 12,
+    "pre_repair_same_input_plan_successes": 24,
+    "current_distinct_plan_combinations": 76,
+    "current_expectation_matches": 64,
+    "actual_Client_calls": 28,
+    "Client_false_refusals": 6,
+    "Client_quoted_successes": 6,
+    "scope_limits": "Private SQLite + policy/adapter and two real in-process Client protocols. No new native trigger fixture, wheel build or full regression rerun."
+  },
+  "complete_Agent_tasks": {
+    "model": "gpt-6-luna",
+    "reasoning_effort": "medium",
+    "fresh_trials": 3,
+    "user_turns": 6,
+    "business_passed": 2,
+    "fixed_checks_passed": 2,
+    "MCP_return_observations": 12,
+    "Host_unavailable_attempts": 1,
+    "model_responses": 21,
+    "host_usage": {
+      "input_tokens": 578822,
+      "cached_input_tokens": 534912,
+      "cache_write_input_tokens": 0,
+      "output_tokens": 4354,
+      "reasoning_output_tokens": 416,
+      "total_tokens": 583176
+    },
+    "active_turn_wall_seconds": 138.706,
+    "independent_preflight_excluded_from_business_cost": true,
+    "root_cause": "The failed child used the correct tool name. Further Host startup/timing/binding/cache cause unproven."
+  },
+  "data_integrity": {
+    "configured_writes": false,
+    "authorized_SQLite_table_fingerprints_unchanged": 7,
+    "current_source_unchanged": true,
+    "private_fixtures_automatically_cleaned": true
+  },
+  "preserved_manifests": {
+    "docs/validation/v3.8/v382_2026_10_16/manifest.json": {
+      "files": 197,
+      "manifest_sha256": "ffc624f2b669e4a304a8eccdd1546c312f66b25150aaf7d7ae6ebd41b3aa1b2c"
+    },
+    "docs/validation/v3.8/v382_read_boundaries_2026_10_17/manifest.json": {
+      "files": 25,
+      "manifest_sha256": "f9426588f0ce2fa49b41753dcdb69ca5d557baa2f2cac5ecf1ad41db02bb9d8c"
+    },
+    "docs/validation/v3.8/v382_read_boundaries_2026_10_17/resident_restart/manifest.json": {
+      "files": 3,
+      "manifest_sha256": "66358b6498692b5467280aee00b99c356f05bb958e5304415936800c4d1c9b17"
+    },
+    "docs/validation/v3.8/v382_explain_followup_2026_10_17/manifest.json": {
+      "files": 50,
+      "manifest_sha256": "c992c2a526ec7faf53b7333c18848580b207cf08a9fe21c94f3ad2ee1455d154"
+    },
+    "docs/validation/v3.8/v382_explain_followup_2026_10_17/resident_restart/manifest.json": {
+      "files": 4,
+      "manifest_sha256": "6f9a122bbc0d87aff4863df419d6f76825f43376d2ec070fc07cbfd29df57225"
+    },
+    "local_archive/v382_review/20261017_explain_followup/evidence/manifest.json": {
+      "files": 5,
+      "manifest_sha256": "d5bae7eb24c07924b548fd9f24ccf21e9a4e8263c990f3ef1cf1cd437424d735"
+    },
+    "local_archive/v382_review/20261017_explain_adjacency/evidence/manifest.json": {
+      "files": 15,
+      "manifest_sha256": "963332f6fb8828df3a1eee9de612dd26e2231d423906510ddce7def9f5614cbf"
+    },
+    "local_archive/v382_review/20261017_trigger_cte_assessment/evidence/manifest.json": {
+      "files": 12,
+      "manifest_sha256": "066a593de72c8a9eed5efefff18284ac03c4f6c2dafa8116ef896986cbca5c12"
+    },
+    "docs/validation/v3.8/v382_trigger_cte_2026_10_17/manifest.json": {
+      "files": 51,
+      "manifest_sha256": "9a47f3764d7dac4cc93af58117f00e28bad4112a6095a36a06ec64b9d2bd3f67"
+    },
+    "docs/validation/v3.8/v382_trigger_cte_2026_10_17/resident_restart/manifest.json": {
+      "files": 9,
+      "manifest_sha256": "84fd6516fb3e53f579ab3573ee4165ac4cbda32ca0aa8f495c72ae6b20c65dcd"
+    }
+  },
+  "coverage_limits": [
+    "No new whole-task coverage for every trigger/keyword fixture; successful sales tasks do not close the new P2.",
+    "Generated columns retain the existing trusted-schema/UDF boundary; repeated outer CTE labels retain conservative scope limits.",
+    "Public application events only; no hidden reasoning, complete transport frames, per-request server latency or invoice comparison.",
+    "Old source/package/native/model outcomes remain attached to their own snapshots; parent then-accepted statuses are unchanged."
+  ]
+}

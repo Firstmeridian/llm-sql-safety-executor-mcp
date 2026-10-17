@@ -1,0 +1,42 @@
+{
+  "closed_utc": "2026-10-17T11:12:28.229430+00:00",
+  "scope": "Native post-restart supplement; retain 12 exploratory expectation mismatches separately from 57 passing acceptance checks. Prior checkpoints unchanged.",
+  "files": {
+    "limits_after.json.gz": {
+      "sha256": "868585ce8d8a1016eac69bba07365431fc70a5173854b115a344616d00982176",
+      "bytes": 4262
+    },
+    "limits_after_verified.json.gz": {
+      "sha256": "0e56e2c437349ea7fe0e21d29a9a02de5e50d0b7c3986ebff7e928cdd4e0a7d9",
+      "bytes": 4294
+    },
+    "limits_before.json.gz": {
+      "sha256": "686301718a237b3b98a644d500cb00210c4b1b3b4d4ff6afbfbb2a75f7049142",
+      "bytes": 4248
+    },
+    "limits_before_verified.json.gz": {
+      "sha256": "f184dfce879bd4ed5e3b623a498a34e40641558fac7b326b58fedf6f32a98150",
+      "bytes": 4282
+    },
+    "native.json.gz": {
+      "sha256": "352df67aa853b37c09a55dc8b014a4e1550f0a4a9b06f54e5bc12c40d34daadb",
+      "bytes": 19375
+    },
+    "probe_resident_limits.py.gz": {
+      "sha256": "fb3f62b2de40764de3ec0db269e1d4cbc5c14b257002af69e9cc3504dc829e76",
+      "bytes": 1806
+    },
+    "seal_restart.py.gz": {
+      "sha256": "ed2aaad7fe4b7c628860f7bb4583d987fbeed1128f282d67130e20bdb186807e",
+      "bytes": 3814
+    },
+    "tool_catalog.json.gz": {
+      "sha256": "6faf08a269c01644f9361cd842f7ab5b43b3de00ea273badb9b407b420b64ffc",
+      "bytes": 9529
+    },
+    "verification.json": {
+      "sha256": "91606719b17334c13faaff672ccce0961fd2aa176f1b9b8fd8569e553e3d8861",
+      "bytes": 5513
+    }
+  }
+}

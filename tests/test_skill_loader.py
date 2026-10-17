@@ -445,7 +445,7 @@ class TestDiscover:
         assert skills["test-mutation"].type == "mutation"
         assert skills["test-query"].profiles == ["demo"]
         assert skills["test-query"].tables == []
-        assert [table.display_name for table in skills["test-query"]._inferred_tables[False]] == ["orders"]
+        assert skills["test-query"]._inferred_tables == {}  # Concrete target inference is lazy.
         assert skills["test-mutation"].profiles == ["demo"]
         assert skills["test-mutation"].tables == ["orders"]
 

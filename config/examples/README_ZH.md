@@ -106,3 +106,6 @@ uv run python -m examples.manual_mutation_approval \
 `config/*.toml`、`config/secrets/` 和 `mcp_config.local.json` 已被 Git 忽略；`config/examples/` 是公开、受跟踪的模板目录。其它自定义位置需要另行添加忽略规则。Python Skill 是可信代码，目录边界检查不是沙箱；应使用显式且经过审查的路径。
 
 先检查本地副本，再让 Host 指向其绝对 `server.toml` 路径。切换版本前停止旧进程；回退需同时匹配代码、依赖和配置。完整字段、默认值及新旧映射见[配置与迁移指南](../../docs/guides/CONFIGURATION_ZH.md)，另见[客户端指南](../../docs/guides/TEST_MCP_CLIENT_GUIDE.md)和[验收限制](../../docs/validation/v3.8/V3_8_VALIDATION_ZH.md)。
+
+
+v3.8.2 另支持组件化的 `read.relations` 和完整可选 `mysql.sql_mode` 数组，见[当前配置契约](../../docs/guides/CONFIGURATION_ZH.md#v382结构化声明与会话约定)。这些示例保留简单授权；运行依赖已包含锁定的 SQLGlot。

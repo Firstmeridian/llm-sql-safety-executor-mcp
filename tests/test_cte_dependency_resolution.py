@@ -18,6 +18,7 @@ from sql_safety_executor.skills.catalog import SkillCatalog
 from sql_safety_executor.skills.access import _query_skill_policy_decision, _required_skill_tables
 from sql_safety_executor.core.types import ConnectionContext
 from sql_safety_executor.database.sqlite import SQLiteAdapter
+from sql_safety_executor.database.semantics import DialectContext
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import OperationalError
 from tests.test_v38_config import bundle as bundle
@@ -47,8 +48,7 @@ async def test_sqlite_mixed_cte_raw_discovery_and_execution(bundle, tmp_path, mo
     try:
         meta = server.gateway_runtime.catalog.get_skills_cache()["mixed-case"]
         assert meta.tables == (["orders"] if declared else [])
-        assert [table.display_name for table in meta._inferred_tables[True]] == ["f", "orders"]
-        assert [table.display_name for table in meta._inferred_tables[False]] == ["orders"]
+        assert meta._inferred_tables == {}  # Inference starts with the target context.
         # Inference and execution must use the cached source, never re-read it.
         (directory / "query.sql").write_text("SELECT id FROM f")
         async with Client(server, mode=mode) as client:
@@ -134,6 +134,7 @@ def probe_adapter(monkeypatch, *outcomes):
     adapter = MySQLAdapter(DatabaseConfig(
         connection_id="mysql_case", db_type="mysql", query_timeout_seconds=10,
         connect_timeout_seconds=5, policy=ConnectionPolicy(case_sensitive_tables=True),
+        mysql_database="fixture", mysql_sql_mode=(),
     ))
     adapter._engine = cast(Engine, SimpleNamespace(connect=connect, dispose=lambda: None))
     monkeypatch.setattr(adapter, "connect", lambda: True)
@@ -212,7 +213,7 @@ def test_unambiguous_or_definitely_denied_queries_do_not_probe(monkeypatch, sql)
     ("WITH F AS (SELECT 1 AS id) SELECT id FROM private.f", "private.f"),
 ])
 def test_measured_cte_rules_never_exempt_self_forward_or_qualified_tables(cte_sensitive, sql, physical):
-    assert physical in _extract_tables_from_sql(sql, case_sensitive=True, cte_case_sensitive=cte_sensitive)
+    assert physical in _extract_tables_from_sql(sql, case_sensitive=True, context=DialectContext("mysql", cte_case_sensitive=cte_sensitive))
 
 
 def test_sqlite_unicode_physical_table_is_not_an_ascii_grant(bundle):
@@ -231,7 +232,7 @@ async def test_one_skill_resolves_independently_across_mysql_connections(bundle,
     main, connections, skills, save = bundle
     main["server"]["default_connection"] = "ci"
     connections["connections"] = {
-        alias: {"type": "mysql", "mysql": {"host": "fixture", "user": "fixture", "database": "fixture", "password": {"value": "fixture"}},
+        alias: {"type": "mysql", "mysql": {"host": "fixture", "user": "fixture", "database": "fixture", "password": {"value": "fixture"}, "sql_mode": []},
                 "read": {"mode": "allowlist", "tables": ["orders"]}}
         for alias in ("ci", "exact")
     }

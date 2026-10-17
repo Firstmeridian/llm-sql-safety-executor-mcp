@@ -23,9 +23,12 @@ from .outcomes import (
     _precommit_failure_error_code,
     _close_write_connection,
 )
-from .identifiers import _adapter_logging_name, _metadata_identifier_is_rejected
+from .identifiers import _adapter_logging_name
 from .indexes import IndexMetadataBudget, MAX_INDEX_KEY_PARTS
 from .relations import ReadRelation, RelationReference
+from .semantics import DialectContext, mysql_modes
+from .execution import operation_kind, operation_analysis
+from .transport import statement_text
 
 # Both definitions contain constants and the final SELECT has no FROM clause:
 # the probe never names or reads a physical table, even on case-sensitive servers.
@@ -45,9 +48,8 @@ class MySQLAdapter(DatabaseAdapter):
     - Mutation row-lock wait timeout via innodb_lock_wait_timeout
     - INFORMATION_SCHEMA for metadata queries
 
-    Backward Compatibility:
-    - Preserves all existing MySQL behavior from sql_safety_checker.py
-    - Uses same connection parameters and timeout settings
+    Every physical connection enforces the adapter's full SQL-mode contract.
+    Trusted arbitrary operations retire their session before pool reuse.
     """
 
     def __init__(self, config: DatabaseConfig, *, diagnostic: bool = False):
@@ -71,6 +73,8 @@ class MySQLAdapter(DatabaseAdapter):
         self._cte_case_sensitive: bool | None = None
         self._cte_probe_lock = RLock()
         self._cte_probe_retry_after = 0.0
+        self._session_modes: frozenset[str] | None = None
+        self._session_mode_lock = RLock()
 
     @property
     def db_type(self) -> str:
@@ -85,6 +89,56 @@ class MySQLAdapter(DatabaseAdapter):
     @property
     def cte_case_sensitive(self) -> bool | None:
         return self._cte_case_sensitive
+
+    @property
+    def analysis_context(self) -> DialectContext:
+        modes = self._session_modes
+        if modes is None:
+            modes = mysql_modes(self._config.mysql_sql_mode)
+        return DialectContext("mysql", modes, self.cte_case_sensitive is not False, self.metadata_schema)
+
+    def resolve_analysis_context(self) -> DialectContext:
+        if self._config.mysql_sql_mode is not None:
+            # The initializer enforces this explicit contract before execution.
+            return self.analysis_context
+        if self._session_modes is None:
+            if not self.connect() or self._engine is None:
+                raise DatabaseQueryError("session_semantics_unavailable")
+            try:
+                with self._engine.connect():
+                    pass
+            except Exception:
+                raise DatabaseQueryError("session_semantics_unavailable") from None
+        if self._session_modes is None:
+            raise DatabaseQueryError("session_semantics_unavailable")
+        return self.analysis_context
+
+    def _initialize_session(self, dbapi_connection, connection_record) -> None:
+        """Enforce one complete mode set on every physical connection.
+
+        Runs before SQLAlchemy's own dialect inspection. This is connection
+        setup, never an Agent-requested SET or a per-query detection step.
+        """
+        with self._session_mode_lock:
+            cursor = dbapi_connection.cursor()
+            try:
+                cursor.execute("SELECT @@SESSION.sql_mode")
+                observed = mysql_modes(cursor.fetchone()[0])
+                target = self._session_modes
+                if target is None:
+                    target = (mysql_modes(self._config.mysql_sql_mode)
+                              if self._config.mysql_sql_mode is not None else observed)
+                if observed != target:
+                    cursor.execute("SET SESSION sql_mode = %s", (",".join(sorted(target)),))
+                    cursor.execute("SELECT @@SESSION.sql_mode")
+                    if mysql_modes(cursor.fetchone()[0]) != target:
+                        raise DatabaseQueryError("session_semantics_unavailable")
+                self._session_modes = target
+                connection_record.info["sql_modes"] = target
+            except Exception:
+                raise DatabaseQueryError("session_semantics_unavailable") from None
+            finally:
+                cursor.close()
 
     def resolve_cte_case_sensitive(self) -> bool:
         """Measure ASCII CTE name comparison once, without any table access.
@@ -128,7 +182,7 @@ class MySQLAdapter(DatabaseAdapter):
             return True
 
         try:
-            from sqlalchemy import create_engine
+            from sqlalchemy import create_engine, event
             from sqlalchemy.engine import URL
             from sqlalchemy.pool import NullPool
 
@@ -170,6 +224,7 @@ class MySQLAdapter(DatabaseAdapter):
                     "write_timeout": self._query_timeout_seconds,
                 },
             )
+            event.listen(self._engine, "connect", self._initialize_session, insert=True)
             self._connected = True
             logger.info(
                 "MySQL adapter connected (connection_id=%s)", self._connection_id
@@ -226,15 +281,46 @@ class MySQLAdapter(DatabaseAdapter):
                         "MAX_EXECUTION_TIME not supported, using connection timeout"
                     )
 
-                if params:
-                    result = connection.execute(text(sql), params)
-                else:
-                    result = connection.execute(text(sql))
-                rows = list(result.fetchall())
-                return rows
+                try:
+                    if params:
+                        result = connection.execute(statement_text(sql, self.analysis_context, operation_analysis()), params)
+                    else:
+                        result = connection.execute(statement_text(sql, self.analysis_context, operation_analysis()))
+                    rows = list(result.fetchall())
+                    return rows
+                finally:
+                    if operation_kind() == "trusted":
+                        # Arbitrary trusted callbacks may change session mode
+                        # or create temporary objects. Their physical session
+                        # must not re-enter the controlled-read pool.
+                        connection.invalidate()
 
         except Exception as e:
             raise self._handle_error(e, timeout) from None
+
+    def execute_read(self, sql, timeout=None, params=None, *, policy=None, analysis=None) -> list:
+        from sql_safety_executor.core.analysis import analyze_sql
+        if policy is None:
+            raise ValueError("A read operation requires an explicit connection policy")
+        if policy.read_mode == "deny" or policy.read_mode == "allowlist" and not policy.allowed_tables:
+            raise DatabaseQueryError("read_disabled")
+        context = self.resolve_analysis_context()
+        analysis = analysis or analyze_sql(sql, context)
+        if not analysis.complete or analysis.context_key != context.fingerprint:
+            raise DatabaseQueryError("session_semantics_unavailable")
+        if analysis.statement_kind not in {"select", "explain"}:
+            raise DatabaseQueryError("read_only_required")
+        return super().execute_read(sql, timeout, params, policy=policy, analysis=analysis)
+
+    def _retire_write_connection(self, connection) -> None:
+        # Outcome has already been determined. Cleanup must not invent a
+        # rollback or change committed/unknown evidence.
+        if connection is not None:
+            try:
+                connection.invalidate()
+            except Exception as error:
+                logger.warning("MySQL session retirement failed: %s", type(error).__name__)
+        _close_write_connection(connection)
 
     def execute_write(
         self,
@@ -298,7 +384,7 @@ class MySQLAdapter(DatabaseAdapter):
 
             phase = WriteExecutionPhase.EXECUTE
             business_write_attempted = True
-            result = connection.execute(text(sql), params)
+            result = connection.execute(statement_text(sql, self.analysis_context), params)
             rowcount = result.rowcount
 
             phase = WriteExecutionPhase.ROWCOUNT_CHECK
@@ -318,7 +404,7 @@ class MySQLAdapter(DatabaseAdapter):
                     connection=connection,
                     business_write_attempted=business_write_attempted,
                 )
-            _close_write_connection(connection)
+            self._retire_write_connection(connection)
             if not isinstance(error, Exception):
                 raise
             if isinstance(error, ExpectedRowcountMismatchError):
@@ -351,7 +437,7 @@ class MySQLAdapter(DatabaseAdapter):
                     "Rollback cleanup after uncertain COMMIT failed: %s",
                     rollback_error.__class__.__name__,
                 )
-            _close_write_connection(connection)
+            self._retire_write_connection(connection)
             # Cancellation during COMMIT has the same acknowledgement
             # ambiguity as a connection exception. Convert it to typed
             # `unknown` evidence when execution can still return a result;
@@ -366,7 +452,7 @@ class MySQLAdapter(DatabaseAdapter):
                 original_error=error,
             ) from error
 
-        _close_write_connection(connection)
+        self._retire_write_connection(connection)
         return WriteExecutionResult(rowcount)
 
     def _handle_error(self, e: Exception, timeout: int | float | None = None) -> DatabaseQueryError:
@@ -400,7 +486,7 @@ class MySQLAdapter(DatabaseAdapter):
 
     def get_columns(self, table_name: str) -> list[dict[str, Any]]:
         """Get column information from INFORMATION_SCHEMA."""
-        if _metadata_identifier_is_rejected(table_name):
+        if not self.valid_metadata_identifier(table_name):
             return []
 
         sql = """
@@ -430,7 +516,7 @@ class MySQLAdapter(DatabaseAdapter):
 
     def get_indexes(self, table_name: str) -> list[dict[str, Any]]:
         """Get bounded index structure, preserving unknown legacy visibility."""
-        if _metadata_identifier_is_rejected(table_name):
+        if not self.valid_metadata_identifier(table_name):
             raise MetadataQueryError("reading table indexes")
         budget = IndexMetadataBudget(self._query_timeout_seconds)
         # MySQL 5.7 has no IS_VISIBLE. Probe the metadata column, not a version
@@ -495,7 +581,7 @@ class MySQLAdapter(DatabaseAdapter):
 
     def get_row_estimate(self, table_name: str) -> int | None:
         """Get row count estimate from INFORMATION_SCHEMA.TABLES."""
-        if _metadata_identifier_is_rejected(table_name):
+        if not self.valid_metadata_identifier(table_name):
             return None
 
         sql = """

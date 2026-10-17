@@ -1,0 +1,73 @@
+{
+  "records": [
+    {
+      "explicit": false,
+      "contract": [
+        "NO_ENGINE_SUBSTITUTION",
+        "STRICT_TRANS_TABLES"
+      ],
+      "initial_pair": [
+        [
+          "NO_ENGINE_SUBSTITUTION",
+          "STRICT_TRANS_TABLES"
+        ],
+        [
+          "NO_ENGINE_SUBSTITUTION",
+          "STRICT_TRANS_TABLES"
+        ]
+      ],
+      "after_retirement_pair": [
+        [
+          "NO_ENGINE_SUBSTITUTION",
+          "STRICT_TRANS_TABLES"
+        ],
+        [
+          "NO_ENGINE_SUBSTITUTION",
+          "STRICT_TRANS_TABLES"
+        ]
+      ],
+      "physical_sessions_before_rebuild": 4,
+      "passed": true
+    },
+    {
+      "explicit": true,
+      "contract": [
+        "ANSI_QUOTES",
+        "NO_BACKSLASH_ESCAPES",
+        "NO_ENGINE_SUBSTITUTION",
+        "STRICT_TRANS_TABLES"
+      ],
+      "initial_pair": [
+        [
+          "ANSI_QUOTES",
+          "NO_BACKSLASH_ESCAPES",
+          "NO_ENGINE_SUBSTITUTION",
+          "STRICT_TRANS_TABLES"
+        ],
+        [
+          "ANSI_QUOTES",
+          "NO_BACKSLASH_ESCAPES",
+          "NO_ENGINE_SUBSTITUTION",
+          "STRICT_TRANS_TABLES"
+        ]
+      ],
+      "after_retirement_pair": [
+        [
+          "ANSI_QUOTES",
+          "NO_BACKSLASH_ESCAPES",
+          "NO_ENGINE_SUBSTITUTION",
+          "STRICT_TRANS_TABLES"
+        ],
+        [
+          "ANSI_QUOTES",
+          "NO_BACKSLASH_ESCAPES",
+          "NO_ENGINE_SUBSTITUTION",
+          "STRICT_TRANS_TABLES"
+        ]
+      ],
+      "physical_sessions_before_rebuild": 4,
+      "passed": true
+    }
+  ],
+  "scope": "Actual configured MySQL private pool sessions; SET SESSION only, no business/global writes. No Host/protocol/model claim; host/account/connection IDs omitted."
+}

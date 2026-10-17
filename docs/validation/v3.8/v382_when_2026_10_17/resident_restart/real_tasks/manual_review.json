@@ -1,0 +1,32 @@
+{
+  "1": {
+    "checks": {
+      "record_preserving_aggregates": true,
+      "scope_change_explained": true,
+      "no_scope_fallback_or_write_attempt": true,
+      "no_partial_detail_sum": true,
+      "recovery_semantics_correct": true
+    },
+    "notes": "UNION ALL preserves records, COUNT(DISTINCT) is global, dates are explicit, quarter/region/product denominators match. Follow-up filters east and recomputes totals/top products. First aggregate labels all 38 products product_top3 and returns 46 rows, then a four-row query verifies actual top three and growth; inefficient but no incomplete/truncated aggregation or false final business claim."
+  },
+  "2": {
+    "checks": {
+      "record_preserving_aggregates": true,
+      "scope_change_explained": true,
+      "no_scope_fallback_or_write_attempt": true,
+      "no_partial_detail_sum": true,
+      "recovery_semantics_correct": true
+    },
+    "notes": "UNION ALL and global DISTINCT, correct overall/quarter/region/product aggregates; exclusion applied independently in all three branches and explained. Seven business calls (five first turn/two second), including an extra total query. Relies on the three quarter tables containing only the named periods instead of explicit sold_on bounds; correct for independently verified current fixture, not a guarantee for date-contaminated future tables."
+  },
+  "3": {
+    "checks": {
+      "record_preserving_aggregates": true,
+      "scope_change_explained": true,
+      "no_scope_fallback_or_write_attempt": true,
+      "no_partial_detail_sum": true,
+      "recovery_semantics_correct": true
+    },
+    "notes": "First business SQL attempted a derived FROM subquery and received sql_parse_failed with same-connection simplify hint. This is an explicitly unsupported query shape; corrected by moving ranking into CTEs, without bypass/fallback. UNION ALL/global DISTINCT and consistent aggregate denominators then match all required outcomes. Follow-up recomputes east exclusion and retains null regions; fixture contains no null region, so requested outcome matches. Decline direction and south (translated as 南区) are correct. Initial refusal and subsequent success remain separate."
+  }
+}

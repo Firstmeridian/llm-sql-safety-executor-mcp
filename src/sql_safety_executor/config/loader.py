@@ -11,6 +11,8 @@ from pydantic import BaseModel, SecretStr, ValidationError
 
 from sql_safety_executor.database.models import DatabaseConfig
 from sql_safety_executor.database.identifiers import ascii_identifier_lower
+from sql_safety_executor.database.relations import RelationReference
+from sql_safety_executor.database.semantics import DialectContext
 
 from .models import ConnectionsFile, SecretSource, ServerFile, Skills, SkillsFile
 
@@ -94,6 +96,13 @@ def _flatten(value, prefix=""):
                 yield from _flatten(child, path)
     elif isinstance(value, SecretStr):
         yield prefix, "<redacted>"
+    elif isinstance(value, (tuple, list)):
+        # Structured relation arrays must remain JSON-safe in offline explain;
+        # their display projection is never reparsed into authorization keys.
+        yield prefix, [
+            item.model_dump(mode="json", by_alias=True) if isinstance(item, BaseModel) else item
+            for item in value
+        ]
     else:
         yield prefix, value
 
@@ -164,13 +173,21 @@ def load_config(path: str | Path) -> AppConfig:
             sources[field] = str(file) if field in explicit else "builtin_default"
     for alias, connection in connections.connections.items():
         case_sensitive = connection.type == "mysql"
+        relations = frozenset(
+            [RelationReference.from_declaration(name) for name in connection.read.tables]
+            + [RelationReference(row.name, row.schema_name) for row in connection.read.relations]
+        )
+        semantics = DialectContext(connection.type)
+        if any(not semantics.valid_name(ref.name, "relation") or ref.schema is not None and not semantics.valid_name(ref.schema, "schema") for ref in relations):
+            raise ConfigError(f"{connections_path}: connections.{alias}.read: invalid_relation_name")
         policy = ConnectionPolicy(
             allow_union=connection.read.allow_union,
             allowed_tables=frozenset({"*"})
             if connection.read.mode == "all"
             else frozenset(
-                t if case_sensitive else ascii_identifier_lower(t) for t in connection.read.tables
+                ref.display_name if case_sensitive else ascii_identifier_lower(ref.display_name) for ref in relations
             ),
+            allowed_relations=relations,
             allow_mutations=connection.mutation.enabled,
             mutation_skills=frozenset(connection.mutation.skills),
             read_mode=connection.read.mode,
@@ -197,6 +214,7 @@ def load_config(path: str | Path) -> AppConfig:
             policy=policy,
         )
         if connection.mysql:
+            values["mysql_sql_mode"] = connection.mysql.sql_mode
             field = f"connections.{alias}.mysql.password"
             values.update(
                 mysql_user=connection.mysql.user,

@@ -1,0 +1,98 @@
+[
+  {
+    "case": "sales",
+    "trial": 1,
+    "agent_id": "01a143f3-367b-7852-a455-d46e437011dd",
+    "nickname": "Hooke",
+    "status": "complete",
+    "turn": 2
+  },
+  {
+    "case": "reconciliation",
+    "trial": 1,
+    "agent_id": "01a143f3-36f4-7ad0-a841-783a6bd0e90f",
+    "nickname": "Helmholtz",
+    "status": "complete",
+    "turn": 2
+  },
+  {
+    "case": "routing",
+    "trial": 1,
+    "agent_id": "01a143f3-3782-7822-aa3c-69a47854f7d2",
+    "nickname": "Sagan",
+    "status": "complete",
+    "turn": 5
+  },
+  {
+    "case": "recovery",
+    "trial": 1,
+    "agent_id": "01a143f3-380b-72c1-910b-1dd9904ca350",
+    "nickname": "Euler",
+    "status": "complete",
+    "turn": 3
+  },
+  {
+    "case": "sales",
+    "trial": 2,
+    "agent_id": "01a143f4-880a-7bd2-8139-21eb7b2dc8d0",
+    "nickname": "Meitner",
+    "status": "complete",
+    "turn": 2
+  },
+  {
+    "case": "reconciliation",
+    "trial": 2,
+    "agent_id": "01a143f4-8987-76f0-aad5-d4982b8dab83",
+    "nickname": "Ramanujan",
+    "status": "complete",
+    "turn": 2
+  },
+  {
+    "case": "recovery",
+    "trial": 2,
+    "agent_id": "01a143f5-1b3f-7803-b4d8-57e6fc21a315",
+    "nickname": "Huygens",
+    "status": "complete",
+    "turn": 3
+  },
+  {
+    "case": "sales",
+    "trial": 3,
+    "agent_id": "01a143f6-b550-7f93-be06-c9af430f8c05",
+    "nickname": "Averroes",
+    "status": "complete",
+    "turn": 2
+  },
+  {
+    "case": "reconciliation",
+    "trial": 3,
+    "agent_id": "01a143f6-b746-7f51-adf1-a7cadd40f5b0",
+    "nickname": "Pascal",
+    "status": "complete",
+    "turn": 2
+  },
+  {
+    "case": "routing",
+    "trial": 2,
+    "agent_id": "01a143f6-b9bc-7430-9ff0-accf6562c807",
+    "nickname": "Galileo",
+    "status": "complete",
+    "turn": 5
+  },
+  {
+    "case": "recovery",
+    "trial": 3,
+    "agent_id": "01a143f7-a6b0-7c00-a5d3-1b2271852927",
+    "nickname": "Bernoulli",
+    "status": "complete",
+    "turn": 3
+  },
+  {
+    "case": "routing",
+    "trial": 3,
+    "agent_id": "01a143f8-b934-7f71-8938-0d122c3ae0ea",
+    "nickname": "Erdos",
+    "status": "complete",
+    "turn": 5
+  }
+]

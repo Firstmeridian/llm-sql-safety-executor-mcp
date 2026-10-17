@@ -12,7 +12,7 @@ from sqlalchemy.dialects import mysql, sqlite
 from sql_safety_executor import create_server, load_config
 from sql_safety_executor.database.models import ConnectionPolicy, DatabaseConfig
 from sql_safety_executor.database.mysql import MySQLAdapter
-from sql_safety_executor.database.relations import RelationReference, render_relation_for_text
+from sql_safety_executor.database.relations import RelationReference, render_relation
 from tests.test_v38_config import bundle as bundle
 
 
@@ -88,7 +88,7 @@ async def test_bare_metadata_grant_is_still_bound_to_main(bundle, tmp_path, mode
             raw = await client.call_tool("query", {"sql": "SELECT n FROM orders"})
             sampled = await client.call_tool("sample", {"table_name": "orders"})
             exact = await client.call_tool("get_table_summary", {"table_name": "orders", "exact_count": True})
-            assert raw.structured_content["data"] == [{"n": 99}, {"n": 100}]
+            assert raw.structured_content["error_code"] == "table_access_denied"
             assert sampled.structured_content["data"] == [{"n": 7}]
             assert exact.structured_content["row_count"] == 1
     finally:
@@ -205,8 +205,10 @@ class Mutation(MutationBase):
     ("mysql", ":database", "orders"),
 ])
 def test_generated_relations_quote_components_and_preserve_colons(db_type, schema, name):
-    sql = render_relation_for_text(RelationReference(name, schema), db_type)
-    statement = text("SELECT * FROM " + sql)
+    sql = render_relation(RelationReference(name, schema), db_type)
+    from sql_safety_executor.database.transport import statement_text
+    from sql_safety_executor.database.semantics import DialectContext
+    statement = statement_text("SELECT * FROM " + sql, DialectContext(db_type))
     dialect = mysql.dialect() if db_type == "mysql" else sqlite.dialect()
     compiled = statement.compile(dialect=dialect)
     assert compiled.params == {}

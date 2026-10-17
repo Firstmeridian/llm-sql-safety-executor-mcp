@@ -146,6 +146,9 @@ def config_from_scenario(directory):
                 "value": e.get(prefix + "PASSWORD" if prefix else "DB_PASSWORD")
                 or "fixture"
             }
+            # Unit gateways have a known interpretation contract; tests must
+            # not discover a profile by connecting to the fixture hostname.
+            c["mysql"]["sql_mode"] = ["STRICT_TRANS_TABLES", "NO_ENGINE_SUBSTITUTION"]
         conns[alias] = c
     main = {
         "schema_version": 1,

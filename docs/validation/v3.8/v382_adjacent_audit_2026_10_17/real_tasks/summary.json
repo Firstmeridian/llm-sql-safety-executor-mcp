@@ -1,0 +1,187 @@
+{
+  "version": "3.8.2",
+  "model": "gpt-6-luna",
+  "reasoning_effort": "medium",
+  "trials": [
+    {
+      "case": "sales",
+      "trial": 1,
+      "agent_id": "01a14994-ceb4-7632-b67a-e2e9fac28337",
+      "checks": {
+        "script_completed": true,
+        "no_confirm_true": true,
+        "native_mcp_only": true,
+        "no_truncated_query_result": true,
+        "has_observed_mcp_response": true,
+        "within_call_budget": true,
+        "scope_kept": true,
+        "initial_metrics": true,
+        "updated_metrics": true
+      },
+      "passed": true,
+      "mcp_return_observations": 3,
+      "local_catalog_calls": 2,
+      "active_turn_wall_seconds": 53.642,
+      "model_responses": 7,
+      "usage": {
+        "input_tokens": 196663,
+        "cached_input_tokens": 181120,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 1558,
+        "reasoning_output_tokens": 129,
+        "total_tokens": 198221
+      },
+      "expected_negative_returns": 0,
+      "empty_skill_searches": 0,
+      "observed_methods": {
+        "get_full_schema": 1,
+        "query": 2
+      }
+    },
+    {
+      "case": "sales",
+      "trial": 2,
+      "agent_id": "01a14994-cf9e-7042-9786-ce1f5c024395",
+      "checks": {
+        "script_completed": true,
+        "no_confirm_true": true,
+        "native_mcp_only": true,
+        "no_truncated_query_result": true,
+        "has_observed_mcp_response": true,
+        "within_call_budget": true,
+        "scope_kept": true,
+        "initial_metrics": true,
+        "updated_metrics": true
+      },
+      "passed": true,
+      "mcp_return_observations": 9,
+      "local_catalog_calls": 2,
+      "active_turn_wall_seconds": 47.38,
+      "model_responses": 8,
+      "usage": {
+        "input_tokens": 228464,
+        "cached_input_tokens": 210688,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 2208,
+        "reasoning_output_tokens": 191,
+        "total_tokens": 230672
+      },
+      "expected_negative_returns": 0,
+      "empty_skill_searches": 0,
+      "observed_methods": {
+        "list_tables": 1,
+        "describe_table": 3,
+        "query": 5
+      }
+    },
+    {
+      "case": "sales",
+      "trial": 3,
+      "agent_id": "01a14994-d166-7682-95cc-06df68495191",
+      "checks": {
+        "script_completed": true,
+        "no_confirm_true": true,
+        "native_mcp_only": true,
+        "no_truncated_query_result": true,
+        "has_observed_mcp_response": false,
+        "within_call_budget": true,
+        "scope_kept": true,
+        "initial_metrics": false,
+        "updated_metrics": false
+      },
+      "passed": false,
+      "mcp_return_observations": 0,
+      "local_catalog_calls": 3,
+      "active_turn_wall_seconds": 37.684,
+      "model_responses": 6,
+      "usage": {
+        "input_tokens": 153695,
+        "cached_input_tokens": 143104,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 588,
+        "reasoning_output_tokens": 96,
+        "total_tokens": 154283
+      },
+      "expected_negative_returns": 0,
+      "empty_skill_searches": 0,
+      "observed_methods": {}
+    }
+  ],
+  "completed_trials": 3,
+  "passed_check_trials": 2,
+  "scripted_user_turns": 6,
+  "mcp_return_observations": 12,
+  "local_catalog_calls": 7,
+  "model_responses": 21,
+  "return_profiles": {
+    "MCP response envelope": 12
+  },
+  "catalog_output_truncations": 3,
+  "empty_skill_searches": 0,
+  "total_host_usage": {
+    "input_tokens": 578822,
+    "cached_input_tokens": 534912,
+    "cache_write_input_tokens": 0,
+    "output_tokens": 4354,
+    "reasoning_output_tokens": 416,
+    "total_tokens": 583176
+  },
+  "active_turn_wall_seconds": 138.706,
+  "unchanged_sqlite_authorized_tables": 7,
+  "source_resources_verified": 75,
+  "assessment_scope": "Deterministic number/scope/trace checks; manual notes are separate and availability is explicit. Numeric presence alone is not a semantic grader",
+  "timing_and_cost_limits": "Current Host only; parallel disjoint tasks/share service; no historical matched A/B or invoice comparison; token usage includes Host/tool discovery; cached tokens subset of input",
+  "recording_limits": "Application-level public events, not full JSON-RPC; no internal reasoning; full preview bearer values redacted",
+  "manual_review_available": true,
+  "manual_review_notes": [
+    {
+      "case": "sales",
+      "trial": 1,
+      "business_passed": true,
+      "initial_passed": true,
+      "scope_update_passed": true,
+      "first_attempt": true,
+      "notes": [
+        "All requested metrics match independent aggregates and the changed scope was recomputed.",
+        "One broad schema call and one aggregate query initially; one aggregate query on follow-up. No extra cross-connection read, write, detail export or truncated query.",
+        "South capitalization in prose corresponds to returned region south; no identity authorization was inferred from it."
+      ]
+    },
+    {
+      "case": "sales",
+      "trial": 2,
+      "business_passed": true,
+      "initial_passed": true,
+      "scope_update_passed": true,
+      "first_attempt": true,
+      "notes": [
+        "All requested metrics and updated product rankings match independent truth.",
+        "One list_tables followed by describe_table on all three identical tables was less efficient than a compact grouped schema call; nine observed MCP returns total.",
+        "No SQL refusal or fabricated result; no configured writes or target switches."
+      ]
+    },
+    {
+      "case": "sales",
+      "trial": 3,
+      "business_passed": false,
+      "initial_passed": false,
+      "scope_update_passed": false,
+      "first_attempt": false,
+      "failure_layer": "Host MCP availability before a normal SQL MCP result",
+      "notes": [
+        "The actual correct list_tables tool name produced: MCP tool `sql-safety-executor-mcp/list_tables` is not available to the model.",
+        "Subsequent local SQL tool catalogs were empty. There were zero SQL MCP response envelopes and no database results in this trial.",
+        "The final answer self-reports two MCP attempts; the public trace shows one attempted MCP invocation plus tool-catalog inspection. Use the trace count.",
+        "Both scripted turns remain incomplete; do not replace this failure with preflight or other agents' successes.",
+        "Available evidence cannot identify cache, initialization failure/timing or client binding as the root cause."
+      ]
+    }
+  ],
+  "not_covered": [
+    "Actual approved writes/commit/rollback",
+    "Live concurrency conflicts or network failure",
+    "Token expiry/replay or MRTR UI",
+    "Special prefix/schema-name fixture replay in current native aliases",
+    "Other models/Hosts or statistical reliability guarantee"
+  ]
+}

@@ -9,6 +9,7 @@ from fastmcp import Client
 from sql_safety_executor import create_server, load_config
 from sql_safety_executor.core.types import ConnectionContext
 from sql_safety_executor.core.policy import _validate_sql_query_policy
+from sql_safety_executor.database.semantics import DialectContext
 from sql_safety_executor.database.models import ConnectionPolicy, DatabaseConfig
 from sql_safety_executor.database.relations import ReadRelation, RelationReference
 from sql_safety_executor.skills.access import _get_skill_schema_snapshot, _skill_availability_state
@@ -173,7 +174,7 @@ def test_mysql_readiness_keeps_configured_database_scope(relation_server, schema
     policy = ConnectionPolicy(allowed_tables=frozenset({f"{schema}.orders"}), case_sensitive_tables=True)
     config = DatabaseConfig(connection_id="demo", db_type="mysql", policy=policy,
         query_timeout_seconds=10, connect_timeout_seconds=5, mysql_database="business")
-    adapter = SimpleNamespace(get_read_relations=lambda: [ReadRelation(RelationReference("orders", "business"), "table")], cte_case_sensitive=None)
+    adapter = SimpleNamespace(analysis_context=DialectContext("mysql", default_schema="business"), resolve_analysis_context=lambda: DialectContext("mysql", default_schema="business"), get_read_relations=lambda: [ReadRelation(RelationReference("orders", "business"), "table")], cte_case_sensitive=None)
     connection = ConnectionContext("demo", config, adapter, policy)
     meta = SkillMetadata(name="mysql-probe", type="query", source="query.sql", risk="low", description="Readiness",
         _sql_template=f"SELECT n FROM {schema}.orders")

@@ -1,0 +1,165 @@
+{
+  "A1": {
+    "policy": [
+      {
+        "sql": "SELECT 7 AS n",
+        "median_ms": 3.3142275000000003,
+        "p95_ms": 5.201637
+      },
+      {
+        "sql": "SELECT COUNT(*) AS n FROM orders",
+        "median_ms": 6.8932945,
+        "p95_ms": 10.031441
+      },
+      {
+        "sql": "WITH selected AS (SELECT id,amount FROM orders WHERE amount>=10) SELECT SUM(amount) AS n FROM selected",
+        "median_ms": 19.2829925,
+        "p95_ms": 24.399975
+      },
+      {
+        "sql": "WITH sums AS (SELECT order_id,SUM(amount) AS n FROM items GROUP BY order_id) SELECT SUM(s.n) AS n FROM orders o JOIN sums s ON s.order_id=o.id",
+        "median_ms": 29.357262,
+        "p95_ms": 40.045227
+      },
+      {
+        "sql": "SELECT SUM(n) AS n FROM report",
+        "median_ms": 7.303096,
+        "p95_ms": 9.699285
+      },
+      {
+        "sql": "SELECT SLEEP(0) AS n",
+        "median_ms": 2.8962624999999997,
+        "p95_ms": 4.04167
+      }
+    ],
+    "clients": [
+      {
+        "protocol": "2026-07-28",
+        "startup_ms": 840.2409390000685,
+        "metadata_characters": 22680,
+        "metadata_sha256": "46a50be0a0f9fbece93c0924b945dd85fdf4cd86672bf7de910322257a0e4416",
+        "warm_median_ms": 222.80550749999998,
+        "warm_p95_ms": 449.340845
+      },
+      {
+        "protocol": "2025-11-25",
+        "startup_ms": 94.2004429998633,
+        "metadata_characters": 22680,
+        "metadata_sha256": "ce5da572887dd1ecb050979fe0693f0710fd9577c4a59e8758826efeea1afe6d",
+        "warm_median_ms": 199.125685,
+        "warm_p95_ms": 251.77352100000002
+      }
+    ],
+    "policy_import_ms": 125.08375099969271,
+    "peak_rss_kib": 109804
+  },
+  "B": {
+    "policy": [
+      {
+        "sql": "SELECT 7 AS n",
+        "median_ms": 0.2536335,
+        "p95_ms": 0.506989
+      },
+      {
+        "sql": "SELECT COUNT(*) AS n FROM orders",
+        "median_ms": 0.402123,
+        "p95_ms": 0.835012
+      },
+      {
+        "sql": "WITH selected AS (SELECT id,amount FROM orders WHERE amount>=10) SELECT SUM(amount) AS n FROM selected",
+        "median_ms": 0.8800745000000001,
+        "p95_ms": 1.60972
+      },
+      {
+        "sql": "WITH sums AS (SELECT order_id,SUM(amount) AS n FROM items GROUP BY order_id) SELECT SUM(s.n) AS n FROM orders o JOIN sums s ON s.order_id=o.id",
+        "median_ms": 1.27773,
+        "p95_ms": 2.121357
+      },
+      {
+        "sql": "SELECT SUM(n) AS n FROM report",
+        "median_ms": 0.452325,
+        "p95_ms": 0.809788
+      },
+      {
+        "sql": "SELECT SLEEP(0) AS n",
+        "median_ms": 0.30969199999999997,
+        "p95_ms": 0.662019
+      }
+    ],
+    "clients": [
+      {
+        "protocol": "2026-07-28",
+        "startup_ms": 676.5029200014396,
+        "metadata_characters": 22680,
+        "metadata_sha256": "46a50be0a0f9fbece93c0924b945dd85fdf4cd86672bf7de910322257a0e4416",
+        "warm_median_ms": 42.129675,
+        "warm_p95_ms": 44.584021
+      },
+      {
+        "protocol": "2025-11-25",
+        "startup_ms": 41.63728800085664,
+        "metadata_characters": 22680,
+        "metadata_sha256": "ce5da572887dd1ecb050979fe0693f0710fd9577c4a59e8758826efeea1afe6d",
+        "warm_median_ms": 40.1647015,
+        "warm_p95_ms": 43.548934
+      }
+    ],
+    "policy_import_ms": 220.60418100045354,
+    "peak_rss_kib": 119116
+  },
+  "A2": {
+    "policy": [
+      {
+        "sql": "SELECT 7 AS n",
+        "median_ms": 3.9646160000000004,
+        "p95_ms": 5.600024
+      },
+      {
+        "sql": "SELECT COUNT(*) AS n FROM orders",
+        "median_ms": 7.91382,
+        "p95_ms": 10.279148
+      },
+      {
+        "sql": "WITH selected AS (SELECT id,amount FROM orders WHERE amount>=10) SELECT SUM(amount) AS n FROM selected",
+        "median_ms": 23.224502,
+        "p95_ms": 27.499331
+      },
+      {
+        "sql": "WITH sums AS (SELECT order_id,SUM(amount) AS n FROM items GROUP BY order_id) SELECT SUM(s.n) AS n FROM orders o JOIN sums s ON s.order_id=o.id",
+        "median_ms": 36.568732499999996,
+        "p95_ms": 42.579285
+      },
+      {
+        "sql": "SELECT SUM(n) AS n FROM report",
+        "median_ms": 8.430318,
+        "p95_ms": 11.435795
+      },
+      {
+        "sql": "SELECT SLEEP(0) AS n",
+        "median_ms": 3.3690350000000002,
+        "p95_ms": 4.769586
+      }
+    ],
+    "clients": [
+      {
+        "protocol": "2026-07-28",
+        "startup_ms": 641.694080999514,
+        "metadata_characters": 22680,
+        "metadata_sha256": "46a50be0a0f9fbece93c0924b945dd85fdf4cd86672bf7de910322257a0e4416",
+        "warm_median_ms": 190.1088155,
+        "warm_p95_ms": 215.38726
+      },
+      {
+        "protocol": "2025-11-25",
+        "startup_ms": 78.30253099928086,
+        "metadata_characters": 22680,
+        "metadata_sha256": "ce5da572887dd1ecb050979fe0693f0710fd9577c4a59e8758826efeea1afe6d",
+        "warm_median_ms": 190.75467650000002,
+        "warm_p95_ms": 197.99072999999999
+      }
+    ],
+    "policy_import_ms": 114.01117099921976,
+    "peak_rss_kib": 110132
+  },
+  "scope": "Final CTE-count supplement source; fresh serial A1/B/A2 after heavy verification, same scripts/workload, 182 calls/stage. No model-token, billing, production latency or general speed guarantee."
+}

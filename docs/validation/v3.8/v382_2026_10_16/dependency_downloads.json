@@ -1,0 +1,20 @@
+[
+  {
+    "name": "sqlglot",
+    "version": "30.22.0",
+    "filename": "sqlglot-30.22.0-py3-none-any.whl",
+    "url": "https://files.pythonhosted.org/packages/b4/4c/b8474b02b572d9c7a2903e364335d566d52b6128b834b92a7cdfe5597823/sqlglot-30.22.0-py3-none-any.whl",
+    "sha256": "90aa461490fcd95d14ec3842a97506ae20f6d3e9313307ad31be793d479cca65",
+    "source": "official PyPI release metadata",
+    "temporary_download": true
+  },
+  {
+    "name": "uv",
+    "version": "0.8.22",
+    "filename": "uv-0.8.22-py3-none-manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
+    "url": "https://files.pythonhosted.org/packages/3a/a9/a83cee9b8cf63e57ce64ba27c77777cc66410e144fd178368f55af1fa18d/uv-0.8.22-py3-none-manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
+    "sha256": "8efec4ef5acddc35f0867998c44e0b15fc4dace1e4c26d01443871a2fbb04bf6",
+    "source": "official PyPI release metadata",
+    "temporary_download": true
+  }
+]

@@ -1,0 +1,16 @@
+{
+  "purpose": "Diagnose Host availability; do not replace original failed trial",
+  "resume_original_failed_child": true,
+  "fresh_parallel_canaries": 3,
+  "MCP_attempts_per_canary": 1,
+  "SQL": "SELECT 7 AS n",
+  "connection_id": "union_test_sqlite",
+  "writes": false,
+  "native_canaries_have_no_runtime_fix_coverage_claim": true,
+  "independent_stdio_probe": {
+    "serial_10_second_initialization": 3,
+    "parallel_10_second_initialization": 3,
+    "parallel_60_second_initialization": 3
+  },
+  "frozen_diagnostic_bounds": "No unbounded retry, global Host configuration change, manual MCP restart or database write."
+}

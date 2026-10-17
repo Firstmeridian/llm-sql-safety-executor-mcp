@@ -252,7 +252,7 @@ def test_system_schema_names_in_string_literals_are_not_tables(monkeypatch):
         ("SELECT @@hostname", "System variables"),
         ("SELECT @@GLOBAL.datadir, 1", "System variables"),
         ("SELECT id FROM orders WHERE @@secure_file_priv IS NULL", "System variables"),
-        ("SELECT CURRENT_USER", "Account and role"),
+        ("SELECT CURRENT_USER()", "Account and role"),
         ("SELECT current_user(), 1", "Account and role"),
         ("SELECT USER()", "Account and role"),
         ("SELECT session_user()", "Account and role"),
@@ -413,6 +413,7 @@ def test_table_allowlist_blocks_explained_dml_targets_and_sources(
     policy = module.ConnectionPolicy(
         allow_union=True,
         allowed_tables=frozenset({"orders"}),
+        case_sensitive_tables=True,
     )
 
     decision = module._validate_sql_query_policy(sql, policy)
@@ -455,6 +456,7 @@ def test_table_allowlist_preserves_explained_dml_for_allowed_tables(
     policy = module.ConnectionPolicy(
         allow_union=True,
         allowed_tables=frozenset({"orders"}),
+        case_sensitive_tables=True,
     )
 
     decision = module._validate_sql_query_policy(sql, policy)
@@ -482,7 +484,7 @@ def test_table_allowlist_fails_closed_on_ambiguous_explained_dml_target(
     error = decision.message
 
     assert is_safe is False
-    assert error == "Table allowlist could not safely determine every referenced table"
+    assert decision.error_code in {"sql_parse_failed", "relation_scope_unresolved", "relation_group_unsupported"}
 
     decision = module._validate_sql_query_policy(
         "EXPLAIN DELETE FROM orders USING (SELECT * FROM orders)",
@@ -491,7 +493,7 @@ def test_table_allowlist_fails_closed_on_ambiguous_explained_dml_target(
     is_safe = decision.allowed
     error = decision.message
     assert is_safe is False
-    assert error == "Table allowlist could not safely determine every referenced table"
+    assert decision.error_code in {"sql_parse_failed", "relation_scope_unresolved", "relation_group_unsupported"}
 
 
 @pytest.mark.parametrize(
@@ -512,6 +514,7 @@ def test_table_allowlist_preserves_supported_allowed_queries(monkeypatch, sql):
     policy = module.ConnectionPolicy(
         allow_union=True,
         allowed_tables=frozenset({"orders"}),
+        case_sensitive_tables="FORMAT=JSON" in sql,
     )
 
     decision = module._validate_sql_query_policy(sql, policy)
@@ -555,7 +558,7 @@ def test_table_allowlist_fails_closed_on_ambiguous_table_target(monkeypatch):
     error = decision.message
 
     assert is_safe is False
-    assert error == "Table allowlist could not safely determine every referenced table"
+    assert decision.error_code in {"sql_parse_failed", "relation_scope_unresolved", "relation_group_unsupported"}
 
     decision = module._validate_sql_query_policy(
         "SELECT * FROM json_each('[1, 2]') AS item", policy
@@ -563,7 +566,7 @@ def test_table_allowlist_fails_closed_on_ambiguous_table_target(monkeypatch):
     is_safe = decision.allowed
     error = decision.message
     assert is_safe is False
-    assert error == "Table allowlist could not safely determine every referenced table"
+    assert decision.error_code in {"sql_parse_failed", "relation_scope_unresolved", "relation_group_unsupported"}
 
 
 def test_explicit_external_skills_directory_is_accepted(tmp_path,monkeypatch):

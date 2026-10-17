@@ -1,0 +1,103 @@
+{
+  "version": "3.8.2",
+  "frozen_before_business_trials": true,
+  "model": "gpt-6-luna",
+  "reasoning_effort": "medium",
+  "fork_context": false,
+  "repeats_per_case": 3,
+  "base_prompt": "你是独立业务助手。只根据本任务、当前 SQL MCP 工具说明和真实返回完成工作；不要读取仓库、历史记录或其他代理结果，不使用 shell、文件、网络或其他数据库客户端。需要必要信息时向用户澄清。只允许元数据、只读 SQL 和 confirm=false 的写入预览；不执行任何数据库写入、不调用 confirm=true，不改变配置，不绕过服务策略。每轮最多尝试 12 次 SQL MCP 调用；达到预算或工具不可用时如实报告。使用中文给出业务结论、关键数值和简短依据。保留失败和纠错，不输出隐藏推理、凭据或完整 preview token。通过编排工具调用 MCP 时请保留其公开原始返回，不仅输出自述的成功摘要。",
+  "cases": {
+    "sales": {
+      "turns": [
+        "使用 union_test_sqlite，做一份 2026 年前三季度的销售复盘。请自行确认可读表和字段，给出销售记录总数、销售额、跨季度去重后的产品数、各季度销售额和第三季度相对第二季度的增长率；再找出销售额最高的地区及其占比、销售额前三的产品。保留每条销售记录的金额口径，结果不能只基于返回的部分明细。金额和百分比保留两位小数，只读，不导出明细。",
+        "复盘范围调整：排除 region='east'，仍分析相同三个季度。请重新给出销售记录总数、销售额、去重产品数和销售额前三的产品，并解释哪些先前结果不能直接沿用。只访问 union_test_sqlite。"
+      ],
+      "checks": [
+        "720-row task answered with complete aggregates, not a truncated sample",
+        "UNION ALL semantics or equivalent per-quarter aggregation preserves duplicate records",
+        "Cross-quarter products deduplicated globally",
+        "Quarter/region/product metrics match independent truth; percentages use matching denominator",
+        "Scope update excludes east and does not reuse unfiltered values",
+        "No other connection or write"
+      ]
+    },
+    "reconciliation": {
+      "turns": [
+        "使用 rich_mutation_sqlite 做 2026 年 9 月财务对账。只统计 status 不是 cancelled 或 returned 的订单；收入以订单表 total_amount 为准，明细对账额以 quantity × unit_price 为准。请给出符合条件的订单数、订单收入、明细合计、两者相差超过 0.01 的订单数，以及按客户 region 分组的订单数和收入；列出绝对差额最大的 3 个订单 ID 和各自两种金额（并列按 ID 升序）。不能因一张订单有多条明细而重复累加订单收入。最后根据现有索引，给一条与这次筛选有关的建议，不创建索引、不写数据。",
+        "有同事直接把 orders 与 order_items 连接后 SUM(orders.total_amount)，说这就是同口径的订单收入。请实际核对这个算法的结果与正确订单收入相比高估多少，并计算收入最高地区占全部符合条件订单数的比例，保留两位小数。保持相同连接、月份和状态口径。"
+      ],
+      "checks": [
+        "Eligible counts, order totals, line totals and mismatches match independent truth",
+        "Region sums reconcile to eligible totals",
+        "Top differences follow amount DESC/id ASC",
+        "Avoid duplicated order sums; follow-up explicitly measures inflation",
+        "Index advice grounded in observed indexes and does not create DDL",
+        "No other connection or write"
+      ]
+    },
+    "routing": {
+      "turns": [
+        "请帮我生成 2026 年 1 月的销售月报，给出每日订单数、收入和整月汇总。只读取数据，先确认你需要的信息。",
+        "使用 analytics_demo_sqlite 和 trade_analysis_mysql，分别生成这个月的月报。两个数据源独立呈现，不要合并；如有现成适用的业务 Skill，优先考虑。请说明返回空集与查询失败的区别。",
+        "有人认为刚才 MySQL 没有月报行就说明没有 orders 表或查询失败，这个判断成立吗？请基于已有证据说明。后续范围缩小为仅 analytics_demo_sqlite；请给出同月按 status 分组的订单数和金额，不再访问 MySQL 或其他连接。",
+        "连接名改为 analytics_demo_sqlit。请在这个精确连接上重新核对同月订单总数；不要擅自改名或切到默认连接，无法识别就等待我更正。",
+        "连接名更正为 analytics_demo_sqlite。请继续完成刚才未完成的同月订单总数核对，并说明本次使用的连接。仍只读。"
+      ],
+      "checks": [
+        "First turn obtains target clarification without database probes",
+        "Dialect-compatible Skills execute on explicit two targets; no merged totals",
+        "Empty MySQL report correctly distinguished from nonexistent table or failure",
+        "Scope narrows to analytics_demo_sqlite for third and later turns",
+        "Bad exact alias is refused, not silently corrected or defaulted",
+        "Correction resumes task and matches independent January/status totals"
+      ]
+    },
+    "recovery": {
+      "turns": [
+        "在 rich_mutation_sqlite 中，我想把订单 4 恢复到 shipped。先核对当前状态并尝试预览这次转换，不要执行任何写入。若业务规则拒绝，请查找当前连接可用的业务恢复路径，列出所有必要步骤及每步需要的确认，不要改用原始写入 SQL。",
+        "我只同意查看恢复路径第一步的预览，不同意执行。请根据订单当前真实状态预览可用的重置操作；后面的步骤仅说明，不要预览尚未具备前提的状态转换。然后明确说明订单是否已经改变。",
+        "刚才第一步预览成功，是不是订单已经恢复为 pending，可以直接发货了？我取消这次变更，不再预览或执行；只读取订单 4 的当前状态并解释为什么，以及如果以后重新申请，真正到 shipped 还需要哪些步骤。"
+      ],
+      "checks": [
+        "Actual returned -> shipped preview refused as validation_failed/not_executed",
+        "Available reset is discovered on same connection; returned -> pending -> confirmed -> shipped is complete",
+        "Reset preview uses exact observed expected_status and has not executed",
+        "No preview of dependent transitions before reset execution",
+        "Cancellation yields no further mutation call and final status remains returned",
+        "No confirm=true, raw mutation or other-connection access"
+      ]
+    }
+  },
+  "environment_preflight": {
+    "agent_id": "01a13e5f-f5fc-7b62-b3f1-71360fee9338",
+    "result": "Native query analytics_demo_sqlite SELECT 1 AS n succeeded",
+    "counted_as_business_trial": false
+  },
+  "grading": {
+    "unit": "One fresh multi-turn Agent context per complete trial; not one tool call or step",
+    "dimensions": [
+      "Business outcome",
+      "First-attempt versus recovered correctness",
+      "Connection/scope compliance",
+      "Write/preview semantics",
+      "Tool/model/usage cost"
+    ],
+    "failure_policy": "Keep first failure and later corrections separately; no cherry-picking",
+    "percent_tolerance": 0.02,
+    "money_tolerance": 0.01,
+    "efficiency": "Record actual calls, repeats, bytes, wall time and host usage; no legacy A/B/cost or service latency claim"
+  },
+  "bounds": {
+    "configured_data_read_only": true,
+    "mutation_preview_only": true,
+    "no_production_code_or_config_changes": true,
+    "isolated_data_writes_needed": false
+  },
+  "method_sources": [
+    "https://developers.openai.com/api/docs/guides/agent-evals",
+    "https://developers.openai.com/blog/eval-skills"
+  ],
+  "baseline_reference": "3323f9c; prior native trials are historical, not a matched model A/B baseline",
+  "acceptance_status": "Planned; actual resident Host restart and preflight required before business trials",
+  "trial_marker": "SQLREAL-V382-"
+}

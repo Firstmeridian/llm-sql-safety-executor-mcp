@@ -1,0 +1,10 @@
+[
+  "All 12 frozen trials and 36 scripted user turns completed on the 75-resource pre-CTE-count-supplement source. Preserve source attribution; these do not prove the later authorizer repair.",
+  "Sales trial 2 hit a legitimate materialized multi-CTE COUNT(*) view_scope_unresolved refusal. The model recovered with per-quarter complete aggregation. Count this as recovered correctness, not first-attempt success; a separate authorizer fix/acceptance follows.",
+  "Reconciliation trial 2 ranked orders 38/80/27 by raw floating-point residuals instead of the frozen currency-precision tie rule (IDs 1/2/3); retain this business-check failure. Other totals, inflation and region share were correct. Trials 1/3 independently reran the ranking at currency precision.",
+  "All three routing trials correctly kept scope and rejected the precise bad alias without autocorrection. Trial 1 refused a known absent alias without a tool call, which is valid; the mechanical scorer now accepts this rather than requiring a deliberately provoked tool error.",
+  "All three routing trials underused observed Skill readiness when reasoning about table existence. Trial 1 withheld a zero monthly total on the empty MySQL result; trial 3 overqualified missing daily rows despite successful report evidence. Treat wording/completeness separately from correct scope and successful queries.",
+  "All three recovery trials previewed reset early in turn 1; only trial 3 made another reset preview in the explicitly requested turn 2. Trials 1/2 reused their previous preview. No confirm=true/raw write occurred; cancellation caused a fresh read and no further mutation.",
+  "Preflight final prose contained a malformed restatement of JSON; acceptance uses the two valid actual public MCP envelopes, not that model reconstruction.",
+  "No model historical matched A/B, invoice cost, service latency or universal reliability claim. Public application events and Host-reported usage only; bearer values redacted, internal reasoning excluded."
+]

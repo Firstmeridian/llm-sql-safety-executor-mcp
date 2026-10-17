@@ -1,0 +1,30 @@
+{
+  "source": "Parent review of every actual SQL call and both final answers in all three fresh contexts",
+  "scope": "Final-source three two-turn sales trials; original fixed checks retained separately",
+  "complete_explicit_business_trials": 2,
+  "total_trials": 3,
+  "all_updated_scope_answers_correct": 3,
+  "strict_numeric_check_trials": 1,
+  "all_scope_checks_passed": true,
+  "actual_successful_mcp_calls": 14,
+  "pre_server_nonexistent_function_attempts": 1,
+  "service_false_refusals": 0,
+  "per_trial": [
+    {
+      "trial": 1,
+      "explicit_business_complete": false,
+      "reason": "First-turn task stopped after wrong function namespace; correct namespace and changed-scope task recovered in turn 2"
+    },
+    {
+      "trial": 2,
+      "explicit_business_complete": true,
+      "reason": "Both requested business results correct; mechanical check additionally expects optional top-region revenue in final prose"
+    },
+    {
+      "trial": 3,
+      "explicit_business_complete": true,
+      "reason": "Both requested business results correct; SQL date bound is exclusive 2026-10-01"
+    }
+  ],
+  "limits": "Three observations per task, not a reliability guarantee; no cherry-picked replacement of failed trial or historical model A/B"
+}

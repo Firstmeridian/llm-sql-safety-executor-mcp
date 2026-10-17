@@ -1,0 +1,45 @@
+{
+  "version": "3.8.2",
+  "status": "accepted_with_explicit_native_coverage_limits",
+  "observed_utc": "2026-10-16 18:03:30 UTC",
+  "maintainer_restart": "Explicitly confirmed by the maintainer before these calls.",
+  "native": {
+    "calls": 28,
+    "passed_expectations": 28,
+    "positive_results": 16,
+    "expected_refusals": 12,
+    "nonexecuting_dml_plans": 9,
+    "metadata_calls": 2,
+    "cte_counts": 2,
+    "write_shaped_zero_row_controls": 4,
+    "text_structured_results_matching": 28,
+    "protocol": "Not exposed by this native tool facade."
+  },
+  "data_integrity": {
+    "connection_id": "analytics_demo_sqlite",
+    "relation": "orders",
+    "rows": 5,
+    "all_five_columns_compared": true,
+    "before_sha256": "e1b28fdf600dcf8ba7a5966bbf292cb36eb6195fda395d1a5458753a36b400e8",
+    "after_sha256": "e1b28fdf600dcf8ba7a5966bbf292cb36eb6195fda395d1a5458753a36b400e8",
+    "unchanged": true,
+    "write_control_scope": "Actual DML-shaped refusal probes all included WHERE 0; non-executing EXPLAIN probes used value-changing payloads. No approved mutation was executed."
+  },
+  "source": {
+    "current_resources_match_parent_closure": 75,
+    "loaded_code_object_hashes": "Not introspected; native observed behavior is separate from disk/installed-source identity."
+  },
+  "parent_checkpoint": {
+    "manifest": "../manifest.json",
+    "sha256": "f9426588f0ce2fa49b41753dcdb69ca5d557baa2f2cac5ecf1ad41db02bb9d8c",
+    "files_verified_unchanged": 25,
+    "verification": "../verification.json",
+    "scope": "Sealed pre-restart checkpoint remains unchanged, including its then-pending status."
+  },
+  "coverage_limits": [
+    "This Host exposes neither sample nor get_table_summary; cross-entry function/view cases retain the same-source 132-call installed two-protocol and regression evidence.",
+    "No new restricted-function view or trigger fixture was added to configured databases. Native metadata covers ordinary table estimates/indexes.",
+    "No fresh full Luna business trial, model-token comparison or new latency baseline was run for this repair.",
+    "Decoded application results are retained; complete JSON-RPC frames/notifications are not captured."
+  ]
+}

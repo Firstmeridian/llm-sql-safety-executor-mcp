@@ -1,6 +1,6 @@
 # 面向 AI Agent 的数据库安全访问入口 - MCP 服务
 
-![Version](https://img.shields.io/badge/version-3.8.1-blue)
+![Version](https://img.shields.io/badge/version-3.8.2-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Python](https://img.shields.io/badge/python-3.12+-blue?logo=python)
 ![MCP](https://img.shields.io/badge/MCP-Protocol-orange)
@@ -134,7 +134,7 @@ Skills 场景：未知 Skill → list_skills(search=..., detail_level="compact",
   SELECT、DESCRIBE 或非 ANALYZE EXPLAIN。raw SHOW 会被拒绝，metadata discovery
   使用 `list_tables()`/`describe_table()`；嵌套写 DML、`EXPLAIN ANALYZE`、
   executable comment/hint 与非空白 `--` 形式也会被拒绝
-- **SQL 解析验证**：通过 `sqlparse` 做语句类型 allowlist，并经过核心的完整查询策略检查
+- **SQL 解析验证**：共享 SQLGlot 方言／会话分析及独立读取策略；SQLite 另以 authorizer 核验实际编译操作
 - **连接安全**：显式 TOML 与密钥来源管理。命名连接（`connection_id`），工具和模型输出不能传入任意 DSN。
 - **错误隔离**：面向LLM的全面异常处理和报告
 - **接入隔离**：由宿主/运行环境控制接入边界
@@ -870,6 +870,14 @@ SQLite 初始化拒绝覆盖已有文件；MySQL 初始化遇到现存 orders �
 
 
 ## 更新日志
+
+### v3.8.2 方言语义与执行检查（2026 年 10 月 16 日）
+
+共享 SQLGlot 分析保留 schema/name、引用、作用域及原 SQL；新增 `read.relations` 与 Skill `relations`，可声明单个含点名称。MySQL 每个物理连接初始化完整 SQL 模式约定；SQLite 在连接独占、关闭语句缓存的条件下检查实际编译操作和视图来源。readiness 仍只核验默认 schema，视图授权不授予直接底表访问。见[设计与限制](docs/architecture/V3_8_2_SQL_SEMANTICS_ZH.md)和[本版本验收](docs/validation/v3.8/V3_8_2_VALIDATION_2026_10_16_ZH.md)。10 月 17 日补齐视图采样／计数／估算读取边界，恢复 SQLite 非执行型 DML／REPLACE 计划。后续触发器／WITH REPLACE／UPDATE OR 补修回归 **2067 passed／4 skipped**，类型／提示契约通过；最终安装包及重启后原生 42/42 核验见[计划后续报告](docs/validation/v3.8/V3_8_2_EXPLAIN_FOLLOWUP_2026_10_17_ZH.md)。前批安装包两协议、MySQL 及原生 28/28 保留[当时源码范围](docs/validation/v3.8/V3_8_2_READ_BOUNDARIES_2026_10_17_ZH.md)。前批 Host／Luna 失败、评分限制和成本测量保留各自源码归属。
+
+后续局部 CTE 补修新增 129 项回归（**2196 passed／4 skipped**）及 340 次安装 stdio，覆盖 WHEN、纯 SELECT 触发器和触发器重复局部名。重启后限定验收 57 项通过，旧 42/42 保留前批源码范围；探索预期偏差、外层重复 CTE 既有限制、成本及覆盖范围见[CTE 补充报告](docs/validation/v3.8/V3_8_2_TRIGGER_CTE_2026_10_17_ZH.md)。
+
+相邻复查的触发器 WHEN 边界已补修：**2275 passed／4 skipped**、394 次安装定点调用通过；Host 缓存目录／就绪客户端的诊断与已验证恢复办法另列，原业务 2/3 不改写。维护者重启后原生限定核验 57/57 通过，另三次完整双轮 Luna 销售任务最终 3/3 通过，保留一次初稿形态拒绝与恢复；见[WHEN 修复报告](docs/validation/v3.8/V3_8_2_TRIGGER_WHEN_2026_10_17_ZH.md)。
 
 ### v3.8.1 复核修正与完整任务验收（2026 年 10 月）
 
@@ -2218,7 +2226,7 @@ execute_query_skill("sample-monthly-sales-report", {"year": 2026, "month": 1})
 ## 依赖要求
 
 - Python 3.12+，MySQL 或 SQLite 数据库。
-- FastMCP 4.0.10 / MCP SDK 2.2.0；SQLAlchemy、sqlparse、PyMySQL、Pydantic 和 PyYAML 等依赖由 `pyproject.toml` 管理、`uv.lock` 锁定。
+- FastMCP 4.0.10 / MCP SDK 2.2.0；SQLAlchemy、SQLGlot、sqlparse（受管写入计划）、PyMySQL、Pydantic 和 PyYAML 等依赖由 `pyproject.toml` 管理、`uv.lock` 锁定。
 - AutoGen 示例采用独立环境，不进入核心运行依赖。间接依赖中可能存在 python-dotenv，不代表项目继续支持旧配置。
 
 ## 测试

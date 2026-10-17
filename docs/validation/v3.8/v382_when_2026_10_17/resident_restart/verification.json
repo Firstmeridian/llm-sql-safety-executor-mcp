@@ -1,0 +1,73 @@
+{
+  "version": "3.8.2",
+  "status": "accepted_with_explicit_native_coverage_limits",
+  "observed_utc": "2026-10-17 12:27:34 UTC",
+  "maintainer_restart": "Confirmed by maintainer in current turn before observations",
+  "native": {
+    "recorded_calls": 57,
+    "checks_passed": 57,
+    "successful_plans": 38,
+    "required_refusals": 13,
+    "other_controls": 6,
+    "text_structured_matching": 57,
+    "protocol": "Not exposed by this native facade.",
+    "fixture_source": "Rerun only the 57 previously matched specifications. Historical 12 exploratory mismatches remain in their original supplement."
+  },
+  "data_integrity": {
+    "native_connection_id": "analytics_demo_sqlite",
+    "rows": 5,
+    "columns": 5,
+    "native_snapshots": 3,
+    "native_snapshot_sha256": "e1b28fdf600dcf8ba7a5966bbf292cb36eb6195fda395d1a5458753a36b400e8",
+    "configured_SQLite_authorized_table_fingerprints_unchanged": 7,
+    "configured_writes": false
+  },
+  "source": {
+    "disk_resources_match_parent": 75,
+    "scripts_tests_match_parent": 13,
+    "loaded_code_objects": "Not introspected; current native observations are distinct from disk/wheel hashes."
+  },
+  "complete_business_trials": {
+    "planned": 3,
+    "passed_final_outcomes": 3,
+    "without_initial_policy_or_tool_rejection": 2,
+    "actual_child_canaries_passed": 3,
+    "actual_inputs": 9,
+    "business_inputs": 6,
+    "canary_inputs": 3,
+    "business_MCP_returns": 15,
+    "all_MCP_returns": 18,
+    "retained_refusal": "Trial 3: unsupported FROM subquery returned sql_parse_failed; same child recovered with CTEs.",
+    "old_trials": "Pre-WHEN complete business result remains 2/3, one Host availability failure. No historical relabeling.",
+    "comparability": "Canary-warmed actual-child contexts differ from earlier unprepared trials; not an availability/cost A/B."
+  },
+  "parent_checkpoint": {
+    "manifest": "../manifest.json",
+    "sha256": "b963199a10dec96c7e254eba7209654fdf7b3d2039fae645ac844b781d6effad",
+    "files_unchanged": 69,
+    "scope": "Retains its then-pending status; this append supplies the post-restart observations."
+  },
+  "preserved_manifests": {
+    "docs/validation/v3.8/v382_2026_10_16/manifest.json": 197,
+    "docs/validation/v3.8/v382_read_boundaries_2026_10_17/manifest.json": 25,
+    "docs/validation/v3.8/v382_read_boundaries_2026_10_17/resident_restart/manifest.json": 3,
+    "docs/validation/v3.8/v382_explain_followup_2026_10_17/manifest.json": 50,
+    "docs/validation/v3.8/v382_explain_followup_2026_10_17/resident_restart/manifest.json": 4,
+    "local_archive/v382_review/20261017_explain_followup/evidence/manifest.json": 5,
+    "local_archive/v382_review/20261017_explain_adjacency/evidence/manifest.json": 15,
+    "local_archive/v382_review/20261017_trigger_cte_assessment/evidence/manifest.json": 12,
+    "docs/validation/v3.8/v382_trigger_cte_2026_10_17/manifest.json": 51,
+    "docs/validation/v3.8/v382_trigger_cte_2026_10_17/resident_restart/manifest.json": 9,
+    "docs/validation/v3.8/v382_adjacent_audit_2026_10_17/manifest.json": 29,
+    "docs/validation/v3.8/v382_when_2026_10_17/manifest.json": 69
+  },
+  "preserved_sealed_files_verified": 469,
+  "coverage_limits": [
+    "No configured trigger/WHEN/UDF/plan-Skill fixture was added. The exact WHEN repair has 79 regressions and 394 same-source installed targeted calls, rather than a native fixture replay.",
+    "Sample and exact-count tools are not exposed by this native Host; their coverage remains source/package evidence.",
+    "Native tool metadata is not a wire tools/list. Application evidence omits full frames and notifications.",
+    "Complete sales tasks exercise current native multi-CTE aggregation and task recovery, not trigger-definition execution or complete dialect coverage.",
+    "Three successes after real canaries do not establish a Host availability rate or explain the original exact-ready-client failure.",
+    "Existing repeated outer-CTE false refusal and trusted generated-column/UDF scope remain; no new backend, server latency or model-cost A/B claim."
+  ]
+}

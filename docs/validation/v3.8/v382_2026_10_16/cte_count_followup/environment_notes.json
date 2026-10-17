@@ -1,0 +1,26 @@
+{
+  "recording_profile": "Sanitized tool-observed summaries, not complete original stderr",
+  "attempts": [
+    {
+      "command": "real_task_eval.py --output-dir <batch>/real_tasks truth --stage after --mysql",
+      "context": "workspace sandbox",
+      "observed_error": "DatabaseQueryError: Database connection failed.",
+      "retry": "same read-only command with approved per-command escalation succeeded; no configured data write"
+    },
+    {
+      "command": "Pyright --pythonpath .venv-v38/bin/python",
+      "observed_error": "52 import-resolution errors, 1 warning in sandbox",
+      "retry": "absolute interpreter path and approved per-command escalation: 0 errors, 0 warnings"
+    },
+    {
+      "command": "installed_semantics.py, first CTE-count run",
+      "observed_error": "union_disabled in private fixture, then KeyError on data assertion",
+      "retry": "enable UNION only in disposable fixture; final 58 calls passed. Configured TOMLs unchanged"
+    },
+    {
+      "command": "direct adapter harness, first attempt",
+      "observed_error": "SQLiteAdapter.__init__ takes keyword-only config",
+      "retry": "use config=; original composite query returns 11 rows matching native truth"
+    }
+  ]
+}

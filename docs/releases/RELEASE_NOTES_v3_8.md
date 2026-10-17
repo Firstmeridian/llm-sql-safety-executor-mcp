@@ -1,3 +1,38 @@
+# v3.8.2 — Dialect/session semantics and execution authorization (October 16, 2026)
+
+### Why
+
+Quoted spelling, physical object names, CTE scope and database session state have different semantics. Repeated token parsers and a connection-independent dialect setting could disagree across raw queries, Skills, readiness and metadata. SQLite additionally resolves temp/attached objects and view sources during compilation.
+
+### Decision and contract
+
+- Use pinned SQLGlot 30.22.0 for one shared structured read analysis with explicit dialect/session context, original lexical names, scopes, physical references, call identity and completeness. Delete the replaced CTE parser; retain independent managed-write plan checks. Execute original SQL/parameters, never regenerated AST SQL; partial analysis cannot imply zero dependencies.
+- Preserve component-based RelationReference and independent grants. Add strict `read.relations` and Skill `relations` maps. SQLite supports forward/implicit-recursive CTE visibility; MySQL preserves ordered/explicit-recursion rules. Metadata uses dialect name envelopes and component quoting, with a separate SQLAlchemy literal-colon transport layer. Offline config explain serializes structured declarations.
+- Initialize/verify a complete MySQL sql_mode contract for every physical connection before dialect inspection. Configure expanded individual modes or inherit the first initialized full set. Support ANSI_QUOTES/NO_BACKSLASH_ESCAPES/PIPES_AS_CONCAT interpretation; explicitly refuse HIGH_NOT_PRECEDENCE. Arbitrary trusted operations and full writes retire their sessions; normal reads/metadata reuse controlled sessions.
+- SQLite authorizer checks actual compiled objects/operations and known view/CTE source edges throughout result consumption. Exclusive adapter ownership covers reads, metadata and full write transactions. Disable DBAPI statement caching; refresh per-request view dependency edges, including external schema changes. Fixed internal metadata/write operations remain trusted. A view grant does not grant direct base reads.
+
+### Compromises and costs
+
+SQLGlot parsing is not native syntax/catalog proof. Unsupported relation forms and ambiguous view source labels remain explicit refusals. View preparation is bounded (2048 lookups, 128 views, 1024 edges). SQLite serialization/callbacks/catalog preparation and disabled statement caching add work; MySQL trusted operations add reconnection costs. Schema/UDF/Python extensions remain trusted; MySQL has no corresponding authorizer. No additional required Agent tool call or automatic grant expansion. Model usage and timing claims need their own evidence; metadata characters are not tokens.
+
+### Validation
+
+The baseline is owner commit 3323f9c (1750 passed/four skipped). Final regression, type/prompt, native SQLite/MySQL mode matrix, pool lifecycle, wheel/stdio checks, measured costs, the completed initial Host/Luna batch and final native/three-trial CTE-count supplement (with model failures retained) are tracked separately in the [v3.8.2 report](../validation/v3.8/V3_8_2_VALIDATION_2026_10_16_ZH.md). Historical v3.8.1 statements below retain their original scope. Decisions: DRR-2026-100–106 and [implementation contract](../architecture/V3_8_2_SQL_SEMANTICS_ZH.md).
+
+### October 17 read-boundary review repair
+
+Later review reopened DRR-108 for trigger READ, WITH REPLACE and UPDATE OR gaps. The [follow-up](../validation/v3.8/V3_8_2_EXPLAIN_FOLLOWUP_2026_10_17_ZH.md) records 101 new regressions/2067 full passes, real stdio/Skill parity and serial costs. Actual schema/name checks and bounded outside-callback preparation restore plans while keeping direct-base, function and real-DML refusals. Original SQL/parameters remain intact; no new configuration, dependency or required Agent step. Final package/resident status is tracked separately; the previous batch below retains its own scope.
+
+Trigger-local CTE count callbacks exposed one further P2 boundary. The [CTE supplement](../validation/v3.8/V3_8_2_TRIGGER_CTE_2026_10_17_ZH.md) records 129 new regressions, 2196 full passes/four skips and 340 installed stdio calls. SELECT/DML source preparation and scoped CTE proofs cover WHEN, select-only and repeated trigger-local names without new grants. Scoped post-restart acceptance passes 57 checks with unchanged data; 12 exploratory expectation mismatches are retained separately. Repeated labels in independent outer-query subqueries remain conservatively refused, with verified distinct-label recovery. Retain prior native attribution and measured catalog/compile costs.
+
+The [later adjacent audit](../validation/v3.8/V3_8_2_ADJACENT_AUDIT_2026_10_17_ZH.md) reopens DRR-108 for a trigger-WHEN begin-column false refusal; previous scoped checks remain historical evidence. Three current-source complete two-turn Luna trials pass 2/3; retain one correct-name Host unavailable error without a cache root-cause claim. This review changes no runtime code; final acceptance awaits the P2 repair.
+
+Subsequent [WHEN repair](../validation/v3.8/V3_8_2_TRIGGER_WHEN_2026_10_17_ZH.md): consume the true expression before BEGIN, preserve original SQL and all dependency/function checks. Add 79 regressions, 2275 full passes/four skips and 394 installed targeted calls. After the maintainer restart, 57/57 scoped native checks pass. Three new canary-conditioned complete two-turn sales trials reach correct outcomes, retaining one initial unsupported-query refusal and recovery; prior 2/3 business evidence remains unchanged. Exact WHEN trigger scenarios retain source/package attribution. DRR-108 closes within these stated limits. Host catalog/client mismatch logs and close/resume recovery remain separate from the original business failure and unproven underlying cause.
+
+Sample/exact counts and SQLite data-based estimates use the controlled read boundary; fixed catalogs/statistics remain trusted. A denied estimate is unknown, while columns/indexes remain usable. Verify all analyzed roots before accepting extra source-less view-count events. Non-executing SQLite DML/REPLACE plans keep authorizer checks for actual targets/functions and bind their analysis to original SQL/context; real writes and EXPLAIN PRAGMA/DDL/ATTACH remain refused. Added analysis/catalog work does not add a required Agent step or justify a zero-overhead claim. Seventy new regressions bring final validation to 1966 passes/four skips; package, live checks and completed scoped native acceptance are recorded in the [repair report](../validation/v3.8/V3_8_2_READ_BOUNDARIES_2026_10_17_ZH.md). Earlier model/cost records retain their scope. Decisions: DRR-2026-107/108.
+
+---
+
 # v3.8.0 — FastMCP 4, explicit TOML, instance state and managed MRTR
 
 > **Latest v3.8.1 follow-up (October 13–14, 2026):** structured read decisions, typed query failures and SQLite IN relation checks. See [acceptance and decisions](../validation/v3.8/V3_8_1_FOLLOWUP_2026_10_13_ZH.md).

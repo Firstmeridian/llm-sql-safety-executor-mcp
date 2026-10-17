@@ -1,0 +1,29 @@
+[
+  {
+    "case": "sales",
+    "trial": 1,
+    "agent_id": "01a149d4-4596-7d33-98ed-279639b2104d",
+    "canary_status": "passed",
+    "first_business_turn": "complete",
+    "second_business_turn": "complete",
+    "status": "complete"
+  },
+  {
+    "case": "sales",
+    "trial": 2,
+    "agent_id": "01a149d4-4613-7700-a156-f304ae97a862",
+    "canary_status": "passed",
+    "first_business_turn": "complete",
+    "second_business_turn": "complete",
+    "status": "complete"
+  },
+  {
+    "case": "sales",
+    "trial": 3,
+    "agent_id": "01a149d4-4694-7121-8bef-c9cc649a1f28",
+    "canary_status": "passed",
+    "first_business_turn": "complete",
+    "second_business_turn": "complete",
+    "status": "complete"
+  }
+]

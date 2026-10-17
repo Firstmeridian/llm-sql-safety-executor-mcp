@@ -5,6 +5,7 @@ import logging
 import sqlite3
 from pathlib import Path
 from typing import Any, cast
+from threading import RLock
 from sqlalchemy.engine import Engine
 
 logger = logging.getLogger(__name__)
@@ -14,6 +15,9 @@ from .base import DatabaseAdapter
 from .errors import DatabaseQueryError, classify_database_error
 from .indexes import IndexMetadataBudget, MAX_INDEX_KEY_PARTS
 from .relations import ReadRelation, RelationReference
+from .authorizer import SQLiteReadGuard, build_read_guard
+from .execution import exclusive_connection, operation_scope
+from .transport import statement_text
 from .outcomes import (
     MetadataQueryError,
     WriteExecutionOutcome,
@@ -28,8 +32,6 @@ from .outcomes import (
 )
 from .identifiers import (
     _adapter_logging_name,
-    _metadata_identifier_is_rejected,
-    _quote_sqlite_identifier,
 )
 
 # Internal names have the literal sqlite_ prefix. LIKE's unescaped underscore
@@ -79,6 +81,9 @@ class SQLiteAdapter(DatabaseAdapter):
         self._engine: Engine | None = None
         self._connection = None
         self._connected = False
+        self._operation_lock = RLock()
+        self._read_request = None
+        self._active_guard: SQLiteReadGuard | None = None
 
     @property
     def db_type(self) -> str:
@@ -88,13 +93,14 @@ class SQLiteAdapter(DatabaseAdapter):
     def metadata_schema(self) -> str:
         return "main"
 
+    @exclusive_connection
     def connect(self) -> bool:
         """Create a business StaticPool or a disposable diagnostic NullPool."""
         if self._engine is not None:
             return True
 
         try:
-            from sqlalchemy import create_engine
+            from sqlalchemy import create_engine, event
             from sqlalchemy.pool import NullPool, StaticPool
             from sqlalchemy.engine import URL
 
@@ -123,9 +129,10 @@ class SQLiteAdapter(DatabaseAdapter):
                 connect_args=(
                     {
                         "timeout": self._config.connect_timeout_seconds,
+                        "cached_statements": 0,
                     }
                     if self._diagnostic
-                    else {"check_same_thread": False}
+                    else {"check_same_thread": False, "cached_statements": 0}
                 ),
                 hide_parameters=True,
                 logging_name=_adapter_logging_name(
@@ -135,6 +142,7 @@ class SQLiteAdapter(DatabaseAdapter):
                     "sqlite_adapter_pool", self._connection_id
                 ),
             )
+            event.listen(self._engine, "connect", self._initialize_authorizer)
             self._connected = True
             logger.info(
                 "SQLite adapter connected (connection_id=%s)", self._connection_id
@@ -145,6 +153,45 @@ class SQLiteAdapter(DatabaseAdapter):
             logger.error("SQLite connection failed: %s", e.__class__.__name__)
             return False
 
+    def _initialize_authorizer(self, connection, record) -> None:
+        def authorize(action, first, second, database, source):
+            guard = self._active_guard
+            if guard is None:
+                return sqlite3.SQLITE_OK  # Explicit trusted adapter operation.
+            try:
+                return guard.authorize(action, first, second, database, source)
+            except Exception:
+                return guard.deny("table_access_denied")
+        connection.set_authorizer(authorize)
+
+    @exclusive_connection
+    def execute_read(self, sql, timeout=None, params=None, *, policy=None, analysis=None) -> list:
+        from sql_safety_executor.core.analysis import analyze_sql
+        if policy is None:
+            raise ValueError("A read operation requires an explicit connection policy")
+        if policy.read_mode == "deny" or policy.read_mode == "allowlist" and not policy.allowed_tables:
+            raise DatabaseQueryError("read_disabled")
+        context = self.analysis_context
+        analysis = analysis or analyze_sql(sql, context)
+        if (not analysis.complete or analysis.context_key != context.fingerprint
+                or analysis.source_sql != sql):
+            raise DatabaseQueryError("session_semantics_unavailable")
+        if self._read_request is not None:
+            raise RuntimeError("Nested read ownership is not supported")
+        self._read_request = (policy, analysis)
+        try:
+            with operation_scope("read", analysis):
+                arguments = {}
+                if timeout is not None:
+                    arguments["timeout"] = timeout
+                if params is not None:
+                    arguments["params"] = params
+                return self.execute(sql, **arguments)
+        finally:
+            self._read_request = None
+            self._active_guard = None
+
+    @exclusive_connection
     def execute(
         self, sql: str, timeout: int | float | None = None, params: dict | None = None
     ) -> list:
@@ -172,6 +219,7 @@ class SQLiteAdapter(DatabaseAdapter):
 
         timeout = timeout if timeout is not None else self._query_timeout_seconds
 
+        guard = None
         try:
             from sqlalchemy import text
 
@@ -181,13 +229,12 @@ class SQLiteAdapter(DatabaseAdapter):
                 if raw_conn is None:
                     raise DatabaseQueryError("database_connection_failed")
                 sqlite_conn = cast(sqlite3.Connection, raw_conn)
-
                 # Set up timeout handler
-                start_time = time.time()
+                start_time = time.monotonic()
 
                 def timeout_handler():
                     """Progress handler callback for query timeout."""
-                    if time.time() - start_time > timeout:
+                    if time.monotonic() - start_time > timeout:
                         return 1  # Interrupt query
                     return 0  # Continue
 
@@ -199,21 +246,54 @@ class SQLiteAdapter(DatabaseAdapter):
                 )
 
                 try:
-                    if params:
-                        result = connection.execute(text(sql), params)
-                    else:
-                        result = connection.execute(text(sql))
-                    rows = list(result.fetchall())
-                    return rows
+                    plan_reads = frozenset()
+                    catalog_limit = 2048
+                    while True:
+                        if self._read_request is not None:
+                            policy, analysis = self._read_request
+                            guard = build_read_guard(sqlite_conn, policy, self.analysis_context, analysis,
+                                                     deadline=start_time + timeout, plan_reads=plan_reads,
+                                                     catalog_limit=catalog_limit)
+                            catalog_limit -= guard.catalog_lookups
+                            self._active_guard = guard
+                        try:
+                            if time.monotonic() >= start_time + timeout:
+                                raise DatabaseQueryError("query_timeout")
+                            statement = statement_text(sql, self.analysis_context, self._read_request[1] if self._read_request else None)
+                            result = connection.execute(statement, params) if params else connection.execute(statement)
+                            return list(result.fetchall())
+                        except Exception:
+                            if guard is None or not guard.explain_dml or not guard.pending_plan_reads:
+                                raise
+                            # Preparation was refused. The only retryable reads
+                            # belong to a verified, original-SQL-bound DML plan;
+                            # no actual write or function evaluation is retried.
+                            new_reads = frozenset(guard.pending_plan_reads) - plan_reads
+                            plan_reads = plan_reads | new_reads
+                            if not new_reads or len(plan_reads) > 128:
+                                guard.denial = "view_scope_unresolved"
+                                raise
+                            guard.denial = None
+                        finally:
+                            # Trusted fixed catalog work on the next iteration
+                            # runs after the callback returned, under the same
+                            # connection ownership and cumulative timeout/budget.
+                            self._active_guard = None
                 finally:
                     # Remove progress handler after query
+                    self._active_guard = None
                     sqlite_conn.set_progress_handler(None, 0)
 
         except sqlite3.OperationalError as e:
+            if guard is not None and guard.denial is not None:
+                raise DatabaseQueryError(guard.denial) from None
             raise self._handle_error(e, timeout) from None
         except Exception as e:
+            if guard is not None and guard.denial is not None:
+                raise DatabaseQueryError(guard.denial) from None
             raise self._handle_error(e, timeout) from None
 
+    @exclusive_connection
     def execute_write(
         self,
         sql: str,
@@ -272,7 +352,7 @@ class SQLiteAdapter(DatabaseAdapter):
             handler_installed = True
             phase = WriteExecutionPhase.EXECUTE
             business_write_attempted = True
-            result = connection.execute(text(sql), params)
+            result = connection.execute(statement_text(sql, self.analysis_context), params)
             rowcount = result.rowcount
 
             phase = WriteExecutionPhase.ROWCOUNT_CHECK
@@ -375,13 +455,12 @@ class SQLiteAdapter(DatabaseAdapter):
         tables = []
         for row in result:
             table_name = row[0]
-            # Discovery can safely return an unusual table name, but the
-            # conservative identifier grammar intentionally prevents using it
-            # in generated metadata SQL. Preserve the table and mark its row
-            # estimate unknown instead of misreporting it as an empty table.
+            # Use the dialect name envelope; generated SQL quotes components
+            # and transport binding separately. Invalid observations remain
+            # unknown rather than falsely reporting an empty table.
             row_count = (
                 None
-                if _metadata_identifier_is_rejected(table_name)
+                if not self.valid_metadata_identifier(table_name)
                 else self.get_row_estimate(table_name)
             )
             tables.append({"table_name": table_name, "row_count": row_count})
@@ -403,12 +482,14 @@ class SQLiteAdapter(DatabaseAdapter):
         PRAGMA table_info returns:
         (cid, name, type, notnull, dflt_value, pk)
         """
-        if _metadata_identifier_is_rejected(table_name):
+        if not self.valid_metadata_identifier(table_name):
             return []
 
-        quoted_table_name = _quote_sqlite_identifier(table_name)
-        sql = f"PRAGMA main.table_info({quoted_table_name})"
-        result = self._execute_metadata(sql, 'reading table columns')
+        result = self._execute_metadata(
+            'SELECT cid, name, type, "notnull", dflt_value, pk '
+            "FROM pragma_table_info(:table_name, 'main') ORDER BY cid",
+            'reading table columns', params={"table_name": table_name},
+        )
 
 
         columns = []
@@ -428,7 +509,7 @@ class SQLiteAdapter(DatabaseAdapter):
 
     def get_indexes(self, table_name: str) -> list[dict[str, Any]]:
         """Read only main-schema indexes in two bounded metadata queries."""
-        if _metadata_identifier_is_rejected(table_name):
+        if not self.valid_metadata_identifier(table_name):
             raise MetadataQueryError("reading table indexes")
         budget = IndexMetadataBudget(self._query_timeout_seconds)
         index_rows = budget.rows(
@@ -511,7 +592,14 @@ class SQLiteAdapter(DatabaseAdapter):
 
         This avoids full table scan for large tables.
         """
-        if _metadata_identifier_is_rejected(table_name):
+        if not self.valid_metadata_identifier(table_name):
+            return None
+
+        # Directory callers can enumerate objects before their public allowlist
+        # projection. Never sample an ungranted object to populate its estimate.
+        policy = self._config.policy
+        relation = RelationReference(table_name, self.metadata_schema)
+        if policy.read_mode == "deny" or not policy.allows_metadata_relation(relation):
             return None
 
         # Try sqlite_stat1 first (if ANALYZE has been run)
@@ -541,12 +629,25 @@ class SQLiteAdapter(DatabaseAdapter):
         # Fallback: bounded sample-based estimation. This intentionally avoids
         # a full COUNT(*) on large tables; exact counts are opt-in elsewhere.
         sample_limit = 10000
-        quoted_table_name = _quote_sqlite_identifier(table_name)
-        sample_sql = f"SELECT COUNT(*) FROM (SELECT 1 FROM main.{quoted_table_name} LIMIT {sample_limit})"
+        quoted_table_name = self.render_metadata_relation(RelationReference(table_name, "main"))
+        estimate_cte = "__mcp_row_estimate"
+        if self.analysis_context.cte_key(table_name) == estimate_cte:
+            estimate_cte += "_"
+        sample_sql = (
+            f'WITH "{estimate_cte}"(marker) AS (SELECT 1 FROM {quoted_table_name} LIMIT {sample_limit}) '
+            f'SELECT COUNT(marker) FROM "{estimate_cte}"'
+        )
         try:
-            sample_result = self.execute(sample_sql)
+            # This fixed template evaluates user data and view expressions;
+            # unlike catalog/statistics SQL, it needs the normal read guard.
+            sample_result = self.execute_read(sample_sql, policy=policy)
         except DatabaseQueryError as error:
-            if error.error_code == "unknown_table":
+            if error.error_code in {
+                "unknown_table", "table_access_denied", "server_state_denied",
+                "lock_function_denied", "expensive_function_denied",
+                "file_operation_denied", "view_scope_unresolved", "read_disabled",
+                "session_semantics_unavailable",
+            }:
                 return None
             raise MetadataQueryError("estimating table rows") from None
         if not sample_result:
@@ -580,6 +681,7 @@ class SQLiteAdapter(DatabaseAdapter):
         """
         return self._database_path
 
+    @exclusive_connection
     def close(self) -> None:
         """Dispose SQLAlchemy engine."""
         if self._engine:

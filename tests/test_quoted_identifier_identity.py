@@ -6,8 +6,10 @@ from fastmcp import Client
 
 from sql_safety_executor import create_server, load_config
 from sql_safety_executor.core.policy import (
-    _extract_tables_from_sql, _normalize_sql_for_policy, _validate_sql_query_policy,
+    _extract_tables_from_sql, _validate_sql_query_policy,
 )
+from sql_safety_executor.core.analysis import analyze_sql
+from sql_safety_executor.database.semantics import DialectContext
 from sql_safety_executor.database.models import ConnectionPolicy
 from tests.test_v38_config import bundle as bundle
 
@@ -41,11 +43,11 @@ def test_native_quoted_names_are_decoded_once(name, other, delimiter):
         assert _extract_tables_from_sql(same_cte, case_sensitive=True, cte_case_sensitive=False) == []
 
 
-def test_normalization_preserves_literal_and_identifier_whitespace():
+def test_analysis_preserves_original_literal_identifier_and_comments():
     sql = 'SELECT\t\'a  b\tc\nd\' AS label FROM\n"  f  " -- ordinary comment\n'
-    normalized = _normalize_sql_for_policy(sql)
-    assert "'a  b\tc\nd'" in normalized and '"  f  "' in normalized
-    assert "ordinary comment" not in normalized
+    analysis = analyze_sql(sql, DialectContext("sqlite"))
+    assert analysis.complete and analysis.source_sql == sql
+    assert analysis.relations[0].name == "  f  "
 
 
 @pytest.mark.parametrize("mode", ["legacy", "auto"])

@@ -1,0 +1,6 @@
+{
+  "topic": "Financial trial 2 ranking interpretation",
+  "fixed_check_result": "11/12 unchanged; trial 2 uses raw floating-point residuals instead of the frozen currency-precision tie reference",
+  "clarification": "The user-facing frozen task did not explicitly require rounding before ranking. The 0.01 tolerance and financial context informed the reference, but this leaves a specification ambiguity. Do not equate this single fixed-check mismatch with proven MCP miscalculation or a universally incorrect Agent answer. Future task scripts should state rounding/tie semantics explicitly.",
+  "evidence_policy": "Keep the original trial, scorer, manual notes and sealed manifest unchanged; this addendum qualifies interpretation, not the measured result."
+}

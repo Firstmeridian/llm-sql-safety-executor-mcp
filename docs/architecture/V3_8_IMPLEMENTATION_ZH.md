@@ -1,5 +1,9 @@
 # v3.8 实施与决策记录
 
+> EXPLAIN 后续：触发器 READ／COUNT、WITH REPLACE 与 UPDATE OR 的补修、预算及驻留状态见[独立记录](../validation/v3.8/V3_8_2_EXPLAIN_FOLLOWUP_2026_10_17_ZH.md)；下列阶段证据保留原源码归属。
+
+> v3.8.2 当前实现见[名称／方言／执行保障设计](V3_8_2_SQL_SEMANTICS_ZH.md)及[验收记录](../validation/v3.8/V3_8_2_VALIDATION_2026_10_16_ZH.md)。以下按日期保留各阶段记录；其中 core/structure.py 已在 v3.8.2 被共享 SQLGlot 分析替换，旧的 AST／authorizer 暂缓决定不代表当前状态。
+
 基线：`582822b4aa751516c4a7f7e738ea0c2708f0fea9`。重构前隔离测试：676 passed、4 skipped。
 
 本次采纳三文件 TOML、实例级运行状态、可安装 src 包与独立提示词资源；将 MRTR 限于托管单语句写入，默认关闭。审批仍信任 Host，不声明服务端认证了真实人类。Tasks、多用户认证、分布式状态和跨重启恢复暂缓。

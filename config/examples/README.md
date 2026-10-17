@@ -106,3 +106,6 @@ Use the ignored `config/server.toml`, `config/connections.toml` and `config/skil
 `config/*.toml`, `config/secrets/` and `mcp_config.local.json` are ignored; `config/examples/` is public and tracked. Other custom locations need their own ignore rules. Python Skills are trusted code; directory containment does not sandbox them. Use explicit, reviewed paths.
 
 Check the local copy before pointing your Host at its absolute `server.toml` path. Stop the old process before switching versions. Rollback requires matching code, dependencies and configuration together. For every field, default and old-to-new mapping, see the [configuration and migration guide](../../docs/guides/CONFIGURATION_ZH.md); see also the [client guide](../../docs/guides/TEST_MCP_CLIENT_GUIDE.md) and [validation limits](../../docs/validation/v3.8/V3_8_VALIDATION_ZH.md).
+
+
+v3.8.2 also supports component-based `read.relations` and a complete optional `mysql.sql_mode` array. See the [current configuration contract](../../docs/guides/CONFIGURATION_ZH.md#v382结构化声明与会话约定). These examples retain simple grants; runtime dependencies include pinned SQLGlot.

@@ -33,6 +33,14 @@ Guides stay under `docs/guides/` even when their titles identify an earlier vers
 
 ## Releases and validation
 
+- [Dialect/session semantics, SQLGlot and SQLite authorizer](architecture/V3_8_2_SQL_SEMANTICS_ZH.md).
+- [v3.8.2 验收、成本与限制](validation/v3.8/V3_8_2_VALIDATION_2026_10_16_ZH.md).
+- [v3.8.2 view reads and non-executing plans](validation/v3.8/V3_8_2_READ_BOUNDARIES_2026_10_17_ZH.md).
+- [v3.8.2 trigger, WITH REPLACE and UPDATE OR plan follow-up](validation/v3.8/V3_8_2_EXPLAIN_FOLLOWUP_2026_10_17_ZH.md).
+
+- [v3.8.2 trigger-local CTE plan repair](validation/v3.8/V3_8_2_TRIGGER_CTE_2026_10_17_ZH.md).
+- [v3.8.2 adjacent audit and current complete Agent trials](validation/v3.8/V3_8_2_ADJACENT_AUDIT_2026_10_17_ZH.md).
+- [v3.8.2 WHEN repair and Host readiness diagnosis](validation/v3.8/V3_8_2_TRIGGER_WHEN_2026_10_17_ZH.md)。
 - [v3.8 validation reports and original evidence](validation/v3.8/).
 - [Shared CTE analysis, functional repairs and adjacent checks](validation/v3.8/V3_8_1_CTE_ANALYSIS_2026_10_15_ZH.md).
 - [Ambiguous WITH recovery and open CTE limits](validation/v3.8/V3_8_1_CTE_CLASSIFICATION_2026_10_15_ZH.md).

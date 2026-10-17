@@ -1,0 +1,219 @@
+{
+  "closed_utc": "2026-10-16 10:37:43 UTC",
+  "scope": "Materialized-CTE count repair, final source/install/cost/native evidence and targeted model follow-up",
+  "files": {
+    "assessment_addendum.json": {
+      "sha256": "cde0b64f0f738c59412d66aa9819bfb04cd9f48c6828541a835780b6efdfbf8b",
+      "bytes": 762
+    },
+    "authorizer_before.py.gz": {
+      "sha256": "2c12bf8e682dee54536f7d8b242d031ec0fa5d012b137d591b1d6ad8427ebbed",
+      "bytes": 2469
+    },
+    "build-cte-count-fixture.log.gz": {
+      "sha256": "d92b6efff3ef59588ccb7c767889a62fb66da94643694289d9e90aa1a43ad07c",
+      "bytes": 154
+    },
+    "build-cte-count.log.gz": {
+      "sha256": "d92b6efff3ef59588ccb7c767889a62fb66da94643694289d9e90aa1a43ad07c",
+      "bytes": 154
+    },
+    "closure_checks.json": {
+      "sha256": "78fb1b304a7a0d05563533c54206a856cff18ed6e1eb28efdee1ec00f4788d81",
+      "bytes": 342
+    },
+    "closure_checks_before_restart.json": {
+      "sha256": "77eb2662b64e37ebbe226abf6b19f7a21a45955cad4a88ac17e8b058243e3d46",
+      "bytes": 378
+    },
+    "cost-cte-count-A1.log.gz": {
+      "sha256": "2dd2af8064053ae472e32bcf14b93b9ac3538bd7fa78179d71932d5fb364dc86",
+      "bytes": 270
+    },
+    "cost-cte-count-A2.log.gz": {
+      "sha256": "516d043b074476d1cfd8f2d0b230b4cd567e0b220f7f428cfcea759ab102313f",
+      "bytes": 269
+    },
+    "cost-cte-count-B.log.gz": {
+      "sha256": "48f0fe5453446e270420b2551fb8c9c3a4c490885bff41ed61cd2d6646f634c7",
+      "bytes": 269
+    },
+    "cost_A1.json.gz": {
+      "sha256": "7277b64c2f7bee63e9f34d20e4b95fa19194537bf48b83d34333eab12b379dcf",
+      "bytes": 12182
+    },
+    "cost_A2.json.gz": {
+      "sha256": "439d23c522cdd9c9404add130fa41b0e7a9947d1e1b7032ff928f0b93806532f",
+      "bytes": 12176
+    },
+    "cost_B.json.gz": {
+      "sha256": "8373ee91844771c9a5e2cfb1a9bf0b0bea123c0f3470801ef9f9ccda3988205d",
+      "bytes": 11836
+    },
+    "cost_summary.json": {
+      "sha256": "493bae255325ffa56aa189f5ff0124bbaf33d4659c04f89b6e12713e71d137b8",
+      "bytes": 5201
+    },
+    "cte-count-after.log.gz": {
+      "sha256": "909aff17c74a49a64033547ebb2252c36a8ec05124036d9129b39c11d686c449",
+      "bytes": 53
+    },
+    "cte-count-before.log.gz": {
+      "sha256": "f926390e5fc748b1223c2cfd556de3255dffd1f48ab795e84b9c9051c46e810d",
+      "bytes": 2289
+    },
+    "environment_notes.json": {
+      "sha256": "644e70391742f3e37b6a48aaf1d985acc003074527ed93cc991beb922e6bfd54",
+      "bytes": 1222
+    },
+    "full-cte-count.log.gz": {
+      "sha256": "8bd320ccbd9fa36016cd04de31014dd304329a94861a022003bceb96465b2b1e",
+      "bytes": 691
+    },
+    "install-cte-count-fixture.log.gz": {
+      "sha256": "91713b18b113bf9af5f99cad35237ad065851a032c79678112aa6331dbe2a388",
+      "bytes": 215
+    },
+    "install-cte-count.log.gz": {
+      "sha256": "5282ee70a7180c4b18a2edfc0d5e2220c27771973e9f131b35fb9e79fd830bec",
+      "bytes": 227
+    },
+    "installed-cte-count-fixture.log.gz": {
+      "sha256": "fc005c5643b5651e9bf73ea75427f19bff536bb1b33fc9819302d0afc0a1e673",
+      "bytes": 2011
+    },
+    "installed-cte-count.log.gz": {
+      "sha256": "1a52708a47485d6928843757f8ffd2cff9f8b038671f9ed55269abbb344d2c51",
+      "bytes": 487
+    },
+    "installed_semantics.json.gz": {
+      "sha256": "5e26480c41ebcc911112b193a87c272660b0200c4463251408532d2316c8f08b",
+      "bytes": 10210
+    },
+    "luna_tasks/agents.json": {
+      "sha256": "1b3830df6daf028a5aea1e99d934df352c3b17acbfbe2e6db50b6e22111cd618",
+      "bytes": 514
+    },
+    "luna_tasks/collection_correction.json": {
+      "sha256": "5e247bb26f5fd2265ca37096c60ad1a16d5103d6f93eb1b3f32b80cfd3bdca2e",
+      "bytes": 1115
+    },
+    "luna_tasks/final_preflight_1.json.gz": {
+      "sha256": "0ee4d348c1c5e200f7c258b9e5c622ad135242352aca0f7ff83da61b96aab3ba",
+      "bytes": 9505
+    },
+    "luna_tasks/manifest.json": {
+      "sha256": "d4d8e03c13f91d8abd2750aab4d6e48265850f4c31f1e17280287f9770341dd2",
+      "bytes": 2438
+    },
+    "luna_tasks/manual_assessment.json": {
+      "sha256": "ff95a1c4a7870eb82c516685d5fd844504ae32d56d5828b139420162e71a28ec",
+      "bytes": 1255
+    },
+    "luna_tasks/manual_review.json": {
+      "sha256": "55c0e81fcd2a2a5195629103a7b94ab3ad5ad7910256a369efb542f33969e292",
+      "bytes": 1837
+    },
+    "luna_tasks/plan.json": {
+      "sha256": "1a5e71f24872d0590847e24ae467a3bd2c031bb95ac9c0fea19febe4a58f567b",
+      "bytes": 3455
+    },
+    "luna_tasks/real_task_eval.py.gz": {
+      "sha256": "bdf30babf01fcaf16f47943999a7b52e9297216330d84bd5b4db48db160d7f51",
+      "bytes": 6223
+    },
+    "luna_tasks/run_status.json": {
+      "sha256": "dce9ee5c686d4bd197f08424f8cb42a60aef50a9a90e7771b3a45affa06c94fc",
+      "bytes": 501
+    },
+    "luna_tasks/sales_1.json.gz": {
+      "sha256": "ac484fb0b5fcfe72b46a508e449267d171cd785373c347614bcb7a656bf0bd1a",
+      "bytes": 26649
+    },
+    "luna_tasks/sales_2.json.gz": {
+      "sha256": "2d020e8d8078094ae453054b78e75dfd90cc6bbd9f66a70c21be5c3cbf41670d",
+      "bytes": 23001
+    },
+    "luna_tasks/sales_3.json.gz": {
+      "sha256": "25ee1e6a111f12c16deee512784b1f4ce4a4733e571fe703568e70371a33f705",
+      "bytes": 22982
+    },
+    "luna_tasks/summarize_real_tasks.py.gz": {
+      "sha256": "bba0d0839ffd89ff8a01938727400ae6815239fb6dbc81c88954eee7273ee80b",
+      "bytes": 3802
+    },
+    "luna_tasks/summary.json": {
+      "sha256": "194380c95a100892621e36453a7cf74dca3f331b44a63277655ffe87fca469ef",
+      "bytes": 6634
+    },
+    "luna_tasks/truth_after.json": {
+      "sha256": "f50def8e5c3f7f22a8743d8f4698e3164fa8a9f1c982f65b269153ee254a761d",
+      "bytes": 20223
+    },
+    "luna_tasks/truth_before.json": {
+      "sha256": "0f002c0e1f66510e0313ebe6a30bfe2dbba6563b94529ede06587cc2c0eb6dc1",
+      "bytes": 20224
+    },
+    "manifest_before_final_restart.json": {
+      "sha256": "66695e6cec45bf161bbe23d51e8c4dfa8ddf404e56a7028fb595aef4bb470f6e",
+      "bytes": 4637
+    },
+    "native_after_final_restart.json": {
+      "sha256": "0f8406fbef6ff6de04c8a2ef04178cfffc82b50666bc8c3cb5f233a1e2b1935c",
+      "bytes": 18388
+    },
+    "native_before_final_restart.json": {
+      "sha256": "e8c1dac5284b3aecd89be428f3be6e736b145375de07135dcc54f987c9d65001",
+      "bytes": 6688
+    },
+    "original_query_after.json": {
+      "sha256": "138cff73614119d72723627bdad44cdf4ee93b22af974fa5697470a7b7cf0032",
+      "bytes": 2776
+    },
+    "probe_before.json.gz": {
+      "sha256": "cb40196e304b31c94de86ec9675cd92945229c128b750e36bc7de75ef1b583d6",
+      "bytes": 1133
+    },
+    "prompt-cte-count.log.gz": {
+      "sha256": "090e5d838501a835953ba08eeacb177cf0ecef59e67add02b2bcb919113e87ea",
+      "bytes": 74
+    },
+    "pyright-cte-count-absolute.log.gz": {
+      "sha256": "c8f40ac3b3f577d99ca528dc797ac395a63bdcedd0b425151e1b76ffc54e42f5",
+      "bytes": 53
+    },
+    "pyright-cte-count.log.gz": {
+      "sha256": "9c4ba34e3d9b22a36b31c06e8715ca29cd35930b8743226303b74ef1bde7d0ef",
+      "bytes": 831
+    },
+    "regression_before.log.gz": {
+      "sha256": "f926390e5fc748b1223c2cfd556de3255dffd1f48ab795e84b9c9051c46e810d",
+      "bytes": 2289
+    },
+    "report_before.md.gz": {
+      "sha256": "34b897fd59d4630789bfd5fe6f9cc07002ee87113f4d579b283e59b38a41f295",
+      "bytes": 7497
+    },
+    "report_before_final_restart.md.gz": {
+      "sha256": "e1429a5a4ccf431f13496b6397ef5474b1d42ee118cbf6a6d1e909c211a2da06",
+      "bytes": 10859
+    },
+    "source_closure.json": {
+      "sha256": "63856c5f1e8ace9fa9c8737f7398986797e0da8f893df90a361b7f2cb56435d7",
+      "bytes": 16012
+    },
+    "source_current.json": {
+      "sha256": "3b45bf02d95198a4e2a40a3f7bbb8e4b5908324779b8f13a94e0fa5937e9a9d9",
+      "bytes": 15340
+    },
+    "verification_before_final_restart.json.gz": {
+      "sha256": "d1c48f323a998c3522f88224b6f1bb8536cf7714e38daaaac80becb02a5d2dea",
+      "bytes": 2205
+    },
+    "verify-installed-cte-count.log.gz": {
+      "sha256": "79661ef0e2545b3944792b8749247b3b8d9a00dbb9897ccfae468680827fbe58",
+      "bytes": 824
+    }
+  },
+  "recording_limits": "Sanitized public application events/results, not complete JSON-RPC frames; no hidden reasoning or full preview bearer values"
+}

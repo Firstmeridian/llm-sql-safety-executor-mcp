@@ -1,0 +1,96 @@
+{
+  "scope": "Frozen 12 Luna trials BEFORE the materialized-CTE count supplement; later source must not be relabelled as the tested source",
+  "files": {
+    "agents.json": {
+      "sha256": "5126181b218577b20d301ccf95f2e947237207c9818b6a730b2997cd215b8c68",
+      "bytes": 2071
+    },
+    "manual_review.json": {
+      "sha256": "ee0bceca3a1c8d82d809f2c7daa8f6ae1fc3d3fc80a3186f09656c17e6fd0c92",
+      "bytes": 2018
+    },
+    "plan.json": {
+      "sha256": "0732dbd45ba7ce4b9223fe88f64443701e53be2bc040090468e4f5a5c32fbf62",
+      "bytes": 8148
+    },
+    "post_restart_preflight_1.json.gz": {
+      "sha256": "6f4df86c9420251db85b17c775713335dec888987051bc3dc738b70e372a7b9e",
+      "bytes": 9489
+    },
+    "real_task_eval.py.gz": {
+      "sha256": "120054d300eaa434077c21e1c10f5889f531e885bb4656600e3869e9a25486d5",
+      "bytes": 6029
+    },
+    "reconciliation_1.json.gz": {
+      "sha256": "4d159d0e8604d9289b6775cab9f95a78b2d4948886c07a0487623cd9f9ee1035",
+      "bytes": 20930
+    },
+    "reconciliation_2.json.gz": {
+      "sha256": "f2f71cf53a435dc7507005d9a557f5bb33b48b49ca3c26263a0f22565e90a44b",
+      "bytes": 20918
+    },
+    "reconciliation_3.json.gz": {
+      "sha256": "0e333e71af7415e66128ad3f0ab4a7e0fe816c406330382509073c726bf9eaed",
+      "bytes": 19542
+    },
+    "recovery_1.json.gz": {
+      "sha256": "da6ab55b7aa271ce8973aeb8a246278e09f032d62da80331be2450263bfd07ac",
+      "bytes": 22494
+    },
+    "recovery_2.json.gz": {
+      "sha256": "e58a00b757e985fc858b6e627414dd062af417142b5089b238110ca92df747c7",
+      "bytes": 21507
+    },
+    "recovery_3.json.gz": {
+      "sha256": "bf4e65bd3069d761de4076b960c6123b6b187ce7f2f1bdad9fc6a67f0bef9bbd",
+      "bytes": 27227
+    },
+    "routing_1.json.gz": {
+      "sha256": "6d8db3aff0709e206872a3710d194939295f92004a8c3fbdc0eab81e7ea4d793",
+      "bytes": 28257
+    },
+    "routing_2.json.gz": {
+      "sha256": "26977324bcaf1d3710fadc62e171c73e2eef50bb4ee892956310829e7b19481c",
+      "bytes": 25663
+    },
+    "routing_3.json.gz": {
+      "sha256": "42235a6c7c2df01027d515d290e8dd6cc853384631cbb3a0a4497d3cf8e3b75b",
+      "bytes": 27671
+    },
+    "sales_1.json.gz": {
+      "sha256": "836a36ec6a6d7d6337110dc5d27fe5aa3d9876d45c96d026c8009b0870d02750",
+      "bytes": 21204
+    },
+    "sales_2.json.gz": {
+      "sha256": "9868060937207981a70ef48cf1437f02fc03751c4de8d1bc8593b94e629079a4",
+      "bytes": 23875
+    },
+    "sales_3.json.gz": {
+      "sha256": "23132d62829eae9aec4289087a1d3ff168a7d2ad688adbdfaa2d8c068cc65a77",
+      "bytes": 17082
+    },
+    "summarize_real_tasks.py.gz": {
+      "sha256": "a73aabf902c9cf80b58086af95264631ac6ebd69de6b5677861d41119835cb2d",
+      "bytes": 4133
+    },
+    "summary.json": {
+      "sha256": "8027885e2e8e4138b8ccf6687a0e81bd641c0bdbdb4e852ee80769a9762373e8",
+      "bytes": 16789
+    },
+    "truth_after.json": {
+      "sha256": "7a2a3a074ad4a1238b8ff9174eb3be837c32e742a03b195924e523d7691fcffa",
+      "bytes": 20223
+    },
+    "truth_before.json": {
+      "sha256": "659ca8392bb285e82cb88d861cb9cecbf83fce7ce0335632bf47530ebd5681e1",
+      "bytes": 20224
+    },
+    "truth_pre_bare_function_fix.json": {
+      "sha256": "4d3ceaeb0531f2ff8f9592c590799fec7861e5036f8c27af2a9b8ae49d3ab385",
+      "bytes": 20224
+    }
+  },
+  "source_record": "truth_before.json; same source hashes in truth_after.json",
+  "summary": "summary.json",
+  "limits": "Public application events/usage, not full protocol frames; no hidden reasoning or full bearer values"
+}

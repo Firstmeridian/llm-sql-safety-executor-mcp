@@ -1,0 +1,23 @@
+[
+  {
+    "case": "sales",
+    "trial": 1,
+    "agent_id": "01a14994-ceb4-7632-b67a-e2e9fac28337",
+    "nickname": "Parfit",
+    "status": "complete"
+  },
+  {
+    "case": "sales",
+    "trial": 2,
+    "agent_id": "01a14994-cf9e-7042-9786-ce1f5c024395",
+    "nickname": "Dirac",
+    "status": "complete"
+  },
+  {
+    "case": "sales",
+    "trial": 3,
+    "agent_id": "01a14994-d166-7682-95cc-06df68495191",
+    "nickname": "Nash",
+    "status": "complete"
+  }
+]

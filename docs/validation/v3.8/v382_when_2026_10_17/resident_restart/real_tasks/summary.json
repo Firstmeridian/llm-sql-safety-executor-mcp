@@ -1,0 +1,564 @@
+{
+  "version": "3.8.2",
+  "model": "gpt-6-luna",
+  "reasoning_effort": "medium",
+  "trials": [
+    {
+      "trial": 1,
+      "agent_id": "01a149d4-4596-7d33-98ed-279639b2104d",
+      "checks": {
+        "actual_child_canary": true,
+        "all_three_scripted_inputs_observed": true,
+        "three_finals": true,
+        "same_child": true,
+        "only_requested_connection": true,
+        "native_mcp_only": true,
+        "read_tools_only": true,
+        "no_host_error": true,
+        "no_truncated_data": true,
+        "business_returned_each_turn": true,
+        "within_budget": true,
+        "initial_metrics": true,
+        "updated_metrics": true,
+        "record_preserving_aggregates": true,
+        "scope_change_explained": true,
+        "no_scope_fallback_or_write_attempt": true,
+        "no_partial_detail_sum": true,
+        "recovery_semantics_correct": true
+      },
+      "passed": true,
+      "methods": {
+        "query": 4,
+        "get_full_schema": 1
+      },
+      "no_policy_or_tool_rejection": true,
+      "rejections": [],
+      "phase_observations": [
+        {
+          "turn": 1,
+          "timestamp": "2026-10-17T12:27:00.377Z",
+          "returned_at": "2026-10-17T12:27:02.719Z",
+          "method_candidates": [
+            "mcp__sql_safety_executor_mcp__query"
+          ],
+          "profile": "MCP response envelope",
+          "isError": false,
+          "success": true,
+          "connection_id": "union_test_sqlite",
+          "error_code": null,
+          "row_count": 1,
+          "truncated": false,
+          "collector_original_turn": 1
+        },
+        {
+          "turn": 2,
+          "timestamp": "2026-10-17T12:27:37.096Z",
+          "returned_at": "2026-10-17T12:27:37.173Z",
+          "method_candidates": [
+            "mcp__sql_safety_executor_mcp__get_full_schema"
+          ],
+          "profile": "MCP response envelope",
+          "isError": false,
+          "success": true,
+          "connection_id": "union_test_sqlite",
+          "error_code": null,
+          "row_count": null,
+          "truncated": false,
+          "collector_original_turn": 1
+        },
+        {
+          "turn": 2,
+          "timestamp": "2026-10-17T12:27:42.671Z",
+          "returned_at": "2026-10-17T12:27:42.717Z",
+          "method_candidates": [
+            "mcp__sql_safety_executor_mcp__query"
+          ],
+          "profile": "MCP response envelope",
+          "isError": false,
+          "success": true,
+          "connection_id": "union_test_sqlite",
+          "error_code": null,
+          "row_count": 46,
+          "truncated": false,
+          "collector_original_turn": 1
+        },
+        {
+          "turn": 2,
+          "timestamp": "2026-10-17T12:27:48.177Z",
+          "returned_at": "2026-10-17T12:27:48.224Z",
+          "method_candidates": [
+            "mcp__sql_safety_executor_mcp__query"
+          ],
+          "profile": "MCP response envelope",
+          "isError": false,
+          "success": true,
+          "connection_id": "union_test_sqlite",
+          "error_code": null,
+          "row_count": 4,
+          "truncated": false,
+          "collector_original_turn": 1
+        },
+        {
+          "turn": 3,
+          "timestamp": "2026-10-17T12:28:22.112Z",
+          "returned_at": "2026-10-17T12:28:22.161Z",
+          "method_candidates": [
+            "mcp__sql_safety_executor_mcp__query"
+          ],
+          "profile": "MCP response envelope",
+          "isError": false,
+          "success": true,
+          "connection_id": "union_test_sqlite",
+          "error_code": null,
+          "row_count": 4,
+          "truncated": false,
+          "collector_original_turn": 2
+        }
+      ],
+      "phase_attribution": "Recomputed from exact public scripted input timestamps; original collector turn labels retained separately.",
+      "all_mcp_returns": 5,
+      "canary_mcp_returns": 1,
+      "business_mcp_returns": 4,
+      "business_by_turn": {
+        "2": 3,
+        "3": 1
+      },
+      "return_profiles": {
+        "MCP response envelope": 5
+      },
+      "catalog_inspections": 2,
+      "all_model_responses": 10,
+      "business_model_responses": 7,
+      "all_usage": {
+        "input_tokens": 298489,
+        "cached_input_tokens": 277504,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 2758,
+        "reasoning_output_tokens": 632,
+        "total_tokens": 301247
+      },
+      "canary_usage": {
+        "input_tokens": 71489,
+        "cached_input_tokens": 62080,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 366,
+        "reasoning_output_tokens": 72,
+        "total_tokens": 71855
+      },
+      "business_usage_delta": {
+        "input_tokens": 227000,
+        "cached_input_tokens": 215424,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 2392,
+        "reasoning_output_tokens": 560,
+        "total_tokens": 229392
+      },
+      "all_active_seconds": 46.251,
+      "canary_active_seconds": 14.194,
+      "business_active_seconds": 32.057,
+      "public_tool_output_bytes": 73123,
+      "manual_review": "UNION ALL preserves records, COUNT(DISTINCT) is global, dates are explicit, quarter/region/product denominators match. Follow-up filters east and recomputes totals/top products. First aggregate labels all 38 products product_top3 and returns 46 rows, then a four-row query verifies actual top three and growth; inefficient but no incomplete/truncated aggregation or false final business claim."
+    },
+    {
+      "trial": 2,
+      "agent_id": "01a149d4-4613-7700-a156-f304ae97a862",
+      "checks": {
+        "actual_child_canary": true,
+        "all_three_scripted_inputs_observed": true,
+        "three_finals": true,
+        "same_child": true,
+        "only_requested_connection": true,
+        "native_mcp_only": true,
+        "read_tools_only": true,
+        "no_host_error": true,
+        "no_truncated_data": true,
+        "business_returned_each_turn": true,
+        "within_budget": true,
+        "initial_metrics": true,
+        "updated_metrics": true,
+        "record_preserving_aggregates": true,
+        "scope_change_explained": true,
+        "no_scope_fallback_or_write_attempt": true,
+        "no_partial_detail_sum": true,
+        "recovery_semantics_correct": true
+      },
+      "passed": true,
+      "methods": {
+        "query": 7,
+        "get_full_schema": 1
+      },
+      "no_policy_or_tool_rejection": true,
+      "rejections": [],
+      "phase_observations": [
+        {
+          "turn": 1,
+          "timestamp": "2026-10-17T12:27:00.915Z",
+          "returned_at": "2026-10-17T12:27:03.206Z",
+          "method_candidates": [
+            "mcp__sql_safety_executor_mcp__query"
+          ],
+          "profile": "MCP response envelope",
+          "isError": false,
+          "success": true,
+          "connection_id": "union_test_sqlite",
+          "error_code": null,
+          "row_count": 1,
+          "truncated": false,
+          "collector_original_turn": 1
+        },
+        {
+          "turn": 2,
+          "timestamp": "2026-10-17T12:27:36.998Z",
+          "returned_at": "2026-10-17T12:27:37.056Z",
+          "method_candidates": [
+            "mcp__sql_safety_executor_mcp__get_full_schema"
+          ],
+          "profile": "MCP response envelope",
+          "isError": false,
+          "success": true,
+          "connection_id": "union_test_sqlite",
+          "error_code": null,
+          "row_count": null,
+          "truncated": false,
+          "collector_original_turn": 1
+        },
+        {
+          "turn": 2,
+          "timestamp": "2026-10-17T12:27:41.642Z",
+          "returned_at": "2026-10-17T12:27:41.772Z",
+          "method_candidates": [
+            "mcp__sql_safety_executor_mcp__query"
+          ],
+          "profile": "MCP response envelope",
+          "isError": false,
+          "success": true,
+          "connection_id": "union_test_sqlite",
+          "error_code": null,
+          "row_count": 3,
+          "truncated": false,
+          "collector_original_turn": 1
+        },
+        {
+          "turn": 2,
+          "timestamp": "2026-10-17T12:27:44.660Z",
+          "returned_at": "2026-10-17T12:27:45.399Z",
+          "method_candidates": [
+            "mcp__sql_safety_executor_mcp__query"
+          ],
+          "profile": "MCP response envelope",
+          "isError": false,
+          "success": true,
+          "connection_id": "union_test_sqlite",
+          "error_code": null,
+          "row_count": 4,
+          "truncated": false,
+          "collector_original_turn": 1
+        },
+        {
+          "turn": 2,
+          "timestamp": "2026-10-17T12:27:47.725Z",
+          "returned_at": "2026-10-17T12:27:47.965Z",
+          "method_candidates": [
+            "mcp__sql_safety_executor_mcp__query"
+          ],
+          "profile": "MCP response envelope",
+          "isError": false,
+          "success": true,
+          "connection_id": "union_test_sqlite",
+          "error_code": null,
+          "row_count": 3,
+          "truncated": false,
+          "collector_original_turn": 1
+        },
+        {
+          "turn": 2,
+          "timestamp": "2026-10-17T12:27:51.131Z",
+          "returned_at": "2026-10-17T12:27:51.477Z",
+          "method_candidates": [
+            "mcp__sql_safety_executor_mcp__query"
+          ],
+          "profile": "MCP response envelope",
+          "isError": false,
+          "success": true,
+          "connection_id": "union_test_sqlite",
+          "error_code": null,
+          "row_count": 1,
+          "truncated": false,
+          "collector_original_turn": 1
+        },
+        {
+          "turn": 3,
+          "timestamp": "2026-10-17T12:28:22.843Z",
+          "returned_at": "2026-10-17T12:28:23.101Z",
+          "method_candidates": [
+            "mcp__sql_safety_executor_mcp__query"
+          ],
+          "profile": "MCP response envelope",
+          "isError": false,
+          "success": true,
+          "connection_id": "union_test_sqlite",
+          "error_code": null,
+          "row_count": 1,
+          "truncated": false,
+          "collector_original_turn": 2
+        },
+        {
+          "turn": 3,
+          "timestamp": "2026-10-17T12:28:25.492Z",
+          "returned_at": "2026-10-17T12:28:25.648Z",
+          "method_candidates": [
+            "mcp__sql_safety_executor_mcp__query"
+          ],
+          "profile": "MCP response envelope",
+          "isError": false,
+          "success": true,
+          "connection_id": "union_test_sqlite",
+          "error_code": null,
+          "row_count": 3,
+          "truncated": false,
+          "collector_original_turn": 2
+        }
+      ],
+      "phase_attribution": "Recomputed from exact public scripted input timestamps; original collector turn labels retained separately.",
+      "all_mcp_returns": 8,
+      "canary_mcp_returns": 1,
+      "business_mcp_returns": 7,
+      "business_by_turn": {
+        "2": 5,
+        "3": 2
+      },
+      "return_profiles": {
+        "MCP response envelope": 8
+      },
+      "catalog_inspections": 2,
+      "all_model_responses": 14,
+      "business_model_responses": 11,
+      "all_usage": {
+        "input_tokens": 414173,
+        "cached_input_tokens": 395648,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 2358,
+        "reasoning_output_tokens": 503,
+        "total_tokens": 416531
+      },
+      "canary_usage": {
+        "input_tokens": 71456,
+        "cached_input_tokens": 61952,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 317,
+        "reasoning_output_tokens": 52,
+        "total_tokens": 71773
+      },
+      "business_usage_delta": {
+        "input_tokens": 342717,
+        "cached_input_tokens": 333696,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 2041,
+        "reasoning_output_tokens": 451,
+        "total_tokens": 344758
+      },
+      "all_active_seconds": 55.683,
+      "canary_active_seconds": 14.803,
+      "business_active_seconds": 40.88,
+      "public_tool_output_bytes": 62434,
+      "manual_review": "UNION ALL and global DISTINCT, correct overall/quarter/region/product aggregates; exclusion applied independently in all three branches and explained. Seven business calls (five first turn/two second), including an extra total query. Relies on the three quarter tables containing only the named periods instead of explicit sold_on bounds; correct for independently verified current fixture, not a guarantee for date-contaminated future tables."
+    },
+    {
+      "trial": 3,
+      "agent_id": "01a149d4-4694-7121-8bef-c9cc649a1f28",
+      "checks": {
+        "actual_child_canary": true,
+        "all_three_scripted_inputs_observed": true,
+        "three_finals": true,
+        "same_child": true,
+        "only_requested_connection": true,
+        "native_mcp_only": true,
+        "read_tools_only": true,
+        "no_host_error": true,
+        "no_truncated_data": true,
+        "business_returned_each_turn": true,
+        "within_budget": true,
+        "initial_metrics": true,
+        "updated_metrics": true,
+        "record_preserving_aggregates": true,
+        "scope_change_explained": true,
+        "no_scope_fallback_or_write_attempt": true,
+        "no_partial_detail_sum": true,
+        "recovery_semantics_correct": true
+      },
+      "passed": true,
+      "methods": {
+        "query": 4,
+        "get_full_schema": 1
+      },
+      "no_policy_or_tool_rejection": false,
+      "rejections": [
+        {
+          "phase": 2,
+          "error_code": "sql_parse_failed"
+        }
+      ],
+      "phase_observations": [
+        {
+          "turn": 1,
+          "timestamp": "2026-10-17T12:27:03.651Z",
+          "returned_at": "2026-10-17T12:27:05.786Z",
+          "method_candidates": [
+            "mcp__sql_safety_executor_mcp__query"
+          ],
+          "profile": "MCP response envelope",
+          "isError": false,
+          "success": true,
+          "connection_id": "union_test_sqlite",
+          "error_code": null,
+          "row_count": 1,
+          "truncated": false,
+          "collector_original_turn": 1
+        },
+        {
+          "turn": 2,
+          "timestamp": "2026-10-17T12:27:36.408Z",
+          "returned_at": "2026-10-17T12:27:36.459Z",
+          "method_candidates": [
+            "mcp__sql_safety_executor_mcp__get_full_schema"
+          ],
+          "profile": "MCP response envelope",
+          "isError": false,
+          "success": true,
+          "connection_id": "union_test_sqlite",
+          "error_code": null,
+          "row_count": null,
+          "truncated": false,
+          "collector_original_turn": 1
+        },
+        {
+          "turn": 2,
+          "timestamp": "2026-10-17T12:27:47.226Z",
+          "returned_at": "2026-10-17T12:27:47.379Z",
+          "method_candidates": [
+            "mcp__sql_safety_executor_mcp__query"
+          ],
+          "profile": "MCP response envelope",
+          "isError": false,
+          "success": false,
+          "connection_id": "union_test_sqlite",
+          "error_code": "sql_parse_failed",
+          "row_count": null,
+          "truncated": null,
+          "collector_original_turn": 1
+        },
+        {
+          "turn": 2,
+          "timestamp": "2026-10-17T12:27:53.296Z",
+          "returned_at": "2026-10-17T12:27:53.621Z",
+          "method_candidates": [
+            "mcp__sql_safety_executor_mcp__query"
+          ],
+          "profile": "MCP response envelope",
+          "isError": false,
+          "success": true,
+          "connection_id": "union_test_sqlite",
+          "error_code": null,
+          "row_count": 11,
+          "truncated": false,
+          "collector_original_turn": 1
+        },
+        {
+          "turn": 3,
+          "timestamp": "2026-10-17T12:28:24.642Z",
+          "returned_at": "2026-10-17T12:28:24.687Z",
+          "method_candidates": [
+            "mcp__sql_safety_executor_mcp__query"
+          ],
+          "profile": "MCP response envelope",
+          "isError": false,
+          "success": true,
+          "connection_id": "union_test_sqlite",
+          "error_code": null,
+          "row_count": 4,
+          "truncated": false,
+          "collector_original_turn": 2
+        }
+      ],
+      "phase_attribution": "Recomputed from exact public scripted input timestamps; original collector turn labels retained separately.",
+      "all_mcp_returns": 5,
+      "canary_mcp_returns": 1,
+      "business_mcp_returns": 4,
+      "business_by_turn": {
+        "2": 3,
+        "3": 1
+      },
+      "return_profiles": {
+        "MCP response envelope": 5
+      },
+      "catalog_inspections": 3,
+      "all_model_responses": 11,
+      "business_model_responses": 8,
+      "all_usage": {
+        "input_tokens": 329139,
+        "cached_input_tokens": 308224,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 4002,
+        "reasoning_output_tokens": 1599,
+        "total_tokens": 333141
+      },
+      "canary_usage": {
+        "input_tokens": 71564,
+        "cached_input_tokens": 62080,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 252,
+        "reasoning_output_tokens": 67,
+        "total_tokens": 71816
+      },
+      "business_usage_delta": {
+        "input_tokens": 257575,
+        "cached_input_tokens": 246144,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 3750,
+        "reasoning_output_tokens": 1532,
+        "total_tokens": 261325
+      },
+      "all_active_seconds": 51.201,
+      "canary_active_seconds": 16.151,
+      "business_active_seconds": 35.05,
+      "public_tool_output_bytes": 67228,
+      "manual_review": "First business SQL attempted a derived FROM subquery and received sql_parse_failed with same-connection simplify hint. This is an explicitly unsupported query shape; corrected by moving ranking into CTEs, without bypass/fallback. UNION ALL/global DISTINCT and consistent aggregate denominators then match all required outcomes. Follow-up recomputes east exclusion and retains null regions; fixture contains no null region, so requested outcome matches. Decline direction and south (translated as 南区) are correct. Initial refusal and subsequent success remain separate."
+    }
+  ],
+  "planned_trials": 3,
+  "passed_complete_business_trials": 3,
+  "trials_without_policy_or_tool_rejection": 2,
+  "scripted_user_inputs": 9,
+  "setup_canary_inputs": 3,
+  "business_user_inputs": 6,
+  "all_mcp_returns": 18,
+  "business_mcp_returns": 15,
+  "all_model_responses": 35,
+  "business_model_responses": 26,
+  "all_active_seconds": 153.135,
+  "business_active_seconds": 107.987,
+  "all_usage": {
+    "input_tokens": 1041801,
+    "cached_input_tokens": 981376,
+    "cache_write_input_tokens": 0,
+    "output_tokens": 9118,
+    "reasoning_output_tokens": 2734,
+    "total_tokens": 1050919
+  },
+  "business_usage_delta": {
+    "input_tokens": 827292,
+    "cached_input_tokens": 795264,
+    "cache_write_input_tokens": 0,
+    "output_tokens": 8183,
+    "reasoning_output_tokens": 2543,
+    "total_tokens": 835475
+  },
+  "scope": "Each actual child passed one setup call before its own two business turns. This warms the same context and is not a matched A/B with earlier unprepared trials. Three trials do not establish an availability rate.",
+  "cost_limits": "Host cumulative usage minus saved canary checkpoint; cached input is a subset. Active intervals include model/Host/tool/shared-service time; public output bytes include metadata, omit complete transport. No invoice, pure server latency, legacy A/B or WHEN-specific business coverage claim.",
+  "data_integrity": {
+    "authorized_tables_unchanged": 7,
+    "runtime_resources_unchanged": 75,
+    "configured_writes": false
+  },
+  "historical_business_result": "Original pre-WHEN three trials remain 2/3, with one Host availability failure; not relabeled by this batch."
+}

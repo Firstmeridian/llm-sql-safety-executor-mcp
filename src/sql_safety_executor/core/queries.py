@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 from sql_safety_executor.core.constants import _CONNECTION_ID_FIELD, _SQL_QUERY_FIELD
 
 from sql_safety_executor.core.connections import _resolve_connection_context
-from sql_safety_executor.core.policy import _validate_sql_query_policy
+from sql_safety_executor.core.policy import _prepare_sql_read
 from sql_safety_executor.database.errors import DatabaseQueryError
 from sql_safety_executor.core.results import (
     _serialize_result,
@@ -62,7 +62,8 @@ async def query(
     await ctx.info(f"Executing query on connection '{connection.connection_id}': {sql}")
 
     # Validate the shared read-query policy used by raw queries and query skills.
-    decision = _validate_sql_query_policy(runtime, sql, connection.policy, adapter=connection.adapter)
+    plan = _prepare_sql_read(runtime, sql, connection.policy, adapter=connection.adapter)
+    decision = plan.decision
     if not decision.allowed:
         await ctx.warning(f"Rejected query: {decision.error_code}")
         return _tool_result(
@@ -80,7 +81,7 @@ async def query(
         )
 
     try:
-        result = connection.adapter.execute(sql, connection.config.query_timeout_seconds)
+        result = connection.adapter.execute_read(sql, connection.config.query_timeout_seconds, policy=connection.policy, analysis=plan.analysis)
     except DatabaseQueryError as error:
         await ctx.error(f"Query failed: {error.error_code}")
         return _tool_result(

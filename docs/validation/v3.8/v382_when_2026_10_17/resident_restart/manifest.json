@@ -1,0 +1,78 @@
+{
+  "closed_utc": "2026-10-17T12:31:35.568448+00:00",
+  "scope": "Post-restart native and three canary-conditioned complete business trials; all prior seals unchanged.",
+  "files": {
+    "native.json.gz": {
+      "sha256": "366f81e21c99cec48b3d9aeffea7e0d1af41af4d68cc6ffbfd83c648de68a19d",
+      "bytes": 18311
+    },
+    "real_tasks/agents.json": {
+      "sha256": "d1f980aa63750a4d4c57a6f3c39103958e14d022928fc75d2946d8d66ec49d24",
+      "bytes": 714
+    },
+    "real_tasks/canary_1.json.gz": {
+      "sha256": "41fe7005759755142d6576b484ebc1fac300e8199777c7ee71ab530d58577d2e",
+      "bytes": 9258
+    },
+    "real_tasks/canary_2.json.gz": {
+      "sha256": "2fde6627ae84f4e5679f83cea7e26d8d869bdd063480d319d73b47aabeaf0bfe",
+      "bytes": 9171
+    },
+    "real_tasks/canary_3.json.gz": {
+      "sha256": "e7f37dc6d4adec7885c3b9f76bc51a0bdc8a6ecc06fce60e2c54e29613b0f0e5",
+      "bytes": 9301
+    },
+    "real_tasks/fixture_scope_checks.json": {
+      "sha256": "7d9e73628485aa2839000d341f28eb30d850eda35e4a1543e6b15c504e2078b5",
+      "bytes": 734
+    },
+    "real_tasks/manual_review.json": {
+      "sha256": "798792325a319fb711741f243c47ef7e245913d3f85e2b278fa459aa2d041957",
+      "bytes": 2200
+    },
+    "real_tasks/plan.json": {
+      "sha256": "1767510ce9eaaae317a92b37d19f7f433948a22427be4d2ea23d4d824908af65",
+      "bytes": 4984
+    },
+    "real_tasks/sales_1.json.gz": {
+      "sha256": "3d74eb1724f60e7ffbf38220b8092b5be74c271a7895f10b70f35cecb7500a02",
+      "bytes": 18386
+    },
+    "real_tasks/sales_2.json.gz": {
+      "sha256": "55de58723231cdfaf01d6b9e1a8863dd3e255a501486ce9badd7a4bbd18383ef",
+      "bytes": 16229
+    },
+    "real_tasks/sales_3.json.gz": {
+      "sha256": "7ead34644a5c1cd3522f9bcdff740ddf95bb4e3a39e8d3e4b5d4e80990eb9357",
+      "bytes": 17128
+    },
+    "real_tasks/summary.json": {
+      "sha256": "ee22a44ed72b5b73d2daafae363b41c23e85acd5375e2124e13a59a04d63a4cd",
+      "bytes": 19762
+    },
+    "real_tasks/truth_after.json": {
+      "sha256": "23d198e88a52935bca799732893335e5f7165fa0d9d5b02d3c445eafb1ed4b51",
+      "bytes": 19604
+    },
+    "real_tasks/truth_before.json": {
+      "sha256": "4ccc91478ec5ac323998b94ccd494c932ccf8c306624dca2ceb79667e3dc6667",
+      "bytes": 19605
+    },
+    "seal_restart.py.gz": {
+      "sha256": "6cda57e0eeb9f4c0718692025c9f0c7c4e31cc5abd9008233c629ec593d0dfa5",
+      "bytes": 3123
+    },
+    "summarize_restart_tasks.py.gz": {
+      "sha256": "863dcd4cbbf4dcd30e9e2d308d023649121dfc29d01b57d45b9c50e744767b97",
+      "bytes": 3610
+    },
+    "tool_catalog.json.gz": {
+      "sha256": "0e5222db6792a7c315d25f1d9ecc00c64d3a410b6d6ea067d38dffee996e61a8",
+      "bytes": 9468
+    },
+    "verification.json": {
+      "sha256": "a5f6f755e5502e0bebe85fb755138243245a34b833730e91de2698f0e9b2a550",
+      "bytes": 4066
+    }
+  }
+}

@@ -1,0 +1,220 @@
+{
+  "scope": "Independent SELECT constant aliases on private disposable sessions; SET SESSION only; no configured data writes",
+  "records": [
+    {
+      "modes": [],
+      "sql": "SELECT 7 AS `a\\b`",
+      "column_names": [
+        "a\\b"
+      ],
+      "expected": "a\\b",
+      "match": true
+    },
+    {
+      "modes": [],
+      "sql": "SELECT 7 AS `a``b`",
+      "column_names": [
+        "a`b"
+      ],
+      "expected": "a`b",
+      "match": true
+    },
+    {
+      "modes": [],
+      "sql": "SELECT 7 AS `a\\``b`",
+      "column_names": [
+        "a\\`b"
+      ],
+      "expected": "a\\`b",
+      "match": true
+    },
+    {
+      "modes": [],
+      "sql": "SELECT 7 AS ` f `",
+      "column_names": [
+        "f "
+      ],
+      "expected": " f ",
+      "match": false
+    },
+    {
+      "modes": [],
+      "sql": "SELECT 7 AS `  f  `",
+      "column_names": [
+        "f  "
+      ],
+      "expected": "  f  ",
+      "match": false
+    },
+    {
+      "modes": [
+        "ANSI_QUOTES"
+      ],
+      "sql": "SELECT 7 AS `a\\b`",
+      "column_names": [
+        "a\\b"
+      ],
+      "expected": "a\\b",
+      "match": true
+    },
+    {
+      "modes": [
+        "ANSI_QUOTES"
+      ],
+      "sql": "SELECT 7 AS `a``b`",
+      "column_names": [
+        "a`b"
+      ],
+      "expected": "a`b",
+      "match": true
+    },
+    {
+      "modes": [
+        "ANSI_QUOTES"
+      ],
+      "sql": "SELECT 7 AS `a\\``b`",
+      "column_names": [
+        "a\\`b"
+      ],
+      "expected": "a\\`b",
+      "match": true
+    },
+    {
+      "modes": [
+        "ANSI_QUOTES"
+      ],
+      "sql": "SELECT 7 AS ` f `",
+      "column_names": [
+        "f "
+      ],
+      "expected": " f ",
+      "match": false
+    },
+    {
+      "modes": [
+        "ANSI_QUOTES"
+      ],
+      "sql": "SELECT 7 AS `  f  `",
+      "column_names": [
+        "f  "
+      ],
+      "expected": "  f  ",
+      "match": false
+    },
+    {
+      "modes": [
+        "NO_BACKSLASH_ESCAPES"
+      ],
+      "sql": "SELECT 7 AS `a\\b`",
+      "column_names": [
+        "a\\b"
+      ],
+      "expected": "a\\b",
+      "match": true
+    },
+    {
+      "modes": [
+        "NO_BACKSLASH_ESCAPES"
+      ],
+      "sql": "SELECT 7 AS `a``b`",
+      "column_names": [
+        "a`b"
+      ],
+      "expected": "a`b",
+      "match": true
+    },
+    {
+      "modes": [
+        "NO_BACKSLASH_ESCAPES"
+      ],
+      "sql": "SELECT 7 AS `a\\``b`",
+      "column_names": [
+        "a\\`b"
+      ],
+      "expected": "a\\`b",
+      "match": true
+    },
+    {
+      "modes": [
+        "NO_BACKSLASH_ESCAPES"
+      ],
+      "sql": "SELECT 7 AS ` f `",
+      "column_names": [
+        "f "
+      ],
+      "expected": " f ",
+      "match": false
+    },
+    {
+      "modes": [
+        "NO_BACKSLASH_ESCAPES"
+      ],
+      "sql": "SELECT 7 AS `  f  `",
+      "column_names": [
+        "f  "
+      ],
+      "expected": "  f  ",
+      "match": false
+    },
+    {
+      "modes": [
+        "ANSI_QUOTES",
+        "NO_BACKSLASH_ESCAPES"
+      ],
+      "sql": "SELECT 7 AS `a\\b`",
+      "column_names": [
+        "a\\b"
+      ],
+      "expected": "a\\b",
+      "match": true
+    },
+    {
+      "modes": [
+        "ANSI_QUOTES",
+        "NO_BACKSLASH_ESCAPES"
+      ],
+      "sql": "SELECT 7 AS `a``b`",
+      "column_names": [
+        "a`b"
+      ],
+      "expected": "a`b",
+      "match": true
+    },
+    {
+      "modes": [
+        "ANSI_QUOTES",
+        "NO_BACKSLASH_ESCAPES"
+      ],
+      "sql": "SELECT 7 AS `a\\``b`",
+      "column_names": [
+        "a\\`b"
+      ],
+      "expected": "a\\`b",
+      "match": true
+    },
+    {
+      "modes": [
+        "ANSI_QUOTES",
+        "NO_BACKSLASH_ESCAPES"
+      ],
+      "sql": "SELECT 7 AS ` f `",
+      "column_names": [
+        "f "
+      ],
+      "expected": " f ",
+      "match": false
+    },
+    {
+      "modes": [
+        "ANSI_QUOTES",
+        "NO_BACKSLASH_ESCAPES"
+      ],
+      "sql": "SELECT 7 AS `  f  `",
+      "column_names": [
+        "f  "
+      ],
+      "expected": "  f  ",
+      "match": false
+    }
+  ]
+}

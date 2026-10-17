@@ -21,7 +21,7 @@ from sql_safety_executor.core.constants import (
 )
 
 from sql_safety_executor.core.connections import _resolve_connection_context
-from sql_safety_executor.core.policy import _validate_sql_query_policy
+from sql_safety_executor.core.policy import _prepare_sql_read
 from sql_safety_executor.database.errors import DatabaseQueryError
 from sql_safety_executor.core.results import (
     _context_client_id,
@@ -383,8 +383,10 @@ async def execute_query_skill(
         raise
 
     decision = _query_skill_policy_decision(meta, connection)
+    plan = None
     if decision.allowed:
-        decision = _validate_sql_query_policy(runtime, sql_template, connection.policy, adapter=connection.adapter)
+        plan = _prepare_sql_read(runtime, sql_template, connection.policy, adapter=connection.adapter)
+        decision = plan.decision
     failure = None
     result: list = []
     if not decision.allowed:
@@ -392,7 +394,7 @@ async def execute_query_skill(
     else:
         _ensure_skill_schema_ready(runtime, meta, connection)
         try:
-            result = connection.adapter.execute(sql_template, params=validated_params)
+            result = connection.adapter.execute_read(sql_template, params=validated_params, policy=connection.policy, analysis=plan.analysis if plan is not None else None)
         except DatabaseQueryError as error:
             failure = error.error_payload()
     if failure is not None:

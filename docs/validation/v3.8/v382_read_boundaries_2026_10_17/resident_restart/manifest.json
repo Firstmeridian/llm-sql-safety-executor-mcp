@@ -1,0 +1,18 @@
+{
+  "closed_utc": "2026-10-16T18:05:13.721013+00:00",
+  "scope": "Post-maintainer-restart native acceptance supplement. Parent checkpoints and failures remain unchanged.",
+  "files": {
+    "native_results.json.gz": {
+      "sha256": "f94f7f8815e9a945b1a5e297a18635f382e2994354e08aa90d82e7ff862d43b8",
+      "bytes": 6652
+    },
+    "tool_catalog.json.gz": {
+      "sha256": "dac491e23a2e0adc23806d87b9da66d654ebf2f617a34e60990f0a2bc0dd7dc9",
+      "bytes": 9534
+    },
+    "verification.json": {
+      "sha256": "0f4d61b8e4479d62277c2bc71bd7dc5f0712091017172d00b391eddf97555c87",
+      "bytes": 2189
+    }
+  }
+}

@@ -124,7 +124,7 @@ class TestSQLiteAdapter:
         for name in table_names:
             assert not name.startswith("sqlite_")
 
-    def test_get_tables_marks_unsupported_identifier_row_count_unknown(
+    def test_get_tables_samples_supported_quoted_names(
         self,
         sqlite_adapter,
     ):
@@ -139,7 +139,7 @@ class TestSQLiteAdapter:
         odd_table = next(
             table for table in tables if table["table_name"] == "odd-name"
         )
-        assert odd_table["row_count"] is None
+        assert odd_table["row_count"] == 0
 
     def test_sqlite_metadata_query_errors_are_not_reported_as_empty(self, monkeypatch):
         """Database failures must remain distinct from valid empty metadata."""
@@ -191,7 +191,7 @@ class TestSQLiteAdapter:
 
         monkeypatch.setattr(adapter, "execute", fail_execute)
 
-        invalid_names = ["users) --", "main.users", "`users`", '"users"']
+        invalid_names = ["", "users\x00x"]
         for table_name in invalid_names:
             assert adapter.get_columns(table_name) == []
             assert adapter.get_row_estimate(table_name) is None
@@ -207,14 +207,14 @@ class TestSQLiteAdapter:
             calls.append((sql, params))
             if "sqlite_master" in sql:
                 return []
-            if "COUNT(*)" in sql:
+            if "COUNT(" in sql:
                 return [(3,)]
             return []
 
         monkeypatch.setattr(adapter, "execute", fake_execute)
 
         assert adapter.get_row_estimate("users") == 3
-        assert 'FROM main."users" LIMIT 10000' in calls[-1][0]
+        assert 'FROM "main"."users" LIMIT 10000' in calls[-1][0]
 
     def test_get_row_estimate(self, sqlite_adapter):
         """Test getting row count estimate."""
@@ -244,7 +244,7 @@ class TestSQLiteAdapter:
         def fake_execute(sql, timeout=None, params=None):
             if "sqlite_master" in sql:
                 return []
-            if "COUNT(*)" in sql:
+            if "COUNT(" in sql:
                 raise DatabaseQueryError("unknown_table")
             return []
 
@@ -400,6 +400,7 @@ class TestMySQLAdapter:
             return DummyEngine()
 
         monkeypatch.setattr(sqlalchemy, "create_engine", fake_create_engine)
+        monkeypatch.setattr(sqlalchemy.event, "listen", lambda engine, name, callback, **kwargs: captured.update(session_listener=(name, callback, kwargs)))
         monkeypatch.setitem(SCENARIO, "DB_USER", "report_user")
         monkeypatch.setitem(SCENARIO, "DB_PASSWORD", "p@ss:word/with@chars")
         monkeypatch.setitem(SCENARIO, "DB_HOST", "db.example.test")
@@ -411,6 +412,8 @@ class TestMySQLAdapter:
         assert isinstance(captured["database_url"], URL)
         assert captured["database_url"].password == "p@ss:word/with@chars"
         assert captured["database_url"].drivername == "mysql+pymysql"
+        assert captured["session_listener"][0] == "connect"
+        assert captured["session_listener"][2] == {"insert": True}
         assert captured["kwargs"]["hide_parameters"] is True
         assert captured["kwargs"]["logging_name"] == "mysql_adapter"
 
@@ -518,7 +521,7 @@ class TestMySQLAdapter:
 
         monkeypatch.setattr(adapter, "execute", fail_execute)
 
-        invalid_names = ["users' OR '1'='1", "main.users", "`users`", "users) --"]
+        invalid_names = ["", "users\x00x", "users ", "x" * 65, "😀"]
         for table_name in invalid_names:
             assert adapter.get_columns(table_name) == []
             assert adapter.get_row_estimate(table_name) is None

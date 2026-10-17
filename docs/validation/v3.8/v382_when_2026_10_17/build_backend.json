@@ -1,0 +1,7 @@
+{
+  "build": "1.6.1",
+  "hatchling": "1.32.4",
+  "pathspec": "1.1.1",
+  "tomlkit": "0.15.1",
+  "trove-classifiers": "2026.9.21.13"
+}

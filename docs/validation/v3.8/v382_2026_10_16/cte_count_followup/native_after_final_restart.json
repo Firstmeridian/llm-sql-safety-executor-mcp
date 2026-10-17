@@ -1,0 +1,312 @@
+{
+  "recorded_at_utc": "2026-10-16 10:27:20 UTC",
+  "owner_reported_restart": true,
+  "phase": "Final materialized-CTE supplement after maintainer restart",
+  "checks": [
+    {
+      "name": "original_sales_combined",
+      "sql": "WITH sales AS (\n  SELECT product_code, region, amount, sold_on FROM sales_2026_q1\n  UNION ALL\n  SELECT product_code, region, amount, sold_on FROM sales_2026_q2\n  UNION ALL\n  SELECT product_code, region, amount, sold_on FROM sales_2026_q3\n),\nquarter_totals AS (\n  SELECT CASE\n    WHEN sold_on >= '2026-01-01' AND sold_on < '2026-04-01' THEN 'Q1'\n    WHEN sold_on >= '2026-04-01' AND sold_on < '2026-07-01' THEN 'Q2'\n    WHEN sold_on >= '2026-07-01' AND sold_on < '2026-10-01' THEN 'Q3'\n  END AS q, SUM(amount) AS revenue\n  FROM sales\n  GROUP BY q\n),\nregion_totals AS (\n  SELECT region, SUM(amount) AS revenue FROM sales GROUP BY region\n),\nproduct_totals AS (\n  SELECT product_code, SUM(amount) AS revenue FROM sales GROUP BY product_code\n),\nranked_products AS (\n  SELECT product_code, revenue, ROW_NUMBER() OVER (ORDER BY revenue DESC, product_code) AS rn\n  FROM product_totals\n)\nSELECT 'overall' AS category, 'record_count' AS item, COUNT(*) AS value, NULL AS share_pct\nFROM sales\nUNION ALL\nSELECT 'overall', 'sales_amount', ROUND(SUM(amount), 2), NULL FROM sales\nUNION ALL\nSELECT 'overall', 'distinct_products', COUNT(DISTINCT product_code), NULL FROM sales\nUNION ALL\nSELECT 'quarter', q, ROUND(revenue, 2), NULL FROM quarter_totals\nUNION ALL\nSELECT 'quarter_growth', 'Q3_vs_Q2_pct',\n       ROUND(100.0 * (q3.revenue - q2.revenue) / NULLIF(q2.revenue, 0), 2), NULL\nFROM quarter_totals q2 JOIN quarter_totals q3 ON q2.q = 'Q2' AND q3.q = 'Q3'\nUNION ALL\nSELECT 'top_region', region, ROUND(revenue, 2),\n       ROUND(100.0 * revenue / (SELECT SUM(amount) FROM sales), 2)\nFROM region_totals\nWHERE revenue = (SELECT MAX(revenue) FROM region_totals)\nUNION ALL\nSELECT 'top_product', product_code, ROUND(revenue, 2), NULL\nFROM ranked_products WHERE rn <= 3",
+      "expected": [
+        [
+          "overall",
+          "record_count",
+          720,
+          null
+        ],
+        [
+          "overall",
+          "sales_amount",
+          331921.71,
+          null
+        ],
+        [
+          "overall",
+          "distinct_products",
+          38,
+          null
+        ],
+        [
+          "quarter",
+          "Q1",
+          110389.19,
+          null
+        ],
+        [
+          "quarter",
+          "Q2",
+          110985.37,
+          null
+        ],
+        [
+          "quarter",
+          "Q3",
+          110547.15,
+          null
+        ],
+        [
+          "quarter_growth",
+          "Q3_vs_Q2_pct",
+          -0.39,
+          null
+        ],
+        [
+          "top_region",
+          "south",
+          92670.74,
+          27.92
+        ],
+        [
+          "top_product",
+          "P026",
+          15207.03,
+          null
+        ],
+        [
+          "top_product",
+          "P013",
+          15189.2,
+          null
+        ],
+        [
+          "top_product",
+          "P024",
+          14562.95,
+          null
+        ]
+      ],
+      "input": {
+        "connection_id": "union_test_sqlite",
+        "sql": "WITH sales AS (\n  SELECT product_code, region, amount, sold_on FROM sales_2026_q1\n  UNION ALL\n  SELECT product_code, region, amount, sold_on FROM sales_2026_q2\n  UNION ALL\n  SELECT product_code, region, amount, sold_on FROM sales_2026_q3\n),\nquarter_totals AS (\n  SELECT CASE\n    WHEN sold_on >= '2026-01-01' AND sold_on < '2026-04-01' THEN 'Q1'\n    WHEN sold_on >= '2026-04-01' AND sold_on < '2026-07-01' THEN 'Q2'\n    WHEN sold_on >= '2026-07-01' AND sold_on < '2026-10-01' THEN 'Q3'\n  END AS q, SUM(amount) AS revenue\n  FROM sales\n  GROUP BY q\n),\nregion_totals AS (\n  SELECT region, SUM(amount) AS revenue FROM sales GROUP BY region\n),\nproduct_totals AS (\n  SELECT product_code, SUM(amount) AS revenue FROM sales GROUP BY product_code\n),\nranked_products AS (\n  SELECT product_code, revenue, ROW_NUMBER() OVER (ORDER BY revenue DESC, product_code) AS rn\n  FROM product_totals\n)\nSELECT 'overall' AS category, 'record_count' AS item, COUNT(*) AS value, NULL AS share_pct\nFROM sales\nUNION ALL\nSELECT 'overall', 'sales_amount', ROUND(SUM(amount), 2), NULL FROM sales\nUNION ALL\nSELECT 'overall', 'distinct_products', COUNT(DISTINCT product_code), NULL FROM sales\nUNION ALL\nSELECT 'quarter', q, ROUND(revenue, 2), NULL FROM quarter_totals\nUNION ALL\nSELECT 'quarter_growth', 'Q3_vs_Q2_pct',\n       ROUND(100.0 * (q3.revenue - q2.revenue) / NULLIF(q2.revenue, 0), 2), NULL\nFROM quarter_totals q2 JOIN quarter_totals q3 ON q2.q = 'Q2' AND q3.q = 'Q3'\nUNION ALL\nSELECT 'top_region', region, ROUND(revenue, 2),\n       ROUND(100.0 * revenue / (SELECT SUM(amount) FROM sales), 2)\nFROM region_totals\nWHERE revenue = (SELECT MAX(revenue) FROM region_totals)\nUNION ALL\nSELECT 'top_product', product_code, ROUND(revenue, 2), NULL\nFROM ranked_products WHERE rn <= 3"
+      },
+      "response": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":true,\"data\":[{\"category\":\"overall\",\"item\":\"record_count\",\"value\":720,\"share_pct\":null},{\"category\":\"overall\",\"item\":\"sales_amount\",\"value\":331921.71,\"share_pct\":null},{\"category\":\"overall\",\"item\":\"distinct_products\",\"value\":38,\"share_pct\":null},{\"category\":\"quarter\",\"item\":\"Q1\",\"value\":110389.19,\"share_pct\":null},{\"category\":\"quarter\",\"item\":\"Q2\",\"value\":110985.37,\"share_pct\":null},{\"category\":\"quarter\",\"item\":\"Q3\",\"value\":110547.15,\"share_pct\":null},{\"category\":\"quarter_growth\",\"item\":\"Q3_vs_Q2_pct\",\"value\":-0.39,\"share_pct\":null},{\"category\":\"top_region\",\"item\":\"south\",\"value\":92670.74,\"share_pct\":27.92},{\"category\":\"top_product\",\"item\":\"P026\",\"value\":15207.03,\"share_pct\":null},{\"category\":\"top_product\",\"item\":\"P013\",\"value\":15189.2,\"share_pct\":null},{\"category\":\"top_product\",\"item\":\"P024\",\"value\":14562.95,\"share_pct\":null}],\"row_count\":11,\"total_rows\":11,\"truncated\":false,\"truncation_note\":null,\"query\":\"WITH sales AS (\\n  SELECT product_code, region, amount, sold_on FROM sales_2026_q1\\n  UNION ALL\\n  SELECT product_code, region, amount, sold_on FROM sales_2026_q2\\n  UNION ALL\\n  SELECT product_code, region, amount, sold_on FROM sales_2026_q3\\n),\\nquarter_totals AS (\\n  SELECT CASE\\n    WHEN sold_on >= '2026-01-01' AND sold_on < '2026-04-01' THEN 'Q1'\\n    WHEN sold_on >= '2026-04-01' AND sold_on < '2026-07-01' THEN 'Q2'\\n    WHEN sold_on >= '2026-07-01' AND sold_on < '2026-10-01' THEN 'Q3'\\n  END AS q, SUM(amount) AS revenue\\n  FROM sales\\n  GROUP BY q\\n),\\nregion_totals AS (\\n  SELECT region, SUM(amount) AS revenue FROM sales GROUP BY region\\n),\\nproduct_totals AS (\\n  SELECT product_code, SUM(amount) AS revenue FROM sales GROUP BY product_code\\n),\\nranked_products AS (\\n  SELECT product_code, revenue, ROW_NUMBER() OVER (ORDER BY revenue DESC, product_code) AS rn\\n  FROM product_totals\\n)\\nSELECT 'overall' AS category, 'record_count' AS item, COUNT(*) AS value, NULL AS share_pct\\nFROM sales\\nUNION ALL\\nSELECT 'overall', 'sales_amount', ROUND(SUM(amount), 2), NULL FROM sales\\nUNION ALL\\nSELECT 'overall', 'distinct_products', COUNT(DISTINCT product_code), NULL FROM sales\\nUNION ALL\\nSELECT 'quarter', q, ROUND(revenue, 2), NULL FROM quarter_totals\\nUNION ALL\\nSELECT 'quarter_growth', 'Q3_vs_Q2_pct',\\n       ROUND(100.0 * (q3.revenue - q2.revenue) / NULLIF(q2.revenue, 0), 2), NULL\\nFROM quarter_totals q2 JOIN quarter_totals q3 ON q2.q = 'Q2' AND q3.q = 'Q3'\\nUNION ALL\\nSELECT 'top_region', region, ROUND(revenue, 2),\\n       ROUND(100.0 * revenue / (SELECT SUM(amount) FROM sales), 2)\\nFROM region_totals\\nWHERE revenue = (SELECT MAX(revenue) FROM region_totals)\\nUNION ALL\\nSELECT 'top_product', product_code, ROUND(revenue, 2), NULL\\nFROM ranked_products WHERE rn <= 3\",\"connection_id\":\"union_test_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": true,
+          "data": [
+            {
+              "category": "overall",
+              "item": "record_count",
+              "value": 720,
+              "share_pct": null
+            },
+            {
+              "category": "overall",
+              "item": "sales_amount",
+              "value": 331921.71,
+              "share_pct": null
+            },
+            {
+              "category": "overall",
+              "item": "distinct_products",
+              "value": 38,
+              "share_pct": null
+            },
+            {
+              "category": "quarter",
+              "item": "Q1",
+              "value": 110389.19,
+              "share_pct": null
+            },
+            {
+              "category": "quarter",
+              "item": "Q2",
+              "value": 110985.37,
+              "share_pct": null
+            },
+            {
+              "category": "quarter",
+              "item": "Q3",
+              "value": 110547.15,
+              "share_pct": null
+            },
+            {
+              "category": "quarter_growth",
+              "item": "Q3_vs_Q2_pct",
+              "value": -0.39,
+              "share_pct": null
+            },
+            {
+              "category": "top_region",
+              "item": "south",
+              "value": 92670.74,
+              "share_pct": 27.92
+            },
+            {
+              "category": "top_product",
+              "item": "P026",
+              "value": 15207.03,
+              "share_pct": null
+            },
+            {
+              "category": "top_product",
+              "item": "P013",
+              "value": 15189.2,
+              "share_pct": null
+            },
+            {
+              "category": "top_product",
+              "item": "P024",
+              "value": 14562.95,
+              "share_pct": null
+            }
+          ],
+          "row_count": 11,
+          "total_rows": 11,
+          "truncated": false,
+          "truncation_note": null,
+          "query": "WITH sales AS (\n  SELECT product_code, region, amount, sold_on FROM sales_2026_q1\n  UNION ALL\n  SELECT product_code, region, amount, sold_on FROM sales_2026_q2\n  UNION ALL\n  SELECT product_code, region, amount, sold_on FROM sales_2026_q3\n),\nquarter_totals AS (\n  SELECT CASE\n    WHEN sold_on >= '2026-01-01' AND sold_on < '2026-04-01' THEN 'Q1'\n    WHEN sold_on >= '2026-04-01' AND sold_on < '2026-07-01' THEN 'Q2'\n    WHEN sold_on >= '2026-07-01' AND sold_on < '2026-10-01' THEN 'Q3'\n  END AS q, SUM(amount) AS revenue\n  FROM sales\n  GROUP BY q\n),\nregion_totals AS (\n  SELECT region, SUM(amount) AS revenue FROM sales GROUP BY region\n),\nproduct_totals AS (\n  SELECT product_code, SUM(amount) AS revenue FROM sales GROUP BY product_code\n),\nranked_products AS (\n  SELECT product_code, revenue, ROW_NUMBER() OVER (ORDER BY revenue DESC, product_code) AS rn\n  FROM product_totals\n)\nSELECT 'overall' AS category, 'record_count' AS item, COUNT(*) AS value, NULL AS share_pct\nFROM sales\nUNION ALL\nSELECT 'overall', 'sales_amount', ROUND(SUM(amount), 2), NULL FROM sales\nUNION ALL\nSELECT 'overall', 'distinct_products', COUNT(DISTINCT product_code), NULL FROM sales\nUNION ALL\nSELECT 'quarter', q, ROUND(revenue, 2), NULL FROM quarter_totals\nUNION ALL\nSELECT 'quarter_growth', 'Q3_vs_Q2_pct',\n       ROUND(100.0 * (q3.revenue - q2.revenue) / NULLIF(q2.revenue, 0), 2), NULL\nFROM quarter_totals q2 JOIN quarter_totals q3 ON q2.q = 'Q2' AND q3.q = 'Q3'\nUNION ALL\nSELECT 'top_region', region, ROUND(revenue, 2),\n       ROUND(100.0 * revenue / (SELECT SUM(amount) FROM sales), 2)\nFROM region_totals\nWHERE revenue = (SELECT MAX(revenue) FROM region_totals)\nUNION ALL\nSELECT 'top_product', product_code, ROUND(revenue, 2), NULL\nFROM ranked_products WHERE rn <= 3",
+          "connection_id": "union_test_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      },
+      "passed": true
+    },
+    {
+      "name": "materialized_cte_count",
+      "sql": "WITH selected AS MATERIALIZED (SELECT amount FROM sales_2026_q1) SELECT COUNT(*) AS n FROM selected",
+      "expected": [
+        {
+          "n": 240
+        }
+      ],
+      "input": {
+        "connection_id": "union_test_sqlite",
+        "sql": "WITH selected AS MATERIALIZED (SELECT amount FROM sales_2026_q1) SELECT COUNT(*) AS n FROM selected"
+      },
+      "response": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":true,\"data\":[{\"n\":240}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null,\"query\":\"WITH selected AS MATERIALIZED (SELECT amount FROM sales_2026_q1) SELECT COUNT(*) AS n FROM selected\",\"connection_id\":\"union_test_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": true,
+          "data": [
+            {
+              "n": 240
+            }
+          ],
+          "row_count": 1,
+          "total_rows": 1,
+          "truncated": false,
+          "truncation_note": null,
+          "query": "WITH selected AS MATERIALIZED (SELECT amount FROM sales_2026_q1) SELECT COUNT(*) AS n FROM selected",
+          "connection_id": "union_test_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      },
+      "passed": true
+    },
+    {
+      "name": "constant_cte_count",
+      "sql": "WITH selected AS (SELECT 7 AS n) SELECT COUNT(*) AS n FROM selected UNION ALL SELECT SUM(n) AS n FROM selected",
+      "expected": [
+        {
+          "n": 1
+        },
+        {
+          "n": 7
+        }
+      ],
+      "input": {
+        "connection_id": "union_test_sqlite",
+        "sql": "WITH selected AS (SELECT 7 AS n) SELECT COUNT(*) AS n FROM selected UNION ALL SELECT SUM(n) AS n FROM selected"
+      },
+      "response": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":true,\"data\":[{\"n\":1},{\"n\":7}],\"row_count\":2,\"total_rows\":2,\"truncated\":false,\"truncation_note\":null,\"query\":\"WITH selected AS (SELECT 7 AS n) SELECT COUNT(*) AS n FROM selected UNION ALL SELECT SUM(n) AS n FROM selected\",\"connection_id\":\"union_test_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": true,
+          "data": [
+            {
+              "n": 1
+            },
+            {
+              "n": 7
+            }
+          ],
+          "row_count": 2,
+          "total_rows": 2,
+          "truncated": false,
+          "truncation_note": null,
+          "query": "WITH selected AS (SELECT 7 AS n) SELECT COUNT(*) AS n FROM selected UNION ALL SELECT SUM(n) AS n FROM selected",
+          "connection_id": "union_test_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      },
+      "passed": true
+    },
+    {
+      "name": "ungranted_cte_base",
+      "sql": "WITH selected AS MATERIALIZED (SELECT * FROM private_sales) SELECT COUNT(*) AS n FROM selected",
+      "error_code": "table_access_denied",
+      "input": {
+        "connection_id": "union_test_sqlite",
+        "sql": "WITH selected AS MATERIALIZED (SELECT * FROM private_sales) SELECT COUNT(*) AS n FROM selected"
+      },
+      "response": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":false,\"error_code\":\"table_access_denied\",\"error\":\"Access denied to table(s): private_sales. Only allowed tables: sales_2026_q1, sales_2026_q2, sales_2026_q3\",\"hint\":\"Keep the same connection and use authorized tables; preserve the connection's CTE name rules and explicit schema scope.\",\"query\":\"WITH selected AS MATERIALIZED (SELECT * FROM private_sales) SELECT COUNT(*) AS n FROM selected\",\"connection_id\":\"union_test_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": false,
+          "error_code": "table_access_denied",
+          "error": "Access denied to table(s): private_sales. Only allowed tables: sales_2026_q1, sales_2026_q2, sales_2026_q3",
+          "hint": "Keep the same connection and use authorized tables; preserve the connection's CTE name rules and explicit schema scope.",
+          "query": "WITH selected AS MATERIALIZED (SELECT * FROM private_sales) SELECT COUNT(*) AS n FROM selected",
+          "connection_id": "union_test_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      },
+      "passed": true
+    },
+    {
+      "name": "cte_restricted_function",
+      "sql": "WITH selected AS MATERIALIZED (SELECT SLEEP(0) AS n) SELECT COUNT(*) AS n FROM selected",
+      "error_code": "expensive_function_denied",
+      "input": {
+        "connection_id": "union_test_sqlite",
+        "sql": "WITH selected AS MATERIALIZED (SELECT SLEEP(0) AS n) SELECT COUNT(*) AS n FROM selected"
+      },
+      "response": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":false,\"error_code\":\"expensive_function_denied\",\"error\":\"Delay or benchmark functions are not allowed in read queries.\",\"hint\":\"Keep the same connection and use ordinary SQL expressions, filters and aggregates; remove deliberate sleeps and benchmarking calls.\",\"query\":\"WITH selected AS MATERIALIZED (SELECT SLEEP(0) AS n) SELECT COUNT(*) AS n FROM selected\",\"connection_id\":\"union_test_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": false,
+          "error_code": "expensive_function_denied",
+          "error": "Delay or benchmark functions are not allowed in read queries.",
+          "hint": "Keep the same connection and use ordinary SQL expressions, filters and aggregates; remove deliberate sleeps and benchmarking calls.",
+          "query": "WITH selected AS MATERIALIZED (SELECT SLEEP(0) AS n) SELECT COUNT(*) AS n FROM selected",
+          "connection_id": "union_test_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      },
+      "passed": true
+    }
+  ],
+  "passed": 5,
+  "total": 5,
+  "scope": "Actual Codex Host public application envelopes; matching data and expected denials, not a cryptographic process-code attestation."
+}

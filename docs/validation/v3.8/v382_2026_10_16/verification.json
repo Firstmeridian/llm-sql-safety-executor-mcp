@@ -1,0 +1,146 @@
+{
+  "recorded_utc": "2026-10-16T08:54:42.336316+00:00",
+  "version": "3.8.2",
+  "python": "3.12.3",
+  "sqlite": "3.45.1",
+  "runtime_versions": {
+    "llm-sql-safety-executor-mcp": "3.8.2",
+    "sqlglot": "30.22.0",
+    "sqlparse": "0.6.0",
+    "SQLAlchemy": "2.1.1",
+    "fastmcp": "4.0.10",
+    "mcp": "2.2.0",
+    "PyMySQL": "1.2.3",
+    "pydantic": "2.13.5"
+  },
+  "full_regression": {
+    "passed": 1896,
+    "skipped": 4,
+    "warnings": 82,
+    "seconds": 254.45,
+    "log": "cte_count_followup/full-cte-count.log.gz",
+    "skips": "Four opt-in MySQL tests not run",
+    "timing_scope": "Regression ran concurrently with type/build/install tasks; not a performance comparison"
+  },
+  "pyright": {
+    "errors": 0,
+    "warnings": 0,
+    "log": "cte_count_followup/pyright-cte-count-absolute.log.gz",
+    "retained_failed_environment_attempt": "cte_count_followup/pyright-cte-count.log.gz"
+  },
+  "prompt_contract": {
+    "passed": true,
+    "log": "cte_count_followup/prompt-cte-count.log.gz"
+  },
+  "lock_check": {
+    "passed": true,
+    "offline": true
+  },
+  "package": {
+    "resources_match": 75,
+    "artifacts": [
+      {
+        "filename": "llm_sql_safety_executor_mcp-3.8.2-py3-none-any.whl",
+        "sha256": "dc35b4e90e82a78ecc1a9d329228770d745e52c83ce89a9e2a3826f273742238",
+        "bytes": 206006
+      },
+      {
+        "filename": "llm_sql_safety_executor_mcp-3.8.2.tar.gz",
+        "sha256": "c8701ce3464f288b98155f89868dba3cd90e85f8cb10dc9360f03c23092c19c8",
+        "bytes": 5059018
+      }
+    ],
+    "semantic_tool_calls": 58,
+    "protocols": [
+      "2026-07-28",
+      "2025-11-25"
+    ],
+    "record": "cte_count_followup/installed_semantics.json.gz",
+    "source_record": "cte_count_followup/source_current.json",
+    "generic_installed_check": "cte_count_followup/verify-installed-cte-count.log.gz",
+    "scope": "Runtime package resources match current source; repository documentation was synchronized after these temporary build artifacts, with no runtime-resource changes"
+  },
+  "semantics_matrix": {
+    "sqlite_candidates": 2432,
+    "sqlite_native_valid": 2422,
+    "functional_cte": 300,
+    "physical_names": 542,
+    "relation_contexts": 1000,
+    "negative_cte_controls": 4,
+    "reserved_function_controls": 576,
+    "mysql_observations": 144,
+    "mode_combinations": 8,
+    "record": "semantics_matrix_accepted.json.gz"
+  },
+  "mysql_lifecycle": {
+    "variants": 2,
+    "record": "mysql_sessions.json"
+  },
+  "native_host": {
+    "status": "approved_scope_passed",
+    "initial_passed": 10,
+    "initial_total": 10,
+    "initial_record": "native_after_restart.json",
+    "final_passed": 5,
+    "final_total": 5,
+    "final_record": "cte_count_followup/native_after_final_restart.json",
+    "scope": "Two source-attributed batches; behavior evidence, not code attestation or a historical cache diagnosis"
+  },
+  "fresh_luna_business_trials": {
+    "status": "completed_on_pre_cte_count_fix_source",
+    "completed_trials": 12,
+    "scripted_user_turns": 36,
+    "passed_fixed_check_trials": 11,
+    "summary": "real_tasks/summary.json",
+    "manifest": "real_tasks/manifest.json",
+    "source_record": "real_tasks/truth_before.json",
+    "limitations": "One financial ranking mismatch against a currency-precision reference (rounding was not explicit); one legal sales query refused then recovered. Original batch is sealed on its tested source. Final-source follow-up is separate.",
+    "preflight_is_business_acceptance": false,
+    "assessment_addendum": "cte_count_followup/assessment_addendum.json"
+  },
+  "recording_profile": "Source/resource hashes; sanitized public application results and tool logs, not full JSON-RPC frames; no hidden reasoning or full preview bearer values",
+  "data_changes": "Only private fixtures and disposable MySQL SESSION/temporary state; configured business data/TOMLs/global modes not modified",
+  "staging_or_commit_performed": false,
+  "fresh_luna_preflight": {
+    "status": "passed",
+    "actual_mcp_responses": 2,
+    "record": "real_tasks/post_restart_preflight_1.json.gz",
+    "model": "gpt-6-luna",
+    "source_of_result": "Actual public MCP returned envelopes, not agent final restatement",
+    "is_business_trial": false
+  },
+  "cte_count_supplement": {
+    "source_validation": "passed",
+    "new_regressions": 15,
+    "original_combined_query_rows": 11,
+    "matches_native_truth": true,
+    "record": "cte_count_followup/original_query_after.json",
+    "source_record": "cte_count_followup/source_current.json",
+    "native_followup": "completed after maintainer restart; 5/5 expected behaviors",
+    "decision": "Only verified unique CTE labels absent from all attached catalogs may accept empty-column/NULL-database READ events; physical/function checks remain",
+    "native_luna_plan": "cte_count_followup/luna_tasks/plan.json",
+    "native_record": "cte_count_followup/native_after_final_restart.json",
+    "luna_followup": {
+      "status": "completed_with_retained_model_and_scoring_limits",
+      "trials": 3,
+      "scripted_turns": 6,
+      "strict_numeric_check_trials": 1,
+      "explicit_business_goal_trials": 2,
+      "actual_mcp_calls": 14,
+      "all_actual_mcp_calls_succeeded": true,
+      "pre_server_nonexistent_function_attempts": 1,
+      "source_record": "cte_count_followup/source_closure.json",
+      "summary": "cte_count_followup/luna_tasks/summary.json",
+      "manual_assessment": "cte_count_followup/luna_tasks/manual_assessment.json",
+      "preflight_record": "cte_count_followup/luna_tasks/final_preflight_1.json.gz"
+    }
+  },
+  "cost": {
+    "record": "cte_count_followup/cost_summary.json",
+    "scope": "Fresh serial A1/B/A2 on final source, 182 calls/stage. Baseline drift; no model billing or general latency claim."
+  },
+  "final_manifest": "manifest.json; child trial batches sealed separately, historical checkpoints retained",
+  "source_closure": "cte_count_followup/source_closure.json",
+  "acceptance_status": "Approved implementation/validation scope completed; model task failures and untested scope retained, not all-model-success certification",
+  "closed_utc": "2026-10-16 10:37:43 UTC"
+}

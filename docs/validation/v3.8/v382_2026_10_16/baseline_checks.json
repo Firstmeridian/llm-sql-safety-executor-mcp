@@ -1,0 +1,8 @@
+{
+  "commit": "3323f9c29add7fd158410d5ce57a70fb58c5f2cb",
+  "version": "3.8.1",
+  "full_suite": {"passed": 1750, "skipped": 4, "warnings": 77, "seconds": 137.10, "mysql_optin": false},
+  "warnings": "Existing FastMCP legacy logging capability deprecation",
+  "native_preflight": {"connection_id": "analytics_demo_sqlite", "sql": "WITH data AS (SELECT 7 AS n) SELECT n FROM data", "success": true, "data": [{"n": 7}]},
+  "scope": "Before production changes; source, test and dependency snapshots stored separately; no configured database writes"
+}

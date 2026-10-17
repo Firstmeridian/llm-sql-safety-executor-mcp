@@ -1,0 +1,29 @@
+{
+  "access": "Independent sqlite3 URI mode=ro, explicit main schema; no configured writes",
+  "quarter_date_and_null_facts": {
+    "1": {
+      "min_date": "2026-01-01",
+      "max_date": "2026-03-28",
+      "null_regions": 0,
+      "records": 240
+    },
+    "2": {
+      "min_date": "2026-04-01",
+      "max_date": "2026-06-28",
+      "null_regions": 0,
+      "records": 240
+    },
+    "3": {
+      "min_date": "2026-07-01",
+      "max_date": "2026-09-28",
+      "null_regions": 0,
+      "records": 240
+    }
+  },
+  "initial_trial3_unsupported_from": {
+    "sqlite_success": true,
+    "rows": 46,
+    "mcp_error_code": "sql_parse_failed",
+    "recovery": "Removed derived FROM and used named CTEs; original refusal retained."
+  }
+}

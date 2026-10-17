@@ -1,0 +1,65 @@
+{
+  "stages": {
+    "A1": {
+      "policy_import_ms": 99.98899299898767,
+      "peak_rss_kib": 110248,
+      "clients": [
+        {
+          "protocol": "2026-07-28",
+          "metadata_characters": 22680,
+          "startup_ms": 516.4111789999879,
+          "warm_median_ms": 147.67098099999998,
+          "warm_p95_ms": 199.245307
+        },
+        {
+          "protocol": "2025-11-25",
+          "metadata_characters": 22680,
+          "startup_ms": 61.773478000759496,
+          "warm_median_ms": 147.103472,
+          "warm_p95_ms": 150.743827
+        }
+      ]
+    },
+    "B": {
+      "policy_import_ms": 180.96729600074468,
+      "peak_rss_kib": 119024,
+      "clients": [
+        {
+          "protocol": "2026-07-28",
+          "metadata_characters": 22680,
+          "startup_ms": 511.8938880004862,
+          "warm_median_ms": 25.9098865,
+          "warm_p95_ms": 27.936606
+        },
+        {
+          "protocol": "2025-11-25",
+          "metadata_characters": 22680,
+          "startup_ms": 29.456797999955597,
+          "warm_median_ms": 27.838849,
+          "warm_p95_ms": 32.91792
+        }
+      ]
+    },
+    "A2": {
+      "policy_import_ms": 82.92226400044456,
+      "peak_rss_kib": 110172,
+      "clients": [
+        {
+          "protocol": "2026-07-28",
+          "metadata_characters": 22680,
+          "startup_ms": 593.428161000702,
+          "warm_median_ms": 140.49838,
+          "warm_p95_ms": 157.666449
+        },
+        {
+          "protocol": "2025-11-25",
+          "metadata_characters": 22680,
+          "startup_ms": 55.762784999387804,
+          "warm_median_ms": 144.1263255,
+          "warm_p95_ms": 163.911574
+        }
+      ]
+    }
+  },
+  "scope": "Final accepted_A1/B/A2. Private fixed workload, identical disabled logging; preserve baseline drift; no model/invoice/overall speedup claim."
+}

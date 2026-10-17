@@ -92,7 +92,7 @@ def test_sqlite_indexes_use_real_primary_key_and_empty_tables(sqlite_adapter):
     assert pairs[0]["name"] is not None
     assert sqlite_adapter.get_indexes("plain") == []
     with pytest.raises(MetadataQueryError):
-        sqlite_adapter.get_indexes("bad;name")
+        sqlite_adapter.get_indexes("bad\x00name")
 
 
 def test_mysql_indexes_map_statistics_rows(monkeypatch):

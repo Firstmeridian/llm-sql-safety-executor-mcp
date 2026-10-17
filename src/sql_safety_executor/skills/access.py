@@ -223,26 +223,26 @@ def _query_skill_blocked_tables(
     connection: ConnectionContext,
 ) -> list[str]:
     """Return required query-skill tables blocked by target allowlist."""
-    if meta.type != "query" or not meta.tables:
+    if meta.type != "query" or not meta.declared_relations:
         return []
     allowed_tables = connection.policy.allowed_tables
     if allowed_tables is None or "*" in allowed_tables:
         return []
-    return [table for table in meta.tables if not connection.policy.allows_table(table)]
+    return [table.display_name for table in meta.declared_relations if not connection.policy.allows_relation(table)]
 
 
 def _inferred_skill_relations(meta: SkillMetadata, connection: ConnectionContext) -> list[RelationReference]:
     """Keep independently inferred dependencies distinct from declarations."""
     if meta.type == "query" and meta._sql_template is not None:
-        from sql_safety_executor.skills.catalog import _extract_table_references
-        sensitive = connection.policy.case_sensitive_tables
-        if sensitive and "WITH" in meta._sql_template.upper():
-            sensitive = connection.adapter.cte_case_sensitive is not False
-        if sensitive not in meta._inferred_tables:
-            meta._inferred_tables[sensitive] = _extract_table_references(
-                meta._sql_template, cte_case_sensitive=sensitive,
-            )
-        return meta._inferred_tables[sensitive]
+        from sql_safety_executor.core.analysis import analyze_sql
+        context = connection.adapter.analysis_context
+        key = context.fingerprint
+        if key not in meta._inferred_tables:
+            analysis = analyze_sql(meta._sql_template, context)
+            if not analysis.complete:
+                raise ValueError("Skill SQL dependency analysis is incomplete for this connection")
+            meta._inferred_tables[key] = list(analysis.relations)
+        return meta._inferred_tables[key]
     return []
 
 
@@ -250,7 +250,7 @@ def _required_skill_relations(meta: SkillMetadata, connection: ConnectionContext
     """Resolve inference for this target, without changing declared restrictions."""
     inferred = _inferred_skill_relations(meta, connection)
     required: dict[RelationReference, RelationReference] = {}
-    declared = [RelationReference.from_declaration(table) for table in meta.tables]
+    declared = meta.declared_relations
     for table in [*declared, *inferred]:
         required.setdefault(connection.policy.relation_key(table), table)
     return list(required.values())
@@ -376,7 +376,17 @@ def _skill_availability_state(
                 policy_allowed = False
                 reasons.append(f"Skill '{meta.name}' failed SQL safety policy: {decision.message}")
 
-    required_relations = _required_skill_relations(meta, connection)
+    analysis_complete = True
+    inferred_tables = None
+    try:
+        required_relations = _required_skill_relations(meta, connection)
+        inferred_tables = list(_inferred_skill_tables(meta, connection))
+    except ValueError:
+        analysis_complete = False
+        policy_allowed = False
+        schema_ready = False
+        required_relations = meta.declared_relations
+        reasons.append("SQL dependency analysis is incomplete for this target; dependencies are unverified.")
     required_tables = [table.display_name for table in required_relations]
     if schema_snapshot.enabled and required_tables:
         if not schema_snapshot.available:
@@ -428,12 +438,13 @@ def _skill_availability_state(
         "blocked_tables": blocked_tables,
         "schema_ready": schema_ready,
         "schema_check_enabled": schema_snapshot.enabled,
-        "schema_check_available": schema_snapshot.available and not unverified_tables,
+        "schema_check_available": schema_snapshot.available and not unverified_tables and analysis_complete,
         "missing_tables": missing_tables,
         "unverified_tables": unverified_tables,
         "required_tables": required_tables,
-        "declared_tables": list(meta.tables),
-        "inferred_tables": list(_inferred_skill_tables(meta, connection)),
+        "declared_tables": [ref.display_name for ref in meta.declared_relations],
+        "inferred_tables": inferred_tables,
+        "analysis_complete": analysis_complete,
     }
 
 
@@ -534,7 +545,7 @@ def _skill_matches(
         meta.description,
         _skill_category(meta),
         *meta.profiles,
-        *(meta.tables if required_tables is None else required_tables),
+        *([ref.display_name for ref in meta.declared_relations] if required_tables is None else required_tables),
         *meta.triggers,
         *meta.related_skills,
     ]
@@ -619,6 +630,7 @@ def _project_skill_meta(
             projected.update({
                 "declared_tables": availability["declared_tables"],
                 "inferred_tables": availability["inferred_tables"],
+                "analysis_complete": availability["analysis_complete"],
             })
 
     return projected

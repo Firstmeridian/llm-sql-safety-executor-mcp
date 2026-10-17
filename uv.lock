@@ -608,7 +608,7 @@ wheels = [
 
 [[package]]
 name = "llm-sql-safety-executor-mcp"
-version = "3.8.1"
+version = "3.8.2"
 source = { editable = "." }
 dependencies = [
     { name = "fastmcp" },
@@ -617,6 +617,7 @@ dependencies = [
     { name = "pymysql" },
     { name = "pyyaml" },
     { name = "sqlalchemy" },
+    { name = "sqlglot" },
     { name = "sqlparse" },
 ]
 
@@ -636,6 +637,7 @@ requires-dist = [
     { name = "pymysql", specifier = ">=1.1,<2" },
     { name = "pyyaml", specifier = ">=6,<7" },
     { name = "sqlalchemy", specifier = ">=2.0,<3" },
+    { name = "sqlglot", specifier = "==30.22.0" },
     { name = "sqlparse", specifier = ">=0.5.3,<1" },
 ]
 
@@ -1351,6 +1353,15 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/99/0b/df1c33f575ef39074dc682db2a33a1c5f259d48ca392b95a695f43553a29/sqlalchemy-2.1.1-cp315-cp315t-win_amd64.whl", hash = "sha256:b357598df0676accd1ccfb6bbc5db53dbfb499052d2d1677adf4ce14a7180664", size = 2494146, upload-time = "2026-09-25T15:25:43.453Z" },
     { url = "https://files.pythonhosted.org/packages/43/e1/f3d25c2ca66ed394b0fc9786af9857c448bc9ac68e59c3d2283245e9dc40/sqlalchemy-2.1.1-cp315-cp315t-win_arm64.whl", hash = "sha256:b76d8fddf080c53f2afdea6e7149721e7b980086a2f17a9b0bdb42571a92c285", size = 2412985, upload-time = "2026-09-25T15:20:59.747Z" },
     { url = "https://files.pythonhosted.org/packages/c5/7a/7d1879d78c086737acee5f3250cbff9d285e5bd7cb6bc2c730f24e8d400e/sqlalchemy-2.1.1-py3-none-any.whl", hash = "sha256:4357c1a222e141662251a59d3702f9b124294941171dfa6bd570513e9f4905ee", size = 2047471, upload-time = "2026-09-25T15:20:37.797Z" },
+]
+
+[[package]]
+name = "sqlglot"
+version = "30.22.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/94/e0/db58fbf2527426758dc1e862ce538736978e100e4e78fc9657e9661826ee/sqlglot-30.22.0.tar.gz", hash = "sha256:ec4b83ca8236ea8867f574a382dc15ce35b071c977fecfcc66482d9a3f500661", size = 6088770, upload-time = "2026-10-09T16:09:01.04Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b4/4c/b8474b02b572d9c7a2903e364335d566d52b6128b834b92a7cdfe5597823/sqlglot-30.22.0-py3-none-any.whl", hash = "sha256:90aa461490fcd95d14ec3842a97506ae20f6d3e9313307ad31be793d479cca65", size = 777816, upload-time = "2026-10-09T16:08:59.07Z" },
 ]
 
 [[package]]

@@ -80,7 +80,7 @@ Query Skill 的发现、详情和执行共享读取准入判断；即使 SQL 为
 
 `read.tables` 的大小写规则（v3.8.1 起）：SQLite 连接不区分大小写；MySQL 连接保留配置中的大小写并精确匹配，因为 `lower_case_table_names=0`（Linux 默认）时 `Orders` 与 `orders` 是不同的表。MySQL 条目应写成数据库中的存储名；在不区分大小写的服务器上，大小写不同的查询引用也会被拒绝。`mode = "all"` 不受这项大小写限制影响。Skill schema readiness 也使用对应连接的表身份；它只观察可用性，不授权执行。见 DRR-2026-076。
 
-10 月 12 日复核后的读取子集保守拒绝关系括号组、单引号对象、ODBC 包装和 TABLE 表达式；可用标准标识符引用及受支持的 JOIN／CTE。CTE 名按定义顺序和显式递归生效，SQLite 前向引用／隐式递归在白名单下可能被拒绝。内置 PRAGMA 对象名保留，普通 `pragma_` 列、别名及非保留业务表名允许。`read.mode="all"` 仍执行结构、系统对象等检查，不能绕过这些限制。
+10 月 12 日复核后的读取子集保守拒绝关系括号组、单引号对象、ODBC 包装和 TABLE 表达式；可用标准标识符引用及受支持的 JOIN／CTE。v3.8.2 起，CTE 按实际方言处理：SQLite 支持前向引用和隐式递归；MySQL 保持定义顺序与显式递归自引用，不豁免实际同名物理表。内置 PRAGMA 对象名保留，普通 `pragma_` 列、别名及非保留业务表名允许。`read.mode="all"` 仍执行结构、系统对象等检查，不能绕过这些限制。
 
 `describe_table()` 自动采集已授权表的索引，没有新增 TOML 开关，`get_full_schema()` 不含索引。采集固定限 128 个索引、2048 键项和 64 KiB UTF-8 索引数组，独立于 `limits.result_chars`；时间沿用配置 query timeout，仅索引阶段协作式生效。超限／失败返回 `indexes_status="unavailable"`、`indexes=null`，保留列信息；不能解释为无索引。SQLite 元数据明确读取 main，普通 SQL 会话的临时对象仍由可信扩展负责。索引名等新增披露和采集成本属于已接受取舍，见[最终复核](../validation/v3.8/V3_8_1_REVIEW_2026_10_12_ZH.md)。
 
@@ -177,7 +177,7 @@ SQLite IN/NOT IN 裸关系也受 read.tables 与内置 PRAGMA 检查；限定名
 
 ## v3.8.1 读取函数限制
 
-raw query 与 Query Skill 默认拒绝真实 GET_LOCK／RELEASE_LOCK／RELEASE_ALL_LOCKS／SLEEP／BENCHMARK 调用，两种数据库一致，无新增配置开关或全面函数白名单。含此调用的 Query Skill 模板启动时跳过并记录固定原因；字符串、普通列／别名和 CTE 声明不受该名字限制，同名自定义实际调用仍受限。不要把 Query Skill 当作例外，现有写入批准规则不变。SQLGlot 为隔离验证，不需安装运行依赖；AST／SQLite authorizer 接入暂缓。见[范围与验收](../validation/v3.8/V3_8_1_PHASE123_2026_10_14_ZH.md)。
+raw query 与 Query Skill 默认拒绝真实 GET_LOCK／RELEASE_LOCK／RELEASE_ALL_LOCKS／SLEEP／BENCHMARK 调用，两种数据库一致，无新增配置开关或全面函数白名单。含此调用的 Query Skill 模板启动时跳过并记录固定原因；字符串、普通列／别名和 CTE 声明不受该名字限制，同名自定义实际调用仍受限。不要把 Query Skill 当作例外，现有写入批准规则不变。v3.8.2 已将 SQLGlot 30.22.0 作为锁定运行依赖并接入 SQLite authorizer；下方按日期的小节保留 v3.8.1 阶段范围，当前契约见本文 v3.8.2 小节。见[范围与验收](../validation/v3.8/V3_8_1_PHASE123_2026_10_14_ZH.md)。
 
 ## 实体名称与最后身份补修（2026-10-14）
 
@@ -197,3 +197,30 @@ read.tables=["main.orders"] 授权 FROM main.orders，不授权单个字面 FROM
 readiness 观察默认 schema 中 table／view，表发现工具仍只列普通表；关闭 readiness 不扩大授权。视图存在性不保证底层访问、列语义或可写。Mutation validate 的 valid 须为严格 bool、errors 若存在须为字符串 list、附加字段可 JSON 序列化；非法返回固定安全失败，执行阶段仍消费一次性令牌。无需新增 TOML 字段或 Agent 步骤；第三方 adapter 应实现 metadata_schema／get_read_relations。MySQL 临时对象生命周期另行设计。见[本批验收](../validation/v3.8/V3_8_1_SCHEMA_BINDING_2026_10_15_ZH.md)。
 
 SQLite 目录只排除字面 sqlite_ 内部前缀，合法 sqliteX... 表／视图不能被下划线通配误过滤；此过滤不扩大读授权。该补修没有新增配置字段；见[字面前缀验证](../validation/v3.8/V3_8_1_SQLITE_PREFIX_2026_10_15_ZH.md)。
+
+
+## v3.8.2：结构化声明与会话约定
+
+`tables` 简写继续按首个点分开 schema/name；含点、引号或空格的业务名称优先使用结构化组件，字符串显示值不作为授权键：
+
+```toml
+[connections.demo.read]
+mode = "allowlist"
+relations = [{ schema = "main", name = "orders" }, { schema = "main", name = "main.orders" }]
+```
+
+这分别授权 `main.orders` 和 `main."main.orders"`，不自动互通。省略 schema 表示裸引用；SQLite authorizer 将裸 grant 限定在默认 main，temp/aux 的同名对象不能继承。普通读取不因此增加 Agent 工具步骤。表工具输入仍是裸业务名称，但改为方言支持包络加安全组件引用：SQLite 可含点、空格、引用字符和超过 64 字符的名称；空名/NUL 不支持。MySQL 物理名继续遵守其长度、BMP 和尾空格限制，不对合法名称 trim。
+
+Skill frontmatter 可声明相同身份；声明是额外约束／依赖，不能增加 grant：
+
+```yaml
+relations:
+  - schema: main
+    name: main.orders
+```
+
+Query Skill full 返回 `analysis_complete`；不完整推断为 `inferred_tables=null`，不可执行，不能当成无依赖。readiness 只观察 main／配置的 MySQL database；其他 schema 仍为 unverified。
+
+MySQL 可配置 `mysql.sql_mode = ["STRICT_TRANS_TABLES", "NO_ENGINE_SUBSTITUTION", "ANSI_QUOTES"]`。该数组是完整集合，不是增量；不要无意移除严格模式。省略则继承首个初始化物理会话的完整集合，后续连接／重连保持该约定；不是每次请求探测。只接受展开的模式名称，ANSI/TRADITIONAL 等组合别名返回配置错误。解析适配 ANSI_QUOTES、NO_BACKSLASH_ESCAPES、PIPES_AS_CONCAT；HIGH_NOT_PRECEDENCE 返回 sql_mode_unsupported。可信扩展经任意 execute 或完整写事务后会销毁会话，增加重新连接成本；直接操作私有 engine 的扩展自行维护约定。
+
+SQLite 使用连接独占及 `cached_statements=0`，authorizer 在编译至取完结果期间生效；固定目录／统计信息与受管写入为独立可信上下文；sample、精确计数及会读取数据的 SQLite 估算激活读取 guard，估算被拒时行数为 null，列／索引仍可用。视图可经已授权视图读取，底表不因此获得直接 grant。复杂／歧义来源、虚拟关系视图或预算超限返回 view_scope_unresolved；完整预算、缓存、同步取消和可信 schema/UDF 限制见[架构决议](../architecture/V3_8_2_SQL_SEMANTICS_ZH.md)。MySQL 无等价 authorizer，限定配置库本身不能防止同会话临时表遮蔽；会话销毁约定解决复用污染，不保证任意存储例程无副作用。

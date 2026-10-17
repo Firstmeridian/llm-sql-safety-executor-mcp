@@ -1,0 +1,1295 @@
+{
+  "source": "/home/andy/my_programs/llm-sql-safety-executor-mcp/src",
+  "analyses": [
+    {
+      "case": "two_catalog_candidates_even_granted",
+      "schema": "main",
+      "trigger": "log_orders",
+      "results": [
+        {
+          "status": "complete",
+          "statement_kind": "insert",
+          "relations": [
+            {
+              "name": "audit_log",
+              "schema": null
+            }
+          ],
+          "functions": [
+            "count"
+          ],
+          "names": [
+            {
+              "name": "audit_log",
+              "role": "relation",
+              "raw": "audit_log",
+              "quote": null,
+              "start": 12,
+              "end": 20,
+              "scope": 1
+            },
+            {
+              "name": "chosen",
+              "role": "cte",
+              "raw": "chosen",
+              "quote": null,
+              "start": 35,
+              "end": 40,
+              "scope": 3
+            },
+            {
+              "name": "n",
+              "role": "column_alias",
+              "raw": "n",
+              "quote": null,
+              "start": 42,
+              "end": 42,
+              "scope": 3
+            },
+            {
+              "name": "chosen",
+              "role": "cte",
+              "raw": "chosen",
+              "quote": null,
+              "start": 93,
+              "end": 98,
+              "scope": 3
+            }
+          ],
+          "parameters": [],
+          "unsupported": [],
+          "has_union": false,
+          "has_derived_relation": false,
+          "has_nested_write": false,
+          "has_file_output": false,
+          "has_system_variable": false,
+          "context_key": [
+            "sqlite",
+            [],
+            false,
+            "main"
+          ],
+          "source_sql": "INSERT INTO audit_log SELECT (WITH chosen(n) AS MATERIALIZED (SELECT 7) SELECT COUNT(*) FROM chosen)",
+          "parameter_positions": [],
+          "scopes": [
+            {
+              "identity": 1,
+              "parent": null,
+              "visible_ctes": []
+            },
+            {
+              "identity": 2,
+              "parent": 1,
+              "visible_ctes": []
+            },
+            {
+              "identity": 3,
+              "parent": 2,
+              "visible_ctes": [
+                "chosen"
+              ]
+            },
+            {
+              "identity": 4,
+              "parent": 3,
+              "visible_ctes": [
+                "chosen"
+              ]
+            }
+          ],
+          "ctes": [
+            {
+              "name": "chosen",
+              "columns": [
+                "n"
+              ],
+              "scope": 3,
+              "order": 0,
+              "recursive": false,
+              "materialized": true
+            }
+          ],
+          "relation_uses": [
+            {
+              "reference": {
+                "name": "audit_log",
+                "schema": null
+              },
+              "scope": 1,
+              "source": null
+            }
+          ],
+          "explain_payload": null
+        }
+      ]
+    },
+    {
+      "case": "temp_shadow_ungranted_even_main_granted",
+      "schema": "main",
+      "trigger": "log_orders",
+      "results": [
+        {
+          "status": "complete",
+          "statement_kind": "insert",
+          "relations": [
+            {
+              "name": "audit_log",
+              "schema": null
+            }
+          ],
+          "functions": [
+            "count"
+          ],
+          "names": [
+            {
+              "name": "audit_log",
+              "role": "relation",
+              "raw": "audit_log",
+              "quote": null,
+              "start": 12,
+              "end": 20,
+              "scope": 1
+            },
+            {
+              "name": "chosen",
+              "role": "cte",
+              "raw": "chosen",
+              "quote": null,
+              "start": 35,
+              "end": 40,
+              "scope": 3
+            },
+            {
+              "name": "n",
+              "role": "column_alias",
+              "raw": "n",
+              "quote": null,
+              "start": 42,
+              "end": 42,
+              "scope": 3
+            },
+            {
+              "name": "chosen",
+              "role": "cte",
+              "raw": "chosen",
+              "quote": null,
+              "start": 93,
+              "end": 98,
+              "scope": 3
+            }
+          ],
+          "parameters": [],
+          "unsupported": [],
+          "has_union": false,
+          "has_derived_relation": false,
+          "has_nested_write": false,
+          "has_file_output": false,
+          "has_system_variable": false,
+          "context_key": [
+            "sqlite",
+            [],
+            false,
+            "main"
+          ],
+          "source_sql": "INSERT INTO audit_log SELECT (WITH chosen(n) AS MATERIALIZED (SELECT 7) SELECT COUNT(*) FROM chosen)",
+          "parameter_positions": [],
+          "scopes": [
+            {
+              "identity": 1,
+              "parent": null,
+              "visible_ctes": []
+            },
+            {
+              "identity": 2,
+              "parent": 1,
+              "visible_ctes": []
+            },
+            {
+              "identity": 3,
+              "parent": 2,
+              "visible_ctes": [
+                "chosen"
+              ]
+            },
+            {
+              "identity": 4,
+              "parent": 3,
+              "visible_ctes": [
+                "chosen"
+              ]
+            }
+          ],
+          "ctes": [
+            {
+              "name": "chosen",
+              "columns": [
+                "n"
+              ],
+              "scope": 3,
+              "order": 0,
+              "recursive": false,
+              "materialized": true
+            }
+          ],
+          "relation_uses": [
+            {
+              "reference": {
+                "name": "audit_log",
+                "schema": null
+              },
+              "scope": 1,
+              "source": null
+            }
+          ],
+          "explain_payload": null
+        }
+      ]
+    },
+    {
+      "case": "same_label_then_ungranted_physical",
+      "schema": "main",
+      "trigger": "log_orders",
+      "results": [
+        {
+          "status": "complete",
+          "statement_kind": "insert",
+          "relations": [
+            {
+              "name": "audit_log",
+              "schema": null
+            }
+          ],
+          "functions": [
+            "count"
+          ],
+          "names": [
+            {
+              "name": "audit_log",
+              "role": "relation",
+              "raw": "audit_log",
+              "quote": null,
+              "start": 12,
+              "end": 20,
+              "scope": 1
+            },
+            {
+              "name": "chosen",
+              "role": "cte",
+              "raw": "chosen",
+              "quote": null,
+              "start": 35,
+              "end": 40,
+              "scope": 3
+            },
+            {
+              "name": "n",
+              "role": "column_alias",
+              "raw": "n",
+              "quote": null,
+              "start": 42,
+              "end": 42,
+              "scope": 3
+            },
+            {
+              "name": "chosen",
+              "role": "cte",
+              "raw": "chosen",
+              "quote": null,
+              "start": 93,
+              "end": 98,
+              "scope": 3
+            }
+          ],
+          "parameters": [],
+          "unsupported": [],
+          "has_union": false,
+          "has_derived_relation": false,
+          "has_nested_write": false,
+          "has_file_output": false,
+          "has_system_variable": false,
+          "context_key": [
+            "sqlite",
+            [],
+            false,
+            "main"
+          ],
+          "source_sql": "INSERT INTO audit_log SELECT (WITH chosen(n) AS MATERIALIZED (SELECT 7) SELECT COUNT(*) FROM chosen)",
+          "parameter_positions": [],
+          "scopes": [
+            {
+              "identity": 1,
+              "parent": null,
+              "visible_ctes": []
+            },
+            {
+              "identity": 2,
+              "parent": 1,
+              "visible_ctes": []
+            },
+            {
+              "identity": 3,
+              "parent": 2,
+              "visible_ctes": [
+                "chosen"
+              ]
+            },
+            {
+              "identity": 4,
+              "parent": 3,
+              "visible_ctes": [
+                "chosen"
+              ]
+            }
+          ],
+          "ctes": [
+            {
+              "name": "chosen",
+              "columns": [
+                "n"
+              ],
+              "scope": 3,
+              "order": 0,
+              "recursive": false,
+              "materialized": true
+            }
+          ],
+          "relation_uses": [
+            {
+              "reference": {
+                "name": "audit_log",
+                "schema": null
+              },
+              "scope": 1,
+              "source": null
+            }
+          ],
+          "explain_payload": null
+        },
+        {
+          "status": "complete",
+          "statement_kind": "insert",
+          "relations": [
+            {
+              "name": "audit_log",
+              "schema": null
+            },
+            {
+              "name": "chosen",
+              "schema": null
+            }
+          ],
+          "functions": [
+            "count"
+          ],
+          "names": [
+            {
+              "name": "audit_log",
+              "role": "relation",
+              "raw": "audit_log",
+              "quote": null,
+              "start": 12,
+              "end": 20,
+              "scope": 1
+            },
+            {
+              "name": "chosen",
+              "role": "relation",
+              "raw": "chosen",
+              "quote": null,
+              "start": 43,
+              "end": 48,
+              "scope": 2
+            }
+          ],
+          "parameters": [],
+          "unsupported": [],
+          "has_union": false,
+          "has_derived_relation": false,
+          "has_nested_write": false,
+          "has_file_output": false,
+          "has_system_variable": false,
+          "context_key": [
+            "sqlite",
+            [],
+            false,
+            "main"
+          ],
+          "source_sql": "INSERT INTO audit_log SELECT COUNT(*) FROM chosen",
+          "parameter_positions": [],
+          "scopes": [
+            {
+              "identity": 1,
+              "parent": null,
+              "visible_ctes": []
+            },
+            {
+              "identity": 2,
+              "parent": 1,
+              "visible_ctes": []
+            }
+          ],
+          "ctes": [],
+          "relation_uses": [
+            {
+              "reference": {
+                "name": "audit_log",
+                "schema": null
+              },
+              "scope": 1,
+              "source": null
+            },
+            {
+              "reference": {
+                "name": "chosen",
+                "schema": null
+              },
+              "scope": 2,
+              "source": null
+            }
+          ],
+          "explain_payload": null
+        }
+      ]
+    },
+    {
+      "case": "same_label_other_body_ungranted_cte_base",
+      "schema": "main",
+      "trigger": "log_orders",
+      "results": [
+        {
+          "status": "complete",
+          "statement_kind": "insert",
+          "relations": [
+            {
+              "name": "audit_log",
+              "schema": null
+            }
+          ],
+          "functions": [
+            "count"
+          ],
+          "names": [
+            {
+              "name": "audit_log",
+              "role": "relation",
+              "raw": "audit_log",
+              "quote": null,
+              "start": 12,
+              "end": 20,
+              "scope": 1
+            },
+            {
+              "name": "chosen",
+              "role": "cte",
+              "raw": "chosen",
+              "quote": null,
+              "start": 35,
+              "end": 40,
+              "scope": 3
+            },
+            {
+              "name": "n",
+              "role": "column_alias",
+              "raw": "n",
+              "quote": null,
+              "start": 42,
+              "end": 42,
+              "scope": 3
+            },
+            {
+              "name": "chosen",
+              "role": "cte",
+              "raw": "chosen",
+              "quote": null,
+              "start": 93,
+              "end": 98,
+              "scope": 3
+            }
+          ],
+          "parameters": [],
+          "unsupported": [],
+          "has_union": false,
+          "has_derived_relation": false,
+          "has_nested_write": false,
+          "has_file_output": false,
+          "has_system_variable": false,
+          "context_key": [
+            "sqlite",
+            [],
+            false,
+            "main"
+          ],
+          "source_sql": "INSERT INTO audit_log SELECT (WITH chosen(n) AS MATERIALIZED (SELECT 7) SELECT COUNT(*) FROM chosen)",
+          "parameter_positions": [],
+          "scopes": [
+            {
+              "identity": 1,
+              "parent": null,
+              "visible_ctes": []
+            },
+            {
+              "identity": 2,
+              "parent": 1,
+              "visible_ctes": []
+            },
+            {
+              "identity": 3,
+              "parent": 2,
+              "visible_ctes": [
+                "chosen"
+              ]
+            },
+            {
+              "identity": 4,
+              "parent": 3,
+              "visible_ctes": [
+                "chosen"
+              ]
+            }
+          ],
+          "ctes": [
+            {
+              "name": "chosen",
+              "columns": [
+                "n"
+              ],
+              "scope": 3,
+              "order": 0,
+              "recursive": false,
+              "materialized": true
+            }
+          ],
+          "relation_uses": [
+            {
+              "reference": {
+                "name": "audit_log",
+                "schema": null
+              },
+              "scope": 1,
+              "source": null
+            }
+          ],
+          "explain_payload": null
+        },
+        {
+          "status": "complete",
+          "statement_kind": "insert",
+          "relations": [
+            {
+              "name": "audit_log",
+              "schema": null
+            },
+            {
+              "name": "hidden",
+              "schema": null
+            }
+          ],
+          "functions": [
+            "count"
+          ],
+          "names": [
+            {
+              "name": "audit_log",
+              "role": "relation",
+              "raw": "audit_log",
+              "quote": null,
+              "start": 12,
+              "end": 20,
+              "scope": 1
+            },
+            {
+              "name": "chosen",
+              "role": "cte",
+              "raw": "chosen",
+              "quote": null,
+              "start": 35,
+              "end": 40,
+              "scope": 3
+            },
+            {
+              "name": "n",
+              "role": "column_alias",
+              "raw": "n",
+              "quote": null,
+              "start": 42,
+              "end": 42,
+              "scope": 3
+            },
+            {
+              "name": "hidden",
+              "role": "relation",
+              "raw": "hidden",
+              "quote": null,
+              "start": 76,
+              "end": 81,
+              "scope": 4
+            },
+            {
+              "name": "chosen",
+              "role": "cte",
+              "raw": "chosen",
+              "quote": null,
+              "start": 105,
+              "end": 110,
+              "scope": 3
+            }
+          ],
+          "parameters": [],
+          "unsupported": [],
+          "has_union": false,
+          "has_derived_relation": false,
+          "has_nested_write": false,
+          "has_file_output": false,
+          "has_system_variable": false,
+          "context_key": [
+            "sqlite",
+            [],
+            false,
+            "main"
+          ],
+          "source_sql": "INSERT INTO audit_log SELECT (WITH chosen(n) AS MATERIALIZED (SELECT n FROM hidden) SELECT COUNT(*) FROM chosen)",
+          "parameter_positions": [],
+          "scopes": [
+            {
+              "identity": 1,
+              "parent": null,
+              "visible_ctes": []
+            },
+            {
+              "identity": 2,
+              "parent": 1,
+              "visible_ctes": []
+            },
+            {
+              "identity": 3,
+              "parent": 2,
+              "visible_ctes": [
+                "chosen"
+              ]
+            },
+            {
+              "identity": 4,
+              "parent": 3,
+              "visible_ctes": [
+                "chosen"
+              ]
+            }
+          ],
+          "ctes": [
+            {
+              "name": "chosen",
+              "columns": [
+                "n"
+              ],
+              "scope": 3,
+              "order": 0,
+              "recursive": false,
+              "materialized": true
+            }
+          ],
+          "relation_uses": [
+            {
+              "reference": {
+                "name": "audit_log",
+                "schema": null
+              },
+              "scope": 1,
+              "source": null
+            },
+            {
+              "reference": {
+                "name": "hidden",
+                "schema": null
+              },
+              "scope": 4,
+              "source": "chosen"
+            }
+          ],
+          "explain_payload": null
+        }
+      ]
+    },
+    {
+      "case": "same_label_nested_hidden_base",
+      "schema": "main",
+      "trigger": "log_orders",
+      "results": [
+        {
+          "status": "complete",
+          "statement_kind": "insert",
+          "relations": [
+            {
+              "name": "audit_log",
+              "schema": null
+            },
+            {
+              "name": "hidden",
+              "schema": null
+            }
+          ],
+          "functions": [
+            "count"
+          ],
+          "names": [
+            {
+              "name": "audit_log",
+              "role": "relation",
+              "raw": "audit_log",
+              "quote": null,
+              "start": 12,
+              "end": 20,
+              "scope": 1
+            },
+            {
+              "name": "chosen",
+              "role": "cte",
+              "raw": "chosen",
+              "quote": null,
+              "start": 35,
+              "end": 40,
+              "scope": 3
+            },
+            {
+              "name": "n",
+              "role": "column_alias",
+              "raw": "n",
+              "quote": null,
+              "start": 42,
+              "end": 42,
+              "scope": 3
+            },
+            {
+              "name": "chosen",
+              "role": "cte",
+              "raw": "chosen",
+              "quote": null,
+              "start": 72,
+              "end": 77,
+              "scope": 5
+            },
+            {
+              "name": "n",
+              "role": "column_alias",
+              "raw": "n",
+              "quote": null,
+              "start": 79,
+              "end": 79,
+              "scope": 5
+            },
+            {
+              "name": "hidden",
+              "role": "relation",
+              "raw": "hidden",
+              "quote": null,
+              "start": 113,
+              "end": 118,
+              "scope": 6
+            },
+            {
+              "name": "chosen",
+              "role": "cte",
+              "raw": "chosen",
+              "quote": null,
+              "start": 142,
+              "end": 147,
+              "scope": 5
+            }
+          ],
+          "parameters": [],
+          "unsupported": [],
+          "has_union": false,
+          "has_derived_relation": false,
+          "has_nested_write": false,
+          "has_file_output": false,
+          "has_system_variable": false,
+          "context_key": [
+            "sqlite",
+            [],
+            false,
+            "main"
+          ],
+          "source_sql": "INSERT INTO audit_log SELECT (WITH chosen(n) AS (SELECT 7) SELECT (WITH chosen(n) AS MATERIALIZED (SELECT n FROM hidden) SELECT COUNT(*) FROM chosen))",
+          "parameter_positions": [],
+          "scopes": [
+            {
+              "identity": 1,
+              "parent": null,
+              "visible_ctes": []
+            },
+            {
+              "identity": 2,
+              "parent": 1,
+              "visible_ctes": []
+            },
+            {
+              "identity": 3,
+              "parent": 2,
+              "visible_ctes": [
+                "chosen"
+              ]
+            },
+            {
+              "identity": 4,
+              "parent": 3,
+              "visible_ctes": [
+                "chosen"
+              ]
+            },
+            {
+              "identity": 5,
+              "parent": 3,
+              "visible_ctes": [
+                "chosen"
+              ]
+            },
+            {
+              "identity": 6,
+              "parent": 5,
+              "visible_ctes": [
+                "chosen"
+              ]
+            }
+          ],
+          "ctes": [
+            {
+              "name": "chosen",
+              "columns": [
+                "n"
+              ],
+              "scope": 3,
+              "order": 0,
+              "recursive": false,
+              "materialized": null
+            },
+            {
+              "name": "chosen",
+              "columns": [
+                "n"
+              ],
+              "scope": 5,
+              "order": 0,
+              "recursive": false,
+              "materialized": true
+            }
+          ],
+          "relation_uses": [
+            {
+              "reference": {
+                "name": "audit_log",
+                "schema": null
+              },
+              "scope": 1,
+              "source": null
+            },
+            {
+              "reference": {
+                "name": "hidden",
+                "schema": null
+              },
+              "scope": 6,
+              "source": "chosen"
+            }
+          ],
+          "explain_payload": null
+        }
+      ]
+    },
+    {
+      "case": "when_cte_restricted_function",
+      "schema": "main",
+      "trigger": "log_orders",
+      "results": [
+        {
+          "status": "complete",
+          "statement_kind": "select",
+          "relations": [],
+          "functions": [
+            "count",
+            "sleep"
+          ],
+          "names": [
+            {
+              "name": "chosen",
+              "role": "cte",
+              "raw": "chosen",
+              "quote": null,
+              "start": 15,
+              "end": 20,
+              "scope": 2
+            },
+            {
+              "name": "n",
+              "role": "column_alias",
+              "raw": "n",
+              "quote": null,
+              "start": 22,
+              "end": 22,
+              "scope": 2
+            },
+            {
+              "name": "chosen",
+              "role": "cte",
+              "raw": "chosen",
+              "quote": null,
+              "start": 80,
+              "end": 85,
+              "scope": 2
+            }
+          ],
+          "parameters": [],
+          "unsupported": [],
+          "has_union": false,
+          "has_derived_relation": false,
+          "has_nested_write": false,
+          "has_file_output": false,
+          "has_system_variable": false,
+          "context_key": [
+            "sqlite",
+            [],
+            false,
+            "main"
+          ],
+          "source_sql": "SELECT ( (WITH chosen(n) AS MATERIALIZED (SELECT SLEEP(0)) SELECT COUNT(*) FROM chosen)>0 )",
+          "parameter_positions": [],
+          "scopes": [
+            {
+              "identity": 1,
+              "parent": null,
+              "visible_ctes": []
+            },
+            {
+              "identity": 2,
+              "parent": 1,
+              "visible_ctes": [
+                "chosen"
+              ]
+            },
+            {
+              "identity": 3,
+              "parent": 2,
+              "visible_ctes": [
+                "chosen"
+              ]
+            }
+          ],
+          "ctes": [
+            {
+              "name": "chosen",
+              "columns": [
+                "n"
+              ],
+              "scope": 2,
+              "order": 0,
+              "recursive": false,
+              "materialized": true
+            }
+          ],
+          "relation_uses": [],
+          "explain_payload": null
+        },
+        {
+          "status": "complete",
+          "statement_kind": "insert",
+          "relations": [
+            {
+              "name": "audit_log",
+              "schema": null
+            }
+          ],
+          "functions": [],
+          "names": [
+            {
+              "name": "audit_log",
+              "role": "relation",
+              "raw": "audit_log",
+              "quote": null,
+              "start": 12,
+              "end": 20,
+              "scope": 1
+            }
+          ],
+          "parameters": [],
+          "unsupported": [],
+          "has_union": false,
+          "has_derived_relation": false,
+          "has_nested_write": false,
+          "has_file_output": false,
+          "has_system_variable": false,
+          "context_key": [
+            "sqlite",
+            [],
+            false,
+            "main"
+          ],
+          "source_sql": "INSERT INTO audit_log VALUES(7)",
+          "parameter_positions": [],
+          "scopes": [
+            {
+              "identity": 1,
+              "parent": null,
+              "visible_ctes": []
+            }
+          ],
+          "ctes": [],
+          "relation_uses": [
+            {
+              "reference": {
+                "name": "audit_log",
+                "schema": null
+              },
+              "scope": 1,
+              "source": null
+            }
+          ],
+          "explain_payload": null
+        }
+      ]
+    },
+    {
+      "case": "cte_trigger_name_collision",
+      "schema": "main",
+      "trigger": "chosen",
+      "results": [
+        {
+          "status": "complete",
+          "statement_kind": "insert",
+          "relations": [
+            {
+              "name": "audit_log",
+              "schema": null
+            }
+          ],
+          "functions": [
+            "count"
+          ],
+          "names": [
+            {
+              "name": "audit_log",
+              "role": "relation",
+              "raw": "audit_log",
+              "quote": null,
+              "start": 12,
+              "end": 20,
+              "scope": 1
+            },
+            {
+              "name": "chosen",
+              "role": "cte",
+              "raw": "chosen",
+              "quote": null,
+              "start": 35,
+              "end": 40,
+              "scope": 3
+            },
+            {
+              "name": "n",
+              "role": "column_alias",
+              "raw": "n",
+              "quote": null,
+              "start": 42,
+              "end": 42,
+              "scope": 3
+            },
+            {
+              "name": "chosen",
+              "role": "cte",
+              "raw": "chosen",
+              "quote": null,
+              "start": 93,
+              "end": 98,
+              "scope": 3
+            }
+          ],
+          "parameters": [],
+          "unsupported": [],
+          "has_union": false,
+          "has_derived_relation": false,
+          "has_nested_write": false,
+          "has_file_output": false,
+          "has_system_variable": false,
+          "context_key": [
+            "sqlite",
+            [],
+            false,
+            "main"
+          ],
+          "source_sql": "INSERT INTO audit_log SELECT (WITH chosen(n) AS MATERIALIZED (SELECT 7) SELECT COUNT(*) FROM chosen)",
+          "parameter_positions": [],
+          "scopes": [
+            {
+              "identity": 1,
+              "parent": null,
+              "visible_ctes": []
+            },
+            {
+              "identity": 2,
+              "parent": 1,
+              "visible_ctes": []
+            },
+            {
+              "identity": 3,
+              "parent": 2,
+              "visible_ctes": [
+                "chosen"
+              ]
+            },
+            {
+              "identity": 4,
+              "parent": 3,
+              "visible_ctes": [
+                "chosen"
+              ]
+            }
+          ],
+          "ctes": [
+            {
+              "name": "chosen",
+              "columns": [
+                "n"
+              ],
+              "scope": 3,
+              "order": 0,
+              "recursive": false,
+              "materialized": true
+            }
+          ],
+          "relation_uses": [
+            {
+              "reference": {
+                "name": "audit_log",
+                "schema": null
+              },
+              "scope": 1,
+              "source": null
+            }
+          ],
+          "explain_payload": null
+        }
+      ]
+    },
+    {
+      "case": "cte_view_name_collision",
+      "schema": "main",
+      "trigger": "log_orders",
+      "results": [
+        {
+          "status": "complete",
+          "statement_kind": "insert",
+          "relations": [
+            {
+              "name": "audit_log",
+              "schema": null
+            }
+          ],
+          "functions": [
+            "count"
+          ],
+          "names": [
+            {
+              "name": "audit_log",
+              "role": "relation",
+              "raw": "audit_log",
+              "quote": null,
+              "start": 12,
+              "end": 20,
+              "scope": 1
+            },
+            {
+              "name": "chosen",
+              "role": "cte",
+              "raw": "chosen",
+              "quote": null,
+              "start": 35,
+              "end": 40,
+              "scope": 3
+            },
+            {
+              "name": "n",
+              "role": "column_alias",
+              "raw": "n",
+              "quote": null,
+              "start": 42,
+              "end": 42,
+              "scope": 3
+            },
+            {
+              "name": "chosen",
+              "role": "cte",
+              "raw": "chosen",
+              "quote": null,
+              "start": 93,
+              "end": 98,
+              "scope": 3
+            }
+          ],
+          "parameters": [],
+          "unsupported": [],
+          "has_union": false,
+          "has_derived_relation": false,
+          "has_nested_write": false,
+          "has_file_output": false,
+          "has_system_variable": false,
+          "context_key": [
+            "sqlite",
+            [],
+            false,
+            "main"
+          ],
+          "source_sql": "INSERT INTO audit_log SELECT (WITH chosen(n) AS MATERIALIZED (SELECT 7) SELECT COUNT(*) FROM chosen)",
+          "parameter_positions": [],
+          "scopes": [
+            {
+              "identity": 1,
+              "parent": null,
+              "visible_ctes": []
+            },
+            {
+              "identity": 2,
+              "parent": 1,
+              "visible_ctes": []
+            },
+            {
+              "identity": 3,
+              "parent": 2,
+              "visible_ctes": [
+                "chosen"
+              ]
+            },
+            {
+              "identity": 4,
+              "parent": 3,
+              "visible_ctes": [
+                "chosen"
+              ]
+            }
+          ],
+          "ctes": [
+            {
+              "name": "chosen",
+              "columns": [
+                "n"
+              ],
+              "scope": 3,
+              "order": 0,
+              "recursive": false,
+              "materialized": true
+            }
+          ],
+          "relation_uses": [
+            {
+              "reference": {
+                "name": "audit_log",
+                "schema": null
+              },
+              "scope": 1,
+              "source": null
+            }
+          ],
+          "explain_payload": null
+        }
+      ]
+    }
+  ],
+  "script_sha256": "9ca82d4b1eda83f2fa5e952a7bac51c4bd68e29e200053623f48f7d0f149d027",
+  "harness_sha256": "f0a3a80f5b960f99bf9e8fa00ff495697fc1facee18b453ca929c9db5890306e"
+}

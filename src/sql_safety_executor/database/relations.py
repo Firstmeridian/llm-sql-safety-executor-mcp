@@ -31,7 +31,7 @@ class RelationReference:
     @property
     def display_name(self) -> str:
         def display(value: str) -> str:
-            return '"' + value.replace('"', '""') + '"' if "." in value else value
+            return '"' + value.replace('"', '""') + '"' if "." in value or value == "*" else value
         name = display(self.name)
         return name if self.schema is None else f"{display(self.schema)}.{name}"
 
@@ -47,13 +47,13 @@ class ReadRelation:
     kind: Literal["table", "view"]
 
 
-def render_relation_for_text(reference: RelationReference, db_type: str) -> str:
-    """Quote components separately for generated SQL passed to SQLAlchemy text.
+def render_relation(reference: RelationReference, db_type: str) -> str:
+    """Quote components separately for generated database SQL.
 
     Metadata table-name validation belongs to the caller; configured schema
     names may contain characters outside that conservative table-name grammar.
-    Escape colons for text()'s bind parser, without changing identifier data in
-    the SQL sent to the driver. This never rewrites user-supplied SQL.
+    The transport layer protects literal colons from text()'s bind parser.
+    This renderer only handles SQL identifiers, never parameter syntax.
     """
     if db_type not in ("sqlite", "mysql"):
         raise ValueError("Unsupported relation quoting dialect")
@@ -62,7 +62,7 @@ def render_relation_for_text(reference: RelationReference, db_type: str) -> str:
     def quote(value: str) -> str:
         if not value or "\x00" in value:
             raise ValueError("Invalid relation component")
-        return delimiter + value.replace(delimiter, delimiter * 2).replace(":", r"\:") + delimiter
+        return delimiter + value.replace(delimiter, delimiter * 2) + delimiter
 
     name = quote(reference.name)
     return name if reference.schema is None else f"{quote(reference.schema)}.{name}"

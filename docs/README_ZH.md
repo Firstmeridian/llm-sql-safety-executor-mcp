@@ -14,6 +14,14 @@
 ## 设计与可复用指南
 
 - [重构日志](../REFACTORING_LOG_ZH.md) / [English](../REFACTORING_LOG.md)：持续维护变更、决策、取舍和验证记录，包含 v3.8。
+- [名称／会话语义、SQLGlot 与 SQLite authorizer](architecture/V3_8_2_SQL_SEMANTICS_ZH.md).
+- [v3.8.2 验收、成本与限制](validation/v3.8/V3_8_2_VALIDATION_2026_10_16_ZH.md).
+- [v3.8.2 视图读取与非执行型计划补修](validation/v3.8/V3_8_2_READ_BOUNDARIES_2026_10_17_ZH.md).
+- [v3.8.2 触发器、WITH REPLACE 与 UPDATE OR 计划后续补修](validation/v3.8/V3_8_2_EXPLAIN_FOLLOWUP_2026_10_17_ZH.md).
+
+- [v3.8.2 触发器局部 CTE 计划补修](validation/v3.8/V3_8_2_TRIGGER_CTE_2026_10_17_ZH.md)。
+- [v3.8.2 相邻问题复查与当前完整 Agent 任务](validation/v3.8/V3_8_2_ADJACENT_AUDIT_2026_10_17_ZH.md)。
+- [v3.8.2 触发器 WHEN 修复与 Host 就绪排查](validation/v3.8/V3_8_2_TRIGGER_WHEN_2026_10_17_ZH.md)。
 - [v3.8 实施决策](architecture/V3_8_IMPLEMENTATION_ZH.md)：包结构、实例状态与参考稿评审。
 - [工具契约与评估方法](guides/PROMPT_ENGINEERING_BEST_PRACTICES.md)：参数 schema、工具说明、提示词与行为检查。
 - [Agent 编排行为验证方法](guides/MCP_AGENT_BEHAVIOR_VALIDATION_ZH.md)：可复用的路由、渐进披露和成本评估方法。

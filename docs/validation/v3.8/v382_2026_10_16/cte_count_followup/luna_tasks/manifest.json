@@ -1,0 +1,67 @@
+{
+  "closed_utc": "2026-10-16 10:37:43 UTC",
+  "scope": "Final-source three fresh two-turn sales trials, separate from the original 12; failures and mechanical/manual assessments retained",
+  "files": {
+    "agents.json": {
+      "sha256": "1b3830df6daf028a5aea1e99d934df352c3b17acbfbe2e6db50b6e22111cd618",
+      "bytes": 514
+    },
+    "collection_correction.json": {
+      "sha256": "5e247bb26f5fd2265ca37096c60ad1a16d5103d6f93eb1b3f32b80cfd3bdca2e",
+      "bytes": 1115
+    },
+    "final_preflight_1.json.gz": {
+      "sha256": "0ee4d348c1c5e200f7c258b9e5c622ad135242352aca0f7ff83da61b96aab3ba",
+      "bytes": 9505
+    },
+    "manual_assessment.json": {
+      "sha256": "ff95a1c4a7870eb82c516685d5fd844504ae32d56d5828b139420162e71a28ec",
+      "bytes": 1255
+    },
+    "manual_review.json": {
+      "sha256": "55c0e81fcd2a2a5195629103a7b94ab3ad5ad7910256a369efb542f33969e292",
+      "bytes": 1837
+    },
+    "plan.json": {
+      "sha256": "1a5e71f24872d0590847e24ae467a3bd2c031bb95ac9c0fea19febe4a58f567b",
+      "bytes": 3455
+    },
+    "real_task_eval.py.gz": {
+      "sha256": "bdf30babf01fcaf16f47943999a7b52e9297216330d84bd5b4db48db160d7f51",
+      "bytes": 6223
+    },
+    "run_status.json": {
+      "sha256": "dce9ee5c686d4bd197f08424f8cb42a60aef50a9a90e7771b3a45affa06c94fc",
+      "bytes": 501
+    },
+    "sales_1.json.gz": {
+      "sha256": "ac484fb0b5fcfe72b46a508e449267d171cd785373c347614bcb7a656bf0bd1a",
+      "bytes": 26649
+    },
+    "sales_2.json.gz": {
+      "sha256": "2d020e8d8078094ae453054b78e75dfd90cc6bbd9f66a70c21be5c3cbf41670d",
+      "bytes": 23001
+    },
+    "sales_3.json.gz": {
+      "sha256": "25ee1e6a111f12c16deee512784b1f4ce4a4733e571fe703568e70371a33f705",
+      "bytes": 22982
+    },
+    "summarize_real_tasks.py.gz": {
+      "sha256": "bba0d0839ffd89ff8a01938727400ae6815239fb6dbc81c88954eee7273ee80b",
+      "bytes": 3802
+    },
+    "summary.json": {
+      "sha256": "194380c95a100892621e36453a7cf74dca3f331b44a63277655ffe87fca469ef",
+      "bytes": 6634
+    },
+    "truth_after.json": {
+      "sha256": "f50def8e5c3f7f22a8743d8f4698e3164fa8a9f1c982f65b269153ee254a761d",
+      "bytes": 20223
+    },
+    "truth_before.json": {
+      "sha256": "0f002c0e1f66510e0313ebe6a30bfe2dbba6563b94529ede06587cc2c0eb6dc1",
+      "bytes": 20224
+    }
+  },
+  "recording_limits": "Sanitized public application events/results, not complete JSON-RPC frames; no hidden reasoning or full preview bearer values"
+}

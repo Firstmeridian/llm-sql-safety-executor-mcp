@@ -3,6 +3,15 @@
 import sqlite3
 
 _MESSAGES = {
+    "session_semantics_unavailable": "Execution session semantics could not be established.",
+    "table_access_denied": "The resolved database object is not authorized.",
+    "server_state_denied": "Server state access is not allowed through raw SQL.",
+    "lock_function_denied": "Session lock functions are not allowed in read SQL.",
+    "expensive_function_denied": "Delay and benchmark functions are not allowed in read SQL.",
+    "file_operation_denied": "Server-side file operations are not allowed in read SQL.",
+    "read_only_required": "Only read operations are allowed through this entry point.",
+    "read_disabled": "Reading is disabled by the target connection policy.",
+    "view_scope_unresolved": "The view authorization scope could not be determined within the supported limits.",
     "unknown_table": "Table not found.",
     "unknown_column": "Column not found.",
     "unknown_function": "SQL function not found for this database dialect.",
@@ -19,6 +28,8 @@ _MESSAGES = {
 }
 
 _HINTS = {
+    "session_semantics_unavailable": "Keep the same connection; ask the maintainer to check its SQL mode and connection initialization.",
+    "view_scope_unresolved": "Keep the same connection; use a supported reviewed view or ask the maintainer to review its dependency structure.",
     "unknown_table": "Use list_tables() to discover authorized tables on the same connection.",
     "unknown_column": "Use describe_table() to check columns on the same connection.",
     "unknown_function": "Use a function supported by the returned db_type; check the SQL dialect.",

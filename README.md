@@ -1,6 +1,6 @@
 # LLM Database Safety Gateway - MCP Service
 
-![Version](https://img.shields.io/badge/version-3.8.1-blue)
+![Version](https://img.shields.io/badge/version-3.8.2-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Python](https://img.shields.io/badge/python-3.12+-blue?logo=python)
 ![MCP](https://img.shields.io/badge/MCP-Protocol-orange)
@@ -137,7 +137,7 @@ Skills Scenario: unknown Skill → list_skills(search=..., detail_level="compact
   is rejected; use `list_tables()`/`describe_table()` for metadata. Nested write
   DML, `EXPLAIN ANALYZE`, executable comments/hints, and ambiguous
   non-whitespace `--` forms are rejected.
-- **SQL Parsing Validation**: Statement-type allowlist via `sqlparse` plus the complete core query policy.
+- **SQL Parsing Validation**: Shared dialect/session-aware SQLGlot analysis and independent read policy; SQLite also checks actual compiled operations with an authorizer.
 - **Connection Security**: Explicit TOML and secret-source configuration. Named connections (`connection_id`) without accepting arbitrary DSNs from tools or model output.
 - **Error Isolation**: Comprehensive exception handling and reporting tailored for LLMs.
 - **Access Isolation**: Access boundaries controlled by the host/runtime environment.
@@ -890,6 +890,14 @@ See [mcp_config.json](mcp_config.json) for the portable template. Private `confi
 
 
 ## Changelog
+
+### v3.8.2 Dialect semantics and execution checks (October 16, 2026)
+
+Shared SQLGlot analysis preserves schema/name, quoting, scopes and original SQL. Structured `read.relations` and Skill `relations` express literal dotted names. Each MySQL physical connection initializes the full SQL-mode contract; SQLite checks compiled operations and view sources under exclusive connection ownership, with statement caching disabled. Readiness stays scoped to the default schema; view grants do not grant direct base access. See the [design/limits](docs/architecture/V3_8_2_SQL_SEMANTICS_ZH.md) and [version-specific acceptance](docs/validation/v3.8/V3_8_2_VALIDATION_2026_10_16_ZH.md). October 17 repairs also guard view-backed sample/count/estimate reads and restore non-executing SQLite DML/REPLACE plans. The subsequent trigger/WITH REPLACE/UPDATE OR repair passes **2067 tests, 4 skipped**, with clean type/prompt checks; final package and completed scoped post-restart verification (42/42) are tracked in the [plan follow-up](docs/validation/v3.8/V3_8_2_EXPLAIN_FOLLOWUP_2026_10_17_ZH.md). The preceding package/MySQL/native 28/28 checks retain their earlier-source scope in the [read-boundary report](docs/validation/v3.8/V3_8_2_READ_BOUNDARIES_2026_10_17_ZH.md). Earlier Host/Luna failures, scoring limits and cost measurements retain their tested-source attribution.
+
+The later trigger-local CTE repair adds 129 regressions (**2196 passed, 4 skipped**) and 340 installed stdio calls, including WHEN, select-only triggers and repeated trigger-local names. Scoped post-restart acceptance passes 57 checks; the earlier 42/42 result retains its prior-source scope. See the [CTE supplement](docs/validation/v3.8/V3_8_2_TRIGGER_CTE_2026_10_17_ZH.md) for exploratory mismatches, the existing repeated outer-CTE limitation, costs and coverage limits.
+
+The adjacent audit's trigger-WHEN boundary is now repaired: **2275 tests pass, 4 skipped**, with 394 installed targeted calls. Host cached-catalog/exact-client diagnostics and verified child recovery are recorded separately from the earlier 2/3 business result. After the maintainer restart, 57/57 scoped native checks pass and three fresh two-turn Luna sales tasks reach correct outcomes; one initial unsupported-query refusal and recovery are retained. See the [WHEN repair](docs/validation/v3.8/V3_8_2_TRIGGER_WHEN_2026_10_17_ZH.md).
 
 ### v3.8.1 Review corrections and task validation (October 2026)
 
@@ -2365,7 +2373,7 @@ For complete design details, execution flow diagrams, and industry best practice
 ## Requirements
 
 - Python 3.12+ and a MySQL or SQLite database.
-- FastMCP 4.0.10 / MCP SDK 2.2.0; SQLAlchemy, sqlparse, PyMySQL, Pydantic and PyYAML are managed by `pyproject.toml` and locked in `uv.lock`.
+- FastMCP 4.0.10 / MCP SDK 2.2.0; SQLAlchemy, SQLGlot, sqlparse (managed write plans), PyMySQL, Pydantic and PyYAML are managed by `pyproject.toml` and locked in `uv.lock`.
 - AutoGen examples use a separate environment. Indirect python-dotenv installation does not imply support for old environment configuration.
 
 ## Testing

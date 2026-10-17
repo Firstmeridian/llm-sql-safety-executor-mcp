@@ -7,6 +7,7 @@ import pytest
 
 from sql_safety_executor import create_server, load_config
 from sql_safety_executor.core.policy import _validate_sql_query_policy
+from sql_safety_executor.database.semantics import DialectContext
 from sql_safety_executor.database.models import ConnectionPolicy
 from tests.test_v38_config import bundle as bundle
 from tests.test_query_skill_static_policy import policy_server as policy_server
@@ -43,7 +44,7 @@ def test_cte_body_calls_rejected_for_each_header_quote_and_scope(call, code, quo
     native_truth(sql, call)
     def unexpected_probe():
         pytest.fail("Denied CTE call reached connection capability I/O")
-    adapter = SimpleNamespace(cte_case_sensitive=None, resolve_cte_case_sensitive=unexpected_probe)
+    adapter = SimpleNamespace(analysis_context=DialectContext("sqlite"), cte_case_sensitive=None, resolve_cte_case_sensitive=unexpected_probe)
     policy = ConnectionPolicy(
         read_mode="all" if all_scope else "allowlist",
         allowed_tables=frozenset({"*"} if all_scope else {"orders"}),

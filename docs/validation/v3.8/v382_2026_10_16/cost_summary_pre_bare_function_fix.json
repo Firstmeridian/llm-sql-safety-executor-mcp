@@ -1,0 +1,65 @@
+{
+  "stages": {
+    "A1": {
+      "policy_import_ms": 107.76822700063349,
+      "peak_rss_kib": 109908,
+      "clients": [
+        {
+          "protocol": "2026-07-28",
+          "metadata_characters": 22680,
+          "startup_ms": 557.68630700004,
+          "warm_median_ms": 151.999501,
+          "warm_p95_ms": 170.930578
+        },
+        {
+          "protocol": "2025-11-25",
+          "metadata_characters": 22680,
+          "startup_ms": 82.59231400006684,
+          "warm_median_ms": 194.43728149999998,
+          "warm_p95_ms": 215.76193500000002
+        }
+      ]
+    },
+    "B": {
+      "policy_import_ms": 162.74932400119724,
+      "peak_rss_kib": 118676,
+      "clients": [
+        {
+          "protocol": "2026-07-28",
+          "metadata_characters": 22680,
+          "startup_ms": 531.1030440007016,
+          "warm_median_ms": 29.282499,
+          "warm_p95_ms": 31.629241
+        },
+        {
+          "protocol": "2025-11-25",
+          "metadata_characters": 22680,
+          "startup_ms": 33.41899199949694,
+          "warm_median_ms": 28.3450415,
+          "warm_p95_ms": 29.27016
+        }
+      ]
+    },
+    "A2": {
+      "policy_import_ms": 88.33859900005336,
+      "peak_rss_kib": 110160,
+      "clients": [
+        {
+          "protocol": "2026-07-28",
+          "metadata_characters": 22680,
+          "startup_ms": 540.7996319991071,
+          "warm_median_ms": 145.7766005,
+          "warm_p95_ms": 178.676918
+        },
+        {
+          "protocol": "2025-11-25",
+          "metadata_characters": 22680,
+          "startup_ms": 57.93264899875794,
+          "warm_median_ms": 143.8920615,
+          "warm_p95_ms": 156.682693
+        }
+      ]
+    }
+  },
+  "scope": "Fixed local workload, logging disabled identically, no model/invoice claim; retain A1/A2 drift. Exploratory concurrent A/B/A retained separately."
+}

@@ -1,0 +1,31 @@
+{
+  "agent_id": "01a143a7-e109-7160-ad68-9521e630f52b",
+  "model": "gpt-6-luna",
+  "scope": "Tool readiness only; not v3.8.2 acceptance or A/B cost evidence",
+  "usage": {
+    "total_token_usage": {
+      "input_tokens": 135173,
+      "cached_input_tokens": 104064,
+      "cache_write_input_tokens": 0,
+      "output_tokens": 348,
+      "reasoning_output_tokens": 44,
+      "total_tokens": 135521
+    },
+    "last_token_usage": {
+      "input_tokens": 30325,
+      "cached_input_tokens": 29952,
+      "cache_write_input_tokens": 0,
+      "output_tokens": 61,
+      "reasoning_output_tokens": 0,
+      "total_tokens": 30386
+    },
+    "model_context_window": 258400
+  },
+  "source_log_sha256": "45897dc17d75cf8a322e3a27ff28325c0b1344189021245e71397bd59dd8ea02",
+  "events": {
+    "path": "luna_preflight_events.json.gz",
+    "sha256": "efb17a788527f5b269bb664aaffecc1a076726bb1e6db8f072c527ce5f9fefc9",
+    "uncompressed_bytes": 57221,
+    "recording_profile": "Public tool events only; no internal reasoning; not raw MCP frames"
+  }
+}

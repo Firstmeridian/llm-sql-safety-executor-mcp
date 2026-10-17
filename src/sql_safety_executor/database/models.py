@@ -19,12 +19,15 @@ class ConnectionPolicy:
     mutation_skills: frozenset[str] = frozenset()
     # MySQL table identity may be case-sensitive (lower_case_table_names=0).
     case_sensitive_tables: bool = False
+    allowed_relations: frozenset[RelationReference] | None = None
     _relation_grants: frozenset[RelationReference] = field(init=False, repr=False)
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "_relation_grants", frozenset(
             self.relation_key(RelationReference.from_declaration(name))
             for name in self.allowed_tables or () if name != "*"
+        ) if self.allowed_relations is None else frozenset(
+            self.relation_key(reference) for reference in self.allowed_relations
         ))
 
     def table_key(self, name: str) -> str:
@@ -52,6 +55,14 @@ class ConnectionPolicy:
             relation.schema is not None and self.allows_relation(relation)
         )
 
+    def allows_resolved_relation(self, relation: RelationReference, default_schema: str) -> bool:
+        """A bare grant applies to the default schema, never any same-name object."""
+        return self.allows_relation(relation) or (
+            relation.schema is not None
+            and self.table_key(relation.schema) == self.table_key(default_schema)
+            and self.allows_relation(RelationReference(relation.name))
+        )
+
 
 @dataclass(frozen=True)
 class DatabaseConfig:
@@ -66,5 +77,6 @@ class DatabaseConfig:
     mysql_password: SecretStr | None = field(default=None, repr=False)
     mysql_host: str | None = None
     mysql_database: str | None = None
+    mysql_sql_mode: tuple[str, ...] | None = None
     sqlite_database_path: str | None = None
     sqlite_progress_handler_interval: int = 100

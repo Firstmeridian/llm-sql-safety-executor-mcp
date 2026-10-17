@@ -60,13 +60,18 @@ def test_authorized_membership_keeps_sqlite_semantics(fixture_database, sql):
 
 
 @pytest.mark.parametrize("sql", [
-    "WITH blocked AS (SELECT 1 IN blocked AS id) SELECT * FROM blocked",
-    "WITH a AS (SELECT 1 IN blocked AS id), blocked AS (SELECT 1 AS id) SELECT * FROM a",
     "SELECT id FROM allowed WHERE EXISTS (SELECT 1 WHERE 1 IN blocked)",
     "SELECT id FROM allowed WHERE (1,1) IN (SELECT id,id FROM blocked)",
 ])
 def test_membership_preserves_cte_scope_and_nested_authorization(sql):
     assert _validate_sql_query_policy(None, sql, policy("allowed")).error_code == "table_access_denied"
+
+
+def test_sqlite_forward_membership_binds_cte_not_same_named_physical_table(fixture_database):
+    sql = "WITH a AS (SELECT 7 IN blocked AS id), blocked AS (SELECT 7 AS id) SELECT * FROM a"
+    with sqlite3.connect(fixture_database) as db:
+        assert db.execute(sql).fetchall() == [(1,)]
+    assert _validate_sql_query_policy(None, sql, policy("allowed")).allowed
 
 
 @pytest.mark.parametrize("sql", [

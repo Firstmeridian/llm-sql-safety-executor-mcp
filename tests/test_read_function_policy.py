@@ -5,6 +5,7 @@ import sqlite3
 import pytest
 from fastmcp import Client
 from sql_safety_executor.core.policy import _validate_sql_query_policy
+from sql_safety_executor.database.semantics import DialectContext
 from sql_safety_executor.database.models import ConnectionPolicy
 from tests.test_query_skill_static_policy import policy_server, bundle
 
@@ -29,7 +30,7 @@ from tests.test_query_skill_static_policy import policy_server, bundle
 def test_reserved_calls_before_capability_or_table_io(sql, code, mysql):
     def io():
         pytest.fail("A rejected function reached database capability probing")
-    adapter = SimpleNamespace(cte_case_sensitive=None, resolve_cte_case_sensitive=io)
+    adapter = SimpleNamespace(analysis_context=DialectContext("sqlite"), cte_case_sensitive=None, resolve_cte_case_sensitive=io)
     decision = _validate_sql_query_policy(None, sql,
         ConnectionPolicy(read_mode="all", allowed_tables=frozenset({"*"}), case_sensitive_tables=mysql),
         adapter=adapter)

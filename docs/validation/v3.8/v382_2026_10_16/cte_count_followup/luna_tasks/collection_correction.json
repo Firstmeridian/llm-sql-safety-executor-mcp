@@ -1,0 +1,23 @@
+{
+  "reason": "Content and structured output can serialize equivalent integral numbers as float/int; statistics alone deduplicate these representations. No original public event is changed or discarded.",
+  "before": {
+    "1": {
+      "mcp_observations_before": 5,
+      "public_events_sha256_before": "a4e317b763c3bccc2c5bb2d222778fb2f4b43ac3b5209c377e394460e470f37b",
+      "public_events_sha256_after": "a4e317b763c3bccc2c5bb2d222778fb2f4b43ac3b5209c377e394460e470f37b",
+      "mcp_observations_after": 5
+    },
+    "2": {
+      "mcp_observations_before": 6,
+      "public_events_sha256_before": "1ba4a6fad609d3b9b87f14505d2356d6b97bfd2128d2d1d3587bc5d401b1162e",
+      "public_events_sha256_after": "1ba4a6fad609d3b9b87f14505d2356d6b97bfd2128d2d1d3587bc5d401b1162e",
+      "mcp_observations_after": 4
+    },
+    "3": {
+      "mcp_observations_before": 5,
+      "public_events_sha256_before": "0dfcaa76bab4b91596cf925c01e182aa9f357711ce51ee52056f86185a32a4cc",
+      "public_events_sha256_after": "0dfcaa76bab4b91596cf925c01e182aa9f357711ce51ee52056f86185a32a4cc",
+      "mcp_observations_after": 5
+    }
+  }
+}

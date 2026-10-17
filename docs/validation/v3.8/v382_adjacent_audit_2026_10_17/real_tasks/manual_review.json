@@ -1,0 +1,44 @@
+[
+  {
+    "case": "sales",
+    "trial": 1,
+    "business_passed": true,
+    "initial_passed": true,
+    "scope_update_passed": true,
+    "first_attempt": true,
+    "notes": [
+      "All requested metrics match independent aggregates and the changed scope was recomputed.",
+      "One broad schema call and one aggregate query initially; one aggregate query on follow-up. No extra cross-connection read, write, detail export or truncated query.",
+      "South capitalization in prose corresponds to returned region south; no identity authorization was inferred from it."
+    ]
+  },
+  {
+    "case": "sales",
+    "trial": 2,
+    "business_passed": true,
+    "initial_passed": true,
+    "scope_update_passed": true,
+    "first_attempt": true,
+    "notes": [
+      "All requested metrics and updated product rankings match independent truth.",
+      "One list_tables followed by describe_table on all three identical tables was less efficient than a compact grouped schema call; nine observed MCP returns total.",
+      "No SQL refusal or fabricated result; no configured writes or target switches."
+    ]
+  },
+  {
+    "case": "sales",
+    "trial": 3,
+    "business_passed": false,
+    "initial_passed": false,
+    "scope_update_passed": false,
+    "first_attempt": false,
+    "failure_layer": "Host MCP availability before a normal SQL MCP result",
+    "notes": [
+      "The actual correct list_tables tool name produced: MCP tool `sql-safety-executor-mcp/list_tables` is not available to the model.",
+      "Subsequent local SQL tool catalogs were empty. There were zero SQL MCP response envelopes and no database results in this trial.",
+      "The final answer self-reports two MCP attempts; the public trace shows one attempted MCP invocation plus tool-catalog inspection. Use the trace count.",
+      "Both scripted turns remain incomplete; do not replace this failure with preflight or other agents' successes.",
+      "Available evidence cannot identify cache, initialization failure/timing or client binding as the root cause."
+    ]
+  }
+]

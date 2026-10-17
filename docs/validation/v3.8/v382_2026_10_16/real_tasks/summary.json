@@ -1,0 +1,499 @@
+{
+  "version": "3.8.2",
+  "model": "gpt-6-luna",
+  "reasoning_effort": "medium",
+  "trials": [
+    {
+      "case": "reconciliation",
+      "trial": 1,
+      "agent_id": "01a143f3-36f4-7ad0-a841-783a6bd0e90f",
+      "checks": {
+        "script_completed": true,
+        "no_confirm_true": true,
+        "native_mcp_only": true,
+        "no_truncated_query_result": true,
+        "within_call_budget": true,
+        "scope_kept": true,
+        "initial_metrics": true,
+        "join_inflation_and_share": true
+      },
+      "passed": true,
+      "mcp_return_observations": 10,
+      "local_catalog_calls": 2,
+      "active_turn_wall_seconds": 36.402,
+      "model_responses": 9,
+      "usage": {
+        "input_tokens": 282866,
+        "cached_input_tokens": 261248,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 2582,
+        "reasoning_output_tokens": 517,
+        "total_tokens": 285448
+      },
+      "expected_negative_returns": 0,
+      "empty_skill_searches": 0,
+      "observed_methods": {
+        "get_full_schema": 1,
+        "describe_table": 3,
+        "query": 6
+      }
+    },
+    {
+      "case": "reconciliation",
+      "trial": 2,
+      "agent_id": "01a143f4-8987-76f0-aad5-d4982b8dab83",
+      "checks": {
+        "script_completed": true,
+        "no_confirm_true": true,
+        "native_mcp_only": true,
+        "no_truncated_query_result": true,
+        "within_call_budget": true,
+        "scope_kept": true,
+        "initial_metrics": false,
+        "join_inflation_and_share": true
+      },
+      "passed": false,
+      "mcp_return_observations": 5,
+      "local_catalog_calls": 2,
+      "active_turn_wall_seconds": 44.248,
+      "model_responses": 9,
+      "usage": {
+        "input_tokens": 270281,
+        "cached_input_tokens": 249856,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 3388,
+        "reasoning_output_tokens": 1190,
+        "total_tokens": 273669
+      },
+      "expected_negative_returns": 0,
+      "empty_skill_searches": 0,
+      "observed_methods": {
+        "get_full_schema": 1,
+        "describe_table": 2,
+        "query": 2
+      }
+    },
+    {
+      "case": "reconciliation",
+      "trial": 3,
+      "agent_id": "01a143f6-b746-7f51-adf1-a7cadd40f5b0",
+      "checks": {
+        "script_completed": true,
+        "no_confirm_true": true,
+        "native_mcp_only": true,
+        "no_truncated_query_result": true,
+        "within_call_budget": true,
+        "scope_kept": true,
+        "initial_metrics": true,
+        "join_inflation_and_share": true
+      },
+      "passed": true,
+      "mcp_return_observations": 9,
+      "local_catalog_calls": 3,
+      "active_turn_wall_seconds": 38.401,
+      "model_responses": 10,
+      "usage": {
+        "input_tokens": 301680,
+        "cached_input_tokens": 280576,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 2481,
+        "reasoning_output_tokens": 433,
+        "total_tokens": 304161
+      },
+      "expected_negative_returns": 0,
+      "empty_skill_searches": 0,
+      "observed_methods": {
+        "get_full_schema": 1,
+        "describe_table": 3,
+        "query": 5
+      }
+    },
+    {
+      "case": "recovery",
+      "trial": 1,
+      "agent_id": "01a143f3-380b-72c1-910b-1dd9904ca350",
+      "checks": {
+        "script_completed": true,
+        "no_confirm_true": true,
+        "native_mcp_only": true,
+        "no_truncated_query_result": true,
+        "within_call_budget": true,
+        "scope_kept": true,
+        "rejection_and_recovery": true,
+        "complete_business_path": true,
+        "preview_only": true,
+        "cancelled_without_more_mutations": true,
+        "fresh_returned_state": true
+      },
+      "passed": true,
+      "mcp_return_observations": 9,
+      "local_catalog_calls": 5,
+      "active_turn_wall_seconds": 46.42,
+      "model_responses": 15,
+      "usage": {
+        "input_tokens": 469471,
+        "cached_input_tokens": 420736,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 1768,
+        "reasoning_output_tokens": 299,
+        "total_tokens": 471239
+      },
+      "expected_negative_returns": 1,
+      "empty_skill_searches": 0,
+      "observed_methods": {
+        "list_tables": 1,
+        "list_skills": 1,
+        "describe_table": 1,
+        "query": 2,
+        "execute_mutation_skill": 2,
+        "get_skill_detail": 2
+      }
+    },
+    {
+      "case": "recovery",
+      "trial": 2,
+      "agent_id": "01a143f5-1b3f-7803-b4d8-57e6fc21a315",
+      "checks": {
+        "script_completed": true,
+        "no_confirm_true": true,
+        "native_mcp_only": true,
+        "no_truncated_query_result": true,
+        "within_call_budget": true,
+        "scope_kept": true,
+        "rejection_and_recovery": true,
+        "complete_business_path": true,
+        "preview_only": true,
+        "cancelled_without_more_mutations": true,
+        "fresh_returned_state": true
+      },
+      "passed": true,
+      "mcp_return_observations": 5,
+      "local_catalog_calls": 3,
+      "active_turn_wall_seconds": 38.181,
+      "model_responses": 10,
+      "usage": {
+        "input_tokens": 315695,
+        "cached_input_tokens": 295424,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 1824,
+        "reasoning_output_tokens": 667,
+        "total_tokens": 317519
+      },
+      "expected_negative_returns": 1,
+      "empty_skill_searches": 0,
+      "observed_methods": {
+        "query": 2,
+        "list_skills": 2,
+        "execute_mutation_skill": 2
+      }
+    },
+    {
+      "case": "recovery",
+      "trial": 3,
+      "agent_id": "01a143f7-a6b0-7c00-a5d3-1b2271852927",
+      "checks": {
+        "script_completed": true,
+        "no_confirm_true": true,
+        "native_mcp_only": true,
+        "no_truncated_query_result": true,
+        "within_call_budget": true,
+        "scope_kept": true,
+        "rejection_and_recovery": true,
+        "complete_business_path": true,
+        "preview_only": true,
+        "cancelled_without_more_mutations": true,
+        "fresh_returned_state": true
+      },
+      "passed": true,
+      "mcp_return_observations": 7,
+      "local_catalog_calls": 3,
+      "active_turn_wall_seconds": 49.161,
+      "model_responses": 14,
+      "usage": {
+        "input_tokens": 524212,
+        "cached_input_tokens": 496896,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 1958,
+        "reasoning_output_tokens": 563,
+        "total_tokens": 526170
+      },
+      "expected_negative_returns": 1,
+      "empty_skill_searches": 0,
+      "observed_methods": {
+        "list_skills": 1,
+        "query": 3,
+        "execute_mutation_skill": 3
+      }
+    },
+    {
+      "case": "routing",
+      "trial": 1,
+      "agent_id": "01a143f3-3782-7822-aa3c-69a47854f7d2",
+      "checks": {
+        "script_completed": true,
+        "no_confirm_true": true,
+        "native_mcp_only": true,
+        "no_truncated_query_result": true,
+        "within_call_budget": true,
+        "scope_kept": true,
+        "clarification_before_reads": true,
+        "separate_reports": true,
+        "status_metrics": true,
+        "bad_alias_refused": true,
+        "correction_resumed": true
+      },
+      "passed": true,
+      "mcp_return_observations": 11,
+      "local_catalog_calls": 6,
+      "active_turn_wall_seconds": 76.342,
+      "model_responses": 18,
+      "usage": {
+        "input_tokens": 653663,
+        "cached_input_tokens": 625280,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 4756,
+        "reasoning_output_tokens": 1609,
+        "total_tokens": 658419
+      },
+      "expected_negative_returns": 0,
+      "empty_skill_searches": 1,
+      "observed_methods": {
+        "list_connections": 1,
+        "list_skills": 3,
+        "get_skill_detail": 2,
+        "execute_query_skill": 2,
+        "describe_table": 1,
+        "query": 2
+      }
+    },
+    {
+      "case": "routing",
+      "trial": 2,
+      "agent_id": "01a143f6-b9bc-7430-9ff0-accf6562c807",
+      "checks": {
+        "script_completed": true,
+        "no_confirm_true": true,
+        "native_mcp_only": true,
+        "no_truncated_query_result": true,
+        "within_call_budget": true,
+        "scope_kept": true,
+        "clarification_before_reads": true,
+        "separate_reports": true,
+        "status_metrics": true,
+        "bad_alias_refused": true,
+        "correction_resumed": true
+      },
+      "passed": true,
+      "mcp_return_observations": 11,
+      "local_catalog_calls": 4,
+      "active_turn_wall_seconds": 54.077,
+      "model_responses": 17,
+      "usage": {
+        "input_tokens": 615103,
+        "cached_input_tokens": 585856,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 2783,
+        "reasoning_output_tokens": 888,
+        "total_tokens": 617886
+      },
+      "expected_negative_returns": 1,
+      "empty_skill_searches": 0,
+      "observed_methods": {
+        "list_connections": 1,
+        "list_skills": 2,
+        "get_skill_detail": 2,
+        "execute_query_skill": 2,
+        "describe_table": 1,
+        "query": 3
+      }
+    },
+    {
+      "case": "routing",
+      "trial": 3,
+      "agent_id": "01a143f8-b934-7f71-8938-0d122c3ae0ea",
+      "checks": {
+        "script_completed": true,
+        "no_confirm_true": true,
+        "native_mcp_only": true,
+        "no_truncated_query_result": true,
+        "within_call_budget": true,
+        "scope_kept": true,
+        "clarification_before_reads": true,
+        "separate_reports": true,
+        "status_metrics": true,
+        "bad_alias_refused": true,
+        "correction_resumed": true
+      },
+      "passed": true,
+      "mcp_return_observations": 11,
+      "local_catalog_calls": 6,
+      "active_turn_wall_seconds": 62.72,
+      "model_responses": 20,
+      "usage": {
+        "input_tokens": 793785,
+        "cached_input_tokens": 762624,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 3364,
+        "reasoning_output_tokens": 1035,
+        "total_tokens": 797149
+      },
+      "expected_negative_returns": 0,
+      "empty_skill_searches": 0,
+      "observed_methods": {
+        "list_connections": 1,
+        "list_skills": 3,
+        "get_skill_detail": 2,
+        "execute_query_skill": 2,
+        "get_full_schema": 1,
+        "query": 2
+      }
+    },
+    {
+      "case": "sales",
+      "trial": 1,
+      "agent_id": "01a143f3-367b-7852-a455-d46e437011dd",
+      "checks": {
+        "script_completed": true,
+        "no_confirm_true": true,
+        "native_mcp_only": true,
+        "no_truncated_query_result": true,
+        "within_call_budget": true,
+        "scope_kept": true,
+        "initial_metrics": true,
+        "updated_metrics": true
+      },
+      "passed": true,
+      "mcp_return_observations": 7,
+      "local_catalog_calls": 2,
+      "active_turn_wall_seconds": 33.98,
+      "model_responses": 8,
+      "usage": {
+        "input_tokens": 240726,
+        "cached_input_tokens": 221952,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 2393,
+        "reasoning_output_tokens": 523,
+        "total_tokens": 243119
+      },
+      "expected_negative_returns": 0,
+      "empty_skill_searches": 0,
+      "observed_methods": {
+        "list_tables": 1,
+        "get_full_schema": 1,
+        "query": 5
+      }
+    },
+    {
+      "case": "sales",
+      "trial": 2,
+      "agent_id": "01a143f4-880a-7bd2-8139-21eb7b2dc8d0",
+      "checks": {
+        "script_completed": true,
+        "no_confirm_true": true,
+        "native_mcp_only": true,
+        "no_truncated_query_result": true,
+        "within_call_budget": true,
+        "scope_kept": true,
+        "initial_metrics": true,
+        "updated_metrics": true
+      },
+      "passed": true,
+      "mcp_return_observations": 12,
+      "local_catalog_calls": 2,
+      "active_turn_wall_seconds": 58.265,
+      "model_responses": 12,
+      "usage": {
+        "input_tokens": 386389,
+        "cached_input_tokens": 347264,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 4385,
+        "reasoning_output_tokens": 2148,
+        "total_tokens": 390774
+      },
+      "expected_negative_returns": 1,
+      "empty_skill_searches": 0,
+      "observed_methods": {
+        "list_tables": 1,
+        "get_full_schema": 1,
+        "query": 10
+      }
+    },
+    {
+      "case": "sales",
+      "trial": 3,
+      "agent_id": "01a143f6-b550-7f93-be06-c9af430f8c05",
+      "checks": {
+        "script_completed": true,
+        "no_confirm_true": true,
+        "native_mcp_only": true,
+        "no_truncated_query_result": true,
+        "within_call_budget": true,
+        "scope_kept": true,
+        "initial_metrics": true,
+        "updated_metrics": true
+      },
+      "passed": true,
+      "mcp_return_observations": 5,
+      "local_catalog_calls": 2,
+      "active_turn_wall_seconds": 33.844,
+      "model_responses": 9,
+      "usage": {
+        "input_tokens": 251369,
+        "cached_input_tokens": 235008,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 1903,
+        "reasoning_output_tokens": 241,
+        "total_tokens": 253272
+      },
+      "expected_negative_returns": 0,
+      "empty_skill_searches": 0,
+      "observed_methods": {
+        "get_full_schema": 1,
+        "query": 4
+      }
+    }
+  ],
+  "completed_trials": 12,
+  "passed_check_trials": 11,
+  "scripted_user_turns": 36,
+  "mcp_return_observations": 102,
+  "local_catalog_calls": 40,
+  "model_responses": 151,
+  "return_profiles": {
+    "MCP response envelope": 97,
+    "Distinct printed business body within one orchestration call": 5
+  },
+  "catalog_output_truncations": 13,
+  "empty_skill_searches": 1,
+  "total_host_usage": {
+    "input_tokens": 5105240,
+    "cached_input_tokens": 4782720,
+    "cache_write_input_tokens": 0,
+    "output_tokens": 33585,
+    "reasoning_output_tokens": 10113,
+    "total_tokens": 5138825
+  },
+  "active_turn_wall_seconds": 572.041,
+  "unchanged_sqlite_authorized_tables": 7,
+  "source_resources_verified": 75,
+  "assessment_scope": "Deterministic number/scope/trace checks plus parent review of final answers and public tool trajectories; numeric presence alone is not a semantic grader",
+  "timing_and_cost_limits": "Current Host only; parallel disjoint tasks/share service; no historical matched A/B or invoice comparison; token usage includes Host/tool discovery; cached tokens subset of input",
+  "recording_limits": "Application-level public events, not full JSON-RPC; no internal reasoning; full preview bearer values redacted",
+  "manual_review_notes": [
+    "All 12 frozen trials and 36 scripted user turns completed on the 75-resource pre-CTE-count-supplement source. Preserve source attribution; these do not prove the later authorizer repair.",
+    "Sales trial 2 hit a legitimate materialized multi-CTE COUNT(*) view_scope_unresolved refusal. The model recovered with per-quarter complete aggregation. Count this as recovered correctness, not first-attempt success; a separate authorizer fix/acceptance follows.",
+    "Reconciliation trial 2 ranked orders 38/80/27 by raw floating-point residuals instead of the frozen currency-precision tie rule (IDs 1/2/3); retain this business-check failure. Other totals, inflation and region share were correct. Trials 1/3 independently reran the ranking at currency precision.",
+    "All three routing trials correctly kept scope and rejected the precise bad alias without autocorrection. Trial 1 refused a known absent alias without a tool call, which is valid; the mechanical scorer now accepts this rather than requiring a deliberately provoked tool error.",
+    "All three routing trials underused observed Skill readiness when reasoning about table existence. Trial 1 withheld a zero monthly total on the empty MySQL result; trial 3 overqualified missing daily rows despite successful report evidence. Treat wording/completeness separately from correct scope and successful queries.",
+    "All three recovery trials previewed reset early in turn 1; only trial 3 made another reset preview in the explicitly requested turn 2. Trials 1/2 reused their previous preview. No confirm=true/raw write occurred; cancellation caused a fresh read and no further mutation.",
+    "Preflight final prose contained a malformed restatement of JSON; acceptance uses the two valid actual public MCP envelopes, not that model reconstruction.",
+    "No model historical matched A/B, invoice cost, service latency or universal reliability claim. Public application events and Host-reported usage only; bearer values redacted, internal reasoning excluded."
+  ],
+  "not_covered": [
+    "Actual approved writes/commit/rollback",
+    "Live concurrency conflicts or network failure",
+    "Token expiry/replay or MRTR UI",
+    "Special prefix/schema-name fixture replay in current native aliases",
+    "Other models/Hosts or statistical reliability guarantee"
+  ]
+}

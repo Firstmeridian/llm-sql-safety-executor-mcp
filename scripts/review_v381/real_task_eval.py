@@ -59,14 +59,14 @@ def sqlite_truth(alias: str, queries: dict[str, str], config) -> dict:
 
 
 def prepare(stage: str, mysql: bool) -> None:
-    from sql_safety_executor import load_config
+    from sql_safety_executor import load_config, __version__
     config = load_config(ROOT / "config/server.toml")
     sales = " UNION ALL ".join(f"SELECT * FROM main.sales_2026_q{i}" for i in range(1, 4))
     prefix = "WITH sales AS (" + sales + ") "
     bill = "order_date >= '2026-09-01' AND order_date < '2026-10-01' AND status NOT IN ('cancelled','returned')"
     rich_prefix = ("WITH item_totals AS (SELECT order_id, SUM(quantity*unit_price) AS item_amount FROM main.order_items GROUP BY order_id), "
                    "eligible AS (SELECT o.id,o.customer_id,o.total_amount,i.item_amount FROM main.orders o LEFT JOIN item_totals i ON i.order_id=o.id WHERE " + bill + ") ")
-    record = {"version": "3.8.1", "stage": stage, "independent_of_mcp": True,
+    record = {"version": __version__, "stage": stage, "independent_of_mcp": True,
               "source_sha256": {p.relative_to(ROOT).as_posix(): digest(p.read_bytes()) for p in sorted((ROOT / "src/sql_safety_executor").rglob("*")) if p.is_file() and p.suffix in (".py", ".md")},
               "configured_database_writes": False, "connections": {}}
     record["connections"]["union_test_sqlite"] = sqlite_truth("union_test_sqlite", {
@@ -179,6 +179,18 @@ def public_bodies(value):
 
 
 def metrics(events):
+    def business_value_key(value):
+        # One wrapper can print 720.0 in content and 720 in structuredContent.
+        # Deduplicate that representation in fallback statistics only; original
+        # public events retain both spellings and all protocol field omissions.
+        if isinstance(value, dict):
+            return {key: business_value_key(item) for key, item in value.items()}
+        if isinstance(value, list):
+            return [business_value_key(item) for item in value]
+        if isinstance(value, float) and value.is_integer():
+            return int(value)
+        return value
+
     pending, observations, local_discovery = {}, [], 0
     turn, user_turns = 0, 0
     for event in events:
@@ -198,7 +210,7 @@ def metrics(events):
             profile='MCP response envelope'
             if not observed:
                 bodies=list(public_bodies(event.get('output')))
-                unique={json.dumps(x,sort_keys=True,ensure_ascii=False):x for x in bodies}
+                unique={json.dumps(business_value_key(x),sort_keys=True,ensure_ascii=False):x for x in bodies}
                 observed=list(unique.values());profile='Distinct printed business body within one orchestration call'
             names=list(dict.fromkeys(re.findall(r'tools\.(mcp__sql_safety_executor_mcp__\w+)',code)))
             for item in observed:
@@ -231,9 +243,9 @@ def metrics(events):
 
 def collect(agent_id: str, case: str, trial: int, session_root: Path | None = None) -> None:
     session_root = session_root or Path.home() / '.codex/sessions'
-    candidates = list((session_root / '2026/10/15').glob(f'*{agent_id}.jsonl'))
+    candidates = list(session_root.glob(f'*/*/*/*{agent_id}.jsonl'))
     if len(candidates) != 1:
-        raise ValueError("Expected exactly one current-day agent rollout")
+        raise ValueError("Expected exactly one rollout for this unique agent ID")
     events, usage, last_usage, session, turn_models, lifecycle = [], None, [], {}, [], []
     for line in candidates[0].read_text().splitlines():
         event = json.loads(line)
