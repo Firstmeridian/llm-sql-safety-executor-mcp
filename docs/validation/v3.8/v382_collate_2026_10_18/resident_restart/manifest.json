@@ -1,0 +1,22 @@
+{
+  "sealed_utc": "2026-10-18T12:58:06.737926+00:00",
+  "scope": "Separate resident restart supplement; parent and all historical checkpoints unchanged.",
+  "files": {
+    "independent_sqlite.json": {
+      "sha256": "996c6a58cb92ca179de6c9e7701dd5b3ee3683ecd2617c97f8c76a5156c340ba",
+      "bytes": 3647
+    },
+    "native_after_restart.json.gz": {
+      "sha256": "5b1cb6a185c647090740ae227cfe059e6256f51b8f0cf64c1248d24492db1c35",
+      "bytes": 2086
+    },
+    "seal_restart.py.gz": {
+      "sha256": "443f84d81082226deb354ad89347ed54d3157c6faeedcac6864c79072b3df305",
+      "bytes": 2577
+    },
+    "verification.json": {
+      "sha256": "cea7f693bf966d844a33403db00ff4d04f800b7b1892c2b2ab6965b2a1de83d5",
+      "bytes": 13647
+    }
+  }
+}

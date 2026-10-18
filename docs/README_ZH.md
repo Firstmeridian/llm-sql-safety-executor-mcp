@@ -22,6 +22,10 @@
 - [v3.8.2 触发器局部 CTE 计划补修](validation/v3.8/V3_8_2_TRIGGER_CTE_2026_10_17_ZH.md)。
 - [v3.8.2 相邻问题复查与当前完整 Agent 任务](validation/v3.8/V3_8_2_ADJACENT_AUDIT_2026_10_17_ZH.md)。
 - [v3.8.2 触发器 WHEN 修复与 Host 就绪排查](validation/v3.8/V3_8_2_TRIGGER_WHEN_2026_10_17_ZH.md)。
+- [v3.8.2 已提交版本最终复核与 COLLATE P3 初次发现](validation/v3.8/V3_8_2_FINAL_REVIEW_2026_10_18_ZH.md).
+- [v3.8.2 SQLite 操作数 COLLATE 补修](validation/v3.8/V3_8_2_COLLATE_REPAIR_2026_10_18_ZH.md).
+- [v3.8.2 完整判断后 COLLATE 复评与 P3 初次发现](validation/v3.8/V3_8_2_PREDICATE_COLLATE_REVIEW_2026_10_18_ZH.md)。
+- [v3.8.2 完整判断后缀补修及限定原生验收](validation/v3.8/V3_8_2_PREDICATE_COLLATE_REPAIR_2026_10_18_ZH.md)。
 - [v3.8 实施决策](architecture/V3_8_IMPLEMENTATION_ZH.md)：包结构、实例状态与参考稿评审。
 - [工具契约与评估方法](guides/PROMPT_ENGINEERING_BEST_PRACTICES.md)：参数 schema、工具说明、提示词与行为检查。
 - [Agent 编排行为验证方法](guides/MCP_AGENT_BEHAVIOR_VALIDATION_ZH.md)：可复用的路由、渐进披露和成本评估方法。

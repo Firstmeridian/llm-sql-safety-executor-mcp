@@ -899,6 +899,10 @@ The later trigger-local CTE repair adds 129 regressions (**2196 passed, 4 skippe
 
 The adjacent audit's trigger-WHEN boundary is now repaired: **2275 tests pass, 4 skipped**, with 394 installed targeted calls. Host cached-catalog/exact-client diagnostics and verified child recovery are recorded separately from the earlier 2/3 business result. After the maintainer restart, 57/57 scoped native checks pass and three fresh two-turn Luna sales tasks reach correct outcomes; one initial unsupported-query refusal and recovery are retained. See the [WHEN repair](docs/validation/v3.8/V3_8_2_TRIGGER_WHEN_2026_10_17_ZH.md).
 
+SQLite IS/IS NOT and LIKE ESCAPE operands now preserve COLLATE precedence, including parameter bindings. Source/package validation and 25/25 scoped native checks after the maintainer restart pass. See the [operand repair](docs/validation/v3.8/V3_8_2_COLLATE_REPAIR_2026_10_18_ZH.md).
+
+SQLite completed ISNULL/NOTNULL/NOT NULL and IN/NOT IN predicates now retain postfix COLLATE and arithmetic/concatenation continuations. Final validation passes **2565 tests, four skipped**, with 524 installed targeted calls; 71/71 scoped native checks after the maintainer restart also pass. See the [predicate repair and remaining limits](docs/validation/v3.8/V3_8_2_PREDICATE_COLLATE_REPAIR_2026_10_18_ZH.md).
+
 ### v3.8.1 Review corrections and task validation (October 2026)
 
 - Preserve scoped relation identity across reads, Skill readiness and metadata; preserve contextual table names and Unicode identity; recognize reserved PRAGMA/account/file calls across standard quoting.

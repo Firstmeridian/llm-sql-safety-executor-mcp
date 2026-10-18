@@ -879,6 +879,10 @@ SQLite 初始化拒绝覆盖已有文件；MySQL 初始化遇到现存 orders �
 
 相邻复查的触发器 WHEN 边界已补修：**2275 passed／4 skipped**、394 次安装定点调用通过；Host 缓存目录／就绪客户端的诊断与已验证恢复办法另列，原业务 2/3 不改写。维护者重启后原生限定核验 57/57 通过，另三次完整双轮 Luna 销售任务最终 3/3 通过，保留一次初稿形态拒绝与恢复；见[WHEN 修复报告](docs/validation/v3.8/V3_8_2_TRIGGER_WHEN_2026_10_17_ZH.md)。
 
+SQLite IS／IS NOT 与 LIKE ESCAPE 操作数现保留 COLLATE 结合位置及参数绑定；源码／安装验证及维护者重启后的 25/25 项限定原生复验通过。见[操作数补修](docs/validation/v3.8/V3_8_2_COLLATE_REPAIR_2026_10_18_ZH.md)。
+
+SQLite 完整 ISNULL／NOTNULL／NOT NULL、IN／NOT IN 判断现保留后缀 COLLATE 及算术／拼接续接。最终 **2565 passed／四项跳过**、524 次安装定点调用通过；维护者重启后 71/71 项限定原生复验也通过。见[完整判断补修与限制](docs/validation/v3.8/V3_8_2_PREDICATE_COLLATE_REPAIR_2026_10_18_ZH.md)。
+
 ### v3.8.1 复核修正与完整任务验收（2026 年 10 月）
 
 - 读取、Skill readiness 与元数据共用有范围的关系身份；保留上下文表名及 Unicode 身份，按标准引用识别既有 PRAGMA／账户／文件调用限制。

@@ -1,0 +1,290 @@
+{
+  "scope": "Freeze 57 valid constant-only cases before checking current/baseline Clients; no configured objects or runtime modification.",
+  "cases": [
+    {
+      "name": "isnull_NOCASE_where_direct",
+      "group": "reported",
+      "sql": "SELECT 7 AS n WHERE NULL ISNULL COLLATE NOCASE;"
+    },
+    {
+      "name": "isnull_NOCASE_where_parenthesized",
+      "group": "reported",
+      "sql": "SELECT 7 AS n WHERE (NULL ISNULL) COLLATE NOCASE;"
+    },
+    {
+      "name": "isnull_BINARY_where_direct",
+      "group": "reported",
+      "sql": "SELECT 7 AS n WHERE NULL ISNULL COLLATE BINARY;"
+    },
+    {
+      "name": "isnull_BINARY_where_parenthesized",
+      "group": "reported",
+      "sql": "SELECT 7 AS n WHERE (NULL ISNULL) COLLATE BINARY;"
+    },
+    {
+      "name": "isnull_RTRIM_where_direct",
+      "group": "reported",
+      "sql": "SELECT 7 AS n WHERE NULL ISNULL COLLATE RTRIM;"
+    },
+    {
+      "name": "isnull_RTRIM_where_parenthesized",
+      "group": "reported",
+      "sql": "SELECT 7 AS n WHERE (NULL ISNULL) COLLATE RTRIM;"
+    },
+    {
+      "name": "isnull_projection_direct",
+      "group": "reported",
+      "sql": "SELECT NULL ISNULL COLLATE NOCASE AS n;"
+    },
+    {
+      "name": "isnull_projection_parenthesized",
+      "group": "reported",
+      "sql": "SELECT (NULL ISNULL) COLLATE NOCASE AS n;"
+    },
+    {
+      "name": "notnull_NOCASE_where_direct",
+      "group": "reported",
+      "sql": "SELECT 7 AS n WHERE 7 NOTNULL COLLATE NOCASE;"
+    },
+    {
+      "name": "notnull_NOCASE_where_parenthesized",
+      "group": "reported",
+      "sql": "SELECT 7 AS n WHERE (7 NOTNULL) COLLATE NOCASE;"
+    },
+    {
+      "name": "notnull_BINARY_where_direct",
+      "group": "reported",
+      "sql": "SELECT 7 AS n WHERE 7 NOTNULL COLLATE BINARY;"
+    },
+    {
+      "name": "notnull_BINARY_where_parenthesized",
+      "group": "reported",
+      "sql": "SELECT 7 AS n WHERE (7 NOTNULL) COLLATE BINARY;"
+    },
+    {
+      "name": "notnull_RTRIM_where_direct",
+      "group": "reported",
+      "sql": "SELECT 7 AS n WHERE 7 NOTNULL COLLATE RTRIM;"
+    },
+    {
+      "name": "notnull_RTRIM_where_parenthesized",
+      "group": "reported",
+      "sql": "SELECT 7 AS n WHERE (7 NOTNULL) COLLATE RTRIM;"
+    },
+    {
+      "name": "notnull_projection_direct",
+      "group": "reported",
+      "sql": "SELECT 7 NOTNULL COLLATE NOCASE AS n;"
+    },
+    {
+      "name": "notnull_projection_parenthesized",
+      "group": "reported",
+      "sql": "SELECT (7 NOTNULL) COLLATE NOCASE AS n;"
+    },
+    {
+      "name": "not_null_NOCASE_where_direct",
+      "group": "reported",
+      "sql": "SELECT 7 AS n WHERE 7 NOT NULL COLLATE NOCASE;"
+    },
+    {
+      "name": "not_null_NOCASE_where_parenthesized",
+      "group": "reported",
+      "sql": "SELECT 7 AS n WHERE (7 NOT NULL) COLLATE NOCASE;"
+    },
+    {
+      "name": "not_null_BINARY_where_direct",
+      "group": "reported",
+      "sql": "SELECT 7 AS n WHERE 7 NOT NULL COLLATE BINARY;"
+    },
+    {
+      "name": "not_null_BINARY_where_parenthesized",
+      "group": "reported",
+      "sql": "SELECT 7 AS n WHERE (7 NOT NULL) COLLATE BINARY;"
+    },
+    {
+      "name": "not_null_RTRIM_where_direct",
+      "group": "reported",
+      "sql": "SELECT 7 AS n WHERE 7 NOT NULL COLLATE RTRIM;"
+    },
+    {
+      "name": "not_null_RTRIM_where_parenthesized",
+      "group": "reported",
+      "sql": "SELECT 7 AS n WHERE (7 NOT NULL) COLLATE RTRIM;"
+    },
+    {
+      "name": "not_null_projection_direct",
+      "group": "reported",
+      "sql": "SELECT 7 NOT NULL COLLATE NOCASE AS n;"
+    },
+    {
+      "name": "not_null_projection_parenthesized",
+      "group": "reported",
+      "sql": "SELECT (7 NOT NULL) COLLATE NOCASE AS n;"
+    },
+    {
+      "name": "in_NOCASE_where_direct",
+      "group": "reported",
+      "sql": "SELECT 7 AS n WHERE 7 IN (7) COLLATE NOCASE;"
+    },
+    {
+      "name": "in_NOCASE_where_parenthesized",
+      "group": "reported",
+      "sql": "SELECT 7 AS n WHERE (7 IN (7)) COLLATE NOCASE;"
+    },
+    {
+      "name": "in_BINARY_where_direct",
+      "group": "reported",
+      "sql": "SELECT 7 AS n WHERE 7 IN (7) COLLATE BINARY;"
+    },
+    {
+      "name": "in_BINARY_where_parenthesized",
+      "group": "reported",
+      "sql": "SELECT 7 AS n WHERE (7 IN (7)) COLLATE BINARY;"
+    },
+    {
+      "name": "in_RTRIM_where_direct",
+      "group": "reported",
+      "sql": "SELECT 7 AS n WHERE 7 IN (7) COLLATE RTRIM;"
+    },
+    {
+      "name": "in_RTRIM_where_parenthesized",
+      "group": "reported",
+      "sql": "SELECT 7 AS n WHERE (7 IN (7)) COLLATE RTRIM;"
+    },
+    {
+      "name": "in_projection_direct",
+      "group": "reported",
+      "sql": "SELECT 7 IN (7) COLLATE NOCASE AS n;"
+    },
+    {
+      "name": "in_projection_parenthesized",
+      "group": "reported",
+      "sql": "SELECT (7 IN (7)) COLLATE NOCASE AS n;"
+    },
+    {
+      "name": "not_in_NOCASE_where_direct",
+      "group": "reported",
+      "sql": "SELECT 7 AS n WHERE 7 NOT IN (8) COLLATE NOCASE;"
+    },
+    {
+      "name": "not_in_NOCASE_where_parenthesized",
+      "group": "reported",
+      "sql": "SELECT 7 AS n WHERE (7 NOT IN (8)) COLLATE NOCASE;"
+    },
+    {
+      "name": "not_in_BINARY_where_direct",
+      "group": "reported",
+      "sql": "SELECT 7 AS n WHERE 7 NOT IN (8) COLLATE BINARY;"
+    },
+    {
+      "name": "not_in_BINARY_where_parenthesized",
+      "group": "reported",
+      "sql": "SELECT 7 AS n WHERE (7 NOT IN (8)) COLLATE BINARY;"
+    },
+    {
+      "name": "not_in_RTRIM_where_direct",
+      "group": "reported",
+      "sql": "SELECT 7 AS n WHERE 7 NOT IN (8) COLLATE RTRIM;"
+    },
+    {
+      "name": "not_in_RTRIM_where_parenthesized",
+      "group": "reported",
+      "sql": "SELECT 7 AS n WHERE (7 NOT IN (8)) COLLATE RTRIM;"
+    },
+    {
+      "name": "not_in_projection_direct",
+      "group": "reported",
+      "sql": "SELECT 7 NOT IN (8) COLLATE NOCASE AS n;"
+    },
+    {
+      "name": "not_in_projection_parenthesized",
+      "group": "reported",
+      "sql": "SELECT (7 NOT IN (8)) COLLATE NOCASE AS n;"
+    },
+    {
+      "name": "in_text_complete",
+      "group": "adjacent",
+      "sql": "SELECT 'A' IN ('a') COLLATE NOCASE AS n"
+    },
+    {
+      "name": "in_text_parenthesized",
+      "group": "adjacent",
+      "sql": "SELECT ('A' IN ('a')) COLLATE NOCASE AS n"
+    },
+    {
+      "name": "in_text_left_operand",
+      "group": "adjacent",
+      "sql": "SELECT 'A' COLLATE NOCASE IN ('a') AS n"
+    },
+    {
+      "name": "not_in_text_complete",
+      "group": "adjacent",
+      "sql": "SELECT 'A' NOT IN ('a') COLLATE NOCASE AS n"
+    },
+    {
+      "name": "not_in_text_left_operand",
+      "group": "adjacent",
+      "sql": "SELECT 'A' COLLATE NOCASE NOT IN ('a') AS n"
+    },
+    {
+      "name": "in_subquery",
+      "group": "adjacent",
+      "sql": "SELECT 7 IN (SELECT 7) COLLATE NOCASE AS n"
+    },
+    {
+      "name": "in_empty",
+      "group": "adjacent",
+      "sql": "SELECT 7 IN () COLLATE NOCASE AS n"
+    },
+    {
+      "name": "in_row_value",
+      "group": "adjacent",
+      "sql": "SELECT (7,8) IN ((7,8)) COLLATE NOCASE AS n"
+    },
+    {
+      "name": "range_chained",
+      "group": "adjacent",
+      "sql": "SELECT 7 IN (7) COLLATE NOCASE IN (1) AS n"
+    },
+    {
+      "name": "collate_chained",
+      "group": "adjacent",
+      "sql": "SELECT 7 IN (7) COLLATE BINARY COLLATE NOCASE AS n"
+    },
+    {
+      "name": "between",
+      "group": "adjacent",
+      "sql": "SELECT 7 BETWEEN 6 AND 8 COLLATE NOCASE AS n"
+    },
+    {
+      "name": "not_between",
+      "group": "adjacent",
+      "sql": "SELECT 7 NOT BETWEEN 8 AND 9 COLLATE NOCASE AS n"
+    },
+    {
+      "name": "like",
+      "group": "adjacent",
+      "sql": "SELECT 'A' LIKE 'a' COLLATE NOCASE AS n"
+    },
+    {
+      "name": "glob",
+      "group": "adjacent",
+      "sql": "SELECT 'A' GLOB 'a' COLLATE NOCASE AS n"
+    },
+    {
+      "name": "exists",
+      "group": "adjacent",
+      "sql": "SELECT EXISTS(SELECT 7) COLLATE NOCASE AS n"
+    },
+    {
+      "name": "prior_is_fix",
+      "group": "adjacent",
+      "sql": "SELECT 7 AS n WHERE NULL IS NULL COLLATE NOCASE;"
+    },
+    {
+      "name": "prior_escape_fix",
+      "group": "adjacent",
+      "sql": "SELECT 'a_' LIKE 'ax_' ESCAPE 'x' COLLATE NOCASE AS n"
+    }
+  ]
+}

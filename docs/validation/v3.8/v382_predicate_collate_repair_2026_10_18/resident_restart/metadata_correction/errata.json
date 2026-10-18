@@ -1,0 +1,15 @@
+{
+  "created_utc": "2026-10-18T14:06:51.620363+00:00",
+  "kind": "descriptive_metadata_count_correction",
+  "target": "../independent_sqlite.json",
+  "target_sha256": "6372d1204bf5b557ec1662c2a23087634235387fe5b82c2700cd734ecef6be5d",
+  "field": "scope",
+  "old": "Recompute only the 20 constant statements; no configured database opened",
+  "correct": "Recompute only the 66 constant statements; no configured database opened",
+  "independent_records": 66,
+  "native_records": 71,
+  "all_constant_outputs_match": true,
+  "effect": "Only the descriptive scope string copied an old count. The 66 records, native data and 71/71 acceptance are unchanged.",
+  "preservation": "Original sealed file, verification and manifest remain byte-identical.",
+  "corrected_local_sealer_sha256": "4406913647efdce858bdae116e6fb83389e0c8e3e1cb1194abe4bd68bc44be57"
+}

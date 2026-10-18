@@ -1,0 +1,175 @@
+{
+  "sqlite_version": "3.45.1",
+  "database": ":memory:",
+  "scope": "Recompute only the 20 constant statements; no configured database opened",
+  "records": [
+    {
+      "name": "preflight",
+      "sql": "SELECT 7 AS n",
+      "sqlite_rows": [
+        {
+          "n": 7
+        }
+      ]
+    },
+    {
+      "name": "reported_unparenthesized",
+      "sql": "SELECT 7 AS n WHERE NULL IS NULL COLLATE NOCASE;",
+      "sqlite_rows": [
+        {
+          "n": 7
+        }
+      ]
+    },
+    {
+      "name": "reported_parenthesized_predicate",
+      "sql": "SELECT 7 AS n WHERE (NULL IS NULL) COLLATE NOCASE;",
+      "sqlite_rows": [
+        {
+          "n": 7
+        }
+      ]
+    },
+    {
+      "name": "parenthesized_rhs",
+      "sql": "SELECT 7 AS n WHERE NULL IS (NULL COLLATE NOCASE);",
+      "sqlite_rows": [
+        {
+          "n": 7
+        }
+      ]
+    },
+    {
+      "name": "is_not_null_collate",
+      "sql": "SELECT 7 AS n WHERE 0 IS NOT NULL COLLATE NOCASE;",
+      "sqlite_rows": [
+        {
+          "n": 7
+        }
+      ]
+    },
+    {
+      "name": "plain_is_null",
+      "sql": "SELECT 7 AS n WHERE NULL IS NULL;",
+      "sqlite_rows": [
+        {
+          "n": 7
+        }
+      ]
+    },
+    {
+      "name": "string_rhs_collate",
+      "sql": "SELECT 7 AS n WHERE 'A' IS 'a' COLLATE NOCASE;",
+      "sqlite_rows": [
+        {
+          "n": 7
+        }
+      ]
+    },
+    {
+      "name": "string_predicate_collate",
+      "sql": "SELECT 7 AS n WHERE ('A' IS 'a') COLLATE NOCASE;",
+      "sqlite_rows": []
+    },
+    {
+      "name": "escape_null",
+      "sql": "SELECT 'a' LIKE 'a' ESCAPE NULL COLLATE NOCASE AS n",
+      "sqlite_rows": [
+        {
+          "n": null
+        }
+      ]
+    },
+    {
+      "name": "escape_literal",
+      "sql": "SELECT 'a_' LIKE 'ax_' ESCAPE 'x' COLLATE NOCASE AS n",
+      "sqlite_rows": [
+        {
+          "n": 1
+        }
+      ]
+    },
+    {
+      "name": "escape_expression",
+      "sql": "SELECT 'a' LIKE 'a' ESCAPE 'x' || '' COLLATE BINARY AS n",
+      "sqlite_rows": [
+        {
+          "n": 1
+        }
+      ]
+    },
+    {
+      "name": "escape_predicate_parentheses",
+      "sql": "SELECT ('a' LIKE 'a' ESCAPE 'x') COLLATE NOCASE AS n",
+      "sqlite_rows": [
+        {
+          "n": 1
+        }
+      ]
+    },
+    {
+      "name": "IS_BINARY_where",
+      "sql": "SELECT 7 AS n WHERE NULL IS NULL COLLATE BINARY;",
+      "sqlite_rows": [
+        {
+          "n": 7
+        }
+      ]
+    },
+    {
+      "name": "IS_BINARY_projection",
+      "sql": "SELECT NULL IS NULL COLLATE BINARY AS n;",
+      "sqlite_rows": [
+        {
+          "n": 1
+        }
+      ]
+    },
+    {
+      "name": "IS_RTRIM_where",
+      "sql": "SELECT 7 AS n WHERE NULL IS NULL COLLATE RTRIM;",
+      "sqlite_rows": [
+        {
+          "n": 7
+        }
+      ]
+    },
+    {
+      "name": "IS_RTRIM_projection",
+      "sql": "SELECT NULL IS NULL COLLATE RTRIM AS n;",
+      "sqlite_rows": [
+        {
+          "n": 1
+        }
+      ]
+    },
+    {
+      "name": "IS NOT_BINARY_where",
+      "sql": "SELECT 7 AS n WHERE NULL IS NOT NULL COLLATE BINARY;",
+      "sqlite_rows": []
+    },
+    {
+      "name": "IS NOT_BINARY_projection",
+      "sql": "SELECT NULL IS NOT NULL COLLATE BINARY AS n;",
+      "sqlite_rows": [
+        {
+          "n": 0
+        }
+      ]
+    },
+    {
+      "name": "IS NOT_RTRIM_where",
+      "sql": "SELECT 7 AS n WHERE NULL IS NOT NULL COLLATE RTRIM;",
+      "sqlite_rows": []
+    },
+    {
+      "name": "IS NOT_RTRIM_projection",
+      "sql": "SELECT NULL IS NOT NULL COLLATE RTRIM AS n;",
+      "sqlite_rows": [
+        {
+          "n": 0
+        }
+      ]
+    }
+  ]
+}

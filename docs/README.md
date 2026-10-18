@@ -41,6 +41,10 @@ Guides stay under `docs/guides/` even when their titles identify an earlier vers
 - [v3.8.2 trigger-local CTE plan repair](validation/v3.8/V3_8_2_TRIGGER_CTE_2026_10_17_ZH.md).
 - [v3.8.2 adjacent audit and current complete Agent trials](validation/v3.8/V3_8_2_ADJACENT_AUDIT_2026_10_17_ZH.md).
 - [v3.8.2 WHEN repair and Host readiness diagnosis](validation/v3.8/V3_8_2_TRIGGER_WHEN_2026_10_17_ZH.md)。
+- [v3.8.2 committed-source final review and initial COLLATE P3 findings](validation/v3.8/V3_8_2_FINAL_REVIEW_2026_10_18_ZH.md).
+- [v3.8.2 SQLite operand COLLATE repair](validation/v3.8/V3_8_2_COLLATE_REPAIR_2026_10_18_ZH.md).
+- [v3.8.2 complete-predicate COLLATE assessment and initial P3 findings](validation/v3.8/V3_8_2_PREDICATE_COLLATE_REVIEW_2026_10_18_ZH.md).
+- [v3.8.2 complete-predicate COLLATE repair and scoped native acceptance](validation/v3.8/V3_8_2_PREDICATE_COLLATE_REPAIR_2026_10_18_ZH.md)。
 - [v3.8 validation reports and original evidence](validation/v3.8/).
 - [Shared CTE analysis, functional repairs and adjacent checks](validation/v3.8/V3_8_1_CTE_ANALYSIS_2026_10_15_ZH.md).
 - [Ambiguous WITH recovery and open CTE limits](validation/v3.8/V3_8_1_CTE_CLASSIFICATION_2026_10_15_ZH.md).

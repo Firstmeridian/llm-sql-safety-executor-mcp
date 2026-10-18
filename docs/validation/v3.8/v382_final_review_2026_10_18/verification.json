@@ -1,0 +1,57 @@
+{
+  "version": "3.8.2",
+  "commit": "e49cd0eebb9bdf56ac6c114522af5b8743ba3bbf",
+  "closed_utc": "2026-10-18T06:54:21.414905+00:00",
+  "status": "final_checks_passed_with_open_nonblocking_P3_DRR_2026_109",
+  "runtime_code_changes_this_batch": false,
+  "dependencies_or_config_changes": false,
+  "current_resources_match_last_accepted_batch": 75,
+  "prior_sealed_files_verified": 487,
+  "full_regression": {
+    "passed": 2275,
+    "skipped": 4,
+    "warnings": 240,
+    "seconds": 165.25
+  },
+  "type_and_prompt_checks_passed": true,
+  "committed_docs": {
+    "changed_markdown_files": 22,
+    "local_links_valid": 757,
+    "uncommitted_link_targets": 0
+  },
+  "collate": {
+    "priority": "P3, non-blocking",
+    "risk": "functional compatibility regression",
+    "native_observations": 8,
+    "native_parse_refusals": 2,
+    "private_inputs_per_version": 16,
+    "client_modes": [
+      "auto",
+      "legacy"
+    ],
+    "client_calls_per_version": 32,
+    "baseline_success": 32,
+    "current_success": 12,
+    "current_parse_refusals": 20,
+    "sqlglot": "30.22.0",
+    "sqlite": "3.45.1",
+    "cause": "Pinned SQLGlot IS/NULL parsing rejects following COLLATE; shared analysis refuses before authorizer.",
+    "safe_reported_recovery": "NULL IS (NULL COLLATE NOCASE)",
+    "whole_predicate_parentheses_not_a_general_equivalence": true,
+    "other_SQLGlot_versions_tested": false
+  },
+  "baseline": {
+    "commit": "3323f9c29add7fd158410d5ce57a70fb58c5f2cb",
+    "verified_resources": 70,
+    "actual_loaded_package_path_asserted": true,
+    "frozen_source_temporary_directory_cleaned": true,
+    "scope": "Fresh subprocess using current dependencies, not historical environment replay."
+  },
+  "scope_limits": [
+    "New private Client observations are in-process, not new stdio or native Host package-identity proof.",
+    "No new wheel install, live MySQL matrix, Luna business task or remote CI run; prior results retain source attribution.",
+    "Targeted parser cases are not workload failure-rate estimates; no configured writes, semantic rewrite or policy exemption.",
+    "DRR-108 remains closed within its existing verified scope; DRR-109 is documented and unresolved.",
+    "This batch adds narrative documentation and evidence after e49cd0e; runtime resources remain byte-identical."
+  ]
+}

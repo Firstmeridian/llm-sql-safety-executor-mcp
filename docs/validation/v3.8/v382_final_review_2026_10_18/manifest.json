@@ -1,0 +1,50 @@
+{
+  "closed_utc": "2026-10-18T06:54:21.414905+00:00",
+  "scope": "Final committed-source audit; open P3 documented, runtime unchanged.",
+  "files": {
+    "collate_baseline.json.gz": {
+      "sha256": "0bbd5b3d372f43475b6688567b63f72955846415993d8c4b9d8dfd2ea06f19da",
+      "bytes": 5620
+    },
+    "collate_current.json.gz": {
+      "sha256": "fbde00436a475235bda5393428c8dd72d1c8d7aa9b44942175033cf1b2d69da1",
+      "bytes": 6053
+    },
+    "commit_and_docs.json": {
+      "sha256": "90c3dc2b8bf21ee841a50c765344b9f84767b2c438000c153fa24b76af27785f",
+      "bytes": 305
+    },
+    "full_regression.log.gz": {
+      "sha256": "fef37a1e85da894e1ac8f0a3b15deb88928280387b21e0f534ee331abba6dbde",
+      "bytes": 745
+    },
+    "native_collate.json.gz": {
+      "sha256": "403fff95e9aa8149b4b41d70d5113bd0ca9127e6effd5ff268b4066e23f5a61b",
+      "bytes": 859
+    },
+    "probe_collate.py.gz": {
+      "sha256": "1ac9760ebf6f0dc22ca5e9059caae93df78778bf681aa99efd66a6e3d04ac602",
+      "bytes": 1833
+    },
+    "prompt_contract.log.gz": {
+      "sha256": "090e5d838501a835953ba08eeacb177cf0ecef59e67add02b2bcb919113e87ea",
+      "bytes": 74
+    },
+    "pyright.log.gz": {
+      "sha256": "c8f40ac3b3f577d99ca528dc797ac395a63bdcedd0b425151e1b76ffc54e42f5",
+      "bytes": 53
+    },
+    "seal.py.gz": {
+      "sha256": "bcd29e193ccee54f7ff1dc791971111ea1728df2922208d710cb5d67a9f83650",
+      "bytes": 3006
+    },
+    "update_docs.py.gz": {
+      "sha256": "4876a86cbcbb22a18f7bfc474026ee76fe1036ea79cc036e7465632cacf26265",
+      "bytes": 3341
+    },
+    "verification.json": {
+      "sha256": "9d5a33d12181f952cbfc74a4b176f214977782698b4b7ab3d8fdc6711d61fe73",
+      "bytes": 2305
+    }
+  }
+}

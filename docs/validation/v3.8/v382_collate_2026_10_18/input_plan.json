@@ -1,0 +1,53 @@
+{
+  "scope": "SQL/name projection only; original old native results remain in the final-review batch.",
+  "records": [
+    {
+      "name": "preflight",
+      "sql": "SELECT 7 AS n"
+    },
+    {
+      "name": "reported_unparenthesized",
+      "sql": "SELECT 7 AS n WHERE NULL IS NULL COLLATE NOCASE;"
+    },
+    {
+      "name": "reported_parenthesized_predicate",
+      "sql": "SELECT 7 AS n WHERE (NULL IS NULL) COLLATE NOCASE;"
+    },
+    {
+      "name": "parenthesized_rhs",
+      "sql": "SELECT 7 AS n WHERE NULL IS (NULL COLLATE NOCASE);"
+    },
+    {
+      "name": "is_not_null_collate",
+      "sql": "SELECT 7 AS n WHERE 0 IS NOT NULL COLLATE NOCASE;"
+    },
+    {
+      "name": "plain_is_null",
+      "sql": "SELECT 7 AS n WHERE NULL IS NULL;"
+    },
+    {
+      "name": "string_rhs_collate",
+      "sql": "SELECT 7 AS n WHERE 'A' IS 'a' COLLATE NOCASE;"
+    },
+    {
+      "name": "string_predicate_collate",
+      "sql": "SELECT 7 AS n WHERE ('A' IS 'a') COLLATE NOCASE;"
+    },
+    {
+      "name": "escape_null",
+      "sql": "SELECT 'a' LIKE 'a' ESCAPE NULL COLLATE NOCASE AS n"
+    },
+    {
+      "name": "escape_literal",
+      "sql": "SELECT 'a_' LIKE 'ax_' ESCAPE 'x' COLLATE NOCASE AS n"
+    },
+    {
+      "name": "escape_expression",
+      "sql": "SELECT 'a' LIKE 'a' ESCAPE 'x' || '' COLLATE BINARY AS n"
+    },
+    {
+      "name": "escape_predicate_parentheses",
+      "sql": "SELECT ('a' LIKE 'a' ESCAPE 'x') COLLATE NOCASE AS n"
+    }
+  ]
+}

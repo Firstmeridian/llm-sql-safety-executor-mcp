@@ -31,6 +31,14 @@ Subsequent [WHEN repair](../validation/v3.8/V3_8_2_TRIGGER_WHEN_2026_10_17_ZH.md
 
 Sample/exact counts and SQLite data-based estimates use the controlled read boundary; fixed catalogs/statistics remain trusted. A denied estimate is unknown, while columns/indexes remain usable. Verify all analyzed roots before accepting extra source-less view-count events. Non-executing SQLite DML/REPLACE plans keep authorizer checks for actual targets/functions and bind their analysis to original SQL/context; real writes and EXPLAIN PRAGMA/DDL/ATTACH remain refused. Added analysis/catalog work does not add a required Agent step or justify a zero-overhead claim. Seventy new regressions bring final validation to 1966 passes/four skips; package, live checks and completed scoped native acceptance are recorded in the [repair report](../validation/v3.8/V3_8_2_READ_BOUNDARIES_2026_10_17_ZH.md). Earlier model/cost records retain their scope. Decisions: DRR-2026-107/108.
 
+### October 18 SQLite operand COLLATE compatibility
+
+Repair the SQLite IS/IS NOT NULL/parameter and LIKE ESCAPE operand shortcuts that rejected valid COLLATE expressions. Parse at expression precedence, preserving original SQL/bindings, physical dependencies and function restrictions. No new dependency, grant or required Agent call. Add 100 regressions: final 2375 passed/four skipped, clean type/prompt, 96 source stdio and 490 installed targeted calls. After the maintainer restart, 25/25 scoped native checks pass with two unchanged five-row/five-column snapshots. DRR-109 closes within that documented scope; DRR-108 stays closed. Preserve prior review findings and intermediate failures in the [repair evidence](../validation/v3.8/V3_8_2_COLLATE_REPAIR_2026_10_18_ZH.md).
+
+### October 18 complete-predicate postfix and continuation repair
+
+DRR-110 restores COLLATE after completed ISNULL/NOTNULL/NOT NULL and IN/NOT IN predicates, including adjacent arithmetic/concatenation/bitwise/JSON continuations. Retain complete-predicate grouping, original SQL/bindings, dependency authorization and authorizer checks. Add 190 regressions: final 2565 passes/four skips, clean type/prompt and 524 installed targeted calls. After the maintainer restart, all 71 frozen native checks pass, including 66 independently checked constant reads, three refusals and two unchanged full five-row/five-column snapshots. DRR-110 closes within this documented scope; preserve earlier checkpoints and the separate descriptive-count erratum. Seven existing SQL-generator grouping differences are documented with successful original-SQL tool controls; no new dependency, grant, required Agent step or zero-cost claim. See [decisions and evidence](../validation/v3.8/V3_8_2_PREDICATE_COLLATE_REPAIR_2026_10_18_ZH.md).
+
 ---
 
 # v3.8.0 — FastMCP 4, explicit TOML, instance state and managed MRTR

@@ -1,0 +1,373 @@
+{
+  "scope": "Frozen post-restart native plan; constants, three refusal controls and two read-only configured-table snapshots. No configured fixture/write; parameter/trigger/Skill coverage stays in source/wheel tests.",
+  "records": [
+    {
+      "name": "preflight",
+      "tool": "query",
+      "arguments": {
+        "sql": "SELECT 7 AS n",
+        "connection_id": "analytics_demo_sqlite"
+      },
+      "expected": {
+        "success": true,
+        "data": [
+          {
+            "n": 7
+          }
+        ]
+      }
+    },
+    {
+      "name": "snapshot_before",
+      "tool": "query",
+      "arguments": {
+        "sql": "SELECT * FROM orders ORDER BY id",
+        "connection_id": "analytics_demo_sqlite"
+      },
+      "expected": {
+        "success": true,
+        "truncated": false
+      }
+    },
+    {
+      "name": "reported_unparenthesized",
+      "tool": "query",
+      "arguments": {
+        "sql": "SELECT 7 AS n WHERE NULL IS NULL COLLATE NOCASE;",
+        "connection_id": "analytics_demo_sqlite"
+      },
+      "expected": {
+        "success": true,
+        "data": [
+          {
+            "n": 7
+          }
+        ]
+      }
+    },
+    {
+      "name": "reported_parenthesized_predicate",
+      "tool": "query",
+      "arguments": {
+        "sql": "SELECT 7 AS n WHERE (NULL IS NULL) COLLATE NOCASE;",
+        "connection_id": "analytics_demo_sqlite"
+      },
+      "expected": {
+        "success": true,
+        "data": [
+          {
+            "n": 7
+          }
+        ]
+      }
+    },
+    {
+      "name": "parenthesized_rhs",
+      "tool": "query",
+      "arguments": {
+        "sql": "SELECT 7 AS n WHERE NULL IS (NULL COLLATE NOCASE);",
+        "connection_id": "analytics_demo_sqlite"
+      },
+      "expected": {
+        "success": true,
+        "data": [
+          {
+            "n": 7
+          }
+        ]
+      }
+    },
+    {
+      "name": "is_not_null_collate",
+      "tool": "query",
+      "arguments": {
+        "sql": "SELECT 7 AS n WHERE 0 IS NOT NULL COLLATE NOCASE;",
+        "connection_id": "analytics_demo_sqlite"
+      },
+      "expected": {
+        "success": true,
+        "data": [
+          {
+            "n": 7
+          }
+        ]
+      }
+    },
+    {
+      "name": "plain_is_null",
+      "tool": "query",
+      "arguments": {
+        "sql": "SELECT 7 AS n WHERE NULL IS NULL;",
+        "connection_id": "analytics_demo_sqlite"
+      },
+      "expected": {
+        "success": true,
+        "data": [
+          {
+            "n": 7
+          }
+        ]
+      }
+    },
+    {
+      "name": "string_rhs_collate",
+      "tool": "query",
+      "arguments": {
+        "sql": "SELECT 7 AS n WHERE 'A' IS 'a' COLLATE NOCASE;",
+        "connection_id": "analytics_demo_sqlite"
+      },
+      "expected": {
+        "success": true,
+        "data": [
+          {
+            "n": 7
+          }
+        ]
+      }
+    },
+    {
+      "name": "string_predicate_collate",
+      "tool": "query",
+      "arguments": {
+        "sql": "SELECT 7 AS n WHERE ('A' IS 'a') COLLATE NOCASE;",
+        "connection_id": "analytics_demo_sqlite"
+      },
+      "expected": {
+        "success": true,
+        "data": []
+      }
+    },
+    {
+      "name": "escape_null",
+      "tool": "query",
+      "arguments": {
+        "sql": "SELECT 'a' LIKE 'a' ESCAPE NULL COLLATE NOCASE AS n",
+        "connection_id": "analytics_demo_sqlite"
+      },
+      "expected": {
+        "success": true,
+        "data": [
+          {
+            "n": null
+          }
+        ]
+      }
+    },
+    {
+      "name": "escape_literal",
+      "tool": "query",
+      "arguments": {
+        "sql": "SELECT 'a_' LIKE 'ax_' ESCAPE 'x' COLLATE NOCASE AS n",
+        "connection_id": "analytics_demo_sqlite"
+      },
+      "expected": {
+        "success": true,
+        "data": [
+          {
+            "n": 1
+          }
+        ]
+      }
+    },
+    {
+      "name": "escape_expression",
+      "tool": "query",
+      "arguments": {
+        "sql": "SELECT 'a' LIKE 'a' ESCAPE 'x' || '' COLLATE BINARY AS n",
+        "connection_id": "analytics_demo_sqlite"
+      },
+      "expected": {
+        "success": true,
+        "data": [
+          {
+            "n": 1
+          }
+        ]
+      }
+    },
+    {
+      "name": "escape_predicate_parentheses",
+      "tool": "query",
+      "arguments": {
+        "sql": "SELECT ('a' LIKE 'a' ESCAPE 'x') COLLATE NOCASE AS n",
+        "connection_id": "analytics_demo_sqlite"
+      },
+      "expected": {
+        "success": true,
+        "data": [
+          {
+            "n": 1
+          }
+        ]
+      }
+    },
+    {
+      "name": "IS_BINARY_where",
+      "tool": "query",
+      "arguments": {
+        "sql": "SELECT 7 AS n WHERE NULL IS NULL COLLATE BINARY;",
+        "connection_id": "analytics_demo_sqlite"
+      },
+      "expected": {
+        "success": true,
+        "data": [
+          {
+            "n": 7
+          }
+        ]
+      }
+    },
+    {
+      "name": "IS_BINARY_projection",
+      "tool": "query",
+      "arguments": {
+        "sql": "SELECT NULL IS NULL COLLATE BINARY AS n;",
+        "connection_id": "analytics_demo_sqlite"
+      },
+      "expected": {
+        "success": true,
+        "data": [
+          {
+            "n": 1
+          }
+        ]
+      }
+    },
+    {
+      "name": "IS_RTRIM_where",
+      "tool": "query",
+      "arguments": {
+        "sql": "SELECT 7 AS n WHERE NULL IS NULL COLLATE RTRIM;",
+        "connection_id": "analytics_demo_sqlite"
+      },
+      "expected": {
+        "success": true,
+        "data": [
+          {
+            "n": 7
+          }
+        ]
+      }
+    },
+    {
+      "name": "IS_RTRIM_projection",
+      "tool": "query",
+      "arguments": {
+        "sql": "SELECT NULL IS NULL COLLATE RTRIM AS n;",
+        "connection_id": "analytics_demo_sqlite"
+      },
+      "expected": {
+        "success": true,
+        "data": [
+          {
+            "n": 1
+          }
+        ]
+      }
+    },
+    {
+      "name": "IS NOT_BINARY_where",
+      "tool": "query",
+      "arguments": {
+        "sql": "SELECT 7 AS n WHERE NULL IS NOT NULL COLLATE BINARY;",
+        "connection_id": "analytics_demo_sqlite"
+      },
+      "expected": {
+        "success": true,
+        "data": []
+      }
+    },
+    {
+      "name": "IS NOT_BINARY_projection",
+      "tool": "query",
+      "arguments": {
+        "sql": "SELECT NULL IS NOT NULL COLLATE BINARY AS n;",
+        "connection_id": "analytics_demo_sqlite"
+      },
+      "expected": {
+        "success": true,
+        "data": [
+          {
+            "n": 0
+          }
+        ]
+      }
+    },
+    {
+      "name": "IS NOT_RTRIM_where",
+      "tool": "query",
+      "arguments": {
+        "sql": "SELECT 7 AS n WHERE NULL IS NOT NULL COLLATE RTRIM;",
+        "connection_id": "analytics_demo_sqlite"
+      },
+      "expected": {
+        "success": true,
+        "data": []
+      }
+    },
+    {
+      "name": "IS NOT_RTRIM_projection",
+      "tool": "query",
+      "arguments": {
+        "sql": "SELECT NULL IS NOT NULL COLLATE RTRIM AS n;",
+        "connection_id": "analytics_demo_sqlite"
+      },
+      "expected": {
+        "success": true,
+        "data": [
+          {
+            "n": 0
+          }
+        ]
+      }
+    },
+    {
+      "name": "ungranted_relation",
+      "tool": "query",
+      "arguments": {
+        "sql": "SELECT * FROM __collate_ungranted WHERE NULL IS NULL COLLATE NOCASE",
+        "connection_id": "analytics_demo_sqlite"
+      },
+      "expected": {
+        "success": false,
+        "error_code": "table_access_denied"
+      }
+    },
+    {
+      "name": "restricted_delay",
+      "tool": "query",
+      "arguments": {
+        "sql": "SELECT NULL IS NULL COLLATE NOCASE AND SLEEP(0)=0",
+        "connection_id": "analytics_demo_sqlite"
+      },
+      "expected": {
+        "success": false,
+        "error_code": "expensive_function_denied"
+      }
+    },
+    {
+      "name": "restricted_lock",
+      "tool": "query",
+      "arguments": {
+        "sql": "SELECT 'a' LIKE 'a' ESCAPE GET_LOCK('fixture',0) COLLATE NOCASE",
+        "connection_id": "analytics_demo_sqlite"
+      },
+      "expected": {
+        "success": false,
+        "error_code": "lock_function_denied"
+      }
+    },
+    {
+      "name": "snapshot_after",
+      "tool": "query",
+      "arguments": {
+        "sql": "SELECT * FROM orders ORDER BY id",
+        "connection_id": "analytics_demo_sqlite"
+      },
+      "expected": {
+        "success": true,
+        "truncated": false
+      }
+    }
+  ]
+}

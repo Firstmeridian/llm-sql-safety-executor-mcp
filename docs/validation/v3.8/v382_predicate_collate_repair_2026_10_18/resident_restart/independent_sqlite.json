@@ -1,0 +1,601 @@
+{
+  "sqlite_version": "3.45.1",
+  "database": ":memory:",
+  "scope": "Recompute only the 20 constant statements; no configured database opened",
+  "records": [
+    {
+      "name": "preflight",
+      "sql": "SELECT 7 AS n",
+      "sqlite_rows": [
+        {
+          "n": 7
+        }
+      ]
+    },
+    {
+      "name": "isnull_NOCASE_where_direct",
+      "sql": "SELECT 7 AS n WHERE NULL ISNULL COLLATE NOCASE;",
+      "sqlite_rows": [
+        {
+          "n": 7
+        }
+      ]
+    },
+    {
+      "name": "isnull_NOCASE_where_parenthesized",
+      "sql": "SELECT 7 AS n WHERE (NULL ISNULL) COLLATE NOCASE;",
+      "sqlite_rows": [
+        {
+          "n": 7
+        }
+      ]
+    },
+    {
+      "name": "isnull_BINARY_where_direct",
+      "sql": "SELECT 7 AS n WHERE NULL ISNULL COLLATE BINARY;",
+      "sqlite_rows": [
+        {
+          "n": 7
+        }
+      ]
+    },
+    {
+      "name": "isnull_BINARY_where_parenthesized",
+      "sql": "SELECT 7 AS n WHERE (NULL ISNULL) COLLATE BINARY;",
+      "sqlite_rows": [
+        {
+          "n": 7
+        }
+      ]
+    },
+    {
+      "name": "isnull_RTRIM_where_direct",
+      "sql": "SELECT 7 AS n WHERE NULL ISNULL COLLATE RTRIM;",
+      "sqlite_rows": [
+        {
+          "n": 7
+        }
+      ]
+    },
+    {
+      "name": "isnull_RTRIM_where_parenthesized",
+      "sql": "SELECT 7 AS n WHERE (NULL ISNULL) COLLATE RTRIM;",
+      "sqlite_rows": [
+        {
+          "n": 7
+        }
+      ]
+    },
+    {
+      "name": "isnull_projection_direct",
+      "sql": "SELECT NULL ISNULL COLLATE NOCASE AS n;",
+      "sqlite_rows": [
+        {
+          "n": 1
+        }
+      ]
+    },
+    {
+      "name": "isnull_projection_parenthesized",
+      "sql": "SELECT (NULL ISNULL) COLLATE NOCASE AS n;",
+      "sqlite_rows": [
+        {
+          "n": 1
+        }
+      ]
+    },
+    {
+      "name": "notnull_NOCASE_where_direct",
+      "sql": "SELECT 7 AS n WHERE 7 NOTNULL COLLATE NOCASE;",
+      "sqlite_rows": [
+        {
+          "n": 7
+        }
+      ]
+    },
+    {
+      "name": "notnull_NOCASE_where_parenthesized",
+      "sql": "SELECT 7 AS n WHERE (7 NOTNULL) COLLATE NOCASE;",
+      "sqlite_rows": [
+        {
+          "n": 7
+        }
+      ]
+    },
+    {
+      "name": "notnull_BINARY_where_direct",
+      "sql": "SELECT 7 AS n WHERE 7 NOTNULL COLLATE BINARY;",
+      "sqlite_rows": [
+        {
+          "n": 7
+        }
+      ]
+    },
+    {
+      "name": "notnull_BINARY_where_parenthesized",
+      "sql": "SELECT 7 AS n WHERE (7 NOTNULL) COLLATE BINARY;",
+      "sqlite_rows": [
+        {
+          "n": 7
+        }
+      ]
+    },
+    {
+      "name": "notnull_RTRIM_where_direct",
+      "sql": "SELECT 7 AS n WHERE 7 NOTNULL COLLATE RTRIM;",
+      "sqlite_rows": [
+        {
+          "n": 7
+        }
+      ]
+    },
+    {
+      "name": "notnull_RTRIM_where_parenthesized",
+      "sql": "SELECT 7 AS n WHERE (7 NOTNULL) COLLATE RTRIM;",
+      "sqlite_rows": [
+        {
+          "n": 7
+        }
+      ]
+    },
+    {
+      "name": "notnull_projection_direct",
+      "sql": "SELECT 7 NOTNULL COLLATE NOCASE AS n;",
+      "sqlite_rows": [
+        {
+          "n": 1
+        }
+      ]
+    },
+    {
+      "name": "notnull_projection_parenthesized",
+      "sql": "SELECT (7 NOTNULL) COLLATE NOCASE AS n;",
+      "sqlite_rows": [
+        {
+          "n": 1
+        }
+      ]
+    },
+    {
+      "name": "not_null_NOCASE_where_direct",
+      "sql": "SELECT 7 AS n WHERE 7 NOT NULL COLLATE NOCASE;",
+      "sqlite_rows": [
+        {
+          "n": 7
+        }
+      ]
+    },
+    {
+      "name": "not_null_NOCASE_where_parenthesized",
+      "sql": "SELECT 7 AS n WHERE (7 NOT NULL) COLLATE NOCASE;",
+      "sqlite_rows": [
+        {
+          "n": 7
+        }
+      ]
+    },
+    {
+      "name": "not_null_BINARY_where_direct",
+      "sql": "SELECT 7 AS n WHERE 7 NOT NULL COLLATE BINARY;",
+      "sqlite_rows": [
+        {
+          "n": 7
+        }
+      ]
+    },
+    {
+      "name": "not_null_BINARY_where_parenthesized",
+      "sql": "SELECT 7 AS n WHERE (7 NOT NULL) COLLATE BINARY;",
+      "sqlite_rows": [
+        {
+          "n": 7
+        }
+      ]
+    },
+    {
+      "name": "not_null_RTRIM_where_direct",
+      "sql": "SELECT 7 AS n WHERE 7 NOT NULL COLLATE RTRIM;",
+      "sqlite_rows": [
+        {
+          "n": 7
+        }
+      ]
+    },
+    {
+      "name": "not_null_RTRIM_where_parenthesized",
+      "sql": "SELECT 7 AS n WHERE (7 NOT NULL) COLLATE RTRIM;",
+      "sqlite_rows": [
+        {
+          "n": 7
+        }
+      ]
+    },
+    {
+      "name": "not_null_projection_direct",
+      "sql": "SELECT 7 NOT NULL COLLATE NOCASE AS n;",
+      "sqlite_rows": [
+        {
+          "n": 1
+        }
+      ]
+    },
+    {
+      "name": "not_null_projection_parenthesized",
+      "sql": "SELECT (7 NOT NULL) COLLATE NOCASE AS n;",
+      "sqlite_rows": [
+        {
+          "n": 1
+        }
+      ]
+    },
+    {
+      "name": "in_NOCASE_where_direct",
+      "sql": "SELECT 7 AS n WHERE 7 IN (7) COLLATE NOCASE;",
+      "sqlite_rows": [
+        {
+          "n": 7
+        }
+      ]
+    },
+    {
+      "name": "in_NOCASE_where_parenthesized",
+      "sql": "SELECT 7 AS n WHERE (7 IN (7)) COLLATE NOCASE;",
+      "sqlite_rows": [
+        {
+          "n": 7
+        }
+      ]
+    },
+    {
+      "name": "in_BINARY_where_direct",
+      "sql": "SELECT 7 AS n WHERE 7 IN (7) COLLATE BINARY;",
+      "sqlite_rows": [
+        {
+          "n": 7
+        }
+      ]
+    },
+    {
+      "name": "in_BINARY_where_parenthesized",
+      "sql": "SELECT 7 AS n WHERE (7 IN (7)) COLLATE BINARY;",
+      "sqlite_rows": [
+        {
+          "n": 7
+        }
+      ]
+    },
+    {
+      "name": "in_RTRIM_where_direct",
+      "sql": "SELECT 7 AS n WHERE 7 IN (7) COLLATE RTRIM;",
+      "sqlite_rows": [
+        {
+          "n": 7
+        }
+      ]
+    },
+    {
+      "name": "in_RTRIM_where_parenthesized",
+      "sql": "SELECT 7 AS n WHERE (7 IN (7)) COLLATE RTRIM;",
+      "sqlite_rows": [
+        {
+          "n": 7
+        }
+      ]
+    },
+    {
+      "name": "in_projection_direct",
+      "sql": "SELECT 7 IN (7) COLLATE NOCASE AS n;",
+      "sqlite_rows": [
+        {
+          "n": 1
+        }
+      ]
+    },
+    {
+      "name": "in_projection_parenthesized",
+      "sql": "SELECT (7 IN (7)) COLLATE NOCASE AS n;",
+      "sqlite_rows": [
+        {
+          "n": 1
+        }
+      ]
+    },
+    {
+      "name": "not_in_NOCASE_where_direct",
+      "sql": "SELECT 7 AS n WHERE 7 NOT IN (8) COLLATE NOCASE;",
+      "sqlite_rows": [
+        {
+          "n": 7
+        }
+      ]
+    },
+    {
+      "name": "not_in_NOCASE_where_parenthesized",
+      "sql": "SELECT 7 AS n WHERE (7 NOT IN (8)) COLLATE NOCASE;",
+      "sqlite_rows": [
+        {
+          "n": 7
+        }
+      ]
+    },
+    {
+      "name": "not_in_BINARY_where_direct",
+      "sql": "SELECT 7 AS n WHERE 7 NOT IN (8) COLLATE BINARY;",
+      "sqlite_rows": [
+        {
+          "n": 7
+        }
+      ]
+    },
+    {
+      "name": "not_in_BINARY_where_parenthesized",
+      "sql": "SELECT 7 AS n WHERE (7 NOT IN (8)) COLLATE BINARY;",
+      "sqlite_rows": [
+        {
+          "n": 7
+        }
+      ]
+    },
+    {
+      "name": "not_in_RTRIM_where_direct",
+      "sql": "SELECT 7 AS n WHERE 7 NOT IN (8) COLLATE RTRIM;",
+      "sqlite_rows": [
+        {
+          "n": 7
+        }
+      ]
+    },
+    {
+      "name": "not_in_RTRIM_where_parenthesized",
+      "sql": "SELECT 7 AS n WHERE (7 NOT IN (8)) COLLATE RTRIM;",
+      "sqlite_rows": [
+        {
+          "n": 7
+        }
+      ]
+    },
+    {
+      "name": "not_in_projection_direct",
+      "sql": "SELECT 7 NOT IN (8) COLLATE NOCASE AS n;",
+      "sqlite_rows": [
+        {
+          "n": 1
+        }
+      ]
+    },
+    {
+      "name": "not_in_projection_parenthesized",
+      "sql": "SELECT (7 NOT IN (8)) COLLATE NOCASE AS n;",
+      "sqlite_rows": [
+        {
+          "n": 1
+        }
+      ]
+    },
+    {
+      "name": "in_text_complete",
+      "sql": "SELECT 'A' IN ('a') COLLATE NOCASE AS n",
+      "sqlite_rows": [
+        {
+          "n": 0
+        }
+      ]
+    },
+    {
+      "name": "in_text_parenthesized",
+      "sql": "SELECT ('A' IN ('a')) COLLATE NOCASE AS n",
+      "sqlite_rows": [
+        {
+          "n": 0
+        }
+      ]
+    },
+    {
+      "name": "in_text_left_operand",
+      "sql": "SELECT 'A' COLLATE NOCASE IN ('a') AS n",
+      "sqlite_rows": [
+        {
+          "n": 1
+        }
+      ]
+    },
+    {
+      "name": "not_in_text_complete",
+      "sql": "SELECT 'A' NOT IN ('a') COLLATE NOCASE AS n",
+      "sqlite_rows": [
+        {
+          "n": 1
+        }
+      ]
+    },
+    {
+      "name": "not_in_text_left_operand",
+      "sql": "SELECT 'A' COLLATE NOCASE NOT IN ('a') AS n",
+      "sqlite_rows": [
+        {
+          "n": 0
+        }
+      ]
+    },
+    {
+      "name": "in_subquery",
+      "sql": "SELECT 7 IN (SELECT 7) COLLATE NOCASE AS n",
+      "sqlite_rows": [
+        {
+          "n": 1
+        }
+      ]
+    },
+    {
+      "name": "in_empty",
+      "sql": "SELECT 7 IN () COLLATE NOCASE AS n",
+      "sqlite_rows": [
+        {
+          "n": 0
+        }
+      ]
+    },
+    {
+      "name": "in_row_value",
+      "sql": "SELECT (7,8) IN ((7,8)) COLLATE NOCASE AS n",
+      "sqlite_rows": [
+        {
+          "n": 1
+        }
+      ]
+    },
+    {
+      "name": "range_chained",
+      "sql": "SELECT 7 IN (7) COLLATE NOCASE IN (1) AS n",
+      "sqlite_rows": [
+        {
+          "n": 1
+        }
+      ]
+    },
+    {
+      "name": "collate_chained",
+      "sql": "SELECT 7 IN (7) COLLATE BINARY COLLATE NOCASE AS n",
+      "sqlite_rows": [
+        {
+          "n": 1
+        }
+      ]
+    },
+    {
+      "name": "between",
+      "sql": "SELECT 7 BETWEEN 6 AND 8 COLLATE NOCASE AS n",
+      "sqlite_rows": [
+        {
+          "n": 1
+        }
+      ]
+    },
+    {
+      "name": "not_between",
+      "sql": "SELECT 7 NOT BETWEEN 8 AND 9 COLLATE NOCASE AS n",
+      "sqlite_rows": [
+        {
+          "n": 1
+        }
+      ]
+    },
+    {
+      "name": "like",
+      "sql": "SELECT 'A' LIKE 'a' COLLATE NOCASE AS n",
+      "sqlite_rows": [
+        {
+          "n": 1
+        }
+      ]
+    },
+    {
+      "name": "glob",
+      "sql": "SELECT 'A' GLOB 'a' COLLATE NOCASE AS n",
+      "sqlite_rows": [
+        {
+          "n": 0
+        }
+      ]
+    },
+    {
+      "name": "exists",
+      "sql": "SELECT EXISTS(SELECT 7) COLLATE NOCASE AS n",
+      "sqlite_rows": [
+        {
+          "n": 1
+        }
+      ]
+    },
+    {
+      "name": "prior_is_fix",
+      "sql": "SELECT 7 AS n WHERE NULL IS NULL COLLATE NOCASE;",
+      "sqlite_rows": [
+        {
+          "n": 7
+        }
+      ]
+    },
+    {
+      "name": "prior_escape_fix",
+      "sql": "SELECT 'a_' LIKE 'ax_' ESCAPE 'x' COLLATE NOCASE AS n",
+      "sqlite_rows": [
+        {
+          "n": 1
+        }
+      ]
+    },
+    {
+      "name": "arithmetic_no_collate",
+      "sql": "SELECT 7 IN (7) + 1 AS n",
+      "sqlite_rows": [
+        {
+          "n": 2
+        }
+      ]
+    },
+    {
+      "name": "multiply_no_collate",
+      "sql": "SELECT 7 NOT IN (8) * 2 AS n",
+      "sqlite_rows": [
+        {
+          "n": 2
+        }
+      ]
+    },
+    {
+      "name": "arithmetic_after_collate",
+      "sql": "SELECT NULL ISNULL COLLATE NOCASE + 1 * 2 AS n",
+      "sqlite_rows": [
+        {
+          "n": 3
+        }
+      ]
+    },
+    {
+      "name": "bitwise",
+      "sql": "SELECT 7 IN (7) COLLATE NOCASE * 2 + 1 << 1 AS n",
+      "sqlite_rows": [
+        {
+          "n": 6
+        }
+      ]
+    },
+    {
+      "name": "concat",
+      "sql": "SELECT NULL ISNULL COLLATE NOCASE || 2 AS n",
+      "sqlite_rows": [
+        {
+          "n": "12"
+        }
+      ]
+    },
+    {
+      "name": "json_extract",
+      "sql": "SELECT 7 IN (7) COLLATE NOCASE -> '$' AS n",
+      "sqlite_rows": [
+        {
+          "n": "1"
+        }
+      ]
+    },
+    {
+      "name": "json_scalar",
+      "sql": "SELECT 7 IN (7) COLLATE NOCASE ->> '$' AS n",
+      "sqlite_rows": [
+        {
+          "n": 1
+        }
+      ]
+    },
+    {
+      "name": "prior_generator_control",
+      "sql": "SELECT 7 NOTNULL IN (0,1,2) AS n",
+      "sqlite_rows": [
+        {
+          "n": 1
+        }
+      ]
+    }
+  ]
+}

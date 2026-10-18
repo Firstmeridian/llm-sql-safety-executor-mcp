@@ -145,6 +145,88 @@ class _SQLite(SQLite):
         ALIAS_TOKENS = SQLite.Parser.ALIAS_TOKENS | {TokenType.LIKE, TokenType.RLIKE}
         TABLE_ALIAS_TOKENS = SQLite.Parser.TABLE_ALIAS_TOKENS | {TokenType.LIKE, TokenType.RLIKE, TokenType.WINDOW, TokenType.LOCK, TokenType.FOR}
 
+        # SQLite permits a postfix/arithmetic continuation after a completed
+        # range predicate. Upstream consumes these tiers only before it, so
+        # resume them locally without moving COLLATE onto an IN operand.
+        _PREDICATE_TAIL_PRECEDENCE = {
+            **{token: 1 for token in SQLite.Parser.BITWISE},
+            **{token: 2 for token in SQLite.Parser.TERM if token != TokenType.COLLATE},
+            **{token: 3 for token in SQLite.Parser.FACTOR},
+            **{token: 4 for token in SQLite.Parser.CONCAT_OPERATORS},
+        }
+
+        def _parse_range(self, this: exp.Expr | None = None) -> exp.Expr | None:
+            this = super()._parse_range(this)
+            while this is not None:
+                index = self._index
+                this = self._parse_predicate_tail(this)
+                if self._index == index:
+                    break
+                this = super()._parse_range(this)
+            return this
+
+        def _parse_predicate_tail(self, this: exp.Expr, minimum: int = 1) -> exp.Expr:
+            while True:
+                token = self._curr.token_type
+                shift = token in {TokenType.LT, TokenType.GT} and self._next.token_type == token
+                precedence = 1 if shift else self._PREDICATE_TAIL_PRECEDENCE.get(token, 0)
+                if token != TokenType.COLLATE and precedence < minimum:
+                    return this
+                # Make the completed predicate atomic, including normalized
+                # NOT IN / ISNULL nodes whose printed form has lower precedence.
+                if isinstance(this, (exp.Predicate, exp.Not)):
+                    this = self.expression(exp.Paren(this=this))
+                if self._match(TokenType.COLLATE):
+                    this = self.expression(exp.Collate(this=this, expression=self._parse_unary()))
+                    self._normalize_collate(this)
+                    continue
+                self._advance(2 if shift else 1)
+                right = self._parse_concat_operand()
+                if right is None:
+                    self.raise_error("Expected SQLite predicate continuation operand")
+                    return this
+                right = self._parse_predicate_tail(right, precedence + 1)
+                if shift:
+                    kind = exp.BitwiseLeftShift if token == TokenType.LT else exp.BitwiseRightShift
+                    this = self.expression(kind(this=this, expression=right))
+                elif token in self.CONCAT_OPERATORS:
+                    this = self.CONCAT_OPERATORS[token](self, this, right)
+                else:
+                    operators = self.FACTOR if precedence == 3 else self.TERM if precedence == 2 else self.BITWISE
+                    this = self.expression(operators[token](this=this, expression=right))
+                    if isinstance(this, exp.Div):
+                        this.set("typed", self.dialect.TYPED_DIVISION)
+                        this.set("safe", self.dialect.SAFE_DIVISION)
+
+        def _parse_is(self, this: exp.Expr | None) -> exp.Expr | None:
+            # SQLGlot's NULL/placeholder shortcut leaves a following COLLATE
+            # unconsumed. SQLite's IS right operand is an expression: parse its
+            # precedence normally, preserving COLLATE on that operand rather
+            # than moving it onto the whole predicate. Execute the original SQL.
+            right_token = self._next if self._curr.token_type == TokenType.NOT else self._curr
+            if right_token.token_type != TokenType.NULL and right_token.token_type not in self.PLACEHOLDER_PARSERS:
+                return super()._parse_is(this)
+            negate = self._match(TokenType.NOT)
+            right = self._parse_bitwise()
+            if right is None:
+                self.raise_error("Expected SQLite IS right operand")
+            if negate and isinstance(right, exp.Null) and not self.dialect.NORMALIZE_NOT_NULL:
+                this = self.expression(exp.Is(this=this, expression=right, negate=True))
+            else:
+                this = self.expression(exp.Is(this=this, expression=right))
+                this = self.expression(exp.Not(this=this)) if negate else this
+            return self._parse_column_ops(this)
+
+        def _parse_escape(self, this: exp.Expr | None) -> exp.Expr | None:
+            if not self._match(TokenType.ESCAPE):
+                return this
+            # A string/NULL shortcut also omits postfix COLLATE here. Consume
+            # the escape operand at its proper precedence, retaining all uses.
+            right = self._parse_bitwise()
+            if right is None:
+                self.raise_error("Expected SQLite ESCAPE operand")
+            return self.expression(exp.Escape(this=this, expression=right))
+
         def trigger_when_begin(self, tokens: list[Token], sql: str) -> int:
             """Consume the condition as an expression, then require its marker.
 

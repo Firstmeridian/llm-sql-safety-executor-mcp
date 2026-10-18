@@ -1,0 +1,10 @@
+{
+  "sealed_utc": "2026-10-18T14:06:51.620363+00:00",
+  "scope": "Append-only correction to descriptive native evidence metadata; no result changes.",
+  "files": {
+    "errata.json": {
+      "sha256": "7878ec40998598c3b1d6110e28c86db9bd647b60aac42ab5b9684642abb93d6a",
+      "bytes": 850
+    }
+  }
+}

@@ -2,8 +2,24 @@
 
 English | [中文](REFACTORING_LOG_ZH.md)
 
-**Date:** December 2, 2025 (Updated: October 17, 2026)
-**Author:** Code Refactoring Session
+**Date:** December 2, 2025 (Updated: October 18, 2026)
+
+
+## v3.8.2 Repair SQLite collation and predicate continuations (October 18, 2026)
+
+- First adapt SQLite IS/IS NOT NULL/parameter and LIKE ESCAPE right operands to expression precedence; preserve raw SQL/parameters, all dependencies, grants and authorizer checks. Retain SQLGlot 30.22.0 and v3.8.2.
+- The first operand checkpoint added 100 regressions: 2375 passed/four skipped, clean type/prompt checks; matched 40-call comparison restores 26 false refusals. Source stdio 96 and independently installed 490 calls pass with 75 matching resources; no new required Agent call or model-cost A/B claim.
+- Preserve the IS-only checkpoint, two corrected error-layer test expectations, ESCAPE red tests and package-tool failures. Offline final build reuses the previously verified PyPA installer with RECORD checks; fresh wheel interpreter explicitly reuses frozen dependencies.
+- Preserve four pre-restart parse refusals. After the maintainer restart, **25/25 native checks** meet the frozen expectations: 20 constant reads, three policy refusals and two unchanged full five-row/five-column snapshots. Seal the restart supplement separately; close DRR-109 within this documented scope, retaining DRR-108's scoped closure. [Repair, evidence and limits](docs/validation/v3.8/V3_8_2_COLLATE_REPAIR_2026_10_18_ZH.md).
+
+- Preserve the [adjacent review](docs/validation/v3.8/V3_8_2_PREDICATE_COLLATE_REVIEW_2026_10_18_ZH.md), then repair DRR-110 after maintainer approval: resume complete-predicate COLLATE/arithmetic/concatenation/bitwise/JSON tails with explicit grouping, without moving collation or executing regenerated SQL. Add 190 regressions; final **2565 passed/four skipped**, clean type/prompt, 130 source stdio and **524 installed calls**. Restore all 114 matched reads and 480 additional valid analysis forms. Seven pre-existing SQL-generator grouping differences retain independent original-SQL controls. After the maintainer restart, **71/71 frozen native checks pass**: preflight plus 65 semantic constants, three refusals and two unchanged five-row/five-column snapshots. Independent SQLite recomputes all 66 constant reads; raw content and structured results agree. Close DRR-110 within documented source/package and native scope, preserving the 621 earlier sealed files. Correct a copied descriptive count through a separate metadata erratum without rewriting any native data. [Repair and evidence](docs/validation/v3.8/V3_8_2_PREDICATE_COLLATE_REPAIR_2026_10_18_ZH.md).
+
+## v3.8.2 Final committed-source review and COLLATE limitation (October 18, 2026)
+
+- Verify e49cd0e with a clean initial worktree: 75 accepted runtime resources and 487 prior sealed files match; 22 changed Markdown documents have 757 valid local links with committed targets. Full regression passes 2275/four optional skips; type and prompt checks pass.
+- Reproduce the independent P3 in eight native observations and matched private Client cases. SQLGlot 30.22.0 rejects NULL RHS COLLATE; baseline 3323f9c accepts all 16 inputs in both modes. Right-operand parentheses work; whole-predicate parentheses can change string semantics.
+- At that read-only review stage, record open DRR-109 while retaining the scoped DRR-108 closure. Update evidence links and preserve historical source attribution. That stage changes no runtime code, dependencies, tests, configuration or data and needs no restart; the later repair and completed native checks are recorded above.
+- [Findings, limits and sealed evidence](docs/validation/v3.8/V3_8_2_FINAL_REVIEW_2026_10_18_ZH.md).
 
 ## v3.8.2 Repair trigger WHEN roles and diagnose Host readiness (October 17, 2026; scoped resident verification passed)
 

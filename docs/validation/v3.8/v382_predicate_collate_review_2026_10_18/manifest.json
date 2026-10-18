@@ -1,0 +1,58 @@
+{
+  "sealed_utc": "2026-10-18T13:22:46.988483+00:00",
+  "scope": "Read-only assessment; prior closed scopes and failures remain unchanged.",
+  "files": {
+    "baseline.json.gz": {
+      "sha256": "5abb16eacea6a1ec70ff630eb19bfeeb15a86f51a9845ee4a0aec4a171de4d4a",
+      "bytes": 9307
+    },
+    "baseline.log.gz": {
+      "sha256": "d0f0e58a52ef2fce79f1b7a3f94693228a349ad41b66083009050c67081259c0",
+      "bytes": 1833
+    },
+    "baseline_source.json": {
+      "sha256": "2da931c825e5aca156c180395fd6813acdf33290b461c324f487aca17e6051cc",
+      "bytes": 108
+    },
+    "current.json.gz": {
+      "sha256": "5d7479a09c42f8f0f2f0cd6caf15e42a4544d2daa222a6624d6887a15ba0c2ed",
+      "bytes": 9321
+    },
+    "current.log.gz": {
+      "sha256": "7d2bc66bebf7b8d15458a08430ac74d896928b9c1b8908c24b5675e7d6a86d2a",
+      "bytes": 1838
+    },
+    "native.json.gz": {
+      "sha256": "8a5973f4f82cdd4f7269749fa6331db8b20ff60bbb2bdb09286ef50279b36046",
+      "bytes": 1090
+    },
+    "plan.json": {
+      "sha256": "f5a20b7bf56a5998b5290f4e2dd871523c339a947b765f39fe1fc43b7be3c926",
+      "bytes": 8259
+    },
+    "probe.py.gz": {
+      "sha256": "e142ab159db6603c08f9f1f8416da8ed9d113c92468fc900e7c6dc473720df92",
+      "bytes": 1917
+    },
+    "seal.py.gz": {
+      "sha256": "188ea1ce96f60908aa82177cc45d90025a3d04d71a627f4e2857bac6edfdc0cc",
+      "bytes": 2895
+    },
+    "skills.json.gz": {
+      "sha256": "1b243bf5b1b70c78cd495b1f8e806677258e11f57628e1efbb58de21f6a1f5fd",
+      "bytes": 5705
+    },
+    "skills.log.gz": {
+      "sha256": "8da8b5ef4edf77f789b11fe0d9f34846724a3943d6df3e00dd49abd2b0920c4a",
+      "bytes": 1190
+    },
+    "skills_probe.py.gz": {
+      "sha256": "ebee95da0f12fcfefdd8b45bb05ec9e46d12f5db369c1d3df4dfeee5d2d4d3fe",
+      "bytes": 1759
+    },
+    "verification.json": {
+      "sha256": "8d78fc695e1e3450a14cf6dc5b07fd69090dd9b446af3306ce04c47a0cb7b254",
+      "bytes": 19915
+    }
+  }
+}

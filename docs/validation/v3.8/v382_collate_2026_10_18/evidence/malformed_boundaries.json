@@ -1,0 +1,59 @@
+{
+  "note": "Initial diagnostic incorrectly equated complete project analysis with native syntax validity; retain actual statuses. No uncaught parser exception. Native rejects each incomplete statement.",
+  "records": [
+    {
+      "sql": "SELECT 1 IS",
+      "analysis_status": "complete",
+      "unsupported": [],
+      "native_error": "OperationalError"
+    },
+    {
+      "sql": "SELECT 1 IS NOT",
+      "analysis_status": "failed",
+      "unsupported": [
+        "sql_parse_failed"
+      ],
+      "native_error": "OperationalError"
+    },
+    {
+      "sql": "SELECT 1 IS NULL COLLATE",
+      "analysis_status": "failed",
+      "unsupported": [
+        "sql_parse_failed"
+      ],
+      "native_error": "OperationalError"
+    },
+    {
+      "sql": "SELECT 1 IS :",
+      "analysis_status": "failed",
+      "unsupported": [
+        "sql_parse_failed"
+      ],
+      "native_error": "OperationalError"
+    },
+    {
+      "sql": "SELECT 1 IS NOT :",
+      "analysis_status": "failed",
+      "unsupported": [
+        "sql_parse_failed"
+      ],
+      "native_error": "OperationalError"
+    },
+    {
+      "sql": "SELECT 'a' LIKE 'a' ESCAPE",
+      "analysis_status": "failed",
+      "unsupported": [
+        "sql_parse_failed"
+      ],
+      "native_error": "OperationalError"
+    },
+    {
+      "sql": "SELECT 'a' LIKE 'a' ESCAPE NULL COLLATE",
+      "analysis_status": "failed",
+      "unsupported": [
+        "sql_parse_failed"
+      ],
+      "native_error": "OperationalError"
+    }
+  ]
+}
