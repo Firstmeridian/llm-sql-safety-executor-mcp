@@ -1,0 +1,35 @@
+{
+  "date": "2026-10-22",
+  "checkpoint": "Six native checks passed; finite stabilization plan recorded; remaining gates pending",
+  "append_rule": "Never rewrite the parent pending checkpoint or these records; create a new supplement for later work.",
+  "files": {
+    "README.md": {
+      "bytes": 2401,
+      "sha256": "0523966f5485add5e273bae1e7836ac6bc7ac1214de9601ef76e976723ee4a67"
+    },
+    "before.json.gz": {
+      "bytes": 11642,
+      "sha256": "cdb6253cadefcc18c5cbec8afd931fa2e80378303cc8df35f794688f2db20a47",
+      "decoded_bytes": 44832,
+      "decoded_sha256": "04bc128f4d9c32ed5b35ee9a67b3b837075fd4d3718eeadfe9aa01abeb0950eb"
+    },
+    "checks.json.gz": {
+      "bytes": 739,
+      "sha256": "ac8be29c04a577065f6369260e93289f75c58583a3837d12aa7b7e3d5135ae9b",
+      "decoded_bytes": 2403,
+      "decoded_sha256": "e34804e04e55b42dd517da952317ca8e2036c8dec3528720cbcb47475d5e1c3f"
+    },
+    "native_calls.json.gz": {
+      "bytes": 1248,
+      "sha256": "a4e07a48df7bf0429f330f0739bebfd46a7c4206103620d6b37a94c4c60d44f9",
+      "decoded_bytes": 7096,
+      "decoded_sha256": "1cbdaab49a3c53b0229ed0a1b337324f312ea9e0b52eba5e10f7ac16a272061f"
+    },
+    "verify.py.gz": {
+      "bytes": 3477,
+      "sha256": "1ab94a7199befae215c4c3dff31494d3c2d6908d8941183e67702e258f338eba",
+      "decoded_bytes": 10028,
+      "decoded_sha256": "1b793569be5298a85615222859cd857f572c201f6d36db53ee6ab4d56a7a1a23"
+    }
+  }
+}

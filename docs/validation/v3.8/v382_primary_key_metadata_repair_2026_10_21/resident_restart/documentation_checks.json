@@ -1,0 +1,32 @@
+{
+  "documents": {
+    "AI_COLLABORATION_GUIDE.md": "6ea703bedd89b076214635d92b2f37bc0dfbcfe0eae02b8de0a26fef2e98f255",
+    "README.md": "ac06aee38fa21b02546723d5d194b8210cb3f86da0beca6a96291fb9e63f034e",
+    "README_ZH.md": "44bf6643443a502aa8bf2fd025f45df7708bec2451e4033a8058ce81e5d41ed1",
+    "REFACTORING_LOG.md": "cc78847d26682786c39b6c69a179bc649b9dff6117f10a31b808b5fa18db0e97",
+    "REFACTORING_LOG_ZH.md": "03549f45e261d4dfe039924fcf7aca11c457411f498457f6572e9fd6328f3197",
+    "docs/README.md": "5c40373070e7e9e7d2fd45e0d35a1a7e4aa3653004cd24537c5464c3df63ca4c",
+    "docs/README_ZH.md": "c41811fb3afb9de7419eedb111c3a7fd6928928be3c9ba6ddf33e5081a331e4a",
+    "docs/architecture/V3_8_2_SQL_SEMANTICS_ZH.md": "d80d33f7494199be4aa9cf644eafb77ed23cd3393e5da7d8e56ca1956e86b8eb",
+    "docs/releases/RELEASE_NOTES_v3_8.md": "4207cb1b83976adabae4e4cd47000bdfc48f03f8a183e83363bd522324590364",
+    "docs/guides/TEST_MCP_CLIENT_GUIDE.md": "50914ccac198effe5dda0d4dd25ca9f9b2be1e928072f146dc86d83e484df80a",
+    "docs/security/DESIGN_RISK_REGISTER.md": "6af4c46fad82f473b4380f4096e340c9c33ea9ba357c7cab62ef6d1dacd70130",
+    "docs/security/DESIGN_RISK_REGISTER_ZH.md": "6141376dd3749a0ad408749849477ce82ab9fa9bd91e82899335e0438e0789da",
+    "docs/security/V3_8_SECURITY.md": "53a0d586e8d8e58337ac50d84e6cc2944a9517fbc7780c17e3b65fd0831ad1d0",
+    "docs/validation/v3.8/V3_8_2_PRIMARY_KEY_METADATA_REPAIR_2026_10_21_ZH.md": "e701d642268c29d874261730095f29ce8d2ac733c66d2b6487ba05ed2966969f",
+    "docs/validation/v3.8/v382_primary_key_metadata_repair_2026_10_21/resident_restart/README.md": "8d554d552efa03e897dfa2ce0e9cb791beae6cce7efbae618c1d2389584dfa21",
+    "local_archive/v382_review/README.md": "2bbb50422cfdb758a68a9b7d8bdb57b88358d7bd8b25959e3e71979a6576128a",
+    "local_archive/v382_review/handoff/session-handoff-v381-v382-20261019-ZH.md": "48a3532ae0020af957a5c98219d2829c8617265b2e8f485f920ea14e8b794787",
+    "local_archive/v382_review/20261021_primary_key_metadata_repair/resident_restart/reports/README_ZH.md": "ae3a5003421857a37420200565f0a005a68db1ab6d9f2fdf6b5ac389a7c0f32e"
+  },
+  "local_links_checked": 1053,
+  "broken_links": [],
+  "git_diff_check": "passed",
+  "prior_manifests": 73,
+  "prior_file_records": 2279,
+  "new_private_records": 19,
+  "new_public_records": 18,
+  "cumulative_manifests": 75,
+  "cumulative_file_records": 2316,
+  "scope": "MySQL server acceptance; no MariaDB requirement. Native7/12 vs fresh CLI12/12, channel consistency pending and cause unconfirmed. Owner deferred reconnect."
+}

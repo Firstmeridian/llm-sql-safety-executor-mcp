@@ -6,7 +6,7 @@ from pydantic_core import to_json
 
 from sql_safety_executor.database.base import DatabaseAdapter
 from sql_safety_executor.database.models import ConnectionPolicy, DatabaseConfig
-from sql_safety_executor.database.relations import RelationReference
+from sql_safety_executor.database.relations import RelationReference, SQLiteJSONNameObservation
 
 
 class OperationError(Exception):
@@ -68,3 +68,4 @@ class SkillSchemaSnapshot:
     available: bool
     table_names: frozenset[RelationReference]
     schema_name: str | None = None
+    json_name_observation: SQLiteJSONNameObservation | None = None

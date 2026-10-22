@@ -86,6 +86,13 @@ class Limits(Model):
     schema_tables: int = Field(default=50, ge=0)
     overview_tables: int = Field(default=100, ge=0)
 
+    @field_validator("result_chars")
+    @classmethod
+    def result_array_fits(cls, value: int) -> int:
+        if value == 1:
+            raise _config_error("result_chars_requires_zero_or_at_least_two")
+        return value
+
 
 class Telemetry(Model):
     enabled: bool = False
@@ -255,6 +262,7 @@ class MRTR(Model):
 class Mutation(Model):
     enabled: bool = False
     allowed_connections: tuple[str, ...] = ()
+    managed_plan_parser: Literal["sqlglot", "sqlparse"] = "sqlglot"
     preview: Preview = Preview()
     mrtr: MRTR = MRTR()
 

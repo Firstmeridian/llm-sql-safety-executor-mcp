@@ -1,0 +1,33 @@
+{
+  "documents": {
+    "README.md": "ac06aee38fa21b02546723d5d194b8210cb3f86da0beca6a96291fb9e63f034e",
+    "README_ZH.md": "44bf6643443a502aa8bf2fd025f45df7708bec2451e4033a8058ce81e5d41ed1",
+    "REFACTORING_LOG.md": "56bb7cd29bf77217c1efc1a42c47da82fe60b1b2a77a51e1a25876e482667cc0",
+    "REFACTORING_LOG_ZH.md": "6723a4ec69854a278325ee0a7f354343999bb20027c4977e0259c55726b7c7ad",
+    "docs/README.md": "4b48ec5b148372df1065fef58a724cb6af7305fd4565a933b555746b488a0930",
+    "docs/README_ZH.md": "8b853afb58e4bb94319f0f9efa76d7a674227af8b78d36b7646f649846244fde",
+    "docs/architecture/V3_8_2_SQL_SEMANTICS_ZH.md": "f09846ef8186b1a582292c910c7ab858e89fe5b965564ed39610864ad0f054f1",
+    "docs/guides/TEST_MCP_CLIENT_GUIDE.md": "c8035e433106763b9b9f9ecb360dcbff34482fdb9b945884a7acbc1a37fb7945",
+    "docs/releases/RELEASE_NOTES_v3_8.md": "914ec11fef5fc246c4c2012fb45f5c78eb138cb420b346e4c67d88ad88569d30",
+    "docs/security/DESIGN_RISK_REGISTER.md": "45fa401bcba9fd483ac444a440a1a9ebeb1d67c0e84177575824e46fd1901fec",
+    "docs/security/DESIGN_RISK_REGISTER_ZH.md": "aa5fe651d2b2f411761d3c12a7b94b9c20186f6792c28e0825144f747e2d391e",
+    "docs/security/V3_8_SECURITY.md": "5579093af8205eeb1a273426c9410ec203c07f4539da7c97812f56f5338d4c82",
+    "docs/validation/v3.8/V3_8_2_PRIMARY_KEY_METADATA_REPAIR_2026_10_21_ZH.md": "fbb827d8a9a9de61f96c94d64e01f76e2e8a6ac0232ceaaa4fa1100d9bddb5d3",
+    "docs/validation/v3.8/V3_8_2_COMPLETE_AGENT_EVAL_2026_10_21_ZH.md": "26edb4ae95caff48cf5b9a3ad7d12d1e84363d61887acbc61879fc4cfdbd77b7",
+    "local_archive/v382_review/README.md": "75e4456beea0ded21504e416ccc73db7ed3589207ca9327cb7c58d66e223a5a0",
+    "local_archive/v382_review/handoff/session-handoff-v381-v382-20261019-ZH.md": "762ea081f09b6502b99ee083efbb5989ee23ac13a2dfc337190161f5b91b05ce",
+    "local_archive/v382_review/handoff/commit-message-v382.txt": "b35d060c77f71c24e0f9777af4dfd4323728393a821d7b37e7c8f2b67e7e3272",
+    "local_archive/v382_review/20261021_complete_agent_eval/reports/README_ZH.md": "3b3d3270e397f7b4b9c1f02a57f9f1b26fec007194ffbe0dd0c014a197cdfcd7",
+    "docs/validation/v3.8/v382_complete_agent_eval_2026_10_21/README.md": "760dc7d6b14bd83a64c69f65b50f08ca3b3fa1bb588a3f350d952111fc02d35f"
+  },
+  "local_links_checked": 1067,
+  "broken_links": [],
+  "git_diff_check": "passed",
+  "prior_manifests": 75,
+  "prior_file_records": 2316,
+  "new_private_records": 81,
+  "new_public_records": 81,
+  "cumulative_manifests": 77,
+  "cumulative_file_records": 2478,
+  "scope": "Native12/12, actual verified Luna fifteen same-task trials plus three separate natural-guidance probes, serial fixed-workflow costs. No runtime/config/database mutation or new full-suite/build/install claim."
+}

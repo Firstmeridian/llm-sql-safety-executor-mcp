@@ -1,0 +1,161 @@
+--- pre-DRR-136/database/sqlite.py
++++ final/database/sqlite.py
+@@ -13,7 +13,7 @@
+ from .models import ConnectionPolicy, DatabaseConfig
+ from .base import DatabaseAdapter
+ from .errors import DatabaseQueryError, classify_database_error
+-from .indexes import IndexMetadataBudget, MAX_INDEX_KEY_PARTS
++from .indexes import IndexMetadataBudget, MAX_INDEXES, MAX_INDEX_KEY_PARTS
+ from .relations import ReadRelation, RelationReference, SQLiteJSONNameObservation, render_relation
+ from .authorizer import SQLiteReadGuard, build_read_guard
+ from .execution import exclusive_connection, operation_scope
+@@ -38,6 +38,9 @@
+ # would also hide legitimate sqliteX... names. Keep both directories aligned.
+ _PUBLIC_RELATION_FILTER = "substr(name, 1, 7) COLLATE NOCASE != 'sqlite_'"
+ _JSON_NAME_SCHEMA_LIMIT = 32
++# SQLite index b-trees may include both keys and WITHOUT ROWID auxiliary
++# columns. Bound raw PRAGMA rows separately from the public key-part budget.
++_PRAGMA_ROW_LIMIT = 65536
+ 
+ 
+ class SQLiteAdapter(DatabaseAdapter):
+@@ -194,7 +197,8 @@
+ 
+     @exclusive_connection
+     def execute(
+-        self, sql: str, timeout: int | float | None = None, params: dict | None = None
++        self, sql: str, timeout: int | float | None = None, params: dict | None = None,
++        *, _fetch_limit: int | None = None,
+     ) -> list:
+         """
+         Execute SQL query with timeout protection via set_progress_handler.
+@@ -262,7 +266,11 @@
+                                 raise DatabaseQueryError("query_timeout")
+                             statement = statement_text(sql, self.analysis_context, self._read_request[1] if self._read_request else None)
+                             result = connection.execute(statement, params) if params else connection.execute(statement)
+-                            return list(result.fetchall())
++                            try:
++                                return list(result.fetchall() if _fetch_limit is None
++                                            else result.fetchmany(_fetch_limit + 1))
++                            finally:
++                                result.close()
+                         except Exception:
+                             if guard is None or not guard.explain_dml or not guard.pending_plan_reads:
+                                 raise
+@@ -500,6 +508,27 @@
+         )
+         return [ReadRelation(RelationReference(row[0], self.metadata_schema), row[1]) for row in rows]
+ 
++    def _metadata_pragma(self, operation: str, name: str, target: str, *,
++                         timeout: float | None = None, row_limit: int = _PRAGMA_ROW_LIMIT) -> list:
++        """Fixed main-bound catalog statements, immune to relation-name shadows.
++
++        PRAGMA arguments cannot be bound parameters. Encode one SQL string
++        literal; pragma names and schema never come from a tool argument.
++        Fetch one overflow row so callers fail without a partial success.
++        """
++        if name not in {"table_xinfo", "table_info", "index_list", "index_xinfo"}:
++            raise ValueError("Unsupported metadata PRAGMA")
++        literal = "'" + target.replace("'", "''") + "'"
++        try:
++            with operation_scope("metadata"):
++                rows = self.execute(f"PRAGMA main.{name}({literal})", timeout=timeout,
++                                    params=None, _fetch_limit=row_limit)
++        except DatabaseQueryError:
++            raise MetadataQueryError(operation) from None
++        if len(rows) > row_limit:
++            raise MetadataQueryError(operation)
++        return rows
++
+     def get_columns(self, table_name: str) -> list[dict[str, Any]]:
+         """
+         Return SELECT-star columns, including generated columns, in cid order.
+@@ -510,15 +539,13 @@
+         if not self.valid_metadata_identifier(table_name):
+             return []
+ 
+-        result = self._execute_metadata(
+-            'SELECT cid, name, type, "notnull", dflt_value, pk, hidden '
+-            "FROM pragma_table_xinfo(:table_name, 'main') WHERE hidden != 1 ORDER BY cid",
+-            'reading table columns', params={"table_name": table_name},
+-        )
++        result = self._metadata_pragma('reading table columns', 'table_xinfo', table_name)
+ 
+ 
+         columns = []
+-        for row in result:
++        for row in sorted(result, key=lambda row: row[0]):
++            if row[6] == 1:
++                continue
+             # Map SQLite PRAGMA output to consistent format
+             column = {
+                     "column_name": row[1],
+@@ -533,30 +560,26 @@
+ 
+         return columns
+ 
++    @exclusive_connection
+     def get_indexes(self, table_name: str) -> list[dict[str, Any]]:
+-        """Read only main-schema indexes in two bounded metadata queries."""
++        """Read main indexes with bounded, non-shadowable PRAGMA statements."""
+         if not self.valid_metadata_identifier(table_name):
+             raise MetadataQueryError("reading table indexes")
+         budget = IndexMetadataBudget(self._query_timeout_seconds)
+-        index_rows = budget.rows(
+-            self._execute_metadata(
+-                'SELECT il.name, il."unique", il.origin, il.partial, '
+-                'xi.seqno, xi.cid, xi.name, xi."desc", xi.coll '
+-                "FROM pragma_index_list(:table_name, 'main') AS il "
+-                "JOIN pragma_index_xinfo(il.name, 'main') AS xi ON xi.key = 1 "
+-                "ORDER BY il.name, xi.seqno LIMIT :row_limit", 'reading table indexes',
+-                timeout=budget.remaining(),
+-                params={"table_name": table_name, "row_limit": MAX_INDEX_KEY_PARTS + 1},
+-            )
+-        )
+-        pk_rows = budget.rows(
+-            self._execute_metadata(
+-                "SELECT name FROM pragma_table_info(:table_name, 'main') "
+-                "WHERE pk > 0 ORDER BY pk LIMIT :row_limit", 'reading table indexes',
+-                timeout=budget.remaining(),
+-                params={"table_name": table_name, "row_limit": MAX_INDEX_KEY_PARTS + 1},
+-            )
+-        )
++        listed = self._metadata_pragma('reading table indexes', 'index_list', table_name,
++                                       timeout=budget.remaining(), row_limit=MAX_INDEXES)
++        budget.remaining()
++        index_rows = []
++        for _seq, name, unique, origin, partial in sorted(listed, key=lambda row: row[1]):
++            parts = self._metadata_pragma('reading table indexes', 'index_xinfo', name,
++                                          timeout=budget.remaining())
++            index_rows.extend((name, unique, origin, partial, *row[:5])
++                              for row in sorted(parts, key=lambda row: row[0]) if row[5] == 1)
++            budget.rows(index_rows)
++        pk_rows = sorted((row for row in self._metadata_pragma(
++            'reading table indexes', 'table_info', table_name, timeout=budget.remaining())
++            if row[5] > 0), key=lambda row: row[5])
++        budget.rows(pk_rows)
+ 
+         by_name: dict[str, dict[str, Any]] = {}
+         for (
+@@ -574,7 +597,7 @@
+                 },
+             )
+             # cid -2 marks an expression key part; key=0 auxiliary columns
+-            # are excluded by the fixed SQL, not mistaken for key parts.
++            # are filtered from PRAGMA rows before projection into key parts.
+             column = None if cid == -2 else column
+             index["columns"].append(column)
+             index["key_parts"].append(
+@@ -595,10 +618,10 @@
+                     "name": None,
+                     "primary": True,
+                     "unique": True,
+-                    "columns": [row[0] for row in pk_rows],
++                    "columns": [row[1] for row in pk_rows],
+                     # Synthetic keys have no index_xinfo direction/collation.
+                     "key_parts": [
+-                        {"column": row[0], "sort_order": None, "collation": None}
++                        {"column": row[1], "sort_order": None, "collation": None}
+                         for row in pk_rows
+                     ],
+                     "partial": False,

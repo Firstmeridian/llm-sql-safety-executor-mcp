@@ -1,0 +1,34 @@
+{
+  "date": "2026-10-21",
+  "checkpoint": "Attached JSON-name readiness assessment; open DRR-2026-135",
+  "scope": "332 final source Client/stdio application calls, independent positional SQLite truth and dynamic ATTACH/DETACH; no repair, installed/native/model/performance acceptance",
+  "append_rule": "Preserve these bytes and prior checkpoints; append implementation and later checks independently.",
+  "files": {
+    "README.md": {
+      "bytes": 1761,
+      "sha256": "c9bd4d65c72bb9588a6269b5541646d34225619c1f231e0e3ced9143a3f4eac1"
+    },
+    "evidence/dynamic.json.gz": {
+      "bytes": 2003,
+      "sha256": "de2947c37c2fbadf960ac06d3ef429af83b8c7ac2f8b77128a055810f5d4329f"
+    },
+    "evidence/results.json.gz": {
+      "bytes": 28003,
+      "sha256": "6620125cbfbe952842bfc18b5cba31f30f70407cd1aaa079ca1df74c5800c34b"
+    },
+    "evidence/summary.json": {
+      "bytes": 18978,
+      "sha256": "4d2b97e3c5b238518505691c76aa62191f452deaa5e30b430211f84632bbb23f"
+    }
+  },
+  "compressed_decoded_records": {
+    "evidence/dynamic.json.gz": {
+      "bytes": 61094,
+      "sha256": "cb530e30079f6fd219517a4d2c0c8e14d1ff2e7d0b1e856ef69338b465318271"
+    },
+    "evidence/results.json.gz": {
+      "bytes": 894318,
+      "sha256": "4b27ef2109bab3d6fafe932bea8e47d8eb15f300978109b245128e5797564c59"
+    }
+  }
+}

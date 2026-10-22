@@ -10,11 +10,11 @@ from sqlalchemy.engine import Engine
 
 logger = logging.getLogger(__name__)
 
-from .models import DatabaseConfig
+from .models import ConnectionPolicy, DatabaseConfig
 from .base import DatabaseAdapter
 from .errors import DatabaseQueryError, classify_database_error
-from .indexes import IndexMetadataBudget, MAX_INDEX_KEY_PARTS
-from .relations import ReadRelation, RelationReference
+from .indexes import IndexMetadataBudget, MAX_INDEXES, MAX_INDEX_KEY_PARTS
+from .relations import ReadRelation, RelationReference, SQLiteJSONNameObservation, render_relation
 from .authorizer import SQLiteReadGuard, build_read_guard
 from .execution import exclusive_connection, operation_scope
 from .transport import statement_text
@@ -32,11 +32,67 @@ from .outcomes import (
 )
 from .identifiers import (
     _adapter_logging_name,
+    ascii_identifier_lower,
 )
 
 # Internal names have the literal sqlite_ prefix. LIKE's unescaped underscore
 # would also hide legitimate sqliteX... names. Keep both directories aligned.
 _PUBLIC_RELATION_FILTER = "substr(name, 1, 7) COLLATE NOCASE != 'sqlite_'"
+_JSON_NAME_SCHEMA_LIMIT = 32
+# SQLite index b-trees may include both keys and WITHOUT ROWID auxiliary
+# columns. Bound raw PRAGMA rows separately from the public key-part budget.
+_PRAGMA_ROW_LIMIT = 65536
+
+
+def _stat_row_count(stat: Any) -> int | None:
+    """The first stat1 integer is cardinality only after source verification."""
+    parts = stat.split() if isinstance(stat, str) else []
+    if parts:
+        try:
+            value = int(parts[0])
+            if value >= 0:
+                return value
+        except ValueError:
+            pass
+    return None
+
+
+def _sqlite_dml_needs_count(sql: str, context) -> bool:
+    """Identify a DML root only when sqlite3 cannot report its row count.
+
+    This uses the existing dialect lexer, not read policy or a second AST
+    validator. SQL has already executed as one statement inside our transaction.
+    Ignore empty prefixes and CTE bodies/declaration names; SELECT, EXPLAIN and
+    DDL must never inherit changes() from a previous business statement.
+    """
+    from sql_safety_executor.core.analysis import _tokens
+    from sqlglot.tokenizer_core import TokenType
+
+    _, raw_tokens = _tokens(sql, context)
+    tokens = [token for token in raw_tokens if token.token_type != TokenType.HINT]
+    first = next((i for i, token in enumerate(tokens)
+                  if token.token_type != TokenType.SEMICOLON), None)
+    if first is None:
+        return False
+    dml = {TokenType.INSERT, TokenType.UPDATE, TokenType.DELETE, TokenType.REPLACE}
+    if tokens[first].token_type != TokenType.WITH:
+        return tokens[first].token_type in dml
+    depth = 0
+    for index in range(first + 1, len(tokens)):
+        kind = tokens[index].token_type
+        if kind == TokenType.L_PAREN:
+            depth += 1
+        elif kind == TokenType.R_PAREN:
+            depth -= 1
+        elif depth == 0 and kind in dml | {TokenType.SELECT, TokenType.VALUES}:
+            if kind in {TokenType.SELECT, TokenType.VALUES}:
+                return False
+            # SQLite permits some keyword-like CTE names (e.g. replace).
+            following = tokens[index + 1].token_type if index + 1 < len(tokens) else None
+            if following in {TokenType.ALIAS, TokenType.L_PAREN}:
+                continue
+            return kind in dml
+    return False
 
 
 class SQLiteAdapter(DatabaseAdapter):
@@ -193,7 +249,8 @@ class SQLiteAdapter(DatabaseAdapter):
 
     @exclusive_connection
     def execute(
-        self, sql: str, timeout: int | float | None = None, params: dict | None = None
+        self, sql: str, timeout: int | float | None = None, params: dict | None = None,
+        *, _fetch_limit: int | None = None,
     ) -> list:
         """
         Execute SQL query with timeout protection via set_progress_handler.
@@ -261,7 +318,11 @@ class SQLiteAdapter(DatabaseAdapter):
                                 raise DatabaseQueryError("query_timeout")
                             statement = statement_text(sql, self.analysis_context, self._read_request[1] if self._read_request else None)
                             result = connection.execute(statement, params) if params else connection.execute(statement)
-                            return list(result.fetchall())
+                            try:
+                                return list(result.fetchall() if _fetch_limit is None
+                                            else result.fetchmany(_fetch_limit + 1))
+                            finally:
+                                result.close()
                         except Exception:
                             if guard is None or not guard.explain_dml or not guard.pending_plan_reads:
                                 raise
@@ -323,14 +384,21 @@ class SQLiteAdapter(DatabaseAdapter):
 
         timeout = timeout if timeout is not None else self._query_timeout_seconds
 
-        from sqlalchemy import text
-
         connection = None
         transaction = None
+        result = None
         sqlite_conn: sqlite3.Connection | None = None
         handler_installed = False
+        handler_cleanup_failed = False
+        result_cleanup_failed = False
         business_write_attempted = False
         phase = WriteExecutionPhase.SETUP
+
+        def transaction_state() -> bool | None:
+            if sqlite_conn is None or result_cleanup_failed:
+                return None
+            return sqlite_conn.in_transaction
+
         try:
             connection = engine.connect()
             transaction = connection.begin()
@@ -338,10 +406,14 @@ class SQLiteAdapter(DatabaseAdapter):
             if raw_conn is None:
                 raise RuntimeError("Database engine could not be initialized.")
             sqlite_conn = cast(sqlite3.Connection, raw_conn)
-            start_time = time.time()
+            start_time = time.monotonic()
+
+            def check_deadline():
+                if time.monotonic() - start_time > timeout:
+                    raise TimeoutError("SQLite write deadline exceeded")
 
             def timeout_handler():
-                if time.time() - start_time > timeout:
+                if time.monotonic() - start_time > timeout:
                     return 1
                 return 0
 
@@ -350,10 +422,38 @@ class SQLiteAdapter(DatabaseAdapter):
                 self._progress_handler_interval,
             )
             handler_installed = True
+            check_deadline()
+            # Legacy sqlite3 only emits BEGIN for a subset of DML spellings.
+            # A logical SQLAlchemy begin() alone does not protect WITH/; DML.
+            # Keep this explicit boundary local to writes, outside read guards.
+            if not sqlite_conn.in_transaction:
+                connection.exec_driver_sql("BEGIN").close()
+            if sqlite_conn.in_transaction is not True:
+                raise RuntimeError("SQLite physical transaction was not established")
+            check_deadline()
             phase = WriteExecutionPhase.EXECUTE
             business_write_attempted = True
             result = connection.execute(statement_text(sql, self.analysis_context), params)
-            rowcount = result.rowcount
+            cursor = result.cursor
+            if result.returns_rows:
+                # RETURNING/count_changes can keep a write VM open. Complete
+                # it under the deadline without buffering all rows in Python.
+                while result.fetchmany(256):
+                    check_deadline()
+            # CursorResult.rowcount may have memoized 0 before RETURNING was
+            # consumed. SQLite's underlying cursor now has the completed count.
+            rowcount = cursor.rowcount if cursor is not None else result.rowcount
+            result.close()
+            result = None
+            check_deadline()
+            if rowcount < 0 and _sqlite_dml_needs_count(sql, self.analysis_context):
+                result = connection.exec_driver_sql("SELECT changes()")
+                rowcount = result.scalar_one()
+                result.close()
+                result = None
+                if type(rowcount) is not int or rowcount < 0:
+                    raise RuntimeError("SQLite DML row count could not be established")
+            check_deadline()
 
             phase = WriteExecutionPhase.ROWCOUNT_CHECK
             if expected_rowcount is not None and rowcount != expected_rowcount:
@@ -372,10 +472,18 @@ class SQLiteAdapter(DatabaseAdapter):
                 try:
                     sqlite_conn.set_progress_handler(None, 0)
                 except BaseException as handler_error:
+                    handler_cleanup_failed = True
                     logger.warning(
                         "SQLite progress handler cleanup failed: %s",
                         handler_error.__class__.__name__,
                     )
+            if result is not None:
+                try:
+                    result.close()
+                except BaseException as close_error:
+                    result_cleanup_failed = True
+                    logger.warning("SQLite write result cleanup failed: %s",
+                                   close_error.__class__.__name__)
             if transaction is None:
                 outcome = WriteExecutionOutcome.NOT_EXECUTED
                 rollback_error = None
@@ -384,7 +492,20 @@ class SQLiteAdapter(DatabaseAdapter):
                     transaction,
                     connection=connection,
                     business_write_attempted=business_write_attempted,
+                    transaction_state=transaction_state,
                 )
+            retire_connection = result_cleanup_failed or handler_cleanup_failed
+            if outcome is WriteExecutionOutcome.UNKNOWN:
+                try:
+                    retire_connection = retire_connection or transaction_state() is not False
+                except Exception:
+                    retire_connection = True
+            if retire_connection and connection is not None:
+                try:
+                    connection.invalidate()
+                except BaseException as invalidate_error:
+                    logger.warning("SQLite write connection retirement failed: %s",
+                                   invalidate_error.__class__.__name__)
             _close_write_connection(connection)
             if not isinstance(error, Exception):
                 raise
@@ -408,6 +529,8 @@ class SQLiteAdapter(DatabaseAdapter):
         assert active_transaction is not None
         try:
             active_transaction.commit()
+            if transaction_state() is not False:
+                raise RuntimeError("SQLite COMMIT did not finish the physical transaction")
         except BaseException as error:
             try:
                 active_transaction.rollback()
@@ -416,6 +539,12 @@ class SQLiteAdapter(DatabaseAdapter):
                     "Rollback cleanup after uncertain COMMIT failed: %s",
                     rollback_error.__class__.__name__,
                 )
+            try:
+                if transaction_state() is not False and connection is not None:
+                    connection.invalidate()
+            except BaseException as invalidate_error:
+                logger.warning("SQLite uncertain COMMIT connection retirement failed: %s",
+                               invalidate_error.__class__.__name__)
             _close_write_connection(connection)
             # See the MySQL path: COMMIT cancellation is typed as unknown;
             # unrelated process-control exceptions still propagate.
@@ -436,13 +565,46 @@ class SQLiteAdapter(DatabaseAdapter):
         logger.warning("sqlite execution error: %s", e.__class__.__name__)
         return classify_database_error(e, "sqlite")
 
-    def get_tables(self) -> list[dict[str, Any]]:
-        """
-        Get all tables from sqlite_master.
+    @exclusive_connection
+    def get_json_name_observation(self) -> SQLiteJSONNameObservation:
+        """Observe two names in lookup order on the owned physical connection.
 
-        Note: SQLite doesn't have INFORMATION_SCHEMA, uses sqlite_master instead.
-        Row counts are estimated via sqlite_stat1 or bounded sampling.
+        Bound directory count and total time, including catalog discovery.
+        Partial observations never prove builtin identity. This is trusted
+        catalog access, not permission to evaluate any observed object.
         """
+        deadline = time.monotonic() + self._query_timeout_seconds
+        references: list[RelationReference] = []
+        searched: list[str] = []
+        try:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                return SQLiteJSONNameObservation()
+            # Use the statement form: an ordinary table can shadow the
+            # pragma_database_list() table-valued function in trusted SQL.
+            rows = self.execute("PRAGMA database_list", timeout=remaining)
+            schemas = ["temp", "main", *(str(row[1]) for row in rows
+                        if str(row[1]) not in {"temp", "main"})]
+            complete = len(schemas) <= _JSON_NAME_SCHEMA_LIMIT
+            for schema in schemas[:_JSON_NAME_SCHEMA_LIMIT]:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    return SQLiteJSONNameObservation(tuple(references), tuple(searched))
+                catalog = render_relation(RelationReference("sqlite_master", schema), "sqlite")
+                matches = self.execute(
+                    f"SELECT name FROM {catalog} WHERE type IN ('table','view') "
+                    "AND name COLLATE NOCASE IN ('json_each','json_tree') LIMIT 2",
+                    timeout=remaining,
+                )
+                references.extend(RelationReference(str(row[0]), schema) for row in matches)
+                searched.append(schema)
+            return SQLiteJSONNameObservation(tuple(references), tuple(searched), complete)
+        except DatabaseQueryError:
+            logger.warning("Skills JSON-name readiness observation is incomplete.")
+            return SQLiteJSONNameObservation(tuple(references), tuple(searched))
+
+    def get_table_directory(self) -> list[dict[str, Any]]:
+        """Discover main-schema tables without evaluating table/view contents."""
         sql = f"""
             SELECT name as table_name
             FROM main.sqlite_master
@@ -452,20 +614,11 @@ class SQLiteAdapter(DatabaseAdapter):
         result = self._execute_metadata(sql, 'listing tables')
 
 
-        tables = []
-        for row in result:
-            table_name = row[0]
-            # Use the dialect name envelope; generated SQL quotes components
-            # and transport binding separately. Invalid observations remain
-            # unknown rather than falsely reporting an empty table.
-            row_count = (
-                None
-                if not self.valid_metadata_identifier(table_name)
-                else self.get_row_estimate(table_name)
-            )
-            tables.append({"table_name": table_name, "row_count": row_count})
+        return [{"table_name": row[0], "row_count": None} for row in result]
 
-        return tables
+    def enrich_row_estimates(self, tables: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        estimates = self._row_estimates([table["table_name"] for table in tables])
+        return [{**table, "row_count": estimates[table["table_name"]]} for table in tables]
 
     def get_read_relations(self) -> list[ReadRelation]:
         rows = self._execute_metadata(
@@ -475,62 +628,83 @@ class SQLiteAdapter(DatabaseAdapter):
         )
         return [ReadRelation(RelationReference(row[0], self.metadata_schema), row[1]) for row in rows]
 
+    def _metadata_pragma(self, operation: str, name: str, target: str, *,
+                         timeout: float | None = None, row_limit: int = _PRAGMA_ROW_LIMIT,
+                         overflow_ok: bool = False) -> list:
+        """Fixed main-bound catalog statements, immune to relation-name shadows.
+
+        PRAGMA arguments cannot be bound parameters. Encode one SQL string
+        literal; pragma names and schema never come from a tool argument.
+        Fetch one overflow row so callers fail without a partial success.
+        """
+        if name not in {"table_xinfo", "table_info", "index_list", "index_xinfo", "table_list"}:
+            raise ValueError("Unsupported metadata PRAGMA")
+        literal = "'" + target.replace("'", "''") + "'"
+        try:
+            with operation_scope("metadata"):
+                rows = self.execute(f"PRAGMA main.{name}({literal})", timeout=timeout,
+                                    params=None, _fetch_limit=row_limit)
+        except DatabaseQueryError:
+            raise MetadataQueryError(operation) from None
+        if len(rows) > row_limit and not overflow_ok:
+            raise MetadataQueryError(operation)
+        return rows
+
     def get_columns(self, table_name: str) -> list[dict[str, Any]]:
         """
-        Get column information using PRAGMA table_info.
+        Return SELECT-star columns, including generated columns, in cid order.
 
-        PRAGMA table_info returns:
-        (cid, name, type, notnull, dflt_value, pk)
+        table_xinfo hidden=1 denotes virtual-table hidden columns, excluded
+        from this projection; 2/3 denote visible VIRTUAL/STORED generated columns.
+        Preserve the database-reported type, including an empty string. It
+        describes metadata, not inferred affinity or the stored value's type.
         """
         if not self.valid_metadata_identifier(table_name):
             return []
 
-        result = self._execute_metadata(
-            'SELECT cid, name, type, "notnull", dflt_value, pk '
-            "FROM pragma_table_info(:table_name, 'main') ORDER BY cid",
-            'reading table columns', params={"table_name": table_name},
-        )
+        result = self._metadata_pragma('reading table columns', 'table_xinfo', table_name)
 
 
         columns = []
-        for row in result:
+        for row in sorted(result, key=lambda row: row[0]):
+            if row[6] == 1:
+                continue
             # Map SQLite PRAGMA output to consistent format
-            columns.append(
-                {
+            column = {
                     "column_name": row[1],
-                    "data_type": row[2] or "TEXT",  # SQLite allows empty type
+                    "data_type": row[2],
                     "nullable": "NO" if row[3] else "YES",
                     "key_type": "PRI" if row[5] else "",
                     "default_value": row[4],
                 }
-            )
+            if row[5]:
+                column["primary_key_position"] = int(row[5])
+            if row[6] in (2, 3):
+                column["generation_type"] = "virtual" if row[6] == 2 else "stored"
+            columns.append(column)
 
         return columns
 
+    @exclusive_connection
     def get_indexes(self, table_name: str) -> list[dict[str, Any]]:
-        """Read only main-schema indexes in two bounded metadata queries."""
+        """Read main indexes with bounded, non-shadowable PRAGMA statements."""
         if not self.valid_metadata_identifier(table_name):
             raise MetadataQueryError("reading table indexes")
         budget = IndexMetadataBudget(self._query_timeout_seconds)
-        index_rows = budget.rows(
-            self._execute_metadata(
-                'SELECT il.name, il."unique", il.origin, il.partial, '
-                'xi.seqno, xi.cid, xi.name, xi."desc", xi.coll '
-                "FROM pragma_index_list(:table_name, 'main') AS il "
-                "JOIN pragma_index_xinfo(il.name, 'main') AS xi ON xi.key = 1 "
-                "ORDER BY il.name, xi.seqno LIMIT :row_limit", 'reading table indexes',
-                timeout=budget.remaining(),
-                params={"table_name": table_name, "row_limit": MAX_INDEX_KEY_PARTS + 1},
-            )
-        )
-        pk_rows = budget.rows(
-            self._execute_metadata(
-                "SELECT name FROM pragma_table_info(:table_name, 'main') "
-                "WHERE pk > 0 ORDER BY pk LIMIT :row_limit", 'reading table indexes',
-                timeout=budget.remaining(),
-                params={"table_name": table_name, "row_limit": MAX_INDEX_KEY_PARTS + 1},
-            )
-        )
+        listed = self._metadata_pragma('reading table indexes', 'index_list', table_name,
+                                       timeout=budget.remaining(), row_limit=MAX_INDEXES)
+        budget.remaining()
+        index_rows = []
+        for _seq, name, unique, origin, partial in sorted(listed, key=lambda row: row[1]):
+            parts = self._metadata_pragma('reading table indexes', 'index_xinfo', name,
+                                          timeout=budget.remaining())
+            index_rows.extend((name, unique, origin, partial, *row[:5])
+                              for row in sorted(parts, key=lambda row: row[0]) if row[5] == 1)
+            budget.rows(index_rows)
+        pk_rows = sorted((row for row in self._metadata_pragma(
+            'reading table indexes', 'table_info', table_name, timeout=budget.remaining())
+            if row[5] > 0), key=lambda row: row[5])
+        budget.rows(pk_rows)
 
         by_name: dict[str, dict[str, Any]] = {}
         for (
@@ -548,7 +722,7 @@ class SQLiteAdapter(DatabaseAdapter):
                 },
             )
             # cid -2 marks an expression key part; key=0 auxiliary columns
-            # are excluded by the fixed SQL, not mistaken for key parts.
+            # are filtered from PRAGMA rows before projection into key parts.
             column = None if cid == -2 else column
             index["columns"].append(column)
             index["key_parts"].append(
@@ -569,10 +743,10 @@ class SQLiteAdapter(DatabaseAdapter):
                     "name": None,
                     "primary": True,
                     "unique": True,
-                    "columns": [row[0] for row in pk_rows],
+                    "columns": [row[1] for row in pk_rows],
                     # Synthetic keys have no index_xinfo direction/collation.
                     "key_parts": [
-                        {"column": row[0], "sort_order": None, "collation": None}
+                        {"column": row[1], "sort_order": None, "collation": None}
                         for row in pk_rows
                     ],
                     "partial": False,
@@ -583,49 +757,121 @@ class SQLiteAdapter(DatabaseAdapter):
         )
 
     def get_row_estimate(self, table_name: str) -> int | None:
-        """
-        Estimate row count using sqlite_stat1 or bounded sampling.
+        """Estimate one object using fresh statistics or guarded bounded reads."""
+        return self._row_estimates([table_name])[table_name]
 
-        Strategy:
-        1. First try sqlite_stat1 if ANALYZE has been run
-        2. Fallback to bounded sampling
-
-        This avoids full table scan for large tables.
-        """
-        if not self.valid_metadata_identifier(table_name):
-            return None
-
-        # Directory callers can enumerate objects before their public allowlist
-        # projection. Never sample an ungranted object to populate its estimate.
+    @exclusive_connection
+    def _row_estimates(self, table_names: list[str]) -> dict[str, int | None]:
+        """Operation-local statistics, authorized names only; never an auth cache."""
+        estimates: dict[str, int | None] = dict.fromkeys(table_names)
         policy = self._config.policy
-        relation = RelationReference(table_name, self.metadata_schema)
-        if policy.read_mode == "deny" or not policy.allows_metadata_relation(relation):
-            return None
+        eligible = [
+            name for name in estimates
+            if self.valid_metadata_identifier(name) and policy.read_mode != "deny"
+            and policy.allows_metadata_relation(RelationReference(name, self.metadata_schema))
+        ]
+        if not eligible:
+            return estimates
+        statistics = self._row_statistics(eligible)
+        for name in eligible:
+            count = statistics.get(name)
+            estimates[name] = count if count is not None else self._bounded_row_estimate(name, policy)
+        return estimates
 
-        # Try sqlite_stat1 first (if ANALYZE has been run)
-        # First check if sqlite_stat1 exists to avoid error logging
-        check_sql = (
-            "SELECT name FROM main.sqlite_master WHERE type='table' AND name='sqlite_stat1'"
+    def _row_statistics(self, table_names: list[str]) -> dict[str, int]:
+        """Prefer table statistics; verify full-index sources before use.
+
+        Partial-index cardinality is not table cardinality. Only objects in the
+        authorized projection reach this stage. No ANALYZE or data scan occurs.
+        """
+        deadline = time.monotonic() + self._query_timeout_seconds
+
+        def remaining():
+            seconds = deadline - time.monotonic()
+            if seconds <= 0:
+                raise MetadataQueryError("estimating table rows within budget")
+            return seconds
+
+        exists = self._execute_metadata(
+            "SELECT name FROM main.sqlite_master WHERE type='table' AND name='sqlite_stat1'",
+            "estimating table rows", timeout=remaining(),
         )
-        check_result = self._execute_metadata(check_sql, 'estimating table rows')
+        if not exists:
+            return {}
+        statistics: dict[str, int] = {}
+        for start in range(0, len(table_names), 200):
+            params = {f"name_{i}": name for i, name in enumerate(table_names[start:start + 200])}
+            values = ", ".join("(:" + key + ")" for key in params)
+            try:
+                with operation_scope("metadata"):
+                    rows = self.execute(
+                        "WITH requested(name) AS (VALUES " + values + ") "
+                        "SELECT name, (SELECT stat FROM main.sqlite_stat1 "
+                        "WHERE tbl = requested.name AND idx IS NULL LIMIT 1), "
+                        "EXISTS(SELECT 1 FROM main.sqlite_stat1 WHERE tbl = requested.name) FROM requested",
+                        params=params, timeout=remaining(),
+                    )
+            except DatabaseQueryError as error:
+                if error.error_code == "unknown_table":
+                    # ANALYZE statistics can be removed after the existence
+                    # check. Fall back to guarded reads, not fabricated zeros.
+                    return {}
+                raise MetadataQueryError("estimating table rows") from None
+            for name, stat, has_statistics in rows:
+                count = _stat_row_count(stat)
+                if count is None and has_statistics:
+                    count = self._full_index_row_statistic(name, remaining)
+                if count is not None:
+                    statistics[name] = count
+        remaining()
+        return statistics
 
+    def _full_index_row_statistic(self, name, remaining) -> int | None:
+        """Use a current nonpartial index, including WITHOUT ROWID's PK tree.
 
-        if check_result:
-            # sqlite_stat1 exists, query it
-            stat_sql = "SELECT stat FROM main.sqlite_stat1 WHERE tbl = :table_name LIMIT 1"
-            stat_result = self._execute_metadata(stat_sql, 'estimating table rows', params={"table_name": table_name})
+        An oversized/incomplete catalog gives no statistic, so the caller uses
+        the existing guarded bounded estimate. Driver failures remain errors.
+        """
+        indexes = self._metadata_pragma(
+            "estimating table rows", "index_list", name, timeout=remaining(),
+            row_limit=MAX_INDEXES, overflow_ok=True)
+        if len(indexes) > MAX_INDEXES:
+            return None
+        candidates = [row[1] for row in indexes if row[4] == 0]
+        if any(row[3] == "pk" for row in indexes):
+            tables = self._metadata_pragma(
+                "estimating table rows", "table_list", name, timeout=remaining(), row_limit=1)
+            if (tables and tables[0][0] == "main" and tables[0][2] == "table"
+                    and ascii_identifier_lower(tables[0][1]) == ascii_identifier_lower(name)
+                    and tables[0][4] == 1):
+                # stat1 uses the table name for this tree, while index_list
+                # reports sqlite_autoindex_*. They are not string aliases.
+                candidates.insert(0, tables[0][1])
+        if not candidates:
+            return None
+        params = {f"index_{i}": candidate for i, candidate in enumerate(candidates)}
+        placeholders = ",".join(":" + key for key in params)
+        params["table"] = name
+        try:
+            with operation_scope("metadata"):
+                rows = self.execute(
+                    "SELECT idx, stat FROM main.sqlite_stat1 WHERE tbl=:table "
+                    f"AND idx IN ({placeholders}) LIMIT {MAX_INDEXES + 1}",
+                    params=params, timeout=remaining(), _fetch_limit=MAX_INDEXES)
+        except DatabaseQueryError as error:
+            if error.error_code == "unknown_table":
+                return None
+            raise MetadataQueryError("estimating table rows") from None
+        if len(rows) > MAX_INDEXES:
+            return None
+        by_index = dict(rows)
+        for candidate in candidates:
+            count = _stat_row_count(by_index.get(candidate))
+            if count is not None:
+                return count
+        return None
 
-
-            if stat_result:
-                # sqlite_stat1.stat format: "row_count col1_distinct col2_distinct ..."
-                try:
-                    stat_str = stat_result[0][0]
-                    if stat_str:
-                        row_count = int(stat_str.split()[0])
-                        return row_count
-                except (ValueError, IndexError):
-                    pass
-
+    def _bounded_row_estimate(self, table_name: str, policy: ConnectionPolicy) -> int | None:
         # Fallback: bounded sample-based estimation. This intentionally avoids
         # a full COUNT(*) on large tables; exact counts are opt-in elsewhere.
         sample_limit = 10000

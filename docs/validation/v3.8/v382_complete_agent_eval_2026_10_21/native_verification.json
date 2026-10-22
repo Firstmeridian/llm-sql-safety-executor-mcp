@@ -1,0 +1,67 @@
+{
+  "calls": 12,
+  "passed": 12,
+  "failed": 0,
+  "checks": [
+    {
+      "case": "sqlite_features_sqlite:pages",
+      "passed": true,
+      "failures": []
+    },
+    {
+      "case": "sqlite_features_sqlite:pages_fts",
+      "passed": true,
+      "failures": []
+    },
+    {
+      "case": "sqlite_features_sqlite:compact",
+      "passed": true,
+      "failures": []
+    },
+    {
+      "case": "sqlite_features_sqlite:full",
+      "passed": true,
+      "failures": []
+    },
+    {
+      "case": "sakila_mysql:film_actor",
+      "passed": true,
+      "failures": []
+    },
+    {
+      "case": "sakila_mysql:film_category",
+      "passed": true,
+      "failures": []
+    },
+    {
+      "case": "sakila_mysql:compact",
+      "passed": true,
+      "failures": []
+    },
+    {
+      "case": "sakila_mysql:full",
+      "passed": true,
+      "failures": []
+    },
+    {
+      "case": "sqlite-values",
+      "passed": true,
+      "failures": []
+    },
+    {
+      "case": "mysql-values",
+      "passed": true,
+      "failures": []
+    },
+    {
+      "case": "shadow-denial",
+      "passed": true,
+      "failures": []
+    },
+    {
+      "case": "function-denial",
+      "passed": true,
+      "failures": []
+    }
+  ]
+}

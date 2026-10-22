@@ -1,0 +1,13 @@
+{
+  "preserved_failures": [
+    "Initial targeted regression failed because one full-column expectation omitted the new optional field; updated the test contract.",
+    "First full suite: 1 failed,3372 passed,4 skipped: configured-schema MySQL test stub still returned five cells. Updated it to the new six-cell native-query shape; final3373 pass. No compatibility fallback was added to runtime.",
+    "Initial sandbox pyright could not import environment dependencies; same configured interpreter outside the sandbox passed.",
+    "Initial shared fixture used table dot.\u212a x; current lower_case_table_names=1 MySQL stored a different spelling and the exact grant projection did not expose it. Correct shared-case fixture to dot.\u8868 x and rerun both frozen baseline and current; keep initial records. Do not import SQLite Unicode name rules into MySQL.",
+    "First source/wheel verifier compared random owned-schema strings; normalize only exact verified fields: directory database_name, fixed sample qualifier and fixed denial allowlist. All original application records remain intact."
+  ],
+  "rejected_adjacent_hypothesis": "Attempt to define foreign constraint name PRIMARY was rejected by current MySQL (errno1280); owned fixture cleaned. No new production defect confirmed by that check.",
+  "permission_scope": "Scoped local-process/MySQL access only; no automatic approval rejection or Full Access needed.",
+  "integrity": "Do not modify old seals, earlier pending checkpoints or old PRI-only assumptions. Current live three-engine unique-only result supersedes assessment uncertainty without rewriting history.",
+  "model_scope": "No new full model task or token experiment; previous model evidence retains earlier resource scope. Prompt/tool descriptions/configuration/grants/dependencies unchanged."
+}

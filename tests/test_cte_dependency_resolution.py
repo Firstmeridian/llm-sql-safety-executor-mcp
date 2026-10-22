@@ -48,7 +48,7 @@ async def test_sqlite_mixed_cte_raw_discovery_and_execution(bundle, tmp_path, mo
     try:
         meta = server.gateway_runtime.catalog.get_skills_cache()["mixed-case"]
         assert meta.tables == (["orders"] if declared else [])
-        assert meta._inferred_tables == {}  # Inference starts with the target context.
+        assert meta._inferred_analysis == {}  # Pure analysis starts with the target context.
         # Inference and execution must use the cached source, never re-read it.
         (directory / "query.sql").write_text("SELECT id FROM f")
         async with Client(server, mode=mode) as client:

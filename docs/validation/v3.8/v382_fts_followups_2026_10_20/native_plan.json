@@ -1,0 +1,89 @@
+{
+  "owner_restart_required": true,
+  "connection_id": "sqlite_features_sqlite",
+  "database_sha256": "119f6f613a1a78a0a64dde41d061d3bee55b07b1e89375f400dec5ecf3de1add",
+  "fts_definition": "CREATE VIRTUAL TABLE pages_fts USING fts5(title, body, content='pages', content_rowid='id', tokenize='porter unicode61')",
+  "checks": [
+    {
+      "tool": "query",
+      "arguments": {
+        "connection_id": "sqlite_features_sqlite",
+        "sql": "SELECT 7 AS n"
+      },
+      "data": [
+        {
+          "n": 7
+        }
+      ]
+    },
+    {
+      "tool": "query",
+      "arguments": {
+        "connection_id": "sqlite_features_sqlite",
+        "sql": "SELECT COUNT(*) AS n FROM main.pages_fts WHERE pages_fts MATCH 'sqlite'"
+      },
+      "data": [
+        {
+          "n": 4
+        }
+      ]
+    },
+    {
+      "tool": "query",
+      "arguments": {
+        "connection_id": "sqlite_features_sqlite",
+        "sql": "SELECT COUNT(*) AS n FROM main.pages_fts('sqlite')"
+      },
+      "data": [
+        {
+          "n": 4
+        }
+      ]
+    },
+    {
+      "tool": "query",
+      "arguments": {
+        "connection_id": "sqlite_features_sqlite",
+        "sql": "SELECT ('absent title','absent body') IN main.pages_fts('sqlite') AS n"
+      },
+      "data": [
+        {
+          "n": 0
+        }
+      ]
+    },
+    {
+      "tool": "describe_table",
+      "arguments": {
+        "connection_id": "sqlite_features_sqlite",
+        "table_name": "pages_fts"
+      },
+      "row_count": 42
+    },
+    {
+      "tool": "query",
+      "arguments": {
+        "connection_id": "sqlite_features_sqlite",
+        "sql": "SELECT * FROM main.pages_fts_idx LIMIT 1"
+      },
+      "error_code": "table_access_denied"
+    },
+    {
+      "tool": "query",
+      "arguments": {
+        "connection_id": "sqlite_features_sqlite",
+        "sql": "SELECT SLEEP(0)"
+      },
+      "error_code": "expensive_function_denied"
+    },
+    {
+      "tool": "query",
+      "arguments": {
+        "connection_id": "sqlite_features_sqlite",
+        "sql": "SELECT value FROM aux.json_each('[7]')"
+      },
+      "error_code": "relation_scope_unresolved"
+    }
+  ],
+  "scope": "Eight frozen native functional checks after maintainer restart. Existing ordinary external-content FTS, not the private trusted-warm view/aux fixture; do not claim exact case closure from smoke alone."
+}

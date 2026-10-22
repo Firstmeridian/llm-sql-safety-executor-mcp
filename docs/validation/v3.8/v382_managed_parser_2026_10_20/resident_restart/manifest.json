@@ -1,0 +1,55 @@
+{
+  "date": "2026-10-20",
+  "checkpoint": "scoped_resident_acceptance_passed",
+  "scope": "16 actual Host calls after owner-confirmed restart, one documented search-expectation correction. No native confirmation or new complete-model trial; no parent seal rewrites.",
+  "files": {
+    "README.md": {
+      "sha256": "33ce7c0293184c08e7368d39b6c41aa99955f9013197200d4b2a89d00b7d393e",
+      "bytes": 1774
+    },
+    "doc_verification.json": {
+      "sha256": "ff3bfa812bab5a8d8e0af3cded703d71e3d205732aa4599bed107a69a83f8bf4",
+      "bytes": 224
+    },
+    "expectation_erratum.json.gz": {
+      "sha256": "d68d92225103b2ed84f3337079959c979534c134eb9b35ef43f5c0bd66186f80",
+      "bytes": 410
+    },
+    "export_evidence.py.gz": {
+      "sha256": "9d7d7f6cd66d041fc75b5c202c55fe63af8bfc08736ed94edcf4f2b34e65ef23",
+      "bytes": 1486
+    },
+    "freeze_native.py.gz": {
+      "sha256": "8f9dfc1c26ba2ab6de3be760736e5ebf8d78cae9ef2b42c26c3266a374ca15a9",
+      "bytes": 1701
+    },
+    "native_application.json.gz": {
+      "sha256": "8ee62fa12813e3fad2ea757e551e04d823e59e1c87f4989ca915f4751399ee06",
+      "bytes": 13927
+    },
+    "native_plan.json.gz": {
+      "sha256": "477439c3fea544d2b285761e2d42cc172126f6e04556dfd1ce19641ded0a7acc",
+      "bytes": 1371
+    },
+    "original_verification.json.gz": {
+      "sha256": "549ac2d548ac781242683f2040a613f7989628b6fd1b9cb903894d9533e418c8",
+      "bytes": 322
+    },
+    "original_verification.log.gz": {
+      "sha256": "f49a62eeea9412933e187c56333bb597cae41fb98dfcd197abdbe7ccb0a4aa65",
+      "bytes": 515
+    },
+    "summary.json": {
+      "sha256": "e30cc9f8c75c7d306033f4c3c9e810b16ddac35eae9b7873dc7fd1247a4fcf25",
+      "bytes": 4585
+    },
+    "verification.log.gz": {
+      "sha256": "926ca9b35f09d04f76bbc7494b1cd969155c7486b1f7a20c14b9fee8821f9300",
+      "bytes": 182
+    },
+    "verify_native.py.gz": {
+      "sha256": "90bd83309ecb4f2951912c0ef5aa2a69e1a4946434e83f858d2afb9e7639d827",
+      "bytes": 3311
+    }
+  }
+}

@@ -1,0 +1,50 @@
+{
+  "date": "2026-10-21",
+  "checkpoint": "DRR137/138/139 source/package plus owner-restarted existing-alias native acceptance complete",
+  "scope": "10/10 frozen native checks; text/structured equality; independent SQLite truth;77 disk resources/three private TOMLs/SQLite file unchanged;59 previous manifests/1998 records intact. Special fixtures remain source/package; no new writes/build/full-regression/model/token/performance claim.",
+  "append_rule": "Preserve all historical pending/failures and this supplement; future evidence uses a separate checkpoint.",
+  "files": {
+    "README.md": {
+      "bytes": 2394,
+      "sha256": "04e311b1c786e9c56673f652db43b9f95f84835f473d861eb5ab790961462aa8"
+    },
+    "documentation_checks.json": {
+      "bytes": 1481,
+      "sha256": "70cd5a8ccd2c58aa37b5dbe8d639d07d8e69582cb62a721864b01e3cbc18ecd2"
+    },
+    "integrity.json": {
+      "bytes": 14929,
+      "sha256": "c5a1e0f96e43c2420ccd9fd513009f97c8bb2e2323475477149b042410f2ca6e"
+    },
+    "metadata_truth.json": {
+      "bytes": 4722,
+      "sha256": "524b6bfee97c91cdc7603b5406395d5f314c4782324971d37f0a0a1e8239a3e3"
+    },
+    "native_results.json.gz": {
+      "bytes": 3660,
+      "sha256": "926f563f6a1837e74c3c775b70308c3690e616e0be1c00db4d459d1e314a8902",
+      "decoded_bytes": 35506,
+      "decoded_sha256": "296f20f9f9c035d901fa6852db34e39e18c3c32ddb5bf6b0e2c5fa307cbcf4b5"
+    },
+    "preparation_notes.json": {
+      "bytes": 519,
+      "sha256": "a15757ecd75d1e4e5180646b746bd70c1460aaab93d2f564827a3947d2cec29c"
+    },
+    "tool_metadata.json.gz": {
+      "bytes": 9624,
+      "sha256": "c4beb6943ab7175750bda8e085c244884b3b421abb85cff5a8218807638b0a0b",
+      "decoded_bytes": 77099,
+      "decoded_sha256": "f8dacfe27aee7dc9a8738d96f245a5305c263f6be86afe96eea454bcca496d5b"
+    },
+    "tool_metadata_summary.json": {
+      "bytes": 2172,
+      "sha256": "9d822149c1b470b10e1abd6e3590b613c28ba0e5759f65d1d26ca71f574bc7e0"
+    },
+    "verify.py.gz": {
+      "bytes": 3737,
+      "sha256": "5e8a35b09650c567ddf2fd723e03e66b41f9c3bd2282d47aa6d1b3dda9598899",
+      "decoded_bytes": 11684,
+      "decoded_sha256": "ebaacd81abaaea6e9c3512e948924ff92102be502aa55aa468f5c3aa546f364b"
+    }
+  }
+}

@@ -1,0 +1,549 @@
+{
+  "scope": "Current Codex SQL MCP after the owner-confirmed restart; frozen read-only plan, existing aliases only.",
+  "completed_utc": "2026-10-20 18:11:43 UTC",
+  "tool": "mcp__sql_safety_executor_mcp__query",
+  "checks": [
+    {
+      "id": "sqlite:constant",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":true,\"data\":[{\"n\":1}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null,\"query\":\"SELECT 1 AS n\",\"connection_id\":\"sqlite_features_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": true,
+          "data": [
+            {
+              "n": 1
+            }
+          ],
+          "row_count": 1,
+          "total_rows": 1,
+          "truncated": false,
+          "truncation_note": null,
+          "query": "SELECT 1 AS n",
+          "connection_id": "sqlite_features_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      }
+    },
+    {
+      "id": "sqlite:duplicate",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":false,\"error_code\":\"duplicate_result_columns\",\"error\":\"Result column labels must be unique.\",\"hint\":\"Use unique AS aliases for all output columns on the same connection.\",\"query\":\"SELECT 7 AS n,99 AS n\",\"connection_id\":\"sqlite_features_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": false,
+          "error_code": "duplicate_result_columns",
+          "error": "Result column labels must be unique.",
+          "hint": "Use unique AS aliases for all output columns on the same connection.",
+          "query": "SELECT 7 AS n,99 AS n",
+          "connection_id": "sqlite_features_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      }
+    },
+    {
+      "id": "sqlite:unique",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":true,\"data\":[{\"n\":7,\"other_n\":99}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null,\"query\":\"SELECT 7 AS n,99 AS other_n\",\"connection_id\":\"sqlite_features_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": true,
+          "data": [
+            {
+              "n": 7,
+              "other_n": 99
+            }
+          ],
+          "row_count": 1,
+          "total_rows": 1,
+          "truncated": false,
+          "truncation_note": null,
+          "query": "SELECT 7 AS n,99 AS other_n",
+          "connection_id": "sqlite_features_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      }
+    },
+    {
+      "id": "sqlite:binary",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":true,\"data\":[{\"payload\":{\"$type\":\"binary\",\"encoding\":\"base64\",\"data\":\"AP8=\"}}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null,\"query\":\"SELECT X'00FF' AS payload\",\"connection_id\":\"sqlite_features_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": true,
+          "data": [
+            {
+              "payload": {
+                "$type": "binary",
+                "encoding": "base64",
+                "data": "AP8="
+              }
+            }
+          ],
+          "row_count": 1,
+          "total_rows": 1,
+          "truncated": false,
+          "truncation_note": null,
+          "query": "SELECT X'00FF' AS payload",
+          "connection_id": "sqlite_features_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      }
+    },
+    {
+      "id": "sqlite:binary_utf8",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":true,\"data\":[{\"payload\":{\"$type\":\"binary\",\"encoding\":\"base64\",\"data\":\"YWJj\"}}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null,\"query\":\"SELECT X'616263' AS payload\",\"connection_id\":\"sqlite_features_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": true,
+          "data": [
+            {
+              "payload": {
+                "$type": "binary",
+                "encoding": "base64",
+                "data": "YWJj"
+              }
+            }
+          ],
+          "row_count": 1,
+          "total_rows": 1,
+          "truncated": false,
+          "truncation_note": null,
+          "query": "SELECT X'616263' AS payload",
+          "connection_id": "sqlite_features_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      }
+    },
+    {
+      "id": "sqlite:first_row",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":true,\"data\":[],\"row_count\":0,\"total_rows\":1,\"truncated\":true,\"truncation_reason\":\"char_limit\",\"truncation_note\":\"Showing 0/1 fetched rows. The first row exceeds the character limit; select fewer columns or a shorter SQL projection. Truncation limits the returned data only; add WHERE/LIMIT/ORDER BY to limit database work and stabilize ordering.\",\"query\":\"SELECT printf('%.*c',20000,'x') AS payload\",\"connection_id\":\"sqlite_features_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": true,
+          "data": [],
+          "row_count": 0,
+          "total_rows": 1,
+          "truncated": true,
+          "truncation_reason": "char_limit",
+          "truncation_note": "Showing 0/1 fetched rows. The first row exceeds the character limit; select fewer columns or a shorter SQL projection. Truncation limits the returned data only; add WHERE/LIMIT/ORDER BY to limit database work and stabilize ordering.",
+          "query": "SELECT printf('%.*c',20000,'x') AS payload",
+          "connection_id": "sqlite_features_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      }
+    },
+    {
+      "id": "sqlite:positive_inf",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":true,\"data\":[{\"n\":{\"$type\":\"float\",\"value\":\"Infinity\"},\"missing\":null}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null,\"query\":\"SELECT 1e999 AS n,NULL AS missing\",\"connection_id\":\"sqlite_features_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": true,
+          "data": [
+            {
+              "n": {
+                "$type": "float",
+                "value": "Infinity"
+              },
+              "missing": null
+            }
+          ],
+          "row_count": 1,
+          "total_rows": 1,
+          "truncated": false,
+          "truncation_note": null,
+          "query": "SELECT 1e999 AS n,NULL AS missing",
+          "connection_id": "sqlite_features_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      }
+    },
+    {
+      "id": "sqlite:negative_inf",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":true,\"data\":[{\"n\":{\"$type\":\"float\",\"value\":\"-Infinity\"}}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null,\"query\":\"SELECT -1e999 AS n\",\"connection_id\":\"sqlite_features_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": true,
+          "data": [
+            {
+              "n": {
+                "$type": "float",
+                "value": "-Infinity"
+              }
+            }
+          ],
+          "row_count": 1,
+          "total_rows": 1,
+          "truncated": false,
+          "truncation_note": null,
+          "query": "SELECT -1e999 AS n",
+          "connection_id": "sqlite_features_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      }
+    },
+    {
+      "id": "mysql:constant",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":true,\"data\":[{\"n\":1}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null,\"query\":\"SELECT 1 AS n\",\"connection_id\":\"trade_analysis_mysql\",\"db_type\":\"mysql\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": true,
+          "data": [
+            {
+              "n": 1
+            }
+          ],
+          "row_count": 1,
+          "total_rows": 1,
+          "truncated": false,
+          "truncation_note": null,
+          "query": "SELECT 1 AS n",
+          "connection_id": "trade_analysis_mysql",
+          "db_type": "mysql"
+        },
+        "isError": false
+      }
+    },
+    {
+      "id": "mysql:duplicate",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":false,\"error_code\":\"duplicate_result_columns\",\"error\":\"Result column labels must be unique.\",\"hint\":\"Use unique AS aliases for all output columns on the same connection.\",\"query\":\"SELECT 7 AS n,99 AS n\",\"connection_id\":\"trade_analysis_mysql\",\"db_type\":\"mysql\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": false,
+          "error_code": "duplicate_result_columns",
+          "error": "Result column labels must be unique.",
+          "hint": "Use unique AS aliases for all output columns on the same connection.",
+          "query": "SELECT 7 AS n,99 AS n",
+          "connection_id": "trade_analysis_mysql",
+          "db_type": "mysql"
+        },
+        "isError": false
+      }
+    },
+    {
+      "id": "mysql:unique",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":true,\"data\":[{\"n\":7,\"other_n\":99}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null,\"query\":\"SELECT 7 AS n,99 AS other_n\",\"connection_id\":\"trade_analysis_mysql\",\"db_type\":\"mysql\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": true,
+          "data": [
+            {
+              "n": 7,
+              "other_n": 99
+            }
+          ],
+          "row_count": 1,
+          "total_rows": 1,
+          "truncated": false,
+          "truncation_note": null,
+          "query": "SELECT 7 AS n,99 AS other_n",
+          "connection_id": "trade_analysis_mysql",
+          "db_type": "mysql"
+        },
+        "isError": false
+      }
+    },
+    {
+      "id": "mysql:binary",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":true,\"data\":[{\"payload\":{\"$type\":\"binary\",\"encoding\":\"base64\",\"data\":\"AP8=\"}}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null,\"query\":\"SELECT X'00FF' AS payload\",\"connection_id\":\"trade_analysis_mysql\",\"db_type\":\"mysql\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": true,
+          "data": [
+            {
+              "payload": {
+                "$type": "binary",
+                "encoding": "base64",
+                "data": "AP8="
+              }
+            }
+          ],
+          "row_count": 1,
+          "total_rows": 1,
+          "truncated": false,
+          "truncation_note": null,
+          "query": "SELECT X'00FF' AS payload",
+          "connection_id": "trade_analysis_mysql",
+          "db_type": "mysql"
+        },
+        "isError": false
+      }
+    },
+    {
+      "id": "mysql:binary_utf8",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":true,\"data\":[{\"payload\":{\"$type\":\"binary\",\"encoding\":\"base64\",\"data\":\"YWJj\"}}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null,\"query\":\"SELECT X'616263' AS payload\",\"connection_id\":\"trade_analysis_mysql\",\"db_type\":\"mysql\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": true,
+          "data": [
+            {
+              "payload": {
+                "$type": "binary",
+                "encoding": "base64",
+                "data": "YWJj"
+              }
+            }
+          ],
+          "row_count": 1,
+          "total_rows": 1,
+          "truncated": false,
+          "truncation_note": null,
+          "query": "SELECT X'616263' AS payload",
+          "connection_id": "trade_analysis_mysql",
+          "db_type": "mysql"
+        },
+        "isError": false
+      }
+    },
+    {
+      "id": "mysql:first_row",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":true,\"data\":[],\"row_count\":0,\"total_rows\":1,\"truncated\":true,\"truncation_reason\":\"char_limit\",\"truncation_note\":\"Showing 0/1 fetched rows. The first row exceeds the character limit; select fewer columns or a shorter SQL projection. Truncation limits the returned data only; add WHERE/LIMIT/ORDER BY to limit database work and stabilize ordering.\",\"query\":\"SELECT REPEAT('x',20000) AS payload\",\"connection_id\":\"trade_analysis_mysql\",\"db_type\":\"mysql\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": true,
+          "data": [],
+          "row_count": 0,
+          "total_rows": 1,
+          "truncated": true,
+          "truncation_reason": "char_limit",
+          "truncation_note": "Showing 0/1 fetched rows. The first row exceeds the character limit; select fewer columns or a shorter SQL projection. Truncation limits the returned data only; add WHERE/LIMIT/ORDER BY to limit database work and stabilize ordering.",
+          "query": "SELECT REPEAT('x',20000) AS payload",
+          "connection_id": "trade_analysis_mysql",
+          "db_type": "mysql"
+        },
+        "isError": false
+      }
+    },
+    {
+      "id": "sqlite:delay_refusal",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":false,\"error_code\":\"expensive_function_denied\",\"error\":\"Delay or benchmark functions are not allowed in read queries.\",\"hint\":\"Keep the same connection and use ordinary SQL expressions, filters and aggregates; remove deliberate sleeps and benchmarking calls.\",\"query\":\"SELECT SLEEP(0)\",\"connection_id\":\"sqlite_features_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": false,
+          "error_code": "expensive_function_denied",
+          "error": "Delay or benchmark functions are not allowed in read queries.",
+          "hint": "Keep the same connection and use ordinary SQL expressions, filters and aggregates; remove deliberate sleeps and benchmarking calls.",
+          "query": "SELECT SLEEP(0)",
+          "connection_id": "sqlite_features_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      }
+    },
+    {
+      "id": "sqlite:shadow_refusal",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"success\":false,\"error_code\":\"table_access_denied\",\"error\":\"Access denied to table(s): pages_fts_idx. Only allowed tables: audit_log, main.audit_log, main.org_units, main.page_revisions, main.pages, main.pages_fts, main.people, main.v_org_paths, main.v_people_directory, main.v_published_pages, org_units, page_revisions, pages, people, v_org_paths, v_people_directory, v_published_pages\",\"hint\":\"Keep the same connection and use authorized tables; preserve the connection's CTE name rules and explicit schema scope.\",\"query\":\"SELECT * FROM pages_fts_idx\",\"connection_id\":\"sqlite_features_sqlite\",\"db_type\":\"sqlite\"}"
+          }
+        ],
+        "structuredContent": {
+          "success": false,
+          "error_code": "table_access_denied",
+          "error": "Access denied to table(s): pages_fts_idx. Only allowed tables: audit_log, main.audit_log, main.org_units, main.page_revisions, main.pages, main.pages_fts, main.people, main.v_org_paths, main.v_people_directory, main.v_published_pages, org_units, page_revisions, pages, people, v_org_paths, v_people_directory, v_published_pages",
+          "hint": "Keep the same connection and use authorized tables; preserve the connection's CTE name rules and explicit schema scope.",
+          "query": "SELECT * FROM pages_fts_idx",
+          "connection_id": "sqlite_features_sqlite",
+          "db_type": "sqlite"
+        },
+        "isError": false
+      }
+    }
+  ],
+  "verification": [
+    {
+      "id": "sqlite:constant",
+      "pass": true,
+      "expected_fields": true,
+      "text_structured_equal": true,
+      "isError": false
+    },
+    {
+      "id": "sqlite:duplicate",
+      "pass": true,
+      "expected_fields": true,
+      "text_structured_equal": true,
+      "isError": false
+    },
+    {
+      "id": "sqlite:unique",
+      "pass": true,
+      "expected_fields": true,
+      "text_structured_equal": true,
+      "isError": false
+    },
+    {
+      "id": "sqlite:binary",
+      "pass": true,
+      "expected_fields": true,
+      "text_structured_equal": true,
+      "isError": false
+    },
+    {
+      "id": "sqlite:binary_utf8",
+      "pass": true,
+      "expected_fields": true,
+      "text_structured_equal": true,
+      "isError": false
+    },
+    {
+      "id": "sqlite:first_row",
+      "pass": true,
+      "expected_fields": true,
+      "text_structured_equal": true,
+      "isError": false
+    },
+    {
+      "id": "sqlite:positive_inf",
+      "pass": true,
+      "expected_fields": true,
+      "text_structured_equal": true,
+      "isError": false
+    },
+    {
+      "id": "sqlite:negative_inf",
+      "pass": true,
+      "expected_fields": true,
+      "text_structured_equal": true,
+      "isError": false
+    },
+    {
+      "id": "mysql:constant",
+      "pass": true,
+      "expected_fields": true,
+      "text_structured_equal": true,
+      "isError": false
+    },
+    {
+      "id": "mysql:duplicate",
+      "pass": true,
+      "expected_fields": true,
+      "text_structured_equal": true,
+      "isError": false
+    },
+    {
+      "id": "mysql:unique",
+      "pass": true,
+      "expected_fields": true,
+      "text_structured_equal": true,
+      "isError": false
+    },
+    {
+      "id": "mysql:binary",
+      "pass": true,
+      "expected_fields": true,
+      "text_structured_equal": true,
+      "isError": false
+    },
+    {
+      "id": "mysql:binary_utf8",
+      "pass": true,
+      "expected_fields": true,
+      "text_structured_equal": true,
+      "isError": false
+    },
+    {
+      "id": "mysql:first_row",
+      "pass": true,
+      "expected_fields": true,
+      "text_structured_equal": true,
+      "isError": false
+    },
+    {
+      "id": "sqlite:delay_refusal",
+      "pass": true,
+      "expected_fields": true,
+      "text_structured_equal": true,
+      "isError": false
+    },
+    {
+      "id": "sqlite:shadow_refusal",
+      "pass": true,
+      "expected_fields": true,
+      "text_structured_equal": true,
+      "isError": false
+    }
+  ],
+  "limits": "Exposed MCP application content/structuredContent/isError only, not raw transport frames or notifications. No new model task, sample call, Skill fixture, configuration change or database write."
+}

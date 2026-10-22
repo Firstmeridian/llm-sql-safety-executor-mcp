@@ -1,0 +1,58 @@
+{
+  "date": "2026-10-21",
+  "checkpoint": "Assessment only: DRR-137/138 open P2, production unchanged",
+  "scope": "Source284/existing normal wheel96/isolated2c0a9e7 baseline14 Client calls;394 total.16 FTS components and80 fixed targeted PRAGMA feasibility checks.55 prior manifests/1723 records unchanged. No configured DB/native/model calls, new build/install/full regression/performance or repair acceptance.",
+  "append_rule": "Preserve findings, controls, fixture correction and earlier scoped acceptance; approved production repair requires a separate batch.",
+  "files": {
+    "README.md": {
+      "bytes": 1696,
+      "sha256": "225a58e703c8de03b40c53f8be76ffe92450812bc6dbf9a3d2f1f45fe00ba30c"
+    },
+    "evidence/baseline.json.gz": {
+      "bytes": 2462,
+      "sha256": "4576e1059e1b965c9215ce487fad51b5bb8e24ffead8d23314f91b3aceebd4de"
+    },
+    "evidence/components-final.json": {
+      "bytes": 17546,
+      "sha256": "7f2371e0491f24b05fb68eb65bdec14b48c37ee898d4d568ec127f328b732a0e"
+    },
+    "evidence/documentation_checks.json": {
+      "bytes": 1059,
+      "sha256": "c4a38edb67690a65643fd65377bc7104d6c7bad44b3b16d09a7101cedfe3cacf"
+    },
+    "evidence/installed.json.gz": {
+      "bytes": 6070,
+      "sha256": "6b761282f54ca0902ef33349389c0395d7f14e44d92300863894e72fe9d7c191"
+    },
+    "evidence/preparation_notes.json": {
+      "bytes": 1164,
+      "sha256": "4509145361333debad91db04543e8fbf3dab5b57697da9bf55d8413f83ea5a3d"
+    },
+    "evidence/source.json.gz": {
+      "bytes": 9673,
+      "sha256": "f75f089b5105248f4a6a3fef23b02722375b448c80943c6eb17820c28ddd0573"
+    },
+    "evidence/summary.json": {
+      "bytes": 14063,
+      "sha256": "98c5663d39b2a6bce8ca141f0dfccb3cf04f233bb9a3730337e078041b12b783"
+    },
+    "evidence/test_gap_excerpt.txt": {
+      "bytes": 736,
+      "sha256": "26a1353936173c9475a0dbba8771b96bf768db8e4b616896001acb37288c2168"
+    }
+  },
+  "compressed_decoded_records": {
+    "evidence/baseline.json.gz": {
+      "bytes": 27744,
+      "sha256": "309e1d621baa5290a1cde02743a191d7ff0d2aabb294ece534ff465a51b8ce6a"
+    },
+    "evidence/installed.json.gz": {
+      "bytes": 157125,
+      "sha256": "e7b813824e772a0715b5503509c2b3d04ff855b3b98697fa08edd59621949f5b"
+    },
+    "evidence/source.json.gz": {
+      "bytes": 455278,
+      "sha256": "5dbc27638aa297c11f887d935eee61876f97a22e18b3b53546a979f989f65c3e"
+    }
+  }
+}

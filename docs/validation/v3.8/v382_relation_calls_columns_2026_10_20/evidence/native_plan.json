@@ -1,0 +1,257 @@
+{
+  "status": "pending_owner_restart",
+  "scope": "existing configured aliases, read-only, no new grants or Skill fixtures",
+  "database_sha256_before": "119f6f613a1a78a0a64dde41d061d3bee55b07b1e89375f400dec5ecf3de1add",
+  "private_toml_sha256": {
+    "server.toml": "fa06f1b753c96899ee57f1d5567790cb00b8afa6fc7ece09491cac85671d77f9",
+    "connections.toml": "e4859da2fba7ed74b2155d9491389dd65347dc71beed101a336299cc73cb9811",
+    "skills.toml": "5229e3fe17a74aaf3a1d0d33a5399d6337ec2cdbc4dfc95880349761d55d32bb"
+  },
+  "pages_native_columns": [
+    {
+      "name": "id",
+      "hidden": 0
+    },
+    {
+      "name": "parent_id",
+      "hidden": 0
+    },
+    {
+      "name": "author_id",
+      "hidden": 0
+    },
+    {
+      "name": "title",
+      "hidden": 0
+    },
+    {
+      "name": "body",
+      "hidden": 0
+    },
+    {
+      "name": "meta",
+      "hidden": 0
+    },
+    {
+      "name": "status",
+      "hidden": 2
+    },
+    {
+      "name": "created_at",
+      "hidden": 0
+    },
+    {
+      "name": "updated_at",
+      "hidden": 0
+    },
+    {
+      "name": "version",
+      "hidden": 0
+    }
+  ],
+  "checks": [
+    {
+      "id": "sqlite_canary",
+      "tool": "query",
+      "arguments": {
+        "connection_id": "sqlite_features_sqlite",
+        "sql": "SELECT 1 AS n"
+      },
+      "expected": {
+        "data": [
+          {
+            "n": 1
+          }
+        ]
+      }
+    },
+    {
+      "id": "business_0",
+      "tool": "query",
+      "arguments": {
+        "connection_id": "sqlite_features_sqlite",
+        "sql": "SELECT id,status FROM pages ORDER BY id LIMIT 5"
+      },
+      "expected": {
+        "data": [
+          {
+            "id": 1,
+            "status": "published"
+          },
+          {
+            "id": 2,
+            "status": "published"
+          },
+          {
+            "id": 3,
+            "status": "published"
+          },
+          {
+            "id": 4,
+            "status": "published"
+          },
+          {
+            "id": 5,
+            "status": "draft"
+          }
+        ]
+      }
+    },
+    {
+      "id": "business_1",
+      "tool": "query",
+      "arguments": {
+        "connection_id": "sqlite_features_sqlite",
+        "sql": "SELECT COUNT(*) AS n FROM pages_fts('SQLite')"
+      },
+      "expected": {
+        "data": [
+          {
+            "n": 4
+          }
+        ]
+      }
+    },
+    {
+      "id": "business_2",
+      "tool": "query",
+      "arguments": {
+        "connection_id": "sqlite_features_sqlite",
+        "sql": "SELECT id FROM pages WHERE (title,body) IN pages_fts('SQLite') ORDER BY id LIMIT 5"
+      },
+      "expected": {
+        "data": [
+          {
+            "id": 11
+          },
+          {
+            "id": 12
+          },
+          {
+            "id": 13
+          },
+          {
+            "id": 14
+          }
+        ]
+      }
+    },
+    {
+      "id": "business_3",
+      "tool": "query",
+      "arguments": {
+        "connection_id": "sqlite_features_sqlite",
+        "sql": "SELECT substr(title,1,6) AS title_prefix FROM pages ORDER BY id LIMIT 3"
+      },
+      "expected": {
+        "data": [
+          {
+            "title_prefix": "New hi"
+          },
+          {
+            "title_prefix": "New hi"
+          },
+          {
+            "title_prefix": "New hi"
+          }
+        ]
+      }
+    },
+    {
+      "id": "generated_descriptor",
+      "tool": "describe_table",
+      "arguments": {
+        "connection_id": "sqlite_features_sqlite",
+        "table_name": "pages"
+      },
+      "expected": {
+        "column_count": 10,
+        "generated_columns": {
+          "status": "virtual"
+        }
+      }
+    },
+    {
+      "id": "compact_generated",
+      "tool": "get_full_schema",
+      "arguments": {
+        "connection_id": "sqlite_features_sqlite",
+        "detail_level": "compact"
+      },
+      "expected": {
+        "total_columns": 34,
+        "table": "pages",
+        "generated_columns": {
+          "status": "virtual"
+        }
+      }
+    },
+    {
+      "id": "full_generated",
+      "tool": "get_full_schema",
+      "arguments": {
+        "connection_id": "sqlite_features_sqlite",
+        "detail_level": "full"
+      },
+      "expected": {
+        "total_columns": 34,
+        "table": "pages",
+        "generated_columns": {
+          "status": "virtual"
+        }
+      }
+    },
+    {
+      "id": "hidden_projection",
+      "tool": "describe_table",
+      "arguments": {
+        "connection_id": "sqlite_features_sqlite",
+        "table_name": "pages_fts"
+      },
+      "expected": {
+        "column_count": 2,
+        "column_names": [
+          "title",
+          "body"
+        ]
+      }
+    },
+    {
+      "id": "restricted_argument",
+      "tool": "query",
+      "arguments": {
+        "connection_id": "sqlite_features_sqlite",
+        "sql": "SELECT COUNT(*) AS n FROM pages_fts(SLEEP(0))"
+      },
+      "expected": {
+        "error_code": "expensive_function_denied"
+      }
+    },
+    {
+      "id": "shadow_refusal",
+      "tool": "query",
+      "arguments": {
+        "connection_id": "sqlite_features_sqlite",
+        "sql": "SELECT COUNT(*) AS n FROM pages_fts_idx"
+      },
+      "expected": {
+        "error_code": "table_access_denied"
+      }
+    },
+    {
+      "id": "mysql_canary",
+      "tool": "query",
+      "arguments": {
+        "connection_id": "trade_analysis_mysql",
+        "sql": "SELECT 1 AS n"
+      },
+      "expected": {
+        "data": [
+          {
+            "n": 1
+          }
+        ]
+      }
+    }
+  ]
+}

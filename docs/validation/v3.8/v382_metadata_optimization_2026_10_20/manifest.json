@@ -1,0 +1,61 @@
+{
+  "files": {
+    "boundary_after.json.gz": {
+      "sha256": "703ccbd91d6edc0505fd5c97f0ecfa566f78fedc45cfabe1da34bf2ec13d24b6",
+      "bytes": 256
+    },
+    "boundary_before.json.gz": {
+      "sha256": "ad0b741a4a510995304e9c603e8bf29da5c478bbe3a049b3fdc77771607feb57",
+      "bytes": 246
+    },
+    "checks.json": {
+      "sha256": "c07a14e6e32886c4555911eddbd5f35b6c315a4bb7a2fc753e394fdd3a5c6a7a",
+      "bytes": 1414
+    },
+    "direct_A1.json.gz": {
+      "sha256": "f6cc402e59ee98d3117615008caa62aa0feafd7b9b2b306f4f8d545e0a26631f",
+      "bytes": 2696
+    },
+    "direct_A2.json.gz": {
+      "sha256": "8bccbc58de05c889711d106f5eec92abf65bb959a24896071d4e9e3acdf0d592",
+      "bytes": 2666
+    },
+    "direct_B.json.gz": {
+      "sha256": "f7daac4451901d95c6f262adb6ede24971a146b9861f4f1fa672d09c15d8b14a",
+      "bytes": 2652
+    },
+    "latency_A1.json.gz": {
+      "sha256": "09fc43960960e35bebeda51f60f86f80511c03347cbf3a1c53fe02bca609a8f3",
+      "bytes": 14305
+    },
+    "latency_A2.json.gz": {
+      "sha256": "70e5fa60250fd9b46f798df249ff109b23a2318c4adbbbff223540d01ceba5e0",
+      "bytes": 14356
+    },
+    "latency_B.json.gz": {
+      "sha256": "65947ac78b10c143aa7346fbf70d1b24ee1171cf292956bd0db04922f2aa684f",
+      "bytes": 14298
+    },
+    "paired_followup.json.gz": {
+      "sha256": "af973d1ef7accce4b1a93a79861f24a4446e8e2b063fabe50e649a78da692edf",
+      "bytes": 2960
+    },
+    "paired_followup_quiet.json.gz": {
+      "sha256": "69b548970be8b9af5251f9d7bb8077477eff2a838fe893300c57d530dd50b747",
+      "bytes": 2875
+    },
+    "profile.json.gz": {
+      "sha256": "e565b6f974c7d1531e5ea8be7e68c2d6e04f6b70da7898388c6226d2390b4c50",
+      "bytes": 1397
+    },
+    "provenance.json": {
+      "sha256": "7f7fd715888495b3928317c70bbec76972b3215c0906437a937b258e841aeb3f",
+      "bytes": 20561
+    },
+    "summary.json": {
+      "sha256": "b8db95bcaaacddbe0a2e85adbe403d68cef01431bd08f029210a8dec634d9311",
+      "bytes": 18817
+    }
+  },
+  "scope": "Independent metadata optimization checkpoint; prior seals unchanged."
+}

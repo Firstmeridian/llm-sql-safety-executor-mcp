@@ -1,0 +1,33 @@
+{
+  "scope": "Post-owner-restart current status, link and commit guidance checks; historical sealed pending records unchanged",
+  "checked_local_links": 772,
+  "broken_local_links": [],
+  "diff_check": "pass",
+  "updated_documents": [
+    "REFACTORING_LOG.md",
+    "REFACTORING_LOG_ZH.md",
+    "docs/README.md",
+    "docs/README_ZH.md",
+    "docs/architecture/V3_8_2_SQL_SEMANTICS_ZH.md",
+    "docs/guides/CONFIGURATION_ZH.md",
+    "docs/guides/TEST_MCP_CLIENT_GUIDE.md",
+    "docs/releases/RELEASE_NOTES_v3_8.md",
+    "docs/security/V3_8_SECURITY.md",
+    "docs/security/DESIGN_RISK_REGISTER.md",
+    "docs/security/DESIGN_RISK_REGISTER_ZH.md",
+    "docs/validation/v3.8/V3_8_2_METADATA_NAME_COLLISIONS_2026_10_21_ZH.md",
+    "docs/validation/v3.8/V3_8_2_ATTACHED_JSON_REPAIR_2026_10_21_ZH.md",
+    "docs/validation/v3.8/V3_8_2_METADATA_PRAGMA_REPAIR_2026_10_21_ZH.md",
+    "local_archive/v382_review/README.md",
+    "local_archive/v382_review/handoff/session-handoff-v381-v382-20261019-ZH.md",
+    "local_archive/v382_review/20261021_metadata_pragma_repair/resident_restart/reports/README_ZH.md",
+    "docs/validation/v3.8/v382_metadata_pragma_repair_2026_10_21/resident_restart/README.md"
+  ],
+  "risk_status": "DRR-135/136 verified in declared source/package/native scope",
+  "native_scope": "20 planned actual native calls; attached/collision fixtures remain source/package scoped",
+  "commit_message": "existing English grouped complete-work draft still appropriate and copied unchanged",
+  "new_runtime_changes": false,
+  "new_builds": 0,
+  "new_full_regression_runs": 0,
+  "new_model_trials": 0
+}

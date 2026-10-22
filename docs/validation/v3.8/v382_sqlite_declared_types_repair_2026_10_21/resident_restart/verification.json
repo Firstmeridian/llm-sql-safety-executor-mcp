@@ -1,0 +1,29 @@
+{
+  "finding": "DRR-2026-140",
+  "status": "Scoped source/package plus post-owner-restart native verification complete",
+  "native": {
+    "passed": 9,
+    "total": 9,
+    "text_structured_equal": true,
+    "metadata_independently_verified": true
+  },
+  "adjacent": {
+    "source_calls": 144,
+    "installed_calls": 144,
+    "objects": 10,
+    "component_observations_per_side": 20,
+    "source_wheel_application_records_equal": true,
+    "text_structured_equal": true,
+    "new_confirmed_independent_findings": 0,
+    "scope": "Absent/NULL/0/empty/text defaults; space/custom/sized declarations; quoted Unicode/dotted/spaced names; strict TEXT; inherited/CAST views; generated metadata"
+  },
+  "resources_unchanged": 77,
+  "private_tomls_unchanged": 3,
+  "configured_database_unchanged": true,
+  "prior_manifests_unchanged": 65,
+  "prior_file_records_unchanged": 2097,
+  "new_model_trials": 0,
+  "new_builds": 0,
+  "new_full_suite_runs": 0,
+  "limits": "Selected metadata neighbors only, no general SQL completeness, latency/provider-token or full-protocol guarantee. Disk identity alone is not resident-memory proof."
+}

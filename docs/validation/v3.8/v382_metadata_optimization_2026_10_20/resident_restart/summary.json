@@ -1,0 +1,115 @@
+{
+  "date": "2026-10-20",
+  "passed": 9,
+  "total": 9,
+  "successful_reads": 7,
+  "expected_refusals": 2,
+  "checks": [
+    {
+      "number": 1,
+      "tool": "query",
+      "arguments": {
+        "connection_id": "chinook_sqlite",
+        "sql": "SELECT 7 AS n"
+      },
+      "passed": true,
+      "success": true,
+      "error_code": null
+    },
+    {
+      "number": 2,
+      "tool": "list_tables",
+      "arguments": {
+        "connection_id": "chinook_sqlite"
+      },
+      "passed": true,
+      "success": true,
+      "error_code": null
+    },
+    {
+      "number": 3,
+      "tool": "get_full_schema",
+      "arguments": {
+        "connection_id": "chinook_sqlite",
+        "detail_level": "compact"
+      },
+      "passed": true,
+      "success": true,
+      "error_code": null
+    },
+    {
+      "number": 4,
+      "tool": "list_tables",
+      "arguments": {
+        "connection_id": "geo_stores_sqlite"
+      },
+      "passed": true,
+      "success": true,
+      "error_code": null
+    },
+    {
+      "number": 5,
+      "tool": "get_full_schema",
+      "arguments": {
+        "connection_id": "analytics_rich_sqlite",
+        "detail_level": "full"
+      },
+      "passed": true,
+      "success": true,
+      "error_code": null
+    },
+    {
+      "number": 6,
+      "tool": "describe_table",
+      "arguments": {
+        "connection_id": "chinook_sqlite",
+        "table_name": "Album"
+      },
+      "passed": true,
+      "success": true,
+      "error_code": null
+    },
+    {
+      "number": 7,
+      "tool": "list_tables",
+      "arguments": {
+        "connection_id": "sakila_mysql"
+      },
+      "passed": true,
+      "success": true,
+      "error_code": null
+    },
+    {
+      "number": 8,
+      "tool": "query",
+      "arguments": {
+        "connection_id": "chinook_sqlite",
+        "sql": "SELECT SLEEP(0)"
+      },
+      "passed": true,
+      "success": false,
+      "error_code": "expensive_function_denied"
+    },
+    {
+      "number": 9,
+      "tool": "query",
+      "arguments": {
+        "connection_id": "chinook_sqlite",
+        "sql": "SELECT * FROM temp.Album"
+      },
+      "passed": true,
+      "success": false,
+      "error_code": "table_access_denied"
+    }
+  ],
+  "catalog_tools": 4,
+  "structured_text_equal": true,
+  "sqlite_databases_sha256_unchanged": {
+    "chinook_sqlite": "7651ba378ac2fcd0dfc3c66fb101f7a7eed3ba39a612ec642b96e20702061f15",
+    "geo_stores_sqlite": "763bdff56848ade43354bcafd3d90dbf90bcf7603469864e5496968fabdaac23",
+    "analytics_rich_sqlite": "0a97c0a62d971dac1ee0d5dba65f7b6d6bba0d029a4023e3a554ac0ce0be1bb3"
+  },
+  "independent_columns_and_counts_match": true,
+  "runtime_resources_match_installed_checkpoint": 76,
+  "limits": "Canary first; remaining independent read-only metadata calls grouped; refusals last. Timings are not a serial benchmark or resident source-hash attestation. No new model trial or repeated full regression; no source/config/DB changes."
+}

@@ -1,0 +1,16 @@
+{
+  "scope": "Documentation-only restart completion; no runtime/config/database changes",
+  "files_scanned": 10,
+  "local_link_targets": 455,
+  "missing_targets": [],
+  "git_diff_check": "passed",
+  "model_trials_added": 0,
+  "full_regression_rerun": false,
+  "build_repeated": false,
+  "previous_regression": {
+    "passed": 3126,
+    "skipped": 4,
+    "scope": "Previously completed final source checkpoint, not rerun during restart acceptance"
+  },
+  "previous_app_calls_per_source_or_install": 176
+}

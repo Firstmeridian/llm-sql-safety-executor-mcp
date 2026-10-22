@@ -1,0 +1,6 @@
+{
+  "only_changed_resource": "database/sqlite.py",
+  "python_ast_identical": true,
+  "old_wheel_sha256": "4b398bd85560279a665804c3b26652f454aa28318fda0460b3e80f8bc40c988d",
+  "final_wheel_sha256": "9046c78599f50d48f7d097d5edb36afd2d4fa1db3c93561ea02c9177144d0f7e"
+}

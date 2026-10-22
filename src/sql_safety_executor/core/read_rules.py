@@ -1,4 +1,5 @@
 """Shared reserved read operations; these names never become grants."""
+from collections.abc import Set
 
 _ACCOUNT_FUNCTIONS = frozenset(
     {"user", "current_user", "session_user", "system_user", "current_role"}
@@ -27,3 +28,21 @@ _SQLITE_PRAGMA_OBJECTS = frozenset(
     wal_autocheckpoint wal_checkpoint writable_schema
     """.split()
 )
+
+
+def restricted_function_code(functions: Set[str]) -> str | None:
+    """Check analyzed/callback ASCII-folded calls, independent of query shape.
+
+    Stored views may use syntax outside the raw query subset and confer only
+    indirect relation access. Reusing their function facts must not impose raw
+    shape rules or turn their dependencies into direct grants.
+    """
+    if "load_file" in functions:
+        return "file_operation_denied"
+    if functions & _LOCK_FUNCTIONS:
+        return "lock_function_denied"
+    if functions & _EXPENSIVE_FUNCTIONS:
+        return "expensive_function_denied"
+    if functions & _ACCOUNT_FUNCTIONS or functions & _SQLITE_PRAGMA_OBJECTS:
+        return "server_state_denied"
+    return None

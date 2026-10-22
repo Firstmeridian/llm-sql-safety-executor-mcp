@@ -1,0 +1,138 @@
+{
+  "sqlite": {
+    "baseline": {
+      "calls": 96,
+      "objects": 13,
+      "groups": {
+        "inprocess:auto": 24,
+        "inprocess:legacy": 24,
+        "stdio:auto": 24,
+        "stdio:legacy": 24
+      },
+      "mismatches": [
+        "dot.\u8868 x",
+        "key_ba",
+        "key_desc",
+        "mixed_case",
+        "repeated_pk",
+        "without_rowid"
+      ],
+      "schema_text_chars": {
+        "compact": 1959,
+        "ungrouped": 2400,
+        "full": 2671
+      },
+      "compact_groups": 7
+    },
+    "source": {
+      "calls": 96,
+      "objects": 13,
+      "groups": {
+        "inprocess:auto": 24,
+        "inprocess:legacy": 24,
+        "stdio:auto": 24,
+        "stdio:legacy": 24
+      },
+      "mismatches": [],
+      "schema_text_chars": {
+        "compact": 2057,
+        "ungrouped": 2400,
+        "full": 3046
+      },
+      "compact_groups": 8
+    },
+    "installed": {
+      "calls": 96,
+      "objects": 13,
+      "groups": {
+        "inprocess:auto": 24,
+        "inprocess:legacy": 24,
+        "stdio:auto": 24,
+        "stdio:legacy": 24
+      },
+      "mismatches": [],
+      "schema_text_chars": {
+        "compact": 2057,
+        "ungrouped": 2400,
+        "full": 3046
+      },
+      "compact_groups": 8
+    },
+    "source_wheel_equal_except_verified_fixture_schema_fields": true
+  },
+  "mysql": {
+    "baseline": {
+      "calls": 96,
+      "objects": 13,
+      "groups": {
+        "inprocess:auto": 24,
+        "inprocess:legacy": 24,
+        "stdio:auto": 24,
+        "stdio:legacy": 24
+      },
+      "mismatches": [
+        "dot.\u8868 x",
+        "key_ba",
+        "key_desc",
+        "mixed_case",
+        "unique_composite",
+        "unique_memory",
+        "unique_myisam",
+        "unique_only"
+      ],
+      "schema_text_chars": {
+        "compact": 1899,
+        "ungrouped": 2306,
+        "full": 2581
+      },
+      "compact_groups": 7
+    },
+    "source": {
+      "calls": 96,
+      "objects": 13,
+      "groups": {
+        "inprocess:auto": 24,
+        "inprocess:legacy": 24,
+        "stdio:auto": 24,
+        "stdio:legacy": 24
+      },
+      "mismatches": [],
+      "schema_text_chars": {
+        "compact": 2069,
+        "ungrouped": 2290,
+        "full": 2856
+      },
+      "compact_groups": 9
+    },
+    "installed": {
+      "calls": 96,
+      "objects": 13,
+      "groups": {
+        "inprocess:auto": 24,
+        "inprocess:legacy": 24,
+        "stdio:auto": 24,
+        "stdio:legacy": 24
+      },
+      "mismatches": [],
+      "schema_text_chars": {
+        "compact": 2069,
+        "ungrouped": 2290,
+        "full": 2856
+      },
+      "compact_groups": 9
+    },
+    "source_wheel_equal_except_verified_fixture_schema_fields": true
+  },
+  "runtime_files_changed": [
+    "src/sql_safety_executor/core/schema.py",
+    "src/sql_safety_executor/database/base.py",
+    "src/sql_safety_executor/database/mysql.py",
+    "src/sql_safety_executor/database/sqlite.py"
+  ],
+  "private_tomls_unchanged": 3,
+  "prior_manifests_unchanged": 71,
+  "prior_records_unchanged": 2180,
+  "native_host": "pending owner restart",
+  "model_trials": 0,
+  "version": "3.8.2"
+}

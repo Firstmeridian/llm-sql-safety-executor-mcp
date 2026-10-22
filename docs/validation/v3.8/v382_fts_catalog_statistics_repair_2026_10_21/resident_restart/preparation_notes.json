@@ -1,0 +1,12 @@
+{
+  "product_failures": 0,
+  "native_retries": 0,
+  "verification_preparation": [
+    {
+      "error": "KeyError: bytes",
+      "cause": "Historical compressed_decoded_records use different field names (decoded_bytes/decoded_sha256 or bytes/sha256); assertion reader initially assumed a single schema.",
+      "stage": "old evidence integrity, before evaluation of accepted native records",
+      "action": "Support the recorded historical field names; no native call repeated and no old evidence changed."
+    }
+  ]
+}

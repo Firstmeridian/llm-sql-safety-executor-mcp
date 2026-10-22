@@ -1,0 +1,8 @@
+{
+  "trial": 1,
+  "initial_business_completed": false,
+  "observed": "Business user message was delivered; model inspected descriptions truncated to2600 chars and only reran canary. Tool availability succeeded. Internal causal reason unconfirmed.",
+  "max_additional_neutral_reminders": 1,
+  "reminder": "RD141GUIDE.1.RECOVERY\n刚才仅重复预检，尚未完成订单履约提案。请继续完成上一条业务任务；仍仅允许预览，不批准写入。",
+  "reporting": "Preserve initial business2/3; recovered task and extra user turn counted separately; no same-task token pooling."
+}

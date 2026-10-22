@@ -1,0 +1,54 @@
+{
+  "date": "2026-10-21",
+  "checkpoint": "SQLite declared type P3 assessment only, DRR140 unimplemented",
+  "scope": "Current184 application calls+36 components, old2c0a9e7 32 calls, native2; raw values preserved but metadata loss reproduced;61 prior manifests/2020 records retained; no production/test/private-config/grant/database change, new build/full regression/model/performance claim. Initial errors retained separately.",
+  "append_rule": "Preserve this assessment checkpoint and prior repairs; implementation needs new evidence.",
+  "files": {
+    "README.md": {
+      "bytes": 1521,
+      "sha256": "c548f27ae1864674ded84e3a5e718dbe048675c15a977baa85eb8601f407ccc7"
+    },
+    "assess.py.gz": {
+      "bytes": 3029,
+      "sha256": "d985356dd29247e5d66084ce98f032b29bec74f68e6bc9d76d2155abaed20a45",
+      "decoded_bytes": 9455,
+      "decoded_sha256": "c056a94aacc0a66d2472c283161648d19612dbfd228b9c806212b92268f8cddf"
+    },
+    "assessment.json": {
+      "bytes": 1745,
+      "sha256": "818a2f5699d923ce69671468f90a0c5b3311e0a8fb8fc5614f75000ea57831e2"
+    },
+    "baseline-2c0a9e7-final.json.gz": {
+      "bytes": 3402,
+      "sha256": "2c9003d86898607b63c3b5e8623ffc6f7f634115b4290894f3dbcebd94b6e826",
+      "decoded_bytes": 56450,
+      "decoded_sha256": "2c3da7350f70b5e922e6f56601b8a5a8807ce5806364ebe616bef70b1b481e2a"
+    },
+    "documentation_checks.json": {
+      "bytes": 1019,
+      "sha256": "c3dd571ce9ba85ecd315b032953ac1f224a991d52a99926c87f6c30aa86924ba"
+    },
+    "native.json.gz": {
+      "bytes": 784,
+      "sha256": "f706641429c789194a80509db9efed2fe9cbb6ba700498f1df68e87bafb82504",
+      "decoded_bytes": 2975,
+      "decoded_sha256": "34cf61e02c39cbe7ba178cf7edcab6cb14cff10a7e4addf29fce2cffef8d6fcd"
+    },
+    "preparation_notes.json": {
+      "bytes": 1244,
+      "sha256": "631a623433dcb92ddc4c783c7886ab02ef7f8b25e9f10539f39e3d190277787a"
+    },
+    "source-final.json.gz": {
+      "bytes": 17060,
+      "sha256": "b468bceb51704c2954ef1687ddd3b3370f1db55a35823c8a81180f20b7b45480",
+      "decoded_bytes": 351670,
+      "decoded_sha256": "df3451d968dd4feed9adb64b05c1db8a998a420c20fc0962545639658a3e25ad"
+    },
+    "verify.py.gz": {
+      "bytes": 2911,
+      "sha256": "469ace59a217e6bdbca33d08323fafdf058b4a775e4b9dfd53c47dee10ecbc99",
+      "decoded_bytes": 8514,
+      "decoded_sha256": "af33e57230fdf6050b0035df88b8b4e49770be223f28839be8cadf9ff5a01226"
+    }
+  }
+}

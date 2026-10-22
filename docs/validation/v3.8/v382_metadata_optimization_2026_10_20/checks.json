@@ -1,0 +1,47 @@
+{
+  "regression": {
+    "passed": 2697,
+    "skipped": 4,
+    "warnings": 408,
+    "original_log_sha256": "3bb86a51b36178371ab984052dfe68cc13806b1738f546cb5318a5049f4dd88e"
+  },
+  "type": {
+    "errors": 0,
+    "warnings": 0,
+    "log_sha256": "6d88a1b220adb7a3d62092b6e38431f0b3fe8babe9864fab90e5849766260332"
+  },
+  "prompt": {
+    "passed": true,
+    "log_sha256": "f0e0a884c0914987015a830aea57daf3a52000e3ea17c4899a6df1db394a16f2"
+  },
+  "application_records": {
+    "source_projection": {
+      "calls": 26,
+      "source_sha256": "90d112a9857e5bed6540332f6225302e417efad86ae2efb81bbb9a3dc2bceb3d"
+    },
+    "source_capabilities": {
+      "calls": 108,
+      "source_sha256": "8fcac5e47f5ee17dd752f745b8e33954e535f80776da1a786bb5f5e9dc0e28ad"
+    },
+    "installed_projection": {
+      "calls": 26,
+      "source_sha256": "9f3d5521bde132394704dbe63bd242fd7c8205bbaf5be6241b8b220c7a553bb8"
+    },
+    "installed_capabilities": {
+      "calls": 108,
+      "source_sha256": "8349144aaac061eda892199985ab12f05c1a2585932dd2cf934be78662afc1e9"
+    },
+    "mysql_source": {
+      "calls": 6,
+      "source_sha256": "bae57c969bb9b58447724db41854e6be554f9f504ccc523464bbd8459b37e55e"
+    },
+    "mysql_installed": {
+      "calls": 6,
+      "source_sha256": "9b64c28955878c58c382162ff63b144cfbbc95e101ae83550afa4b2aa82c1d8c"
+    }
+  },
+  "resident": {
+    "status": "pending owner restart",
+    "frozen_calls": 9
+  }
+}

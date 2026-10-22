@@ -1,0 +1,26 @@
+{
+  "preparation": [
+    {
+      "stage": "source.json/source.log",
+      "result": "92 inprocess calls completed; both separate stdio initializations failed before application calls",
+      "cause": "Unresolved at this checkpoint; no claim of Host cache or sandbox root cause",
+      "next": "Run same disposable stdio harness outside process sandbox with full chained error recording"
+    },
+    {
+      "stage": "baseline-2c0a9e7.json",
+      "result": "Metadata reproduced, but main-qualified raw/Skill reads hit already-known bare-vs-qualified grant mismatch in old baseline",
+      "next": "Declare both exact bare/main grant spellings for this type-only comparison; retain initial failures and use new final output paths"
+    }
+  ],
+  "production_changes": false,
+  "configured_database_writes": false,
+  "resolution": {
+    "final_source_calls": 184,
+    "final_source_errors": [],
+    "final_baseline_calls": 32,
+    "final_baseline_errors": [],
+    "sandbox_override_approval": "approved; no review rejection",
+    "initial_stdio_root_cause": "not established; only successful later run outside sandbox observed",
+    "legacy_grants": "temporary fixture now includes bare/main spellings; actual private configuration unchanged"
+  }
+}

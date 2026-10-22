@@ -1,0 +1,21 @@
+{
+  "files": {
+    "README.md": {
+      "sha256": "904d80eb5dbed5b7de350a1e2dcfe124bb1d36366af74dd20a5b7d06b6b60409",
+      "bytes": 1444
+    },
+    "native_calls.json.gz": {
+      "sha256": "f6c712c766811da3b5b9259bffd0b94872cd7af163b90d29453c3c0aa2934942",
+      "bytes": 1732
+    },
+    "provenance.json": {
+      "sha256": "c18c59407a97361e0524a2fba0616cd8d448a6cbc1da23ab2990b0f78657eb5b",
+      "bytes": 1511
+    },
+    "summary.json": {
+      "sha256": "ac7fc8c18ab4cb69c1a854913af7d1ac587c23b03c2d6383cb4b738b2f19348f",
+      "bytes": 5350
+    }
+  },
+  "scope": "Independent FTS native restart supplement"
+}

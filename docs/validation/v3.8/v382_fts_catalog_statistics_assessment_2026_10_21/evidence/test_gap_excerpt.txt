@@ -1,0 +1,20 @@
+tests/test_metadata_cost_v382.py:171
+def test_multiple_index_statistics_keep_first_observation():
+    adapter = SQLiteAdapter(":memory:")
+    for sql in (
+        "CREATE TABLE orders(n)",
+        "CREATE INDEX partial_orders ON orders(n) WHERE n=1",
+        "INSERT INTO orders VALUES(1),(2),(3)",
+        "ANALYZE",
+    ):
+        ddl(adapter, sql)
+    try:
+        expected = int(adapter.execute(
+            "SELECT stat FROM main.sqlite_stat1 WHERE tbl='orders' LIMIT 1")[0][0].split()[0])
+        assert adapter.get_row_estimate("orders") == expected
+        assert adapter.get_tables() == [{"table_name":"orders", "row_count":expected}]
+    finally:
+        adapter.close()
+
+
+@pytest.mark.parametrize("mode", ["auto", "legacy"])

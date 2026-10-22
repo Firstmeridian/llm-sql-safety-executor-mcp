@@ -1,6 +1,6 @@
 # MCP Client verification · v3.8
 
-> October 14, 2026: target-specific CTE dependencies and measured MySQL ASCII CTE rules are covered in the [latest dated checks](../validation/v3.8/V3_8_1_FOLLOWUP_2026_10_13_ZH.md#cte-依赖与实际名称规则修复2026-10-14). Reload the resident server before attributing results to new source; full Query Skill declared_tables/inferred_tables mark this implementation. Earlier model trials remain separate snapshots.
+> October 22, 2026: use the [portable contract entry points](../../scripts/validation/README.md) for deterministic and explicit live release checks. Reload the resident server after runtime/configuration changes before attributing native results to new source. The [October 14 CTE checks](../validation/v3.8/V3_8_1_FOLLOWUP_2026_10_13_ZH.md#cte-依赖与实际名称规则修复2026-10-14) and earlier model trials remain dated snapshots.
 
 This guide uses the installed `sql_safety_executor` package and explicit TOML
 configuration. Run repository scripts from the repository root after
@@ -8,6 +8,61 @@ configuration. Run repository scripts from the repository root after
 the [v3.7 historical guide](TEST_MCP_CLIENT_GUIDE_v3_7.md).
 
 ## Offline checks
+
+### Portable contracts and explicit release gate (October 22)
+
+Use the [portable validation entry points](../../scripts/validation/README.md)
+for deterministic CI versus explicit live acceptance. `release_gate.py --profile
+fast --source src --output <new-directory>` runs pytest with actual skip counts;
+successful fast checks still leave live MySQL **UNVERIFIED**, not release-ready.
+The release profile requires `--config/--alias` or `--mysql-env`, uses owned
+temporary schemas, runs both backend/application contracts, and requires the four
+optional MySQL cases to actually pass with no skips. Setup failure cannot turn
+into a passing integration gate. Neither profile restarts the active Host.
+
+Reports include actual runtime/dependency identity, not just product hashes.
+Dependency/validation changes also trigger the separate installed-wheel/MySQL CI
+workflow; manual release dispatch remains required when applicable. Baseline
+comparison only plans rechecks and never automatically reuses previous results.
+No model-token/performance conclusion follows from this infrastructure change.
+
+### October 20 read/binding and column follow-up
+
+The durable [read/managed follow-up runner](../../scripts/validation/read_plan_followups.py)
+resolves its source/Skill/output paths and starts disposable SQLite child services.
+Use `--help` for required arguments. It runs both Client modes and both configured
+managed classifiers, recording 84 calls per source or installed package: discovery,
+tail-comment reads/Skills, literal versus actual bindings, write/restore/replay,
+rollback, complete schema projections and continued policy refusals. Its writes
+are confined to its temporary fixture; do not substitute configured business data.
+
+This checkpoint has **3003 full-suite passes/four optional skips**, then **two
+additional session-binding passes**, clean type/source-and-installed prompt checks,
+84 source/84 wheel calls and six installed MySQL calls. Seventy-seven package
+resources and the wheel digest are verified. Real MySQL checks separately compare
+five catalogs and sixteen isolated session modes using original SQL, with orders
+unchanged. Recipes, exact inputs, failed attempts, paired costs and evidence are
+in the [record](../validation/v3.8/V3_8_2_READ_PLAN_REPAIR_2026_10_20_ZH.md).
+Reuse the documented verified offline build cache/frozen environment; no new
+runtime package or global installation is required. Temporary paths are not a
+persistent installation. Application results are not complete wire frames.
+
+The operation-local analysis-reuse study is a direct-handler prototype, not
+production code or model acceptance. Earlier complete Agent trials retain their
+source scope. After the owner restart, 34/34 scoped native checks pass, with exact MySQL
+metadata/report truth, unconfirmed previews and unchanged data. The separate
+[resident supplement](../validation/v3.8/v382_read_plan_repair_2026_10_20/resident_restart/README.md)
+retains fixture/mode limits and preserves the parent pending seals.
+
+The subsequent [complete Agent evaluation](../validation/v3.8/V3_8_2_COMPLETE_AGENT_EVAL_2026_10_20_ZH.md)
+adds fifteen actual Luna-medium two-turn trials and sixty native SQL replays on
+the same resources, with same-prompt historical usage and increases retained.
+Check public per-turn model/effort in addition to each child canary: three
+close/resume recoveries restored SQL tools but changed the actual model to Sol
+ultra. Keep those diagnostics/costs separate, qualify three fresh same-model
+replacements, and never infer an isolated guidance effect from task compliance.
+
+### Base offline commands
 
 ```bash
 uv run sql-safety-executor config check --config config/examples/sqlite/server.toml
@@ -387,3 +442,122 @@ Before future full Agent trials, verify a real SQL MCP call in the actual trial 
 Build backend packages need not be runtime dependencies. If the development venv lacks hatchling, use the normal isolated `uv build`; with an existing complete cache, `uv build --offline --cache-dir <existing-cache> --out-dir <batch-dist>` is reproducible without downloading dependencies. An empty cache is not the existing cache. Install the built wheel with `uv pip install --offline --cache-dir <existing-cache> --no-deps --force-reinstall --python <isolated-python> <wheel>` into the independent validation environment, then compare all packaged resources. Temporary uv/cache paths from earlier sessions are not permanent installations or a requirement for end users.
 
 An offline build may reuse already-cached backend distributions with `python -m build --no-isolation`; record the backend versions. A normal wheel installation in a fresh interpreter may explicitly reuse a frozen dependency directory: assert the tested package comes from that interpreter, reject editable import hooks and compare packaged resources. Describe this as dependency reuse, not fresh dependency resolution. The WHEN batch records this path and the interrupted/timeout uv downloads separately.
+
+
+### Read capability and scope checks (October 19, 2026)
+
+Run `scripts/validation/read_capabilities.py --source <absolute-src> --output <fresh>.json.gz`, or omit `--source` with the independent wheel interpreter. Both actual child-stdio protocols use disposable fixtures for derived views, known JSON calls, FTS root-only grants, sample/exact/estimated metadata, Skill disclosure/readiness/execution, default/main/temp/aux scope, catalog counts and non-executing trigger plans. Restricted-function counters and the persistent database hash must stay unchanged. Records are application content/structured results, not full protocol frames or model usage. Final source/package/native attribution and complete Luna tasks are in the [batch record](../validation/v3.8/V3_8_2_READ_CAPABILITIES_2026_10_19_ZH.md).
+
+FTS validation must include fresh and metadata-warmed connections, reconnection/schema replacement, internal/external-content/contentless storage, direct ungranted shadow/content reads and mixed queries. An internal PRAGMA source parameter is not sufficient provenance. SQLite JSON module READs bind to main even inside a temp/attached view; verify actual callback identity rather than assigning view ownership. Do not disable authorizer or expand configured grants silently to make a trial pass. The normal all-mode scope is now the configured default schema; explicit cross-schema allowlists remain supported.
+
+
+## Metadata projection validation (v3.8.2)
+
+Run the independent temporary-fixture child-stdio check after changes to table discovery, estimates or transport binding:
+
+~~~bash
+.venv-v38/bin/python scripts/validation/metadata_projection.py --source "$PWD/src" --output /tmp/metadata-source-unique.json.gz
+~~~
+
+For wheel validation, use the independent installed interpreter, omit --source and choose a new output path. The script verifies both protocols, counts/order/truncation, statistics/no-statistics, empty projections, Unicode/colon names, and unchanged temporary database hashes. Pair it with read_capabilities.py for view/JSON/FTS guarded-read controls. Tests in test_metadata_cost_v382.py check actual work and failure branches. These are application-result checks, not full protocol frames or complex model-task evidence. Performance stages must run serially without tests/builds in parallel; source/package, resident restart and model usage retain separate attribution. [Decisions and current acceptance](../validation/v3.8/V3_8_2_METADATA_OPTIMIZATION_2026_10_20_ZH.md).
+
+
+## FTS cached-content and qualified-call validation (v3.8.2)
+
+~~~bash
+.venv-v38/bin/python scripts/validation/fts_boundaries.py --source "$PWD/src" --output /tmp/fts-source-unique.json.gz
+~~~
+
+Use the independent installed interpreter without --source for wheel verification. Both real child-stdio protocols cover cold, column-only warm and trusted full-projection warm states; raw query, Query Skill, sample, exact count and descriptor estimates; normal derived content views, aux MATCH/table-call/IN equivalence, builtin qualification refusal and unchanged direct grants/all-mode scope. The deliberately harmless SLEEP replacement must have zero additional calls during guarded operations. Record its intentional trusted-warm call separately; descriptor row_count=null can be the expected unavailable estimate. All four generated database hashes must remain unchanged. Pair this with read_capabilities.py and metadata_projection.py, retain raw application results and source hashes, and do not relabel these checks as full protocol capture or complex model trials. New baseline failures must be preserved. Whole-definition checks deliberately refuse unused restricted view expressions; generated-column/UDF trust is a separate existing boundary. [Repair and current status](../validation/v3.8/V3_8_2_FTS_FOLLOWUPS_2026_10_20_ZH.md).
+
+## Managed-plan parser migration checks (October 20)
+
+Run `scripts/validation/managed_parser.py --source /absolute/repository/src --skills /absolute/repository/skills --output /fresh/results.json.gz` with the repository interpreter. For an independently installed wheel, use that interpreter and omit `--source`. The script creates disposable SQLite databases, tests both configured parsers and both Client modes, and records discovery/detail, preview, committed update/restoration, one-use token rejection, row-count rollback and final database truth (40 calls per source/package run). It performs no configured database writes. Results are application records, not full protocol frames or model token evidence.
+
+Use `config check/explain` to verify the selector. Preserve original SQL and named-bind assertions, target-mode rejection before preview and again after token consumption, and missing-COMMIT evidence tests. Do not replace DB truth with AST acceptance or label isolated lifecycles as complete model tasks. Native Host acceptance requires an owner restart; configured writes still require separate approval. See the [frozen corpus and validation scope](../validation/v3.8/V3_8_2_MANAGED_PARSER_2026_10_20_ZH.md).
+
+## Managed classification reuse checks (October 20)
+
+Use `tests/test_managed_classification_reuse_v382.py` for readiness isolation, exact SQL/context/parser keys, bounded eviction, instance isolation, cleanup, concurrent pure misses and live execution gates after warming. Context-change/failure confirmations must consume their token, return not_executed and refuse replay without executing a write. Both parser modes still use the ordinary lifecycle validation script above.
+
+Compare performance against the post-migration 77-resource snapshot, not HEAD or the earlier 76-resource pre-migration archive. Measure readiness-only A1 and final reuse separately, serial A/B/A per protocol, away from tests/builds. Untimed cache hit/miss and context-resolution counts are separate from timed client roundtrips. [Frozen recipes, results and scope](../validation/v3.8/V3_8_2_MANAGED_CLASSIFICATION_REUSE_2026_10_20_ZH.md). No new complete-model or configured-MySQL-write claim follows from fixture lifecycles.
+
+## Dialect comment and NOT checks (October 20)
+
+Use `scripts/validation/comment_modes.py` with the same --source/--skills/--output convention as managed_parser.py. It runs both parser selectors and both protocol modes on disposable SQLite: reviewed comment Query Skill discovery/detail/readiness/execution, exact original managed comment SQL/binds, commit/restoration/replay/rollback, real function/table restrictions and raw DML refusal. Opaque fixture handles are consistently redacted before export. MySQL hint/mode semantics use separately recorded actual-session scalar comparisons and non-executing EXPLAIN; SQLite stdio is not MySQL or complete-model evidence.
+
+Keep full scoped policy tests separate from shape/function-only analysis. Compare against the post-DRR-120 archive; 1513 boundary groups are a synthetic matrix, not business refusal rate. Startup expands from nine to seventeen candidates; measure it separately from warm six-call stdio cycles. [Scope, recipes and limits](../validation/v3.8/V3_8_2_DIALECT_COMMENTS_NOT_2026_10_20_ZH.md).
+### SQLite relation-call names and generated-column metadata
+
+Run `scripts/validation/relation_calls_columns.py --output /fresh/results.json`
+with the repository interpreter. For the independent wheel interpreter, pass
+`--scope installed` and a separate output path. The script creates only disposable
+SQLite/TOML fixtures and records both child-stdio Client modes, 538 tool calls,
+420 independent truth comparisons, Skill discovery/detail/execution, generated
+column projections, hidden-column counts and refusal controls. It preserves
+actual package resource hashes and verifies cleanup; it does not access the
+configured databases, measure model tokens or replace resident Host acceptance.
+Focused regression is `python -m pytest -q tests/test_relation_calls_columns_v382.py`.
+[Decisions, costs and current status](../validation/v3.8/V3_8_2_RELATION_CALLS_COLUMNS_2026_10_20_ZH.md).
+
+
+### Read-result and conditional-dependency boundaries (2026-10-21)
+
+Run tests/test_read_results_v382.py for actual duplicate labels (case-distinct labels remain valid), tagged BLOB/non-finite values, prefix limits including zero rows, escaping/Unicode, temporal/decimal conventions, and scoped JSON-name readiness. A frozen result_chars=1 file is invalid because even [] needs two compact JSON characters. Pair raw query, Query Skill and sample; check application success/error_code and both text/structured content, not merely MCP isError.
+
+The local repair archive contains a self-contained verify.py driver for the current configured MySQL constant-read alias plus disposable SQLite/Skill fixtures. It accepts a fresh --output and explicit --scope source/installed; independent child stdio and in-process auto/legacy records are separate, including expected readiness refusals. Readiness-off adds no catalog probes; actual unauthorized roots remain refused. Use tests and package checks for aux/TEMP/sample cases absent from the resident Host. No full model task or token comparison is implied. [Contract and evidence](../validation/v3.8/V3_8_2_READ_RESULTS_2026_10_21_ZH.md).
+
+Also test unqualified JSON-name calls with objects only in attached schemas: explicit aux cases or fixtures with main/TEMP shadows do not cover that lookup path. The [DRR-135 assessment](../validation/v3.8/V3_8_2_ATTACHED_JSON_READINESS_2026_10_21_ZH.md) retains 332 source calls, including ordered attachments, quoting/JOIN/IN/CTE, unauthorized roots and same-Skill ATTACH/DETACH. It confirms an open readiness issue, not repair acceptance; no new configuration or grant is required to reproduce it with disposable fixtures.
+
+The subsequent [ordered-observation repair](../validation/v3.8/V3_8_2_ATTACHED_JSON_REPAIR_2026_10_21_ZH.md) retains that checkpoint and adds 67 regression cases plus final source/normal-wheel each 332 application calls. Cover explicit/resolved state parity, partial catalogs, count/time limits, default-scope controls, live grants and readiness-off. Reuse the private self-contained probe/dynamic drivers with fresh --output and explicit --scope; do not pool intermediate packages or old native/model evidence. DRR-136 was subsequently approved and repaired with fixed main-bound PRAGMA statements. The [repair record](../validation/v3.8/V3_8_2_METADATA_PRAGMA_REPAIR_2026_10_21_ZH.md) adds 57 regressions and six collision fixtures over in-process/child-stdio auto/legacy. Verify full column/index payloads against native PRAGMA truth, generation/hidden projection, quoted/dotted names, WITHOUT ROWID auxiliary rows and all-or-unavailable budgets. Preserve the initialization-timeout log and final retry separately. DRR-135/136 now share 20/20 post-owner-restart native checks on existing aliases; special collision/attached fixtures remain source/package scoped. Preserve the separate resident_restart supplement and parent pending seals; retain application costs separately from model/token claims.
+
+
+### FTS catalog/statistic sources and cold external-content rowids (DRR-137–139)
+
+Use the repair-batch self-contained `clients.py` with a fresh `--output`, explicit `--scope` and absolute `--source`; omit `--source` under the normal-wheel interpreter. Check main/TEMP/aux table/view collisions, real shadow types and quoted schema/root names; whole-table, nonpartial-index, WITHOUT ROWID and index-only ANALYZE sources; stale/no-stat/10000-limit controls. FTS external-content must be evaluated cold before any trusted warm query, including default/rowid/_rowid_/oid/id. Test declared same-name columns and INTEGER PRIMARY KEY DESC separately; continue rejecting direct base/shadow reads. Compare unchanged fixture hashes and application content/structured output, not full protocol envelopes. Keep aborted fixture scripts, sandbox type/full-test failures and later completed runs separately. Run cost A/B/A serially after tests/builds, distinguish changed wrong/right outputs from equal-work overhead, and request one owner restart only after package checks. [Repair record](../validation/v3.8/V3_8_2_FTS_CATALOG_STATISTICS_REPAIR_2026_10_21_ZH.md).
+
+
+## Native SQLite declared-type validation (v3.8.2)
+
+Use `tests/test_sqlite_declared_types_v382.py` and the [repair record](../validation/v3.8/V3_8_2_SQLITE_DECLARED_TYPES_REPAIR_2026_10_21_ZH.md) with its archived Client/verifier scripts. Compare each type directly with `PRAGMA main.table_xinfo` output: do not apply `or "TEXT"` or infer affinity from stored values. Cover undeclared/TEXT/BLOB/INTEGER/NUMERIC/empty/space/custom/STRICT ANY, CTAS, generated columns, FTS visible versus hidden columns and inherited/expression views. Check describe, optional summary, compact grouped/ungrouped, full schema, raw and Skill results, plus zero expression evaluation and unchanged query counts. Enable summary only in the disposable fixture; configured tool exposure need not change.
+
+The frozen fixture runs46 calls per mode/transport,184 per source or independent normal wheel; in-process and child-stdio auto/legacy output must agree. Use a fresh output path, then check fixture cleanup and unchanged database/configuration hashes. Compact grouping can increase when invented TEXT types disappear; payload characters are not provider tokens. Do not rewrite old normalized-type evidence or count earlier native/model trials as this source. Request one owner restart after the final package checks; keep native existing-alias scope separate from disposable cases.
+
+
+## Actual PRIMARY identity and member order (DRR-141)
+
+Run `tests/test_primary_key_metadata_v382.py`. Compare SQLite positions directly with fixed table_xinfo, and physical index parts with index_xinfo; repeated parts and gaps are valid. For MySQL, compare KEY_COLUMN_USAGE with independent SHOW INDEX PRIMARY/Seq_in_index. Include reverse composite order, non-null unique without PRIMARY, nullable unique, no key, PRIMARY plus unique, mixed-case column references and decoded special components. Native COLUMN_KEY=PRI is a display flag, never an oracle for actual PRIMARY membership.
+
+The [repair archive](../validation/v3.8/v382_primary_key_metadata_repair_2026_10_21/README.md) includes matrix.py: `--backend sqlite|mysql --stage baseline|source|installed --output /fresh/result.json`. Use the chosen source or normal-wheel interpreter with its declared dependencies. Each backend has13 objects and96 application calls across in-process/stdio auto/legacy. The MySQL helper uses an existing local test alias solely to create an owned random schema, then drops only that schema; confirm fixture authorization before reusing it elsewhere. Never modify existing configured tables or grants for this recipe.
+
+Verify optional positive primary_key_position only on actual members, native display flags unchanged, full/describe/summary positions, compact grouped/ungrouped order and changed grouping, raw/sample/exact values, continued refusals and fixture cleanup. Keep a normal-wheel baseline; do not compare solely against old adapter output. Run serial same-fixture A1/B/A2 after builds/tests, retain all samples and payload changes, and distinguish local costs from model tokens. Freeze existing-alias truth and one restart plan only after package checks; special fixture coverage does not become resident or full-model coverage.
+
+
+DRR-141 resident follow-up: after the reported restart, native7/12 versus fresh configured CLI12/12 still differs on five PRIMARY-position cases. Keep raw failures and do not substitute the fresh process for resident acceptance. Multiple same-entry processes and a later successful launch do not prove which client/process serves the native tool channel or establish a cache root cause. The owner subsequently restarted and current native12/12 passes; preserve the historical pending [checkpoint](../validation/v3.8/v382_primary_key_metadata_repair_2026_10_21/resident_restart/README.md). MySQL is the server/dialect acceptance target; MariaDB is not a required environment. Retain native SQLite and actual MySQL version/session scope.
+
+
+The [October21 complete task audit](../validation/v3.8/V3_8_2_COMPLETE_AGENT_EVAL_2026_10_21_ZH.md) closes latest native12/12 and reruns all fifteen exact historical prompts with actual Luna-medium contexts and independent native truth. Retain calls108→113, business tokens+3.85%, and higher public task wall time; do not attribute the whole model/Host delay to SQL. Separately freeze natural cancellation prompts that do not teach the expected interpretation: three probes retain one initial task omission, one unsupported current-state assertion and ambiguous cancellation language. Preserve first-attempt denominators, extra user reminders and costs; do not replace them with only final success. Keep local fixed-flow A/B/A and diagnostic A/B/B/A separate from provider usage and retain unfavorable samples. No runtime change or new full-suite/build is needed for this documentation-only follow-up.
+
+
+## SQLite physical write lifecycle (October22, DRR-142/143)
+
+Use `tests/test_sqlite_write_transactions_v382.py` for adapter-level private-file truth and `scripts/validation/sqlite_writes.py --source /absolute/repository/src --output /fresh/source.json.gz` for both in-process/stdio, auto/legacy and SQLGlot/sqlparse full preview-confirm-replay flows. With a normal wheel interpreter, omit --source and run outside editable imports; the script asserts the installed package location. Every write targets its disposable database, never configured business tables. Application records redact tokens and are not full protocol frames or model usage.
+
+Freeze ordinary/CTE/semicolon INSERT/UPDATE/DELETE with/without RETURNING, correct/zero/multiple counts, partial failure and engine-auto-rollback, plus unchanged data after response, token replay and server/cursor cleanup. Check real BEGIN/COMMIT/ROLLBACK traces and independent sqlite3 connections. Include count_changes, direct versus trigger/cascade counts, INSTEAD OF view zero counts, non-DML stale-count prevention, result cancellation/deadline/fetch/close faults and missing physical acknowledgements. Preserve initial fixture/preparation failures separately.
+
+Never substitute logical SQLAlchemy transaction activity, returned-row length or a cached rowcount for physical evidence. Uncertain commit/cleanup stays unknown and tokens remain spent. Measure costs serially on ordinary operations correct in both snapshots; a formerly failing CTE/RETURNING case is capability recovery, not a comparable speed baseline. Owner restart checks on existing aliases are limited reads, refusals and unconfirmed previews unless configured writes are separately approved. [Repair, cost and current acceptance](../validation/v3.8/V3_8_2_SQLITE_WRITE_TRANSACTIONS_2026_10_22_ZH.md).
+
+
+## Live MySQL/InnoDB write gate (October22, DRR-144/145)
+
+Run `tests/test_read_analysis_binding_v382.py` for exact-source rejection before base dispatch, unchanged matching SQL/params, context/completeness/write controls and SQLite preconnect parity. Do not accept an import failure or an unrelated exception as a killed binding sentinel.
+
+For the approved test account, run `scripts/validation/mysql_writes.py --config /absolute/test/server.toml --alias test_mysql --source /absolute/repository/src --legacy-tests --output /fresh/source.json.gz`. The script creates one random owned mcp_contract_* schema, requires CREATE/DROP DATABASE and TRIGGER plus observation of its own lock wait in INNODB_TRX, and drops only its exact created schema. It never changes configured business tables, grants or global settings. Observe fixture authorization before running against another server; no silent skip/fallback for missing access. The four legacy opt-in tests receive credentials only through the subprocess environment and run inside this private schema; do not treat default optional skips as integration passes.
+
+Use the normal installed-wheel interpreter without --source for the same matrix. Run a fresh `--section unknown-clients` output per source/wheel for two in-process injected commit-ack controls, both classifiers and Client modes. Data truth comes from independent native PyMySQL with the explicit FOUND_ROWS contract; it shares no project parser, policy or value-mapping helpers. Read binding also covers pool reuse/reconnect. Check specific actual server errno and real LOCK WAIT, injection hits, token consumption, target Invalid preview_token rejection and independent final data; an unrelated tool error does not pass replay validation. Serialize/redact application results rather than claiming complete frames or model usage.
+
+Treat committed/rolled_back/unknown as evidence contracts. Compare transactional business rows, trigger audits and cascades after cleanup; allow consumed AUTO_INCREMENT gaps and other explicitly non-transactional allocation state. This is a test oracle, not a production full-database comparison. Do not automatically retry unknown or reuse consumed tokens. Keep real server errors/session disconnects separate from labelled client faults; this matrix does not simulate arbitrary network partitions or cover other engines/isolation profiles. Freeze one limited restart plan after source/package checks; public tools cannot inject the internal analysis object. [Current gate definitions, evidence and limits](../validation/v3.8/V3_8_2_MYSQL_WRITE_CONTRACTS_2026_10_22_ZH.md).
+
+The [finite stabilization plan](../validation/v3.8/V3_8_2_STABILIZATION_PLAN_2026_10_22_ZH.md) fixes16 contract families, evidence reuse, execution order and stop conditions. Audit concrete coverage before adding tests; retain supported positive cases alongside refusal controls. The [owner-restarted native6/6 supplement](../validation/v3.8/v382_mysql_write_contracts_2026_10_22/resident_restart/README.md) completes only the frozen refresh scope. Internal mismatch, real writes and cross-entry coverage need their own evidence. The subsequent [bounded stabilization acceptance](../validation/v3.8/V3_8_2_STABILIZATION_2026_10_22_ZH.md) completes S1–S4 using those distinct proofs; the six-call result alone does not accept them.
+
+For the approved MySQL test account, `scripts/validation/stabilization_mysql_reads.py --config /absolute/test/server.toml --alias test_mysql --source /absolute/repository/src --output /fresh/reads.json.gz` adds a smaller read-contract matrix in an owned disposable schema. Use the existing normal-wheel interpreter and omit --source for the matching installation check. This script imports the sibling mysql_writes fixture ownership/cleanup helper; run it from its repository location. It creates and seeds only its exact random schema and verifies removal, never existing business tables. Independent PyMySQL queries/direct catalogs supply duplicate labels, bytes, generated values and actual PRIMARY ordering; checks cover raw/Skill/sample, data truncation and compact/full metadata in both Client modes/transports. Records are application results, not full wire frames or model usage. Do not reuse this test authorization for a different server or change grants/configuration without the agreed discussion.

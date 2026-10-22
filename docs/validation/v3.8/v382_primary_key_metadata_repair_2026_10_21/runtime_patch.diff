@@ -1,0 +1,158 @@
+--- before/database/base.py
++++ current/database/base.py
+@@ -190,6 +190,13 @@
+ 
+         Returns:
+             List of dicts with column metadata (name, type, nullable, key, default)
++            and optional primary_key_position: a positive, one-based position
++            for actual PRIMARY constraint members; absent for non-members.
++            key_type remains a native display flag, never proof of a PRIMARY
++            constraint. Column order remains table order. Positions order
++            members, not all physical index parts (SQLite may repeat a part).
++            Built-in adapters obtain this in the same column query; metadata
++            failures must not become guessed positions or an empty key.
+ 
+         Raises:
+             MetadataQueryError: If the metadata query cannot be completed
+--- before/database/sqlite.py
++++ current/database/sqlite.py
+@@ -571,6 +571,8 @@
+                     "key_type": "PRI" if row[5] else "",
+                     "default_value": row[4],
+                 }
++            if row[5]:
++                column["primary_key_position"] = int(row[5])
+             if row[6] in (2, 3):
+                 column["generation_type"] = "virtual" if row[6] == 2 else "stored"
+             columns.append(column)
+--- before/database/mysql.py
++++ current/database/mysql.py
+@@ -36,6 +36,35 @@
+     "WITH `mcp_Cte_Case_A` AS (SELECT 1 AS n), "
+     "`mcp_cte_case_a` AS (SELECT 2 AS n) SELECT 1 AS n"
+ )
++
++
++# COLUMN_KEY is a display flag, not the identity or order of a PRIMARY
++# constraint. Keep the existing bounded column query and join its true key
++# position. Binary residuals prevent catalog collation from merging different
++# stored schema/table/column spellings; the equalities retain lookup predicates.
++_PRIMARY_KEY_JOIN = """
++    LEFT JOIN INFORMATION_SCHEMA.KEY_COLUMN_USAGE AS pk
++      ON pk.TABLE_SCHEMA = c.TABLE_SCHEMA
++     AND pk.TABLE_NAME = c.TABLE_NAME
++     AND pk.COLUMN_NAME = c.COLUMN_NAME
++     AND pk.CONSTRAINT_NAME = 'PRIMARY'
++     AND BINARY pk.TABLE_SCHEMA = BINARY c.TABLE_SCHEMA
++     AND BINARY pk.TABLE_NAME = BINARY c.TABLE_NAME
++     AND BINARY pk.COLUMN_NAME = BINARY c.COLUMN_NAME
++"""
++
++
++def _column_metadata(row) -> dict[str, Any]:
++    column = {
++        "column_name": row[0],
++        "data_type": row[1],
++        "nullable": row[2],
++        "key_type": row[3],
++        "default_value": row[4],
++    }
++    if row[5] is not None:
++        column["primary_key_position"] = int(row[5])
++    return column
+ 
+ 
+ class MySQLAdapter(DatabaseAdapter):
+@@ -489,30 +518,23 @@
+         if not self.valid_metadata_identifier(table_name):
+             return []
+ 
+-        sql = """
+-            SELECT 
+-                COLUMN_NAME,
+-                DATA_TYPE,
+-                IS_NULLABLE,
+-                COLUMN_KEY,
+-                COLUMN_DEFAULT
+-            FROM INFORMATION_SCHEMA.COLUMNS
+-            WHERE TABLE_SCHEMA = :schema_name AND TABLE_NAME = :table_name
+-            ORDER BY ORDINAL_POSITION
++        sql = f"""
++            SELECT
++                c.COLUMN_NAME,
++                c.DATA_TYPE,
++                c.IS_NULLABLE,
++                c.COLUMN_KEY,
++                c.COLUMN_DEFAULT,
++                pk.ORDINAL_POSITION
++            FROM INFORMATION_SCHEMA.COLUMNS AS c
++            {_PRIMARY_KEY_JOIN}
++            WHERE c.TABLE_SCHEMA = :schema_name AND c.TABLE_NAME = :table_name
++            ORDER BY c.ORDINAL_POSITION
+         """
+         result = self._execute_metadata(sql, 'reading table columns', params={"schema_name": self.metadata_schema, "table_name": table_name})
+ 
+ 
+-        return [
+-            {
+-                "column_name": row[0],
+-                "data_type": row[1],
+-                "nullable": row[2],
+-                "key_type": row[3],
+-                "default_value": row[4],
+-            }
+-            for row in result
+-        ]
++        return [_column_metadata(row) for row in result]
+ 
+     def get_columns_batch(self, table_names: list[str]) -> dict[str, list[dict[str, Any]]]:
+         """Read the selected configured-schema columns in bounded batches."""
+@@ -529,9 +551,9 @@
+                       **{f"table_{index}": name for index, name in enumerate(selected)}}
+             placeholders = ", ".join(":" + name for name in params if name != "schema_name")
+             result = self._execute_metadata(
+-                "SELECT TABLE_NAME, COLUMN_NAME, DATA_TYPE, IS_NULLABLE, COLUMN_KEY, COLUMN_DEFAULT "
+-                "FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = :schema_name "
+-                f"AND TABLE_NAME IN ({placeholders}) ORDER BY TABLE_NAME, ORDINAL_POSITION",
++                "SELECT c.TABLE_NAME, c.COLUMN_NAME, c.DATA_TYPE, c.IS_NULLABLE, c.COLUMN_KEY, c.COLUMN_DEFAULT, pk.ORDINAL_POSITION "
++                f"FROM INFORMATION_SCHEMA.COLUMNS AS c {_PRIMARY_KEY_JOIN} WHERE c.TABLE_SCHEMA = :schema_name "
++                f"AND c.TABLE_NAME IN ({placeholders}) ORDER BY c.TABLE_NAME, c.ORDINAL_POSITION",
+                 "reading table columns", params=params,
+             )
+             for row in result:
+@@ -540,10 +562,7 @@
+                 # projected; never fold a different returned object's identity.
+                 if row[0] not in selected:
+                     continue
+-                columns[row[0]].append({
+-                    "column_name": row[1], "data_type": row[2],
+-                    "nullable": row[3], "key_type": row[4], "default_value": row[5],
+-                })
++                columns[row[0]].append(_column_metadata(row[1:]))
+         return columns
+ 
+     def get_indexes(self, table_name: str) -> list[dict[str, Any]]:
+--- before/core/schema.py
++++ current/core/schema.py
+@@ -491,8 +491,10 @@
+                     ],
+                     "primary_key": [
+                         column["column_name"]
+-                        for column in columns_data
+-                        if column["key_type"] == "PRI"
++                        for column in sorted(
++                            (c for c in columns_data if "primary_key_position" in c),
++                            key=lambda c: c["primary_key_position"],
++                        )
+                     ],
+                 }
+                 generated = {column["column_name"]: column["generation_type"]
+@@ -536,6 +538,8 @@
+                         "nullable": column["nullable"],
+                         "key": column["key_type"],
+                         "default": column["default_value"],
++                        **({"primary_key_position": column["primary_key_position"]}
++                           if "primary_key_position" in column else {}),
+                         **({"generation_type": column["generation_type"]} if "generation_type" in column else {}),
+                     }
+                     for column in columns_data

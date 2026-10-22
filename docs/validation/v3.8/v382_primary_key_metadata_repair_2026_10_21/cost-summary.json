@@ -1,0 +1,126 @@
+{
+  "sqlite": {
+    "columns_one": {
+      "A1_ms": 0.11740899935830384,
+      "B_ms": 0.1728964980429737,
+      "A2_ms": 0.12798199895769358,
+      "reference_average_median_ms": 0.12269549915799871,
+      "delta_ms": 0.05020099888497498,
+      "delta_pct": 40.91511035814739,
+      "baseline_payload_chars": 193,
+      "current_payload_chars": 243
+    },
+    "columns_batch_one": {
+      "A1_ms": 0.11214999904041179,
+      "B_ms": 0.12183850049041212,
+      "A2_ms": 0.12909850011055823,
+      "reference_average_median_ms": 0.12062424957548501,
+      "delta_ms": 0.0012142509149271064,
+      "delta_pct": 1.0066391452800305,
+      "baseline_payload_chars": 204,
+      "current_payload_chars": 254
+    },
+    "columns_batch_13": {
+      "A1_ms": 1.7257819999940693,
+      "B_ms": 1.7146565005532466,
+      "A2_ms": 1.7458499987696996,
+      "reference_average_median_ms": 1.7358159993818845,
+      "delta_ms": -0.02115949882863788,
+      "delta_pct": -1.2189943424978589,
+      "baseline_payload_chars": 2670,
+      "current_payload_chars": 3195
+    },
+    "columns_batch_64": {
+      "A1_ms": 7.888255000580102,
+      "B_ms": 7.992827500856947,
+      "A2_ms": 8.365006000531139,
+      "reference_average_median_ms": 8.12663050055562,
+      "delta_ms": -0.13380299969867337,
+      "delta_pct": -1.646475740339437,
+      "baseline_payload_chars": 13134,
+      "current_payload_chars": 16109
+    },
+    "schema_compact_64": {
+      "A1_ms": 103.37008600072295,
+      "B_ms": 106.64584250116604,
+      "A2_ms": 120.79675999848405,
+      "reference_average_median_ms": 112.0834229996035,
+      "delta_ms": -5.437580498437455,
+      "delta_pct": -4.851369054330801,
+      "baseline_payload_chars": 3728,
+      "current_payload_chars": 3826
+    },
+    "schema_full_64": {
+      "A1_ms": 103.74942099952023,
+      "B_ms": 108.14482599926123,
+      "A2_ms": 116.03366999952414,
+      "reference_average_median_ms": 109.89154549952218,
+      "delta_ms": -1.7467195002609515,
+      "delta_pct": -1.5894939800155439,
+      "baseline_payload_chars": 12292,
+      "current_payload_chars": 15267
+    }
+  },
+  "mysql": {
+    "columns_one": {
+      "A1_ms": 13.160078500732197,
+      "B_ms": 14.43444949836703,
+      "A2_ms": 15.937968000798719,
+      "reference_average_median_ms": 14.549023250765458,
+      "delta_ms": -0.11457375239842804,
+      "delta_pct": -0.78750133547556,
+      "baseline_payload_chars": 185,
+      "current_payload_chars": 235
+    },
+    "columns_batch_one": {
+      "A1_ms": 12.513396497524809,
+      "B_ms": 13.510497001334443,
+      "A2_ms": 12.994107501071994,
+      "reference_average_median_ms": 12.753751999298402,
+      "delta_ms": 0.7567450020360411,
+      "delta_pct": 5.933508837851553,
+      "baseline_payload_chars": 196,
+      "current_payload_chars": 246
+    },
+    "columns_batch_13": {
+      "A1_ms": 16.12705900151923,
+      "B_ms": 16.10799049922207,
+      "A2_ms": 17.143187000328908,
+      "reference_average_median_ms": 16.635123000924068,
+      "delta_ms": -0.527132501701999,
+      "delta_pct": -3.1687923297754828,
+      "baseline_payload_chars": 2571,
+      "current_payload_chars": 3096
+    },
+    "columns_batch_64": {
+      "A1_ms": 21.668066499842098,
+      "B_ms": 25.233375998141128,
+      "A2_ms": 21.81835450028302,
+      "reference_average_median_ms": 21.74321050006256,
+      "delta_ms": 3.490165498078568,
+      "delta_pct": 16.05174865077319,
+      "baseline_payload_chars": 12630,
+      "current_payload_chars": 15505
+    },
+    "schema_compact_64": {
+      "A1_ms": 43.482566501552355,
+      "B_ms": 43.33144250085752,
+      "A2_ms": 37.83126450070995,
+      "reference_average_median_ms": 40.65691550113115,
+      "delta_ms": 2.6745269997263676,
+      "delta_pct": 6.578283095902737,
+      "baseline_payload_chars": 3668,
+      "current_payload_chars": 3838
+    },
+    "schema_full_64": {
+      "A1_ms": 41.94637349974073,
+      "B_ms": 43.08448699885048,
+      "A2_ms": 39.46075350177125,
+      "reference_average_median_ms": 40.70356350075599,
+      "delta_ms": 2.3809234980944893,
+      "delta_pct": 5.8494227367838825,
+      "baseline_payload_chars": 11786,
+      "current_payload_chars": 14661
+    }
+  }
+}

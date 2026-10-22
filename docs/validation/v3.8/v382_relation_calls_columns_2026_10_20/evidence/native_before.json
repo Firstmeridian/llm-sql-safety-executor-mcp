@@ -1,0 +1,188 @@
+{
+  "scope": "pre-restart resident Host; not final source acceptance",
+  "checks": [
+    {
+      "tool": "query",
+      "arguments": {
+        "connection_id": "sqlite_features_sqlite",
+        "sql": "SELECT 1 AS n"
+      },
+      "result": {
+        "success": true,
+        "data": [
+          {
+            "n": 1
+          }
+        ],
+        "row_count": 1,
+        "total_rows": 1,
+        "truncated": false,
+        "truncation_note": null,
+        "query": "SELECT 1 AS n",
+        "connection_id": "sqlite_features_sqlite",
+        "db_type": "sqlite"
+      }
+    },
+    {
+      "tool": "list_tables",
+      "arguments": {
+        "connection_id": "sqlite_features_sqlite"
+      },
+      "result": {
+        "success": true,
+        "database_name": "sqlite:sqlite_features_sqlite",
+        "db_type": "sqlite",
+        "connection_id": "sqlite_features_sqlite",
+        "returned_table_count": 6,
+        "total_tables": 6,
+        "tables": [
+          {
+            "table_name": "audit_log",
+            "row_count": 56
+          },
+          {
+            "table_name": "org_units",
+            "row_count": 28
+          },
+          {
+            "table_name": "page_revisions",
+            "row_count": 14
+          },
+          {
+            "table_name": "pages",
+            "row_count": 42
+          },
+          {
+            "table_name": "pages_fts",
+            "row_count": 42
+          },
+          {
+            "table_name": "people",
+            "row_count": 91
+          }
+        ],
+        "row_count_approximate": true,
+        "truncated": false,
+        "truncation_note": null,
+        "hint": "Row counts are estimates; null means an estimate is unavailable, not that the table is empty. For broad columns, call get_full_schema(detail_level='compact') directly; for one selected table's full adapter-visible column metadata, use describe_table(table_name=...). This is not complete DDL. total_tables = visible after allowlist. DB type: sqlite"
+      }
+    },
+    {
+      "tool": "describe_table",
+      "arguments": {
+        "connection_id": "sqlite_features_sqlite",
+        "table_name": "pages"
+      },
+      "result": {
+        "success": true,
+        "table_name": "pages",
+        "db_type": "sqlite",
+        "connection_id": "sqlite_features_sqlite",
+        "row_count": 42,
+        "row_count_approximate": true,
+        "column_count": 9,
+        "columns": [
+          {
+            "column_name": "id",
+            "data_type": "INTEGER",
+            "nullable": "YES",
+            "key_type": "PRI",
+            "default_value": null
+          },
+          {
+            "column_name": "parent_id",
+            "data_type": "INTEGER",
+            "nullable": "YES",
+            "key_type": "",
+            "default_value": null
+          },
+          {
+            "column_name": "author_id",
+            "data_type": "INTEGER",
+            "nullable": "NO",
+            "key_type": "",
+            "default_value": null
+          },
+          {
+            "column_name": "title",
+            "data_type": "TEXT",
+            "nullable": "NO",
+            "key_type": "",
+            "default_value": null
+          },
+          {
+            "column_name": "body",
+            "data_type": "TEXT",
+            "nullable": "NO",
+            "key_type": "",
+            "default_value": null
+          },
+          {
+            "column_name": "meta",
+            "data_type": "TEXT",
+            "nullable": "NO",
+            "key_type": "",
+            "default_value": "'{}'"
+          },
+          {
+            "column_name": "created_at",
+            "data_type": "TEXT",
+            "nullable": "NO",
+            "key_type": "",
+            "default_value": null
+          },
+          {
+            "column_name": "updated_at",
+            "data_type": "TEXT",
+            "nullable": "NO",
+            "key_type": "",
+            "default_value": null
+          },
+          {
+            "column_name": "version",
+            "data_type": "INTEGER",
+            "nullable": "NO",
+            "key_type": "",
+            "default_value": "1"
+          }
+        ],
+        "is_large": false,
+        "indexes": [
+          {
+            "name": null,
+            "primary": true,
+            "unique": true,
+            "columns": [
+              "id"
+            ],
+            "key_parts": [
+              {
+                "column": "id",
+                "sort_order": null,
+                "collation": null
+              }
+            ],
+            "partial": false
+          },
+          {
+            "name": "idx_pages_published",
+            "primary": false,
+            "unique": false,
+            "columns": [
+              "updated_at"
+            ],
+            "key_parts": [
+              {
+                "column": "updated_at",
+                "sort_order": "asc",
+                "collation": "BINARY"
+              }
+            ],
+            "partial": true
+          }
+        ],
+        "indexes_status": "complete"
+      }
+    }
+  ]
+}

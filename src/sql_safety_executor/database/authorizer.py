@@ -11,6 +11,7 @@ from .identifiers import ascii_identifier_lower as fold
 from .models import ConnectionPolicy
 from .relations import RelationReference
 from .semantics import DialectContext
+from .sqlite_virtual import fts5_definition
 
 PlanRead = tuple[str | None, str | None, str | None]  # table (None: source only), database, source
 
@@ -31,6 +32,12 @@ class SQLiteReadGuard:
     plan_count_sources: set[str] = field(default_factory=set)
     prepared_sources: set[str] = field(default_factory=set)
     trigger_cte_reads: set[tuple[str, str]] = field(default_factory=set)
+    virtual_edges: set[tuple[str | None, RelationReference]] = field(default_factory=set)
+    catalog_reads: set[RelationReference] = field(default_factory=set)
+    module_roots: set[RelationReference] = field(default_factory=set)
+    module_reads: set[RelationReference] = field(default_factory=set)
+    module_columns: dict[RelationReference, set[str]] = field(default_factory=dict)
+    module_pragmas: set[tuple[str, str]] = field(default_factory=set)
 
     def deny(self, code: str) -> int:
         if self.denial is None:
@@ -48,8 +55,7 @@ class SQLiteReadGuard:
     def authorize(self, action: int, first: str | None, second: str | None,
                   database: str | None, source: str | None) -> int:
         from sql_safety_executor.core.read_rules import (
-            _ACCOUNT_FUNCTIONS, _LOCK_FUNCTIONS, _EXPENSIVE_FUNCTIONS,
-            _SQLITE_PRAGMA_OBJECTS,
+            restricted_function_code, _SQLITE_PRAGMA_OBJECTS,
         )
         if action == sqlite3.SQLITE_READ:
             if first is None:
@@ -103,21 +109,22 @@ class SQLiteReadGuard:
                 # already in the authorized view dependency graph.
                 allowed = any(target == reference.key(case_sensitive=False)
                               for _, target in self.view_edges)
+                allowed = allowed or any(target == reference.key(case_sensitive=False)
+                                         for _, target in self.virtual_edges)
+            allowed = allowed or (fold(source) if source is not None else None,
+                                  reference.key(case_sensitive=False)) in self.virtual_edges
+            allowed = allowed or reference.key(case_sensitive=False) in self.catalog_reads
+            allowed = allowed or reference.key(case_sensitive=False) in self.module_reads
+            allowed = allowed or fold(second or "") in self.module_columns.get(reference.key(case_sensitive=False), set())
             if not allowed and source is not None and self.request_plan_read(first, database, source):
                 # An authorized view first reached from a trigger may need its
                 # dependency edges. Abort preparation; never inspect SQL here.
                 return self.deny("view_scope_unresolved")
             return sqlite3.SQLITE_OK if allowed else self.deny("table_access_denied")
         if action == sqlite3.SQLITE_FUNCTION:
-            name = fold(second or "")
-            if name == "load_file":
-                return self.deny("file_operation_denied")
-            if name in _ACCOUNT_FUNCTIONS or name in _SQLITE_PRAGMA_OBJECTS:
-                return self.deny("server_state_denied")
-            if name in _LOCK_FUNCTIONS:
-                return self.deny("lock_function_denied")
-            if name in _EXPENSIVE_FUNCTIONS:
-                return self.deny("expensive_function_denied")
+            code = restricted_function_code({fold(second or "")})
+            if code is not None:
+                return self.deny(code)
             return sqlite3.SQLITE_OK
         if action in {sqlite3.SQLITE_SELECT, sqlite3.SQLITE_RECURSIVE}:
             if (self.explain_dml and source is not None and fold(source) not in self.prepared_sources
@@ -125,6 +132,12 @@ class SQLiteReadGuard:
                 return self.deny("view_scope_unresolved")
             return sqlite3.SQLITE_OK
         if action == sqlite3.SQLITE_PRAGMA:
+            # Callback parameters do not identify module provenance. These are
+            # explicit operation-scoped abilities of verified FTS roots, after
+            # all direct query/view references have been checked separately.
+            if (second is None and database is not None
+                    and (fold(first or ""), fold(database)) in self.module_pragmas):
+                return sqlite3.SQLITE_OK
             return self.deny("server_state_denied")
         if self.explain_dml and action in {sqlite3.SQLITE_INSERT, sqlite3.SQLITE_UPDATE, sqlite3.SQLITE_DELETE}:
             # These are compilation events for a verified, non-executing DML
@@ -150,7 +163,7 @@ def build_read_guard(connection: sqlite3.Connection, policy: ConnectionPolicy,
     Views cannot turn their sources into directly authorized base tables.
     """
     from sql_safety_executor.core.analysis import analyze_sql, analyze_sqlite_trigger
-    from sql_safety_executor.core.read_rules import _SQLITE_PRAGMA_OBJECTS
+    from sql_safety_executor.core.read_rules import restricted_function_code, _SQLITE_PRAGMA_OBJECTS
 
     guard = SQLiteReadGuard(policy, context.default_schema or "main", frozenset(fold(name.name) for name in analysis.names if name.role == "cte"))
     guard.explain_dml = (
@@ -161,7 +174,7 @@ def build_read_guard(connection: sqlite3.Connection, policy: ConnectionPolicy,
     guard.prepared_plan_reads = plan_reads
     cte_counts = Counter(fold(cte.name) for cte in analysis.ctes)
     candidate_ctes = {name for name, count in cte_counts.items() if count == 1}
-    if not analysis.relations and not candidate_ctes:
+    if not analysis.relations and not candidate_ctes and not analysis.virtual_relations:
         return guard
     schemas = [row[1] for row in connection.execute("PRAGMA database_list")]
     schemas.sort(key=lambda name: 0 if name == "temp" else 1 if name == "main" else 2)
@@ -181,13 +194,73 @@ def build_read_guard(connection: sqlite3.Connection, policy: ConnectionPolicy,
             f"WHERE name = ? COLLATE NOCASE AND type IN {kinds} LIMIT 2", (name,)
         ))
 
+    def catalog_pragma(schema: str, operation: str, name: str, limit: int = 1):
+        """Fixed catalog work on the owned connection, outside callbacks."""
+        if operation not in {"table_list", "table_xinfo", "index_list"}:
+            raise ValueError("Unsupported guard catalog PRAGMA")
+        if deadline is not None and time.monotonic() >= deadline:
+            raise DatabaseQueryError("query_timeout")
+        if guard.catalog_lookups >= catalog_limit:
+            raise DatabaseQueryError("view_scope_unresolved")
+        guard.catalog_lookups += 1
+        quoted_schema = '"' + schema.replace('"', '""') + '"'
+        literal = "'" + name.replace("'", "''") + "'"
+        cursor = connection.execute(f"PRAGMA {quoted_schema}.{operation}({literal})")
+        try:
+            rows = cursor.fetchmany(limit + 1)
+        finally:
+            cursor.close()
+        if deadline is not None and time.monotonic() >= deadline:
+            raise DatabaseQueryError("query_timeout")
+        if len(rows) > limit:
+            raise DatabaseQueryError("view_scope_unresolved")
+        return rows
+
+    def content_rowid_column(content: RelationReference, rowid: str) -> str:
+        """Map implicit rowid spellings to SQLite's compile-time column name.
+
+        A declared same-name column wins over an implicit alias. INTEGER PK
+        aliases have no separate PK index; the historical inline DESC form
+        does. WITHOUT ROWID and virtual/view objects gain no implicit alias.
+        """
+        if fold(rowid) not in {"rowid", "_rowid_", "oid"} or catalog[content][0] != "table":
+            return rowid
+        schema = content.schema or "main"
+        tables = catalog_pragma(schema, "table_list", content.name)
+        if not tables:
+            raise DatabaseQueryError("view_scope_unresolved")
+        actual_schema, actual_name, kind, _ncol, without_rowid, *_ = tables[0]
+        if RelationReference(actual_name, actual_schema).key(case_sensitive=False) != content:
+            raise DatabaseQueryError("view_scope_unresolved")
+        if kind != "table" or without_rowid:
+            return rowid
+        columns = catalog_pragma(schema, "table_xinfo", content.name, 65536)
+        if any(fold(column[1]) == fold(rowid) for column in columns):
+            return rowid
+        primary = [column for column in columns if column[5] > 0]
+        if len(primary) == 1 and fold(primary[0][2]) == "integer":
+            indexes = catalog_pragma(schema, "index_list", content.name, 65536)
+            if not any(index[3] == "pk" for index in indexes):
+                return primary[0][1]
+        return "rowid"
+
     def lookup(key: RelationReference):
+        if key.name in {"sqlite_master", "sqlite_schema"}:
+            # These are real catalog aliases but do not list themselves in the
+            # catalog. Preserve the requested schema, including empty-column
+            # COUNT callbacks. Never infer arbitrary sqlite_* names as catalogs.
+            catalog[key] = ("table", None)
+            return catalog[key]
+        if key.name in {"sqlite_temp_master", "sqlite_temp_schema"} and key.schema == "temp":
+            catalog[key] = ("table", None)
+            return catalog[key]
         if deadline is not None and time.monotonic() > deadline:
             raise DatabaseQueryError("query_timeout")
         if key not in observed:
             observed.add(key)
             schema = key.schema
-            assert schema is not None
+            if schema is None:
+                raise DatabaseQueryError("view_scope_unresolved")
             rows = catalog_query(schema, key.name, "('table','view')")
             if len(rows) > 1:
                 raise DatabaseQueryError("view_scope_unresolved")
@@ -200,12 +273,66 @@ def build_read_guard(connection: sqlite3.Connection, policy: ConnectionPolicy,
         search = [reference.schema] if reference.schema is not None else (
             [owner] if owner is not None and owner != "temp" else schemas
         )
+        if reference.schema is None and fold(reference.name) in {"sqlite_master", "sqlite_schema"}:
+            search = [owner or "main"]
+        elif reference.schema is None and fold(reference.name) in {"sqlite_temp_master", "sqlite_temp_schema"}:
+            search = ["temp"]
         for schema in search:
             key = RelationReference(reference.name, schema).key(case_sensitive=False)
             if lookup(key) is not None:
                 guard.resolved_bindings.setdefault(key.name, set()).add(key)
                 return key
         return None
+
+    def catalog_aliases(target: RelationReference):
+        if target.name not in {"sqlite_master", "sqlite_schema", "sqlite_temp_master", "sqlite_temp_schema"}:
+            return set()
+        names = {"sqlite_master", "sqlite_schema"} if target.schema != "temp" else {
+            "sqlite_master", "sqlite_schema", "sqlite_temp_master", "sqlite_temp_schema"}
+        aliases = {RelationReference(name, target.schema) for name in names}
+        for alias in aliases:
+            guard.resolved_bindings.setdefault(alias.name, set()).add(alias)
+        return aliases
+
+    def record_virtuals(result, owner: RelationReference | None = None):
+        for use in result.virtual_relations:
+            if use.kind == "sqlite_named":
+                target = resolve(RelationReference(use.name, use.schema), owner.schema if owner is not None else None)
+                if target is None:
+                    raise DatabaseQueryError("virtual_relation_unsupported")
+                visit(target)
+                if target not in guard.module_roots:
+                    raise DatabaseQueryError("virtual_relation_unsupported")
+                continue
+            # SQLite's eponymous JSON modules emit main READs, even for a
+            # qualified call or a temp/attached view. A syntactic qualifier is
+            # not the module's physical binding (verified with native SQLite).
+            schema = fold(guard.default_schema)
+            if not any(fold(name) == schema for name in schemas) or use.name not in {"json_each", "json_tree"}:
+                raise DatabaseQueryError("view_scope_unresolved")
+            target = RelationReference(use.name, schema).key(case_sensitive=False)
+            if use.schema is not None and not any(fold(name) == fold(use.schema) for name in schemas):
+                raise DatabaseQueryError("relation_scope_unresolved")
+            stored = resolve(RelationReference(use.name, use.schema), owner.schema if owner is not None else None)
+            if stored is not None:
+                # Resolve the actual object first. Only a verified, authorized
+                # FTS5 root may use this spelling as a named table call; it
+                # never inherits the eponymous JSON module's abilities.
+                if fts5_definition(catalog[stored][1]) is None:
+                    raise DatabaseQueryError("view_scope_unresolved")
+                if owner is None and not policy.allows_resolved_relation(stored, guard.default_schema):
+                    raise DatabaseQueryError("view_scope_unresolved")
+                if owner is not None:
+                    guard.view_edges.add((fold(use.source) if use.source is not None else owner.name, stored))
+                visit(stored)
+                continue
+            if use.schema is not None and fold(use.schema) != schema:
+                raise DatabaseQueryError("relation_scope_unresolved")
+            if lookup(target) is not None:
+                raise DatabaseQueryError("view_scope_unresolved")
+            source = fold(use.source) if use.source is not None else owner.name if owner is not None else None
+            guard.virtual_edges.add((source, target))
+            guard.resolved_bindings.setdefault(target.name, set()).add(target)
 
     visited: set[RelationReference] = set()
     source_schemas: dict[str, str | None] = {}
@@ -230,7 +357,38 @@ def build_read_guard(connection: sqlite3.Connection, policy: ConnectionPolicy,
         source_owners[key] = owner
 
     def visit(reference: RelationReference):
-        if reference in visited or catalog[reference][0] != "view":
+        if reference in visited or reference in guard.module_roots:
+            return
+        if catalog[reference][0] != "view":
+            contract = fts5_definition(catalog[reference][1])
+            if contract is None:
+                return
+            if len(guard.module_roots) >= 128:
+                raise DatabaseQueryError("view_scope_unresolved")
+            guard.module_roots.add(reference)
+            guard.module_pragmas.add(("data_version", reference.schema or "main"))
+            # Verify actual shadow identities of this known module, not a
+            # blanket prefix grant. This is fixed catalog work outside callbacks.
+            shadow_names = tuple(reference.name + suffix for suffix in ("_data", "_idx", "_content", "_docsize", "_config"))
+            for name in shadow_names:
+                # Statement PRAGMAs cannot be shadowed by pragma_* business
+                # objects. Bind the actual module schema, not lookup order.
+                rows = catalog_pragma(reference.schema or "main", "table_list", name)
+                for actual_schema, actual_name, kind, *_ in rows:
+                    target = RelationReference(actual_name, actual_schema).key(case_sensitive=False)
+                    expected = RelationReference(name, reference.schema).key(case_sensitive=False)
+                    if kind != "shadow" or target != expected:
+                        raise DatabaseQueryError("virtual_relation_unsupported")
+                    guard.module_reads.add(target)
+                    guard.resolved_bindings.setdefault(target.name, set()).add(target)
+            if contract.content is not None:
+                content = resolve(RelationReference(contract.content, reference.schema))
+                if content is None:
+                    raise DatabaseQueryError("unknown_table")
+                guard.module_columns.setdefault(content, set()).update(
+                    {"", fold(content_rowid_column(content, contract.content_rowid)),
+                     *(fold(column) for column in contract.columns)})
+                visit(content)
             return
         visited.add(reference)
         if len(visited) > 128:
@@ -251,6 +409,14 @@ def build_read_guard(connection: sqlite3.Connection, policy: ConnectionPolicy,
         result = analyze_sql(definition, context, view_definition=True)
         if not result.complete or result.has_nested_write:
             raise DatabaseQueryError("view_scope_unresolved")
+        # FTS can retain an internal content statement prepared by trusted
+        # execution. Compilation callbacks alone do not recheck its functions
+        # on every evaluation. Check current, complete view facts before any
+        # module work; do not apply the raw-query shape policy to stored views.
+        code = restricted_function_code(result.functions)
+        if code is not None:
+            raise DatabaseQueryError(code)
+        record_virtuals(result, reference)
         labels = [fold(cte.name) for cte in result.ctes]
         if len(labels) != len(set(labels)):
             raise DatabaseQueryError("view_scope_unresolved")
@@ -264,6 +430,8 @@ def build_read_guard(connection: sqlite3.Connection, policy: ConnectionPolicy,
             if target is None:
                 raise DatabaseQueryError("unknown_table")
             guard.view_edges.add((fold(use.source) if use.source is not None else reference.name, target))
+            guard.view_edges.update((fold(use.source) if use.source is not None else reference.name, alias)
+                                    for alias in catalog_aliases(target))
             if len(guard.view_edges) > 1024:
                 raise DatabaseQueryError("view_scope_unresolved")
             visit(target)
@@ -273,7 +441,9 @@ def build_read_guard(connection: sqlite3.Connection, policy: ConnectionPolicy,
         if target is not None:
             if not policy.allows_resolved_relation(target, guard.default_schema):
                 raise DatabaseQueryError("table_access_denied")
+            guard.catalog_reads.update(catalog_aliases(target))
             visit(target)
+    record_virtuals(analysis)
     if guard.explain_dml:
         # Scope IDs are local to one analyzed trigger fragment. Keep the owner
         # and fragment in declaration identity; callback labels alone are not
@@ -305,6 +475,9 @@ def build_read_guard(connection: sqlite3.Connection, policy: ConnectionPolicy,
                         if results is None:
                             raise DatabaseQueryError("view_scope_unresolved")
                         for fragment, result in enumerate(results):
+                            code = restricted_function_code(result.functions)
+                            if code is not None:
+                                raise DatabaseQueryError(code)
                             for cte in result.ctes:
                                 label = fold(cte.name)
                                 trigger_scopes.setdefault((owner, fragment, cte.scope), set()).add(label)
@@ -319,6 +492,7 @@ def build_read_guard(connection: sqlite3.Connection, policy: ConnectionPolicy,
                                 if not policy.allows_resolved_relation(target, guard.default_schema):
                                     raise DatabaseQueryError("table_access_denied")
                                 visit(target)
+                            record_virtuals(result, owner)
                         # SQLite can report a view's extra empty-column READ
                         # under its trigger's source. Accept view edges only
                         # after every explicit trigger-body/WHEN dependency was
@@ -354,6 +528,13 @@ def build_read_guard(connection: sqlite3.Connection, policy: ConnectionPolicy,
             # not prove SQLite read it; a verified local CTE is handled above.
             candidates = {key for schema in schemas
                           if lookup(key := RelationReference(name, schema).key(case_sensitive=False)) is not None}
+            virtual_candidates = {target for label, target in guard.virtual_edges
+                                  if label == source and target.name == name}
+            if virtual_candidates:
+                if candidates or len(virtual_candidates) != 1:
+                    raise DatabaseQueryError("view_scope_unresolved")
+                guard.resolved_bindings[name] = virtual_candidates
+                continue
             if len(candidates) != 1:
                 raise DatabaseQueryError("view_scope_unresolved")
             guard.resolved_bindings[name] = candidates

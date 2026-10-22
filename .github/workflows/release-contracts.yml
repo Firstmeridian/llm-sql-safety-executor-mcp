@@ -1,0 +1,81 @@
+name: release-contracts
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - pyproject.toml
+      - uv.lock
+      - .python-version
+      - .github/workflows/ci.yml
+      - .github/workflows/release-contracts.yml
+      - scripts/validation/**
+      - tests/test_contract_sentinels.py
+      - tests/test_release_gate.py
+  pull_request:
+    paths:
+      - pyproject.toml
+      - uv.lock
+      - .python-version
+      - .github/workflows/ci.yml
+      - .github/workflows/release-contracts.yml
+      - scripts/validation/**
+      - tests/test_contract_sentinels.py
+      - tests/test_release_gate.py
+permissions:
+  contents: read
+jobs:
+  release-contracts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      mysql:
+        # Record the actual server identity; a rolling tag is not evidence reuse.
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: disposable-contract-fixture
+          MYSQL_ROOT_HOST: '%'
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 --silent"
+          --health-interval=10s --health-timeout=5s --health-retries=12
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+        with:
+          version: '0.12.19'
+          python-version: '3.12'
+          enable-cache: true
+      - name: Build and normally install frozen release wheel
+        shell: bash
+        run: |
+          uv sync --frozen --group dev
+          uv build
+          uv export --frozen --group dev --no-emit-project --format requirements-txt --output-file /tmp/contracts-requirements.txt > /dev/null
+          uv venv /tmp/contracts-wheel
+          uv pip sync --python /tmp/contracts-wheel/bin/python /tmp/contracts-requirements.txt
+          uv pip install --python /tmp/contracts-wheel/bin/python --no-deps dist/*.whl
+      - name: Explicit installed-wheel release contracts
+        env:
+          RELEASE_MYSQL_HOST: 127.0.0.1
+          RELEASE_MYSQL_USER: root
+          RELEASE_MYSQL_PASSWORD: disposable-contract-fixture
+        run: /tmp/contracts-wheel/bin/python scripts/validation/release_gate.py --profile release --mysql-env --output /tmp/contracts-release
+      - name: Publish status even on failure
+        if: always()
+        shell: bash
+        run: |
+          if test -f /tmp/contracts-release/summary.md; then
+            cat /tmp/contracts-release/summary.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo 'Release UNVERIFIED: setup failed before a report was produced.' >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Retain release evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: contracts-release
+          path: /tmp/contracts-release/
+          if-no-files-found: warn

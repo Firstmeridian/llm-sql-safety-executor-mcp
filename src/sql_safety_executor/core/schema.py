@@ -25,6 +25,8 @@ from sql_safety_executor.core.results import (
     _normalize_schema_detail_level,
     _require_boolean,
     _schema_metadata_signature,
+    _prepare_read_result,
+    ReadResultError,
     _serialize_result,
     _tool_result,
 )
@@ -48,7 +50,7 @@ async def list_tables(
 
     # Use adapter method for cross-database compatibility
     try:
-        tables = adapter.get_tables()
+        tables = adapter.get_table_directory()
     except MetadataQueryError as exc:
         return await _metadata_failure_result(
             runtime,
@@ -107,6 +109,14 @@ async def list_tables(
         truncated = True
         await ctx.warning(
             f"Overview truncated: showing {runtime.config.server.limits.overview_tables}/{total_tables} tables"
+        )
+
+    try:
+        tables = adapter.enrich_row_estimates(tables)
+    except MetadataQueryError as exc:
+        return await _metadata_failure_result(
+            runtime, ctx=ctx, tool_name="list_tables", start_time=start_time,
+            connection=connection, error=exc,
         )
 
     await ctx.info(f"Found {len(tables)} tables in {database_name}")
@@ -332,9 +342,9 @@ async def get_full_schema(
 
     adapter = connection.adapter
 
-    # Step 1: Get all tables with row counts using adapter
+    # Step 1: Discover identities without evaluating user data.
     try:
-        tables_data = adapter.get_tables()
+        tables_data = adapter.get_table_directory()
     except MetadataQueryError as exc:
         return await _metadata_failure_result(
             runtime,
@@ -411,8 +421,17 @@ async def get_full_schema(
             f"Schema truncated: showing {runtime.config.server.limits.schema_tables}/{total_tables} tables"
         )
 
-    # Step 3: Read each table once, then project the same metadata for either mode.
-    table_metadata = []
+    try:
+        tables_data = adapter.enrich_row_estimates(tables_data)
+    except MetadataQueryError as exc:
+        return await _metadata_failure_result(
+            runtime, ctx=ctx, tool_name="get_full_schema", start_time=start_time,
+            connection=connection, error=exc,
+        )
+
+    # Step 3: Validate the complete returned projection before any column read,
+    # then use the backend's bounded column operation. Both detail modes share
+    # exactly the same adapter-visible metadata and original column order.
     for table in tables_data:
         table_name = table["table_name"]
         if not connection.adapter.valid_metadata_identifier(table_name):
@@ -428,17 +447,17 @@ async def get_full_schema(
                 ),
                 error_code="unsupported_metadata_identifier",
             )
-        try:
-            columns_data = adapter.get_columns(table_name)
-        except MetadataQueryError as exc:
-            return await _metadata_failure_result(
-                runtime,
-                ctx=ctx,
-                tool_name="get_full_schema",
-                start_time=start_time,
-                connection=connection,
-                error=exc,
-            )
+    try:
+        columns_by_table = adapter.get_columns_batch([table["table_name"] for table in tables_data])
+    except MetadataQueryError as exc:
+        return await _metadata_failure_result(
+            runtime, ctx=ctx, tool_name="get_full_schema", start_time=start_time,
+            connection=connection, error=exc,
+        )
+    table_metadata = []
+    for table in tables_data:
+        table_name = table["table_name"]
+        columns_data = columns_by_table.get(table_name, [])
         if not columns_data:
             return await _metadata_failure_result(
                 runtime,
@@ -472,10 +491,16 @@ async def get_full_schema(
                     ],
                     "primary_key": [
                         column["column_name"]
-                        for column in columns_data
-                        if column["key_type"] == "PRI"
+                        for column in sorted(
+                            (c for c in columns_data if "primary_key_position" in c),
+                            key=lambda c: c["primary_key_position"],
+                        )
                     ],
                 }
+                generated = {column["column_name"]: column["generation_type"]
+                             for column in columns_data if "generation_type" in column}
+                if generated:
+                    group["generated_columns"] = generated
                 groups_by_signature[signature] = group
             group["tables"].append(
                 {
@@ -513,6 +538,9 @@ async def get_full_schema(
                         "nullable": column["nullable"],
                         "key": column["key_type"],
                         "default": column["default_value"],
+                        **({"primary_key_position": column["primary_key_position"]}
+                           if "primary_key_position" in column else {}),
+                        **({"generation_type": column["generation_type"]} if "generation_type" in column else {}),
                     }
                     for column in columns_data
                 ],
@@ -829,7 +857,8 @@ async def sample(
     sql = f"SELECT * FROM {adapter.render_metadata_relation(relation)} LIMIT {limit}"
     try:
         result = adapter.execute_read(sql, policy=connection.policy)
-    except DatabaseQueryError as error:
+        prepared = _prepare_read_result(runtime, result)
+    except (DatabaseQueryError, ReadResultError) as error:
         await ctx.error(f"Failed to sample table: {error.error_code}")
         return _tool_result(
             runtime,
@@ -844,15 +873,15 @@ async def sample(
             success=False,
         )
 
-    data = _serialize_result(result)
+    if prepared["truncated"]:
+        await ctx.warning(prepared["truncation_note"])
 
     return _tool_result(
         runtime,
         {
             "success": True,
             "table_name": table_name,
-            "data": data,
-            "row_count": len(data),
+            **prepared,
             "query": sql,
             "connection_id": connection.connection_id,
             "db_type": connection.db_type,
@@ -861,5 +890,7 @@ async def sample(
         start_time=start_time,
         connection=connection,
         success=True,
-        row_count=len(data),
+        row_count=prepared["row_count"],
+        total_rows=prepared["total_rows"],
+        truncated=prepared["truncated"],
     )

@@ -1,0 +1,15 @@
+{
+  "production_changes": 0,
+  "new_confirmed_independent_roots": 0,
+  "documentation_followup": "Historical SQLite adapter design still showed TEXT fallback; preserved historical examples with supersession note.",
+  "static_checks": [
+    "No residual falsey-to-TEXT fallback in production SQLite/MySQL column projections.",
+    "Full/compact reuse raw type; defaults and generated/hidden column metadata preserved.",
+    "Compact signatures include complete adapter-visible column metadata, not a claim about full DDL or affinity."
+  ],
+  "current_failures": [],
+  "new_full_suite_runs": 0,
+  "new_builds": 0,
+  "new_model_trials": 0,
+  "native_vs_fixture_scope": "9 native existing-alias checks;144 application calls/source plus144/wheel in disposable fixtures; no special-fixture native or whole-protocol claim."
+}

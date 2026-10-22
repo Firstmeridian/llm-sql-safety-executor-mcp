@@ -1,0 +1,26 @@
+{
+  "pytest": {
+    "passed": 3353,
+    "skipped": 4,
+    "warnings": 547,
+    "elapsed_seconds": 287.96,
+    "new_tests": 13
+  },
+  "targeted": {
+    "passed": 80,
+    "warnings": 25,
+    "elapsed_seconds": 15.35
+  },
+  "pyright": {
+    "errors": 0,
+    "warnings": 0
+  },
+  "prompt_contract": "passed",
+  "source_calls": 184,
+  "installed_calls": 184,
+  "source_and_installed_resources": 77,
+  "new_model_trials": 0,
+  "owner_restart": "pending",
+  "native_plan_checks": 9,
+  "git_diff_check": "passed"
+}

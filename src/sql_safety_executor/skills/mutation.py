@@ -36,10 +36,8 @@ import math
 import re
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Any, ClassVar, Literal, final
+from typing import Any, Callable, ClassVar, Literal, final
 
-import sqlparse
-from sqlalchemy import text
 from pydantic_core import to_json
 
 from sql_safety_executor.core.types import OperationError as ToolError
@@ -47,6 +45,11 @@ from sql_safety_executor.database.outcomes import (
     WriteExecutionError,
     WriteExecutionOutcome,
 )
+from sql_safety_executor.core.managed_sql import (
+    ManagedPlanParser, check_managed_sql, managed_plan_contexts,
+)
+from sql_safety_executor.database.semantics import DialectContext
+from sql_safety_executor.core.decisions import PolicyDecision
 
 logger = logging.getLogger(__name__)
 
@@ -72,7 +75,6 @@ def normalize_mutation_validation(result: Any) -> dict[str, Any]:
     return result
 
 
-_MANAGED_WRITE_TYPES = frozenset({"INSERT", "UPDATE", "DELETE"})
 _MANAGED_SOURCE_TYPES = frozenset({"params", "binding", "constant"})
 _MANAGED_NAME_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 _RESERVED_MANAGED_RESULT_FIELDS = frozenset(
@@ -163,24 +165,18 @@ def _validate_managed_value(
             raise TypeError("Managed mutation float constants must be finite")
 
 
-def validate_managed_mutation_plan(plan: ManagedMutationPlan) -> ManagedMutationPlan:
+def validate_managed_mutation_plan(
+    plan: ManagedMutationPlan,
+    *,
+    parser: ManagedPlanParser = "sqlglot",
+    context: DialectContext | None = None,
+    databases=None,
+) -> ManagedMutationPlan:
     """Fail closed on plans that are not one direct, fully bound DML statement."""
     if type(plan) is not ManagedMutationPlan:
         raise TypeError("managed_plan must be a ManagedMutationPlan")
     if not isinstance(plan.sql, str) or not plan.sql.strip():
         raise TypeError("Managed mutation SQL must be a non-empty string")
-    statements = [
-        statement
-        for statement in sqlparse.parse(plan.sql)
-        if str(statement).strip(" \t\r\n;")
-    ]
-    if (
-        len(statements) != 1
-        or statements[0].get_type().upper() not in _MANAGED_WRITE_TYPES
-    ):
-        raise TypeError(
-            "Managed mutation plans require one direct INSERT, UPDATE, or DELETE statement"
-        )
     if isinstance(plan.expected_rowcount, bool) or not isinstance(
         plan.expected_rowcount, int
     ):
@@ -201,11 +197,19 @@ def validate_managed_mutation_plan(plan: ManagedMutationPlan) -> ManagedMutation
     if len(parameter_targets) != len(set(parameter_targets)):
         raise TypeError("Managed mutation SQL parameter targets must be unique")
 
-    bind_targets = set(text(plan.sql).compile().params)
-    if bind_targets != set(parameter_targets):
-        raise TypeError(
-            "Managed mutation plan parameters must exactly match SQL named binds"
-        )
+    # A candidate must satisfy both syntax and the same bind identity that
+    # execution uses. A later candidate may interpret quoting differently;
+    # startup acceptance never substitutes for checking the actual target.
+    contexts = (context,) if context is not None else managed_plan_contexts(databases)
+    first_message = "Managed mutation plans have no supported database dialect"
+    for index, candidate in enumerate(contexts):
+        decision = check_managed_sql(plan.sql, candidate, parser, frozenset(parameter_targets))
+        if decision.allowed:
+            break
+        if index == 0:
+            first_message = decision.message or first_message
+    else:
+        raise TypeError(first_message)
 
     result_targets: list[str] = []
     for item in plan.result_fields:
@@ -693,6 +697,8 @@ def run_managed_mutation(
     client_id: str | None = None,
     connection_id: str | None = None,
     db_type: str | None = None,
+    parser: ManagedPlanParser = "sqlglot",
+    classifier: Callable[[str, DialectContext, ManagedPlanParser, frozenset[str]], PolicyDecision] | None = None,
 ) -> MutationExecutionResult:
     """Resolve and execute one cached managed statement without Skill callbacks."""
     try:
@@ -723,6 +729,28 @@ def run_managed_mutation(
             error_code="managed_plan_resolution_failed",
             audit_logged=audit_logged,
         ) from error
+
+    # Revalidate after token consumption, before the write. MySQL's existing
+    # per-physical-connection initializer enforces this same session contract
+    # on the connection subsequently used by execute_write, including reconnects.
+    try:
+        context = adapter.resolve_analysis_context()
+        # A runtime may reuse a pure classification result, but the actual
+        # target context is still resolved here, after consuming the token.
+        classify = classifier if classifier is not None else check_managed_sql
+        decision = classify(plan.sql, context, parser, frozenset(item.target for item in plan.parameters))
+        if not decision.allowed:
+            raise ValueError(decision.message)
+    except Exception:
+        message = "Managed mutation plan is not valid for the target SQL semantics; no write was attempted."
+        audit_logged = _log_execution_failure(
+            audit_logger=audit_logger, params=params, skill_name=skill_name,
+            mode=mode, client_id=client_id, connection_id=connection_id, db_type=db_type,
+            message=message, execution_outcome=WriteExecutionOutcome.NOT_EXECUTED.value,
+            error_code="managed_plan_validation_failed",
+        )
+        raise MutationExecutionError(message, execution_outcome=WriteExecutionOutcome.NOT_EXECUTED.value,
+            error_code="managed_plan_validation_failed", audit_logged=audit_logged) from None
 
     try:
         write_result = adapter.execute_write(

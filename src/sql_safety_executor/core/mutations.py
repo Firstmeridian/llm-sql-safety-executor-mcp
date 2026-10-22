@@ -46,6 +46,7 @@ from sql_safety_executor.skills.access import (
     _mutation_connection_policy_state,
     _related_available_skill_names,
     _resolve_skill_connection,
+    _managed_plan_policy_decision,
 )
 
 
@@ -152,7 +153,11 @@ async def execute_mutation_skill(
                 raise RuntimeError(
                     "Mutation framework did not instantiate the preview Skill."
                 )
-            validation = normalize_mutation_validation(mutation.validate(validated_params))
+            plan_decision = _managed_plan_policy_decision(runtime, meta, connection)
+            validation = (
+                normalize_mutation_validation(mutation.validate(validated_params))
+                if plan_decision.allowed else {"valid": False, "errors": [plan_decision.message]}
+            )
             if not validation.get("valid", False):
                 errors = validation.get("errors", ["Validation failed"])
                 await ctx.warning(f"Validation failed: {errors}")
@@ -451,6 +456,8 @@ async def execute_mutation_skill(
                     client_id=client_id,
                     connection_id=connection.connection_id,
                     db_type=connection.db_type,
+                    parser=runtime.config.skills.mutation.managed_plan_parser,
+                    classifier=runtime.classify_managed_plan,
                 )
             else:
                 # Invoke the framework method directly instead of using

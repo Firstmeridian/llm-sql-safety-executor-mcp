@@ -1,0 +1,8 @@
+{
+  "commit": "2c0a9e7",
+  "scope": "Source comparison only, not old-version Client replay",
+  "excerpts": {
+    "core/schema.py": "                        for column in columns_data\n                    \"primary_key\": [\n                        for column in columns_data\n                        if column[\"key_type\"] == \"PRI\"\n                        \"key\": column[\"key_type\"],\n                    for column in columns_data",
+    "database/sqlite.py": "                    \"key_type\": \"PRI\" if row[5] else \"\","
+  }
+}

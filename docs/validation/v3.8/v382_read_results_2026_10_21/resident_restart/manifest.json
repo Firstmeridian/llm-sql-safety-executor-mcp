@@ -1,0 +1,24 @@
+{
+  "date": "2026-10-21",
+  "checkpoint": "Post-owner-restart native acceptance: read results and conditional dependencies",
+  "scope": "16 frozen native query checks, 77 runtime resources, 3 private TOMLs, configured SQLite file, 45 earlier manifests/1329 file records; special Skill/sample cases retain source/package coverage",
+  "append_rule": "Preserve these bytes; append later work in an independent checkpoint. Parent pending evidence remains unchanged.",
+  "files": {
+    "README.md": {
+      "bytes": 2421,
+      "sha256": "9e4abcd1e29f2e32d9fc0c687651e0dc0846bae9875139dd4f89438c4127fd33"
+    },
+    "evidence/documentation_checks.json": {
+      "bytes": 504,
+      "sha256": "440479881736c8d5ff89c7a8ea841117184080f30da57cb9a79196e420fd9651"
+    },
+    "evidence/integrity.json": {
+      "bytes": 12290,
+      "sha256": "79a5f76e63b85d0178548ef52f5773e885bdd490488c903c2fc415541bf721b8"
+    },
+    "evidence/native_results.json": {
+      "bytes": 19462,
+      "sha256": "6223ed92f49773cd246c623459f20d84830dfeeff184aa92c79c026d19c27ded"
+    }
+  }
+}

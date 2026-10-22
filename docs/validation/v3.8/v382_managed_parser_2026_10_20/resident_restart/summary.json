@@ -1,0 +1,190 @@
+{
+  "owner_restart_confirmed": true,
+  "verified_utc": "2026-10-19T18:49:54.645874+00:00",
+  "passed": 16,
+  "total": 16,
+  "original_frozen_expectations": {
+    "passed": 15,
+    "total": 16,
+    "one_test_expectation_corrected": true,
+    "native_response_repeated": false
+  },
+  "successful_query_reads": 6,
+  "catalog_detail_checks": 4,
+  "successful_previews": 2,
+  "expected_refusals": 4,
+  "checks": [
+    {
+      "index": 0,
+      "id": "canary",
+      "passed": true,
+      "errors": []
+    },
+    {
+      "index": 1,
+      "id": "available",
+      "passed": true,
+      "errors": []
+    },
+    {
+      "index": 2,
+      "id": "execution_detail",
+      "passed": true,
+      "errors": []
+    },
+    {
+      "index": 3,
+      "id": "snapshot_before",
+      "passed": true,
+      "errors": []
+    },
+    {
+      "index": 4,
+      "id": "update_preview",
+      "passed": true,
+      "errors": []
+    },
+    {
+      "index": 5,
+      "id": "reset_preview",
+      "passed": true,
+      "errors": []
+    },
+    {
+      "index": 6,
+      "id": "backward_refused",
+      "passed": true,
+      "errors": []
+    },
+    {
+      "index": 7,
+      "id": "readonly_catalog",
+      "passed": true,
+      "errors": []
+    },
+    {
+      "index": 8,
+      "id": "readonly_detail",
+      "passed": true,
+      "errors": []
+    },
+    {
+      "index": 9,
+      "id": "readonly_preview_refused",
+      "passed": true,
+      "errors": []
+    },
+    {
+      "index": 10,
+      "id": "mysql_canary",
+      "passed": true,
+      "errors": []
+    },
+    {
+      "index": 11,
+      "id": "mysql_cte_case",
+      "passed": true,
+      "errors": []
+    },
+    {
+      "index": 12,
+      "id": "fts",
+      "passed": true,
+      "errors": []
+    },
+    {
+      "index": 13,
+      "id": "function_refused",
+      "passed": true,
+      "errors": []
+    },
+    {
+      "index": 14,
+      "id": "shadow_refused",
+      "passed": true,
+      "errors": []
+    },
+    {
+      "index": 15,
+      "id": "snapshot_after",
+      "passed": true,
+      "errors": []
+    }
+  ],
+  "independent_truth": {
+    "rich_mutation_sqlite": {
+      "file_sha256_before": "dc89c92c850ee56f1463231d62fbbcedca264ed254936edaef6829b864a62e8e",
+      "file_sha256_after": "dc89c92c850ee56f1463231d62fbbcedca264ed254936edaef6829b864a62e8e",
+      "all_order_rows_sha256": "239b4438689ac57977ac5cedcf2464cf1b56272b33c7cf638b2a0dee0567f61c",
+      "row_count": 80,
+      "snapshot": [
+        {
+          "id": 1,
+          "status": "confirmed"
+        },
+        {
+          "id": 2,
+          "status": "confirmed"
+        },
+        {
+          "id": 3,
+          "status": "confirmed"
+        },
+        {
+          "id": 4,
+          "status": "returned"
+        },
+        {
+          "id": 5,
+          "status": "returned"
+        },
+        {
+          "id": 6,
+          "status": "returned"
+        },
+        {
+          "id": 7,
+          "status": "confirmed"
+        },
+        {
+          "id": 8,
+          "status": "confirmed"
+        },
+        {
+          "id": 9,
+          "status": "confirmed"
+        },
+        {
+          "id": 10,
+          "status": "returned"
+        },
+        {
+          "id": 11,
+          "status": "returned"
+        },
+        {
+          "id": 12,
+          "status": "returned"
+        }
+      ]
+    },
+    "sqlite_features_sqlite": {
+      "file_sha256_before": "119f6f613a1a78a0a64dde41d061d3bee55b07b1e89375f400dec5ecf3de1add",
+      "file_sha256_after": "119f6f613a1a78a0a64dde41d061d3bee55b07b1e89375f400dec5ecf3de1add",
+      "fts_match_count": 4
+    }
+  },
+  "source_resources_match_final_wheel": 77,
+  "old_manifest_count": 17,
+  "old_sealed_files_verified": 435,
+  "preview_handling": "Two confirm=false previews only; abandon confirmation. No public revoke tool is exposed. Handles redacted before export and naturally expire under the configured 300-second TTL; no assertion of active revocation or observed expiry.",
+  "limits": [
+    "Owner-confirmed restart and current Host behavior; not a resident source-hash attestation.",
+    "Special dialect/target-switch/commit/rollback combinations remain isolated source/package coverage, not identical native replay.",
+    "No new complete Luna tasks or model/provider usage. Current native channel only; not a two-protocol claim.",
+    "Host application records omit some protocol metadata; not raw wire frames or proof of original field omission. Preview handles consistently redacted."
+  ],
+  "source_or_configuration_changes_this_supplement": false,
+  "configured_business_writes": false,
+  "all_checks_passed": true
+}

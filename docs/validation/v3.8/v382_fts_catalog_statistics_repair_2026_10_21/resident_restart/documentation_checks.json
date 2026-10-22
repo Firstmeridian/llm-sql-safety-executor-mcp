@@ -1,0 +1,33 @@
+{
+  "checked_local_document_links": 965,
+  "broken": [],
+  "documents": [
+    "README.md",
+    "README_ZH.md",
+    "REFACTORING_LOG.md",
+    "REFACTORING_LOG_ZH.md",
+    "docs/README.md",
+    "docs/README_ZH.md",
+    "docs/architecture/V3_8_2_SQL_SEMANTICS_ZH.md",
+    "docs/security/V3_8_SECURITY.md",
+    "docs/security/DESIGN_RISK_REGISTER.md",
+    "docs/security/DESIGN_RISK_REGISTER_ZH.md",
+    "docs/releases/RELEASE_NOTES_v3_8.md",
+    "docs/validation/v3.8/V3_8_2_FTS_CATALOG_STATISTICS_REPAIR_2026_10_21_ZH.md",
+    "docs/validation/v3.8/v382_fts_catalog_statistics_repair_2026_10_21/resident_restart/README.md",
+    "local_archive/v382_review/handoff/session-handoff-v381-v382-20261019-ZH.md",
+    "local_archive/v382_review/20261021_fts_catalog_statistics_repair/resident_restart/reports/README_ZH.md",
+    "local_archive/v382_review/README.md"
+  ],
+  "git_diff_check": "pass",
+  "runtime_or_configuration_changes_in_resident_step": false,
+  "current_commit_draft_matches_supplement": true,
+  "historical_public_report_retained": true,
+  "prior_public_report_sha256": "b240f0b2f31e1cc8ef4db19fd3048e262e77e55f9aa0876d5ee936eff7720317",
+  "current_public_report_sha256": "8e1347c88cfb3583c4b7b0b658484af2796bc226be1b43e5e5f50330ea289ec1",
+  "prior_report_only_appended": true,
+  "risk_register_status": "DRR137/138/139 repaired with scoped acceptance; special fixtures remain source/package",
+  "new_model_trials": 0,
+  "new_builds": 0,
+  "new_full_regression_runs": 0
+}

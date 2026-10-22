@@ -1,0 +1,71 @@
+{
+  "scope": "DRR-136 preparation history, retained separately from final source/wheel acceptance",
+  "events": [
+    {
+      "event": "first new regression expectations",
+      "files": [
+        "new-focused.log",
+        "new-focused-corrected.log",
+        "new-focused-final.log"
+      ],
+      "outcomes": [
+        "48 failed/9 passed: test expected available instead of existing complete index status",
+        "16 failed/41 passed: unqualified widgets correctly hit denied TEMP shadow; test changed to explicit main.widgets",
+        "57 passed after test corrections; no production policy relaxation"
+      ]
+    },
+    {
+      "event": "intermediate full suite",
+      "file": "full.log",
+      "outcome": "Explicitly stopped only the exact tracked pytest child after test corrections; partial output is neither a successful suite nor final product-failure count. full-final.log is the final3250/4/515 run."
+    },
+    {
+      "event": "comment-only finalization",
+      "files": [
+        "installed_resources.json",
+        "installed_resources-final.json"
+      ],
+      "outcome": "Correct a stale comment from fixed SQL filtering to PRAGMA-row filtering. AST semantics unchanged; final77 resources and normal wheel match. Earlier complete application runs remain intermediate, not pooled with final frames."
+    },
+    {
+      "event": "parallel final Client negotiation failures",
+      "files": [
+        "source-final-metadata.log",
+        "source-final-readiness.json",
+        "installed-final-readiness.json"
+      ],
+      "outcome": "One metadata server/discover initialization failed at20 seconds and each readiness scope failed two stdio initializations at10 seconds. Readiness still produced204 calls and errors records; process exit0 did not mean complete acceptance. Verifier rejected incomplete matrices."
+    },
+    {
+      "event": "same-limit recovery",
+      "files": [
+        "source-final-metadata-retry.json",
+        "source-final-readiness-retry.json",
+        "installed-final-readiness-retry.json"
+      ],
+      "outcome": "Metadata source retry kept20 seconds; final readiness runs were serialized after the full suite, keeping10 seconds. Complete final matrices pass application assertions. Do not assert cache, scheduling or other root cause; failed starts excluded from accepted-call totals."
+    },
+    {
+      "event": "component reproduction driver",
+      "file": "components-after.json",
+      "outcome": "Copied assessment driver retains its original assessment-only scope text; this run is supplemental component reproduction after repair,15 fixtures/30 calls/0 failures. Formal final Client records and manifest identify repaired sources."
+    },
+    {
+      "event": "cost scope",
+      "files": [
+        "cost-A1.json",
+        "cost-B.json",
+        "cost-A2.json",
+        "cost-summary.json"
+      ],
+      "outcome": "One serial A/B/A sequence after own tests/build/Clients/integrity work finished. All result digests agree. Preserve many-index slowdown; no token/model/full-tool claim."
+    },
+    {
+      "event": "owner direction",
+      "outcome": "RepairDRR-136 first, then one combined manual restart withDRR-135; freeze20 existing-alias checks, no production fixture/grant/configuration change."
+    }
+  ],
+  "new_model_trials": 0,
+  "complete_protocol_capture": false,
+  "configured_database_calls_during_application_validation": 0
+}

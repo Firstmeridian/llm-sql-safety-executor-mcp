@@ -1,0 +1,47 @@
+{
+  "date": "2026-10-20",
+  "checkpoint": "scoped_resident_acceptance_passed",
+  "scope": "DRR-121/122/123: 30/30 current-Host checks after owner restart. No confirmed write/new model trial/all-mode native claim. Parent source/package pending and all earlier seals remain historical.",
+  "files": {
+    "README.md": {
+      "sha256": "9ef2334e8e0aee0d09aadf9dfffb9becfaa12b19452c7b1ab5169bcce8b8fbe7",
+      "bytes": 2263
+    },
+    "doc_verification.json": {
+      "sha256": "cb8ba543c9c0c6decf78268c6fbc7ee3e373b3791f0c6f31fee9b920f7bdebe2",
+      "bytes": 202
+    },
+    "export_evidence.py.gz": {
+      "sha256": "68025e209c8e8b76de1d1fc01a15c76550bbfc215c0cd35245cfad6f1b18cd7f",
+      "bytes": 1729
+    },
+    "freeze_native.py.gz": {
+      "sha256": "635bb53bff51002916a81eb22f8bfb0774124511389b7c6263babb21faf9eb91",
+      "bytes": 2936
+    },
+    "native_application.json.gz": {
+      "sha256": "e562289f8ca8f493ac4698e79d4ce31775b7eaf1bedcc1ad331000f061ba5f99",
+      "bytes": 7535
+    },
+    "native_catalog.json.gz": {
+      "sha256": "47cdd9206ac14010c59a01e43211411d32b4438a3eb2f62d1720c9ca104bb6d2",
+      "bytes": 9158
+    },
+    "native_plan.json.gz": {
+      "sha256": "d90ad7e94e08e778cb0ff522cddebe368ffac9f43a026222c49648eb2085d325",
+      "bytes": 3651
+    },
+    "summary.json": {
+      "sha256": "5139166d83886e6d07f9ad7fe4b9aeebcb3dfac19e220a5c30ddfa41b51c70b5",
+      "bytes": 7689
+    },
+    "truth_preflight_failure.txt.gz": {
+      "sha256": "bc547b979bddcb71aa154cb52c609dccb9e73272328c314197df667c7d3d0bad",
+      "bytes": 329
+    },
+    "verify_native.py.gz": {
+      "sha256": "a6d7a08a63c6420f8f30ae91cc5170fabe7ef84805417d92793074c69f607469",
+      "bytes": 2793
+    }
+  }
+}

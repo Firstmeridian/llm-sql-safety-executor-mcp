@@ -1,0 +1,595 @@
+{
+  "scope": "Assessment only; P2 confirmed and not repaired. Disposable source Client/stdio, no installed/native/model acceptance.",
+  "application_calls": 332,
+  "matrix_calls": 296,
+  "dynamic_calls": 36,
+  "matrix_groups": {
+    "aux_only:inprocess:auto": 46,
+    "aux_only:inprocess:legacy": 46,
+    "aux_only:stdio:auto": 46,
+    "aux_only:stdio:legacy": 46,
+    "builtin:inprocess:auto": 8,
+    "builtin:inprocess:legacy": 8,
+    "empty_aux:inprocess:auto": 8,
+    "empty_aux:inprocess:legacy": 8,
+    "two_attached:inprocess:auto": 8,
+    "two_attached:inprocess:legacy": 8,
+    "main_priority:inprocess:auto": 8,
+    "main_priority:inprocess:legacy": 8,
+    "temp_priority:inprocess:auto": 8,
+    "temp_priority:inprocess:legacy": 8,
+    "aux_denied:inprocess:auto": 8,
+    "aux_denied:inprocess:legacy": 8,
+    "quoted_schema:inprocess:auto": 8,
+    "quoted_schema:inprocess:legacy": 8
+  },
+  "confirmed_false_builtin_observations_in_matrix": 52,
+  "false_builtin_cases": [
+    {
+      "scenario": "aux_only",
+      "transport": "inprocess",
+      "mode": "auto",
+      "case": "json_each:from"
+    },
+    {
+      "scenario": "aux_only",
+      "transport": "inprocess",
+      "mode": "auto",
+      "case": "json_each:quoted"
+    },
+    {
+      "scenario": "aux_only",
+      "transport": "inprocess",
+      "mode": "auto",
+      "case": "json_each:join"
+    },
+    {
+      "scenario": "aux_only",
+      "transport": "inprocess",
+      "mode": "auto",
+      "case": "json_each:in"
+    },
+    {
+      "scenario": "aux_only",
+      "transport": "inprocess",
+      "mode": "auto",
+      "case": "json_each:cte"
+    },
+    {
+      "scenario": "aux_only",
+      "transport": "inprocess",
+      "mode": "auto",
+      "case": "json_tree:from"
+    },
+    {
+      "scenario": "aux_only",
+      "transport": "inprocess",
+      "mode": "auto",
+      "case": "json_tree:quoted"
+    },
+    {
+      "scenario": "aux_only",
+      "transport": "inprocess",
+      "mode": "auto",
+      "case": "json_tree:join"
+    },
+    {
+      "scenario": "aux_only",
+      "transport": "inprocess",
+      "mode": "auto",
+      "case": "json_tree:in"
+    },
+    {
+      "scenario": "aux_only",
+      "transport": "inprocess",
+      "mode": "auto",
+      "case": "json_tree:cte"
+    },
+    {
+      "scenario": "aux_only",
+      "transport": "inprocess",
+      "mode": "legacy",
+      "case": "json_each:from"
+    },
+    {
+      "scenario": "aux_only",
+      "transport": "inprocess",
+      "mode": "legacy",
+      "case": "json_each:quoted"
+    },
+    {
+      "scenario": "aux_only",
+      "transport": "inprocess",
+      "mode": "legacy",
+      "case": "json_each:join"
+    },
+    {
+      "scenario": "aux_only",
+      "transport": "inprocess",
+      "mode": "legacy",
+      "case": "json_each:in"
+    },
+    {
+      "scenario": "aux_only",
+      "transport": "inprocess",
+      "mode": "legacy",
+      "case": "json_each:cte"
+    },
+    {
+      "scenario": "aux_only",
+      "transport": "inprocess",
+      "mode": "legacy",
+      "case": "json_tree:from"
+    },
+    {
+      "scenario": "aux_only",
+      "transport": "inprocess",
+      "mode": "legacy",
+      "case": "json_tree:quoted"
+    },
+    {
+      "scenario": "aux_only",
+      "transport": "inprocess",
+      "mode": "legacy",
+      "case": "json_tree:join"
+    },
+    {
+      "scenario": "aux_only",
+      "transport": "inprocess",
+      "mode": "legacy",
+      "case": "json_tree:in"
+    },
+    {
+      "scenario": "aux_only",
+      "transport": "inprocess",
+      "mode": "legacy",
+      "case": "json_tree:cte"
+    },
+    {
+      "scenario": "aux_only",
+      "transport": "stdio",
+      "mode": "auto",
+      "case": "json_each:from"
+    },
+    {
+      "scenario": "aux_only",
+      "transport": "stdio",
+      "mode": "auto",
+      "case": "json_each:quoted"
+    },
+    {
+      "scenario": "aux_only",
+      "transport": "stdio",
+      "mode": "auto",
+      "case": "json_each:join"
+    },
+    {
+      "scenario": "aux_only",
+      "transport": "stdio",
+      "mode": "auto",
+      "case": "json_each:in"
+    },
+    {
+      "scenario": "aux_only",
+      "transport": "stdio",
+      "mode": "auto",
+      "case": "json_each:cte"
+    },
+    {
+      "scenario": "aux_only",
+      "transport": "stdio",
+      "mode": "auto",
+      "case": "json_tree:from"
+    },
+    {
+      "scenario": "aux_only",
+      "transport": "stdio",
+      "mode": "auto",
+      "case": "json_tree:quoted"
+    },
+    {
+      "scenario": "aux_only",
+      "transport": "stdio",
+      "mode": "auto",
+      "case": "json_tree:join"
+    },
+    {
+      "scenario": "aux_only",
+      "transport": "stdio",
+      "mode": "auto",
+      "case": "json_tree:in"
+    },
+    {
+      "scenario": "aux_only",
+      "transport": "stdio",
+      "mode": "auto",
+      "case": "json_tree:cte"
+    },
+    {
+      "scenario": "aux_only",
+      "transport": "stdio",
+      "mode": "legacy",
+      "case": "json_each:from"
+    },
+    {
+      "scenario": "aux_only",
+      "transport": "stdio",
+      "mode": "legacy",
+      "case": "json_each:quoted"
+    },
+    {
+      "scenario": "aux_only",
+      "transport": "stdio",
+      "mode": "legacy",
+      "case": "json_each:join"
+    },
+    {
+      "scenario": "aux_only",
+      "transport": "stdio",
+      "mode": "legacy",
+      "case": "json_each:in"
+    },
+    {
+      "scenario": "aux_only",
+      "transport": "stdio",
+      "mode": "legacy",
+      "case": "json_each:cte"
+    },
+    {
+      "scenario": "aux_only",
+      "transport": "stdio",
+      "mode": "legacy",
+      "case": "json_tree:from"
+    },
+    {
+      "scenario": "aux_only",
+      "transport": "stdio",
+      "mode": "legacy",
+      "case": "json_tree:quoted"
+    },
+    {
+      "scenario": "aux_only",
+      "transport": "stdio",
+      "mode": "legacy",
+      "case": "json_tree:join"
+    },
+    {
+      "scenario": "aux_only",
+      "transport": "stdio",
+      "mode": "legacy",
+      "case": "json_tree:in"
+    },
+    {
+      "scenario": "aux_only",
+      "transport": "stdio",
+      "mode": "legacy",
+      "case": "json_tree:cte"
+    },
+    {
+      "scenario": "two_attached",
+      "transport": "inprocess",
+      "mode": "auto",
+      "case": "json_each:from"
+    },
+    {
+      "scenario": "two_attached",
+      "transport": "inprocess",
+      "mode": "auto",
+      "case": "json_tree:from"
+    },
+    {
+      "scenario": "two_attached",
+      "transport": "inprocess",
+      "mode": "legacy",
+      "case": "json_each:from"
+    },
+    {
+      "scenario": "two_attached",
+      "transport": "inprocess",
+      "mode": "legacy",
+      "case": "json_tree:from"
+    },
+    {
+      "scenario": "aux_denied",
+      "transport": "inprocess",
+      "mode": "auto",
+      "case": "json_each:from"
+    },
+    {
+      "scenario": "aux_denied",
+      "transport": "inprocess",
+      "mode": "auto",
+      "case": "json_tree:from"
+    },
+    {
+      "scenario": "aux_denied",
+      "transport": "inprocess",
+      "mode": "legacy",
+      "case": "json_each:from"
+    },
+    {
+      "scenario": "aux_denied",
+      "transport": "inprocess",
+      "mode": "legacy",
+      "case": "json_tree:from"
+    },
+    {
+      "scenario": "quoted_schema",
+      "transport": "inprocess",
+      "mode": "auto",
+      "case": "json_each:from"
+    },
+    {
+      "scenario": "quoted_schema",
+      "transport": "inprocess",
+      "mode": "auto",
+      "case": "json_tree:from"
+    },
+    {
+      "scenario": "quoted_schema",
+      "transport": "inprocess",
+      "mode": "legacy",
+      "case": "json_each:from"
+    },
+    {
+      "scenario": "quoted_schema",
+      "transport": "inprocess",
+      "mode": "legacy",
+      "case": "json_tree:from"
+    }
+  ],
+  "dynamic_attach_detach_same_skill_analysis_confirmed": true,
+  "independent_sqlite_truth_agrees_with_successful_raw_reads": true,
+  "all_non_toolerror_text_structured_agree": true,
+  "expected_readiness_toolerrors": 12,
+  "unauthorized_roots_rejected": true,
+  "restricted_function_and_shadow_refusals_unchanged": true,
+  "fixtures_cleaned": true,
+  "runtime_resources_unchanged": 77,
+  "private_tomls_unchanged": 3,
+  "configured_database_access": false,
+  "prior_seals": {
+    "manifests": 47,
+    "file_records": 1338,
+    "all_unchanged": true,
+    "records": [
+      {
+        "manifest": "local_archive/v382_review/20261019_external_review_repair/manifest.json",
+        "sha256": "4994e5bf158f98ff8bf3fe4c914c72a8e83bb3ef513c824f122afa47afdeb749",
+        "files": 67
+      },
+      {
+        "manifest": "local_archive/v382_review/20261019_external_review_repair/resident_restart/manifest.json",
+        "sha256": "c612c59f96a9ac630c2cb3855967f79130467af0755e49b54e02495d2b9a8023",
+        "files": 39
+      },
+      {
+        "manifest": "local_archive/v382_review/20261019_postrepair_audit/manifest.json",
+        "sha256": "11d4b2f2d8ec75721aaebb2d0edbc8819029e1cd653a230b771a7bf50a945a40",
+        "files": 23
+      },
+      {
+        "manifest": "local_archive/v382_review/20261020_sqlite_metadata_cost/manifest.json",
+        "sha256": "8b4343581b1eb8d19c7d9e9de06c68bb8bd8f8dbfc7f4e74cf2ccb36a8555c02",
+        "files": 25
+      },
+      {
+        "manifest": "local_archive/v382_review/20261020_metadata_optimization/manifest.json",
+        "sha256": "b348f14e3b3d9d76308e98347f1fc4066f2436917151bcedf21f8f5c80583dfb",
+        "files": 69
+      },
+      {
+        "manifest": "local_archive/v382_review/20261020_metadata_optimization/resident_restart/manifest.json",
+        "sha256": "3f1b57f84ea64924df1f70568922955c16029e7a2a8b6ba4c77bbfe13b13b3d1",
+        "files": 5
+      },
+      {
+        "manifest": "docs/validation/v3.8/v382_read_capabilities_2026_10_19/manifest.json",
+        "sha256": "c8732e02df01248d617eab3916303f01669fc1fb4165c3330eb95c8985235380",
+        "files": 9
+      },
+      {
+        "manifest": "docs/validation/v3.8/v382_read_capabilities_2026_10_19/followup_2026_10_20/manifest.json",
+        "sha256": "44341ac882900bd3b9362f31479c3a76ee8f30ef0db5fc1243cf7ef447e895c2",
+        "files": 7
+      },
+      {
+        "manifest": "docs/validation/v3.8/v382_sqlite_metadata_cost_2026_10_20/manifest.json",
+        "sha256": "baabc2704911cfd67903cd7824e6a86fd144a85b0b60194ecbf3c086f25a43a4",
+        "files": 4
+      },
+      {
+        "manifest": "docs/validation/v3.8/v382_metadata_optimization_2026_10_20/manifest.json",
+        "sha256": "6c4cb60b4a9921d3cf0c4616c7b18aa031b51a24fbbffd3134ac05bc864549fd",
+        "files": 14
+      },
+      {
+        "manifest": "docs/validation/v3.8/v382_metadata_optimization_2026_10_20/resident_restart/manifest.json",
+        "sha256": "248a1fec708dd59d3d2a4302120a83b9f352fad20a541d00fefe9bc1f4f8b40a",
+        "files": 4
+      },
+      {
+        "manifest": "local_archive/v382_review/20261020_fts_followups/manifest.json",
+        "sha256": "5de0562872a1c4da479e6bc25cd910f037aa249ebb1511217a667cce52714c7e",
+        "files": 51
+      },
+      {
+        "manifest": "docs/validation/v3.8/v382_fts_followups_2026_10_20/manifest.json",
+        "sha256": "a0eda76ee228dc511cb412bd94e378298be4a8ca986146192a8366598f212e01",
+        "files": 22
+      },
+      {
+        "manifest": "local_archive/v382_review/20261020_fts_followups/resident_restart/manifest.json",
+        "sha256": "caf8364c72f12d0f77f24ccf86f3d2f8458703b41a9f2e954f37f9d7a976328d",
+        "files": 7
+      },
+      {
+        "manifest": "docs/validation/v3.8/v382_fts_followups_2026_10_20/resident_restart/manifest.json",
+        "sha256": "dc9502737e47dcdfc4ac9e1fe704122ef5edbbd0d3d7cfdccbeb431574c71ee9",
+        "files": 4
+      },
+      {
+        "manifest": "local_archive/v382_review/20261020_managed_parser/manifest.json",
+        "sha256": "c95acb3f431631ea91937a5d27ce29fb97fd9f5a84974dd5d4ec22fd4d73cf39",
+        "files": 60
+      },
+      {
+        "manifest": "local_archive/v382_review/20261020_managed_parser/resident_restart/manifest.json",
+        "sha256": "a2b878f52ccc7a72bd1fe5d3c4f3239a60438434fab843290e47eba1fd66d4ae",
+        "files": 12
+      },
+      {
+        "manifest": "local_archive/v382_review/20261020_managed_parser/performance_followup/manifest.json",
+        "sha256": "7996f846afb348d1ded08bf5baf5f048979b0e6be9e09dd552622e131b9c1bd6",
+        "files": 12
+      },
+      {
+        "manifest": "docs/validation/v3.8/v382_managed_parser_2026_10_20/manifest.json",
+        "sha256": "90edc3fd839682f22ba43a1ce8beeddebbcfa3e152bcb2e2d23257bd1d6a3df9",
+        "files": 25
+      },
+      {
+        "manifest": "docs/validation/v3.8/v382_managed_parser_2026_10_20/resident_restart/manifest.json",
+        "sha256": "76c6822d15cb363f155c052a46fb20fad43579778a2abf611d4156334e17256e",
+        "files": 12
+      },
+      {
+        "manifest": "docs/validation/v3.8/v382_managed_parser_2026_10_20/performance_followup/manifest.json",
+        "sha256": "54b2a5f6017af442c745400d3a2daa1cf5a7891f4a26b166361489dcf2aa2da4",
+        "files": 9
+      },
+      {
+        "manifest": "local_archive/v382_review/20261020_managed_classification_reuse/manifest.json",
+        "sha256": "9014d8e9da131936ead456a0f1374c706e226d158c294d8d01754fe1ac312f39",
+        "files": 59
+      },
+      {
+        "manifest": "docs/validation/v3.8/v382_managed_classification_reuse_2026_10_20/manifest.json",
+        "sha256": "df397e51de8fd82dc7de16a04e789be3252f670489b5605d7a1ffc69df58a762",
+        "files": 41
+      },
+      {
+        "manifest": "local_archive/v382_review/20261020_managed_classification_reuse/resident_restart/manifest.json",
+        "sha256": "7c52ecfa2168bec83762b8dcabe379a5f5923cbac2492b3bbb575c9bd57e3979",
+        "files": 10
+      },
+      {
+        "manifest": "docs/validation/v3.8/v382_managed_classification_reuse_2026_10_20/resident_restart/manifest.json",
+        "sha256": "45de267bcdc131756d57986115c60f6c41099f9bef1aecc366f6262069f64076",
+        "files": 10
+      },
+      {
+        "manifest": "local_archive/v382_review/20261020_dialect_comments_not/manifest.json",
+        "sha256": "a9389a467d470ffe95cb868af632a024b36f598070d43ecdc3899c367e5009c5",
+        "files": 45
+      },
+      {
+        "manifest": "docs/validation/v3.8/v382_dialect_comments_not_2026_10_20/manifest.json",
+        "sha256": "1767e6b23d0c18fbb1fdc6efe0697a6f65c3eee10c51b8e0d88f34dc56795920",
+        "files": 36
+      },
+      {
+        "manifest": "local_archive/v382_review/20261020_dialect_comments_not/resident_restart/manifest.json",
+        "sha256": "51f9dc6755eb2d5868e56d5b204e5da99d1cd5c34061b2f05120afa5f611a771",
+        "files": 10
+      },
+      {
+        "manifest": "docs/validation/v3.8/v382_dialect_comments_not_2026_10_20/resident_restart/manifest.json",
+        "sha256": "8e90091e9dc5eff8abed89a30c45e3bcc773e2cf0cbe0ed4a7dd633158886374",
+        "files": 10
+      },
+      {
+        "manifest": "local_archive/v382_review/20261020_final_audit/manifest.json",
+        "sha256": "4a0084d046f70de2198c115684e4c018678b9fefc90d97e06ee79a7d69ac78ef",
+        "files": 22
+      },
+      {
+        "manifest": "docs/validation/v3.8/v382_final_audit_2026_10_20/manifest.json",
+        "sha256": "ff82fd2b98c982ab1aa81b5986101ade4a56ae51bbf890f30a873916235c8ce3",
+        "files": 16
+      },
+      {
+        "manifest": "local_archive/v382_review/20261020_read_plan_repair/manifest.json",
+        "sha256": "305bb30f261c553fd07950fc2170803783b88f2f114047a5447a0dc0332a8afe",
+        "files": 51
+      },
+      {
+        "manifest": "docs/validation/v3.8/v382_read_plan_repair_2026_10_20/manifest.json",
+        "sha256": "5e1e7211da299ce8a459df0d20a7826cd89ac0896c3899d1bdd87c132fb5e1b9",
+        "files": 50
+      },
+      {
+        "manifest": "local_archive/v382_review/20261020_read_plan_repair/resident_restart/manifest.json",
+        "sha256": "6decc5147d9c564b375a07ebf68e6a581b7af84ef63d155119f960264b158b49",
+        "files": 11
+      },
+      {
+        "manifest": "docs/validation/v3.8/v382_read_plan_repair_2026_10_20/resident_restart/manifest.json",
+        "sha256": "1cdfdbc0d3597ac33cf06bfe1baf7fc20ebea8d90c010635b57393697d1b3594",
+        "files": 10
+      },
+      {
+        "manifest": "local_archive/v382_review/20261020_complete_agent_eval/manifest.json",
+        "sha256": "6e4053779ad2d74f28c14720ae47a05b1e66eb579c8e9874a717c7afe74f1406",
+        "files": 84
+      },
+      {
+        "manifest": "docs/validation/v3.8/v382_complete_agent_eval_2026_10_20/manifest.json",
+        "sha256": "aa8f54520d349c6e23a97b1f7fef918907069294c56b1a8d3a2bb8a58b86c766",
+        "files": 49
+      },
+      {
+        "manifest": "local_archive/v382_review/20261020_fts_names_generated_columns_assessment/manifest.json",
+        "sha256": "7c2b74d90d6cd932f1a6d14d98c6860d3363b7d806cf41e2142a6a040d751a29",
+        "files": 5
+      },
+      {
+        "manifest": "local_archive/v382_review/20261020_relation_calls_columns_repair/manifest.json",
+        "sha256": "4ac1356d2ab9a22c0ef83844af0540a62bf0b3b829049648c64755b0709903fe",
+        "files": 118
+      },
+      {
+        "manifest": "docs/validation/v3.8/v382_relation_calls_columns_2026_10_20/manifest.json",
+        "sha256": "d0ca8c1f0b9e93f1b572e85b9d1f19723a90f28ff8b8d70c1455b94a0e4d7151",
+        "files": 12
+      },
+      {
+        "manifest": "local_archive/v382_review/20261020_relation_calls_columns_repair/resident_restart/manifest.json",
+        "sha256": "3b303c09fbb147f0daee3a6eb1f1142659a0a00aef9a223710142d844943e291",
+        "files": 4
+      },
+      {
+        "manifest": "docs/validation/v3.8/v382_relation_calls_columns_2026_10_20/resident_restart/manifest.json",
+        "sha256": "8407f53de00d8d135fb3f1a6619cba91880b2e70d4002020542ca93b7b2ca409",
+        "files": 3
+      },
+      {
+        "manifest": "local_archive/v382_review/20261021_result_dependency_assessment/manifest.json",
+        "sha256": "62800dc0673cdaa7db6fc5970721b6dc99981fdc617b04755e4047cbe00874bc",
+        "files": 16
+      },
+      {
+        "manifest": "local_archive/v382_review/20261021_result_dependency_repair/manifest.json",
+        "sha256": "d70c15ca2703ced2560281dc243c58023ec3c6a0620e5281fea4e528e85ae33e",
+        "files": 161
+      },
+      {
+        "manifest": "docs/validation/v3.8/v382_read_results_2026_10_21/manifest.json",
+        "sha256": "0d43fbcbb409459c8f3062648a702a768b1ab07dc15b489f11b9bf15bae84328",
+        "files": 16
+      },
+      {
+        "manifest": "local_archive/v382_review/20261021_result_dependency_repair/resident_restart/manifest.json",
+        "sha256": "a665ca40c838b96d41f8b8b9a91744e892868ac4e510c0b9734bf7d2ef6d31cb",
+        "files": 5
+      },
+      {
+        "manifest": "docs/validation/v3.8/v382_read_results_2026_10_21/resident_restart/manifest.json",
+        "sha256": "f32a30fff77416bc2d005ffed1f4333e5cc61d93a371f22e4345c704c9669d18",
+        "files": 4
+      }
+    ]
+  },
+  "new_independent_root_causes_found": 0,
+  "further_limits": "No all-SQL, installed-wheel, resident Host, model, timing or token claim. Two malformed/blocked early harness runs are retained separately, not counted as the final 332 calls."
+}

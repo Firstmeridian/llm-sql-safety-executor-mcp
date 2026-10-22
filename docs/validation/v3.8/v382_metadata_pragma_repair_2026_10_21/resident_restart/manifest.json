@@ -1,0 +1,42 @@
+{
+  "date": "2026-10-21",
+  "checkpoint": "Combined DRR-135/136 post-owner-restart scoped native acceptance complete",
+  "scope": "20/20 frozen native checks; text/structured equality; independent read-only SQLite metadata;77 unchanged disk resources/three private TOMLs/configured SQLite file;53 prior manifests/1706 records intact. Special collision/attached fixtures remain source/package scoped; no new production changes, writes, build, full regression or model/token/performance claims.",
+  "append_rule": "Preserve both prior pending checkpoints, every initialization failure and this supplement; future evidence gets a separate checkpoint.",
+  "files": {
+    "README.md": {
+      "bytes": 2177,
+      "sha256": "4343a7097a9cf58c67f6970b67158b8abfa6c239c9f9469e5e8a7ea0a2ea5867"
+    },
+    "evidence/before.json": {
+      "bytes": 7975,
+      "sha256": "450c9c82aea3fee8cd4eef911900786edc0df784713983e6bc9575464a679631"
+    },
+    "evidence/documentation_checks.json": {
+      "bytes": 1605,
+      "sha256": "33a988986cd70e65b54b219c42521a31b7b287cf1a729a7f718b51f404be6899"
+    },
+    "evidence/integrity.json": {
+      "bytes": 14933,
+      "sha256": "a59b67596a1fdf34ed9fe3df27e9ead6c54a852945d913dd2078be90e9275cab"
+    },
+    "evidence/metadata_truth.json": {
+      "bytes": 4536,
+      "sha256": "2f5258367e2058023fa0ceb2ba28d2e9259a5bf1651bcf5d67632f8dc4e7555d"
+    },
+    "evidence/native_results.json.gz": {
+      "bytes": 6594,
+      "sha256": "ee3d578ff5f481fd8d88d42cbacd756b2b2b07829d8cbd7c2f624aac731e2452"
+    },
+    "evidence/tool_metadata_summary.json": {
+      "bytes": 1947,
+      "sha256": "c9a000b560e4e1165138d353a18643f591aa56a87e2d9115574f593da42f5cdb"
+    }
+  },
+  "compressed_decoded_records": {
+    "evidence/native_results.json.gz": {
+      "bytes": 71179,
+      "sha256": "3492fc6a4a104212e1e70eef0847177b33559e3e9596646ecdc4309e2acc3c9c"
+    }
+  }
+}

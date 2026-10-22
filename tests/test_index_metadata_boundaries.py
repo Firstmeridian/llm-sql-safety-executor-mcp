@@ -63,7 +63,7 @@ def test_sqlite_direction_and_collation_are_preserved(adapter, monkeypatch):
 
     monkeypatch.setattr(adapter, "execute", record)
     result = adapter.get_indexes("t")
-    assert len(queries) == 2
+    assert len(queries) == 3  # list, one key-detail PRAGMA, primary-key columns
     assert result[0]["key_parts"] == [
         {"column": "x", "sort_order": "desc", "collation": "NOCASE"},
         {"column": "y", "sort_order": "asc", "collation": "BINARY"},
@@ -82,10 +82,10 @@ def test_sqlite_index_count_budget_is_all_or_unavailable(adapter, count):
             adapter.get_indexes("t")
 
 
-def test_sqlite_key_part_overflow_stops_before_second_query(adapter, monkeypatch):
+def test_sqlite_key_part_overflow_stops_before_primary_key_query(adapter, monkeypatch):
     ddl(adapter, "CREATE TABLE t(x TEXT)")
-    # Two legal indexes together exceed the total key-part budget. LIMIT must
-    # detect overflow rather than return a success with a half composite key.
+    # Two legal indexes exceed the total key-part budget. Do not return a half
+    # composite key or continue to primary-key work after detecting overflow.
     columns = ",".join(["x"] * 1025)
     ddl(adapter, f"CREATE INDEX ix_a ON t({columns})", f"CREATE INDEX ix_b ON t({columns})")
     calls = []
@@ -98,7 +98,8 @@ def test_sqlite_key_part_overflow_stops_before_second_query(adapter, monkeypatch
     monkeypatch.setattr(adapter, "execute", record)
     with pytest.raises(MetadataQueryError):
         adapter.get_indexes("t")
-    assert len(calls) == 1
+    assert len(calls) == 3
+    assert not any(".table_info(" in sql for sql in calls)
 
 
 def test_sqlite_json_budget_counts_utf8_bytes_not_characters(adapter):
@@ -116,11 +117,11 @@ def test_sqlite_collection_shares_deadline_and_stops_when_expired(monkeypatch, e
     adapter = SQLiteAdapter(":memory:")
     timeouts = []
 
-    def execute(sql, *, timeout, params):
+    def execute(sql, *, timeout, params, _fetch_limit):
         timeouts.append(timeout)
         if len(timeouts) == 1:
             clock[0] = 31.0 if expired_after_first else 20.0
-            return [("ix", 0, "c", 0, 0, 0, "x", 0, "BINARY")]
+            return [(0, "ix", 0, "c", 0)]
         clock[0] = 31.0
         return []
 

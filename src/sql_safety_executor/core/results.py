@@ -1,8 +1,15 @@
 from __future__ import annotations
 import json
+import base64
+import math
 import logging
 import time
+from collections.abc import Mapping
+from datetime import date, datetime, time as datetime_time, timedelta
+from decimal import Decimal
+from uuid import UUID
 from typing import Any, Literal
+from pydantic_core import to_json, to_jsonable_python
 from sql_safety_executor.core.types import (
     OperationContext as Context,
     OperationResult as ToolResult,
@@ -16,17 +23,52 @@ logger = logging.getLogger(__name__)
 from sql_safety_executor.core.constants import _SCHEMA_DETAIL_LEVELS, SchemaDetailLevel
 
 
+class ReadResultError(ValueError):
+    """A database read succeeded, but its result cannot be represented faithfully."""
+
+    def __init__(self, *, duplicate_columns: bool = False):
+        self.error_code = "duplicate_result_columns" if duplicate_columns else "result_encoding_failed"
+        super().__init__("Result column labels must be unique." if duplicate_columns
+                         else "The read result contains an unsupported value.")
+        self.hint = ("Use unique AS aliases for all output columns on the same connection."
+                     if duplicate_columns else
+                     "Select supported values or explicitly convert the affected column in SQL on the same connection.")
+
+    def error_payload(self) -> dict[str, Any]:
+        return {"success": False, "error_code": self.error_code, "error": str(self), "hint": self.hint}
+
+
 def _serialize_result(data: Any) -> Any:
-    """Convert SQLAlchemy Row objects to JSON-serializable format."""
-    if data is None:
-        return None
-    if isinstance(data, list):
-        return [_serialize_result(item) for item in data]
+    """Normalize read values once, before JSON sizing and protocol serialization."""
+    if data is None or isinstance(data, (bool, int)):
+        return data
+    if isinstance(data, str):
+        data.encode("utf-8")  # Reject invalid Unicode before protocol encoding.
+        return data
+    if isinstance(data, float):
+        if math.isfinite(data):
+            return data
+        return {"$type": "float", "value": "NaN" if math.isnan(data) else
+                "Infinity" if data > 0 else "-Infinity"}
+    if isinstance(data, (bytes, bytearray, memoryview)):
+        return {"$type": "binary", "encoding": "base64",
+                "data": base64.b64encode(bytes(data)).decode("ascii")}
     if hasattr(data, "_mapping"):
-        return dict(data._mapping)
-    if hasattr(data, "__dict__"):
-        return {k: v for k, v in data.__dict__.items() if not k.startswith("_")}
-    return data
+        mapping = data._mapping
+        labels = list(mapping.keys())
+        if len(set(labels)) != len(labels):
+            raise ReadResultError(duplicate_columns=True)
+        return {_serialize_result(key): _serialize_result(mapping[key]) for key in labels}
+    if isinstance(data, Mapping):
+        if any(not isinstance(key, str) for key in data):
+            raise ReadResultError()
+        return {_serialize_result(key): _serialize_result(value) for key, value in data.items()}
+    if isinstance(data, (list, tuple)):
+        return [_serialize_result(item) for item in data]
+    if isinstance(data, (date, datetime, datetime_time, timedelta, Decimal, UUID)):
+        return to_jsonable_python(data)
+    # Never stringify arbitrary objects or expose their implementation fields.
+    raise ReadResultError()
 
 
 def _truncate_result(runtime, data: list, total_rows: int) -> dict[str, Any]:
@@ -39,50 +81,55 @@ def _truncate_result(runtime, data: list, total_rows: int) -> dict[str, Any]:
         Dict with truncated data and metadata
     """
 
-    truncated = False
-    truncation_reason = None
-    returned_rows = len(data)
-
-    # Step 1: Limit by row count (0 = disabled)
-    if (
-        runtime.config.server.limits.result_rows > 0
-        and len(data) > runtime.config.server.limits.result_rows
-    ):
-        data = data[: runtime.config.server.limits.result_rows]
-        truncated = True
-        truncation_reason = f"row_limit ({runtime.config.server.limits.result_rows})"
-        returned_rows = runtime.config.server.limits.result_rows
-
-    # Step 2: Limit by character count (0 = disabled)
-    if runtime.config.server.limits.result_chars > 0:
-        try:
-            json_str = json.dumps(data, ensure_ascii=False, default=str)
-            if len(json_str) > runtime.config.server.limits.result_chars:
-                # Binary search for optimal row count within char limit
-                low, high = 1, len(data)
-                while low < high:
-                    mid = (low + high + 1) // 2
-                    test_str = json.dumps(data[:mid], ensure_ascii=False, default=str)
-                    if len(test_str) <= runtime.config.server.limits.result_chars:
-                        low = mid
-                    else:
-                        high = mid - 1
-                data = data[:low]
-                truncated = True
-                truncation_reason = (
-                    f"char_limit ({runtime.config.server.limits.result_chars})"
-                )
-                returned_rows = low
-        except (TypeError, ValueError):
-            pass  # If JSON encoding fails, skip char limit check
+    row_limit = runtime.config.server.limits.result_rows
+    char_limit = runtime.config.server.limits.result_chars
+    row_limited = bool(row_limit and len(data) > row_limit)
+    selected = data[:row_limit] if row_limited else data
+    char_limited = False
+    returned_rows = len(selected)
+    if char_limit:
+        # Compact JSON array size: brackets, each encoded row, and separators.
+        # Encode each considered row once; never keep an oversized first row.
+        size, returned_rows = 2, 0
+        for row in selected:
+            encoded = to_json(row).decode("utf-8")
+            candidate = size + len(encoded) + bool(returned_rows)
+            if candidate > char_limit:
+                char_limited = True
+                break
+            size = candidate
+            returned_rows += 1
+        selected = selected[:returned_rows]
+    reasons = [name for name, active in (("row_limit", row_limited), ("char_limit", char_limited)) if active]
 
     return {
-        "data": data,
+        "data": selected,
         "returned_rows": returned_rows,
         "total_rows": total_rows,
-        "truncated": truncated,
-        "truncation_reason": truncation_reason,
+        "truncated": bool(reasons),
+        "truncation_reason": "+".join(reasons) or None,
     }
+
+
+def _prepare_read_result(runtime, rows: list) -> dict[str, Any]:
+    """The common read-result boundary for query, Query Skill and sample."""
+    try:
+        result = _truncate_result(runtime, _serialize_result(rows), len(rows))
+    except ReadResultError:
+        raise
+    except (TypeError, ValueError, OverflowError, RecursionError):
+        raise ReadResultError() from None
+    note = None
+    if result["truncated"]:
+        note = f"Showing {result['returned_rows']}/{len(rows)} fetched rows. "
+        if not result["returned_rows"] and rows:
+            note += "The first row exceeds the character limit; select fewer columns or a shorter SQL projection. "
+        note += ("Truncation limits the returned data only; add WHERE/LIMIT/ORDER BY "
+                 "to limit database work and stabilize ordering.")
+    return {"data": result["data"], "row_count": result["returned_rows"],
+            "total_rows": len(rows), "truncated": result["truncated"],
+            **({"truncation_reason": result["truncation_reason"]} if result["truncated"] else {}),
+            "truncation_note": note}
 
 
 def _elapsed_ms_from(start_time: float) -> float:

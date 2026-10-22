@@ -82,6 +82,8 @@ def _policy_summary(policy: ConnectionPolicy) -> dict[str, Any]:
     return {
         "read_mode": policy.read_mode,
         "read_enabled": read_access_enabled(policy),
+        "read_scope": "disabled" if policy.read_mode == "deny" else "default_schema" if policy.read_mode == "all" else "explicit_relations",
+        "default_schema": policy.default_schema,
         "allow_union": policy.allow_union,
         "allowed_tables_mode": mode,
         "allowed_tables": values,

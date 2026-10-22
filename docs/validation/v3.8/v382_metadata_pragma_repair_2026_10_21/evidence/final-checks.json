@@ -1,0 +1,375 @@
+{
+  "scope": "DRR-135/136 source/package checks; one combined owner restart remains pending",
+  "regression_log": "full-final.log",
+  "new_regressions": 57,
+  "source_calls": 524,
+  "installed_calls": 524,
+  "metadata_calls_per_scope": 192,
+  "readiness_calls_per_scope": 332,
+  "application_frames_identical": true,
+  "expected_readiness_toolerrors_each": 68,
+  "runtime_resources": {
+    "__init__.py": "2b5bd4730ba17343f0c54d4b3e08f3c9be6fdfb6b6117972a610545434c6a8a5",
+    "__main__.py": "935a1c1166b0c1ea35a82256345000bf2c73ded718d77773bc27a71ecce28f7d",
+    "cli.py": "aed9bec845995da77b4f7deb7194e7bcc48b8effa45a00e75341d389386fbc6f",
+    "mcp/__init__.py": "51f8c29c6d00edc4b90b50b674dddc3e69f88bdbdc46c6d1ec73ed996ee9fdb7",
+    "mcp/server.py": "4a9898ce5bf3cefa8425a6019ec4701bc472d1ce70fbe26299db0a47ea98a6aa",
+    "mcp/context.py": "6cce4cbf8dcd72e8893205148ed279e1d84cc7da4f212cb0a1008e0da418c457",
+    "mcp/contracts.py": "194cd9931db5d6ed685d5a1b1a3856001053f2388a9da2ae3047125bbb4cc19e",
+    "mcp/mrtr.py": "b52ab1367f8058c247c34ea8174354155c2ea23564077994466356d245d41955",
+    "mcp/bootstrap.py": "614e88df3e0e8ff60d4d0b6c9f142334ea77a6cee0a61c33e15c6c02fb023494",
+    "skills/__init__.py": "43b88ba025119e682f31d70639f47b1b7b3eb541c728815be1d6b86b0eedb650",
+    "skills/tools.py": "210f16905c660a731f1372c06869e5df0abfbcd2c1b738659567dae2dd234914",
+    "skills/mutation.py": "38f8324edccde4e8771f96426516fb8a011290c2608689f86cc42d89165296f0",
+    "skills/catalog.py": "2d9942107460749551a1dbb2e585d9965a0e09c88e2830d9c11e39ab7de32b49",
+    "skills/access.py": "91808791ff75d378893bd626b1c2f05f54fe7747167f133ee587d4b84c750c05",
+    "observability/__init__.py": "d9dc733b9dcdd7507c65e12b0eabee01cca228c977f05940907c5e9e6060247b",
+    "observability/telemetry.py": "5c7192f564b30201321a869731e93a0c2324b58783c5998f3aee7eecef32ecdf",
+    "observability/audit.py": "dc3aed21adea2fa646404ba1e16f29ce69ef28cf60f3be8f8cfd4d102b7c4e02",
+    "core/results.py": "93db43dde83eafd69a99b7849d85e298d945e55d6ceec161a75a6c5d4f31650d",
+    "core/__init__.py": "c7c458557f173e203bcd11eb83f3d41e8f293ccf04befd01464e6d000956bad3",
+    "core/mutation_service.py": "1972b67be648bbefb6a74d62211b7e69a3892913fd4aac701250634abd175578",
+    "core/schema.py": "a527aa8293507fe4940da3f4ef8b7a0a8e8f9a60f3726a687d649061310e788e",
+    "core/decisions.py": "428d7699592c2e1e63dcdff28cfcc9b0ae3ec82b22875f92ddbf920d08165584",
+    "core/queries.py": "09dce4b8f5a1102b1dace60396b8194d8667e71e9844df38fc3fbce0aa8e2e0d",
+    "core/diagnostics.py": "2070de4f726a59632c1ddf7e0e65ef724a1ff82fb5ffcec09ff40ae0fa8c2ab0",
+    "core/policy.py": "b3bda0982fd87dd29b3086b456119ef575dbd132acc47bd1985dd224c2347bb1",
+    "core/mutations.py": "be870e364c9f82385c5b4c7fac2268124cf351d0973ff792c63e6f77422cc501",
+    "core/preview_tokens.py": "6ba3d30d12ad755435d695e73e8e264f1fb3b85c50756e31c64012d6a1d74f1d",
+    "core/proposals.py": "965a3813bf7812a625f88c977c68b72a53e8c9f153b8b6016cd51b87e953aea8",
+    "core/managed_sql.py": "81d1a41e258cb19edafbb100b40d2884217a8cfab7daeb5df2d882219748456e",
+    "core/types.py": "065cd02082e5867461fdd7f97c89998829ad35a1a1b7b8e658024f77c57caf9f",
+    "core/connections.py": "bc3c1052c99368675b271d183dc8f32b30da75b012d9c2b4fd9c2c9add67a399",
+    "core/constants.py": "7f9e3d73002d119f1d39c8b2d34a2aa0f45313870477c2a184f62e3dfe3a5b2c",
+    "core/analysis.py": "a68b7fc84dc2dca0ee9bf2e7605b4444b4f84b17e27f016a971a9b0730797c45",
+    "core/sql.py": "cf6945cacf00959cfbf16336e9dffda8b98c21ccf841dd9605544549bda7d31f",
+    "core/read_rules.py": "f6c5a25ad27e7ca3bcc8b9995a92c0229b34e7bdf77566b4a18e56b86ed82c48",
+    "core/runtime.py": "956ff86e82ead28d9a56c3b23c432a4502d5335fb31c02a4e12e87c3594844a2",
+    "prompts/mrtr.md": "b6e3e9d758800930dee1d25b526a0fa2292c089316fe936e2589ca205218b73d",
+    "prompts/routing.md": "6baec6f319ffeae4113ea90fc4da58843b3a099836e20eac641011df13897713",
+    "prompts/__init__.py": "5a4cb64e9972a6048701789c5eea0f3ade333732716b02e3b664d8f267c6d0f2",
+    "prompts/assistant.md": "64392577ff400bb4f03a09a9d5f1e07f6fd515117a77cfc0e67b78d93687a372",
+    "prompts/server.md": "ec5e00d7b7a68a7019e3d726fe6f4c468ba46978d2568ba5667b2fc8f482c869",
+    "prompts/mutation_results.md": "e201460c3f67ee62f3a83e103b0334493ef3967a28ab97f95078b08be86853a2",
+    "prompts/read_policy.md": "7d91258da832b0029e48caeae94e0c54746766a3a0444224325e50a3b8139716",
+    "prompts/render.py": "a9fdc83abb24baf885e817c957876eee8c2b350c8e59c4ad569ec4f0b85a7c0c",
+    "database/sqlite.py": "b360d63fd16c392b41054d51c9437801066c5edebcd010dc5d3d13f6242afa0e",
+    "database/__init__.py": "cfcecb95fef6113b844f9dc9911c53ccb139f792d0097a2ca094d2476ea7accf",
+    "database/mysql.py": "182f1ab0daabb0f644f22e1775bd43f09c8f79aecfec0607580f1c550aa18b97",
+    "database/authorizer.py": "9070379582eb8b0b60462905538c6eef156f06fe224134aed2384956c5a7e28f",
+    "database/models.py": "398f1cbf41bcfd611ea0b965aba7f8c737862a75c972c94195828123c72be9e6",
+    "database/relations.py": "b4386ac22869860b1ca45f684574084b309920ba7dab955d88fbd43c16d112b5",
+    "database/outcomes.py": "b509f03bd6d299c378cdb337ffe300ab9a37f6159224946c451739b4ca47ad0c",
+    "database/identifiers.py": "19cbf2c939d82d519fb6b697490ac5ee8a8916b9af3bd73c0d0ae7442950af14",
+    "database/diagnostics.py": "5de2792a42ff81429ea0a9c926c72f9fbffa7221aea98cfe5becd8a373f4cb8c",
+    "database/indexes.py": "4f8fa747d07decb7d4688cd731df660efd80f6d7c879888dbd4ace0a7c29f47f",
+    "database/semantics.py": "d8ca0996410428eafe13467fb0c6f217f03fbc285a90f1ca81b52193450ffdae",
+    "database/registry.py": "1617a9d1c3ac0997f0c8e9e1be8b59dd90e839fdf6928f5dae6da779d0b847e9",
+    "database/errors.py": "d3c6fe7de38149fc554240cd5836aa691695e1b6391526b33b5099a92fde094f",
+    "database/base.py": "7c0853d85d5a27b872e64c749afe22745c0a432ec4ba87ad6cb216cd23841337",
+    "database/sqlite_virtual.py": "9df85efbda6d1b33c994569df6982e9fee3b5521b229056d8f918c636c6e57c7",
+    "database/execution.py": "2617d57eeab55d4b41bf2831a45ec0ae9263b64058bb9daaa540fe7fe6817dd3",
+    "database/transport.py": "7dac010c66470cc6173b7cd957fc8eca1067c12b532cd174939b974afb4702f2",
+    "config/__init__.py": "29695a85fa871068c9246eb0098866f03564ca5f8b436be1ae8d78f9c54bd52b",
+    "config/loader.py": "3f16b2fdb2ee9890615fd4821968f045351a78c8c3c829429038270be4ff71af",
+    "config/models.py": "88d0ff9653c465c2b207c168677ced48a656adc0d11527f865a7a8ce2f075b32",
+    "prompts/tools/execute_mutation_skill.md": "fd56bbcc03197017616aeb814976c99613d7b1366f66ddba42c727a51a6ccef4",
+    "prompts/tools/list_tables.md": "d0e2becf2c03e301d536d00295d9c0421aa7cb864556921694db529dca236ec5",
+    "prompts/tools/get_skill_detail.md": "b54e516e3e6a0d66aba5ab4873996ea57a7e7fc338bca31ffe60fd66a75ec0f1",
+    "prompts/tools/request_mutation_approval.md": "dc2a707458236bda76ad0f55e9c4be96161bd230d92ca21f405e92be990af4a3",
+    "prompts/tools/list_connections.md": "9d8d7badc95e1b609de1178f47f8c0d8b575a152ac086d9dc2872ced1f4650d5",
+    "prompts/tools/describe_table.md": "a5599c141b5e5ddfbc31b987b2feb12c89dd5c9f03615cb9c12cc571abbf2609",
+    "prompts/tools/check_connection.md": "c859a8c2c6990ed58b0184a3270f7dc51b47deeb65b8faf7c9de5da114e8bf90",
+    "prompts/tools/get_table_summary.md": "b8f09a505fabbcd0ba9417e66fdd2b606c3be0934921963a081999310832e7cc",
+    "prompts/tools/query.md": "9162aa659bcef9f49d87ad674140bb634e411297bbc6798eccf4c62e9ad95285",
+    "prompts/tools/sample.md": "97f034ef60f57334a029c5dc41b91883025708a312ca97e7adf29521fbd0f9dc",
+    "prompts/tools/get_full_schema.md": "5db1ad990215212e99a32e5ed898ec728b64f6173e55eea1f98737e07470d3f5",
+    "prompts/tools/execute_query_skill.md": "6ddc7ce6af1589f96de86fb4bf5c558ee2f30a85794f660edb8953d60e5c0bea",
+    "prompts/tools/list_skills.md": "6e99d48453781ce476ea36c3b26f9fbfac2f8acf8fccb13bdef250cdff15430b"
+  },
+  "changed_runtime_resources": [
+    "database/sqlite.py"
+  ],
+  "private_toml_sha256_unchanged": {
+    "config/server.toml": "fa06f1b753c96899ee57f1d5567790cb00b8afa6fc7ece09491cac85671d77f9",
+    "config/connections.toml": "e4859da2fba7ed74b2155d9491389dd65347dc71beed101a336299cc73cb9811",
+    "config/skills.toml": "5229e3fe17a74aaf3a1d0d33a5399d6337ec2cdbc4dfc95880349761d55d32bb"
+  },
+  "configured_sqlite_sha256_unchanged": "119f6f613a1a78a0a64dde41d061d3bee55b07b1e89375f400dec5ecf3de1add",
+  "fixtures_cleaned": true,
+  "configured_database_calls": 0,
+  "new_model_trials": 0,
+  "prior_seals": {
+    "manifests": 51,
+    "file_records": 1517,
+    "all_unchanged": true,
+    "records": [
+      {
+        "manifest": "local_archive/v382_review/20261019_external_review_repair/manifest.json",
+        "sha256": "4994e5bf158f98ff8bf3fe4c914c72a8e83bb3ef513c824f122afa47afdeb749",
+        "files": 67
+      },
+      {
+        "manifest": "local_archive/v382_review/20261019_external_review_repair/resident_restart/manifest.json",
+        "sha256": "c612c59f96a9ac630c2cb3855967f79130467af0755e49b54e02495d2b9a8023",
+        "files": 39
+      },
+      {
+        "manifest": "local_archive/v382_review/20261019_postrepair_audit/manifest.json",
+        "sha256": "11d4b2f2d8ec75721aaebb2d0edbc8819029e1cd653a230b771a7bf50a945a40",
+        "files": 23
+      },
+      {
+        "manifest": "local_archive/v382_review/20261020_sqlite_metadata_cost/manifest.json",
+        "sha256": "8b4343581b1eb8d19c7d9e9de06c68bb8bd8f8dbfc7f4e74cf2ccb36a8555c02",
+        "files": 25
+      },
+      {
+        "manifest": "local_archive/v382_review/20261020_metadata_optimization/manifest.json",
+        "sha256": "b348f14e3b3d9d76308e98347f1fc4066f2436917151bcedf21f8f5c80583dfb",
+        "files": 69
+      },
+      {
+        "manifest": "local_archive/v382_review/20261020_metadata_optimization/resident_restart/manifest.json",
+        "sha256": "3f1b57f84ea64924df1f70568922955c16029e7a2a8b6ba4c77bbfe13b13b3d1",
+        "files": 5
+      },
+      {
+        "manifest": "docs/validation/v3.8/v382_read_capabilities_2026_10_19/manifest.json",
+        "sha256": "c8732e02df01248d617eab3916303f01669fc1fb4165c3330eb95c8985235380",
+        "files": 9
+      },
+      {
+        "manifest": "docs/validation/v3.8/v382_read_capabilities_2026_10_19/followup_2026_10_20/manifest.json",
+        "sha256": "44341ac882900bd3b9362f31479c3a76ee8f30ef0db5fc1243cf7ef447e895c2",
+        "files": 7
+      },
+      {
+        "manifest": "docs/validation/v3.8/v382_sqlite_metadata_cost_2026_10_20/manifest.json",
+        "sha256": "baabc2704911cfd67903cd7824e6a86fd144a85b0b60194ecbf3c086f25a43a4",
+        "files": 4
+      },
+      {
+        "manifest": "docs/validation/v3.8/v382_metadata_optimization_2026_10_20/manifest.json",
+        "sha256": "6c4cb60b4a9921d3cf0c4616c7b18aa031b51a24fbbffd3134ac05bc864549fd",
+        "files": 14
+      },
+      {
+        "manifest": "docs/validation/v3.8/v382_metadata_optimization_2026_10_20/resident_restart/manifest.json",
+        "sha256": "248a1fec708dd59d3d2a4302120a83b9f352fad20a541d00fefe9bc1f4f8b40a",
+        "files": 4
+      },
+      {
+        "manifest": "local_archive/v382_review/20261020_fts_followups/manifest.json",
+        "sha256": "5de0562872a1c4da479e6bc25cd910f037aa249ebb1511217a667cce52714c7e",
+        "files": 51
+      },
+      {
+        "manifest": "docs/validation/v3.8/v382_fts_followups_2026_10_20/manifest.json",
+        "sha256": "a0eda76ee228dc511cb412bd94e378298be4a8ca986146192a8366598f212e01",
+        "files": 22
+      },
+      {
+        "manifest": "local_archive/v382_review/20261020_fts_followups/resident_restart/manifest.json",
+        "sha256": "caf8364c72f12d0f77f24ccf86f3d2f8458703b41a9f2e954f37f9d7a976328d",
+        "files": 7
+      },
+      {
+        "manifest": "docs/validation/v3.8/v382_fts_followups_2026_10_20/resident_restart/manifest.json",
+        "sha256": "dc9502737e47dcdfc4ac9e1fe704122ef5edbbd0d3d7cfdccbeb431574c71ee9",
+        "files": 4
+      },
+      {
+        "manifest": "local_archive/v382_review/20261020_managed_parser/manifest.json",
+        "sha256": "c95acb3f431631ea91937a5d27ce29fb97fd9f5a84974dd5d4ec22fd4d73cf39",
+        "files": 60
+      },
+      {
+        "manifest": "local_archive/v382_review/20261020_managed_parser/resident_restart/manifest.json",
+        "sha256": "a2b878f52ccc7a72bd1fe5d3c4f3239a60438434fab843290e47eba1fd66d4ae",
+        "files": 12
+      },
+      {
+        "manifest": "local_archive/v382_review/20261020_managed_parser/performance_followup/manifest.json",
+        "sha256": "7996f846afb348d1ded08bf5baf5f048979b0e6be9e09dd552622e131b9c1bd6",
+        "files": 12
+      },
+      {
+        "manifest": "docs/validation/v3.8/v382_managed_parser_2026_10_20/manifest.json",
+        "sha256": "90edc3fd839682f22ba43a1ce8beeddebbcfa3e152bcb2e2d23257bd1d6a3df9",
+        "files": 25
+      },
+      {
+        "manifest": "docs/validation/v3.8/v382_managed_parser_2026_10_20/resident_restart/manifest.json",
+        "sha256": "76c6822d15cb363f155c052a46fb20fad43579778a2abf611d4156334e17256e",
+        "files": 12
+      },
+      {
+        "manifest": "docs/validation/v3.8/v382_managed_parser_2026_10_20/performance_followup/manifest.json",
+        "sha256": "54b2a5f6017af442c745400d3a2daa1cf5a7891f4a26b166361489dcf2aa2da4",
+        "files": 9
+      },
+      {
+        "manifest": "local_archive/v382_review/20261020_managed_classification_reuse/manifest.json",
+        "sha256": "9014d8e9da131936ead456a0f1374c706e226d158c294d8d01754fe1ac312f39",
+        "files": 59
+      },
+      {
+        "manifest": "docs/validation/v3.8/v382_managed_classification_reuse_2026_10_20/manifest.json",
+        "sha256": "df397e51de8fd82dc7de16a04e789be3252f670489b5605d7a1ffc69df58a762",
+        "files": 41
+      },
+      {
+        "manifest": "local_archive/v382_review/20261020_managed_classification_reuse/resident_restart/manifest.json",
+        "sha256": "7c52ecfa2168bec83762b8dcabe379a5f5923cbac2492b3bbb575c9bd57e3979",
+        "files": 10
+      },
+      {
+        "manifest": "docs/validation/v3.8/v382_managed_classification_reuse_2026_10_20/resident_restart/manifest.json",
+        "sha256": "45de267bcdc131756d57986115c60f6c41099f9bef1aecc366f6262069f64076",
+        "files": 10
+      },
+      {
+        "manifest": "local_archive/v382_review/20261020_dialect_comments_not/manifest.json",
+        "sha256": "a9389a467d470ffe95cb868af632a024b36f598070d43ecdc3899c367e5009c5",
+        "files": 45
+      },
+      {
+        "manifest": "docs/validation/v3.8/v382_dialect_comments_not_2026_10_20/manifest.json",
+        "sha256": "1767e6b23d0c18fbb1fdc6efe0697a6f65c3eee10c51b8e0d88f34dc56795920",
+        "files": 36
+      },
+      {
+        "manifest": "local_archive/v382_review/20261020_dialect_comments_not/resident_restart/manifest.json",
+        "sha256": "51f9dc6755eb2d5868e56d5b204e5da99d1cd5c34061b2f05120afa5f611a771",
+        "files": 10
+      },
+      {
+        "manifest": "docs/validation/v3.8/v382_dialect_comments_not_2026_10_20/resident_restart/manifest.json",
+        "sha256": "8e90091e9dc5eff8abed89a30c45e3bcc773e2cf0cbe0ed4a7dd633158886374",
+        "files": 10
+      },
+      {
+        "manifest": "local_archive/v382_review/20261020_final_audit/manifest.json",
+        "sha256": "4a0084d046f70de2198c115684e4c018678b9fefc90d97e06ee79a7d69ac78ef",
+        "files": 22
+      },
+      {
+        "manifest": "docs/validation/v3.8/v382_final_audit_2026_10_20/manifest.json",
+        "sha256": "ff82fd2b98c982ab1aa81b5986101ade4a56ae51bbf890f30a873916235c8ce3",
+        "files": 16
+      },
+      {
+        "manifest": "local_archive/v382_review/20261020_read_plan_repair/manifest.json",
+        "sha256": "305bb30f261c553fd07950fc2170803783b88f2f114047a5447a0dc0332a8afe",
+        "files": 51
+      },
+      {
+        "manifest": "docs/validation/v3.8/v382_read_plan_repair_2026_10_20/manifest.json",
+        "sha256": "5e1e7211da299ce8a459df0d20a7826cd89ac0896c3899d1bdd87c132fb5e1b9",
+        "files": 50
+      },
+      {
+        "manifest": "local_archive/v382_review/20261020_read_plan_repair/resident_restart/manifest.json",
+        "sha256": "6decc5147d9c564b375a07ebf68e6a581b7af84ef63d155119f960264b158b49",
+        "files": 11
+      },
+      {
+        "manifest": "docs/validation/v3.8/v382_read_plan_repair_2026_10_20/resident_restart/manifest.json",
+        "sha256": "1cdfdbc0d3597ac33cf06bfe1baf7fc20ebea8d90c010635b57393697d1b3594",
+        "files": 10
+      },
+      {
+        "manifest": "local_archive/v382_review/20261020_complete_agent_eval/manifest.json",
+        "sha256": "6e4053779ad2d74f28c14720ae47a05b1e66eb579c8e9874a717c7afe74f1406",
+        "files": 84
+      },
+      {
+        "manifest": "docs/validation/v3.8/v382_complete_agent_eval_2026_10_20/manifest.json",
+        "sha256": "aa8f54520d349c6e23a97b1f7fef918907069294c56b1a8d3a2bb8a58b86c766",
+        "files": 49
+      },
+      {
+        "manifest": "local_archive/v382_review/20261020_fts_names_generated_columns_assessment/manifest.json",
+        "sha256": "7c2b74d90d6cd932f1a6d14d98c6860d3363b7d806cf41e2142a6a040d751a29",
+        "files": 5
+      },
+      {
+        "manifest": "local_archive/v382_review/20261020_relation_calls_columns_repair/manifest.json",
+        "sha256": "4ac1356d2ab9a22c0ef83844af0540a62bf0b3b829049648c64755b0709903fe",
+        "files": 118
+      },
+      {
+        "manifest": "docs/validation/v3.8/v382_relation_calls_columns_2026_10_20/manifest.json",
+        "sha256": "d0ca8c1f0b9e93f1b572e85b9d1f19723a90f28ff8b8d70c1455b94a0e4d7151",
+        "files": 12
+      },
+      {
+        "manifest": "local_archive/v382_review/20261020_relation_calls_columns_repair/resident_restart/manifest.json",
+        "sha256": "3b303c09fbb147f0daee3a6eb1f1142659a0a00aef9a223710142d844943e291",
+        "files": 4
+      },
+      {
+        "manifest": "docs/validation/v3.8/v382_relation_calls_columns_2026_10_20/resident_restart/manifest.json",
+        "sha256": "8407f53de00d8d135fb3f1a6619cba91880b2e70d4002020542ca93b7b2ca409",
+        "files": 3
+      },
+      {
+        "manifest": "local_archive/v382_review/20261021_result_dependency_assessment/manifest.json",
+        "sha256": "62800dc0673cdaa7db6fc5970721b6dc99981fdc617b04755e4047cbe00874bc",
+        "files": 16
+      },
+      {
+        "manifest": "local_archive/v382_review/20261021_result_dependency_repair/manifest.json",
+        "sha256": "d70c15ca2703ced2560281dc243c58023ec3c6a0620e5281fea4e528e85ae33e",
+        "files": 161
+      },
+      {
+        "manifest": "docs/validation/v3.8/v382_read_results_2026_10_21/manifest.json",
+        "sha256": "0d43fbcbb409459c8f3062648a702a768b1ab07dc15b489f11b9bf15bae84328",
+        "files": 16
+      },
+      {
+        "manifest": "local_archive/v382_review/20261021_result_dependency_repair/resident_restart/manifest.json",
+        "sha256": "a665ca40c838b96d41f8b8b9a91744e892868ac4e510c0b9734bf7d2ef6d31cb",
+        "files": 5
+      },
+      {
+        "manifest": "docs/validation/v3.8/v382_read_results_2026_10_21/resident_restart/manifest.json",
+        "sha256": "f32a30fff77416bc2d005ffed1f4333e5cc61d93a371f22e4345c704c9669d18",
+        "files": 4
+      },
+      {
+        "manifest": "local_archive/v382_review/20261021_attached_json_readiness_assessment/manifest.json",
+        "sha256": "8293f2debc01c67c8568e8562e122ec197276711593364c57cc3343bdeb46c73",
+        "files": 14
+      },
+      {
+        "manifest": "docs/validation/v3.8/v382_attached_json_readiness_2026_10_21/manifest.json",
+        "sha256": "b040d55de8e4430da98d15174091d8af59d34aaa1db7b59dc54742311bc714dd",
+        "files": 4
+      },
+      {
+        "manifest": "local_archive/v382_review/20261021_attached_json_readiness_repair/manifest.json",
+        "sha256": "6844b1ebbb7d0ac93676a8d4fb7397a7f54a5289671826c3860f0dbcc4b948f1",
+        "files": 140
+      },
+      {
+        "manifest": "docs/validation/v3.8/v382_attached_json_repair_2026_10_21/manifest.json",
+        "sha256": "3cde44f46c3436e3736466af27f5b9da8c7a83507f7dde885aa307dfba380052",
+        "files": 21
+      }
+    ]
+  },
+  "metadata_repair": {
+    "id": "DRR-2026-136",
+    "status": "source/package verified; resident pending",
+    "collision_fixtures": 6,
+    "new_regressions": 57
+  },
+  "native_state": "Frozen existing-alias checks require maintainer restart; attached fixtures stay source/package scoped",
+  "regression": {
+    "passed": 3250,
+    "skipped": 4
+  }
+}

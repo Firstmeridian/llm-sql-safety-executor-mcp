@@ -38,6 +38,35 @@ _CTE_CASE_PROBE = (
 )
 
 
+# COLUMN_KEY is a display flag, not the identity or order of a PRIMARY
+# constraint. Keep the existing bounded column query and join its true key
+# position. Binary residuals prevent catalog collation from merging different
+# stored schema/table/column spellings; the equalities retain lookup predicates.
+_PRIMARY_KEY_JOIN = """
+    LEFT JOIN INFORMATION_SCHEMA.KEY_COLUMN_USAGE AS pk
+      ON pk.TABLE_SCHEMA = c.TABLE_SCHEMA
+     AND pk.TABLE_NAME = c.TABLE_NAME
+     AND pk.COLUMN_NAME = c.COLUMN_NAME
+     AND pk.CONSTRAINT_NAME = 'PRIMARY'
+     AND BINARY pk.TABLE_SCHEMA = BINARY c.TABLE_SCHEMA
+     AND BINARY pk.TABLE_NAME = BINARY c.TABLE_NAME
+     AND BINARY pk.COLUMN_NAME = BINARY c.COLUMN_NAME
+"""
+
+
+def _column_metadata(row) -> dict[str, Any]:
+    column = {
+        "column_name": row[0],
+        "data_type": row[1],
+        "nullable": row[2],
+        "key_type": row[3],
+        "default_value": row[4],
+    }
+    if row[5] is not None:
+        column["primary_key_position"] = int(row[5])
+    return column
+
+
 class MySQLAdapter(DatabaseAdapter):
     """
     MySQL database adapter using SQLAlchemy with PyMySQL driver.
@@ -306,7 +335,8 @@ class MySQLAdapter(DatabaseAdapter):
             raise DatabaseQueryError("read_disabled")
         context = self.resolve_analysis_context()
         analysis = analysis or analyze_sql(sql, context)
-        if not analysis.complete or analysis.context_key != context.fingerprint:
+        if (not analysis.complete or analysis.context_key != context.fingerprint
+                or analysis.source_sql != sql):
             raise DatabaseQueryError("session_semantics_unavailable")
         if analysis.statement_kind not in {"select", "explain"}:
             raise DatabaseQueryError("read_only_required")
@@ -459,7 +489,7 @@ class MySQLAdapter(DatabaseAdapter):
         logger.warning("mysql execution error: %s", e.__class__.__name__)
         return classify_database_error(e, "mysql")
 
-    def get_tables(self) -> list[dict[str, Any]]:
+    def get_table_directory(self) -> list[dict[str, Any]]:
         """Get all tables with row count estimates from INFORMATION_SCHEMA."""
         sql = """
             SELECT 
@@ -489,30 +519,52 @@ class MySQLAdapter(DatabaseAdapter):
         if not self.valid_metadata_identifier(table_name):
             return []
 
-        sql = """
-            SELECT 
-                COLUMN_NAME,
-                DATA_TYPE,
-                IS_NULLABLE,
-                COLUMN_KEY,
-                COLUMN_DEFAULT
-            FROM INFORMATION_SCHEMA.COLUMNS
-            WHERE TABLE_SCHEMA = :schema_name AND TABLE_NAME = :table_name
-            ORDER BY ORDINAL_POSITION
+        sql = f"""
+            SELECT
+                c.COLUMN_NAME,
+                c.DATA_TYPE,
+                c.IS_NULLABLE,
+                c.COLUMN_KEY,
+                c.COLUMN_DEFAULT,
+                pk.ORDINAL_POSITION
+            FROM INFORMATION_SCHEMA.COLUMNS AS c
+            {_PRIMARY_KEY_JOIN}
+            WHERE c.TABLE_SCHEMA = :schema_name AND c.TABLE_NAME = :table_name
+            ORDER BY c.ORDINAL_POSITION
         """
         result = self._execute_metadata(sql, 'reading table columns', params={"schema_name": self.metadata_schema, "table_name": table_name})
 
 
-        return [
-            {
-                "column_name": row[0],
-                "data_type": row[1],
-                "nullable": row[2],
-                "key_type": row[3],
-                "default_value": row[4],
-            }
-            for row in result
-        ]
+        return [_column_metadata(row) for row in result]
+
+    def get_columns_batch(self, table_names: list[str]) -> dict[str, list[dict[str, Any]]]:
+        """Read the selected configured-schema columns in bounded batches."""
+        columns: dict[str, list[dict[str, Any]]] = {name: [] for name in table_names}
+        if not columns:
+            return columns
+        if any(not self.valid_metadata_identifier(name) for name in columns):
+            raise MetadataQueryError("reading table columns")
+        names = list(columns)
+        # At most 200 bind values: one schema plus 199 exact selected names.
+        for start in range(0, len(names), 199):
+            selected = names[start:start + 199]
+            params = {"schema_name": self.metadata_schema,
+                      **{f"table_{index}": name for index, name in enumerate(selected)}}
+            placeholders = ", ".join(":" + name for name in params if name != "schema_name")
+            result = self._execute_metadata(
+                "SELECT c.TABLE_NAME, c.COLUMN_NAME, c.DATA_TYPE, c.IS_NULLABLE, c.COLUMN_KEY, c.COLUMN_DEFAULT, pk.ORDINAL_POSITION "
+                f"FROM INFORMATION_SCHEMA.COLUMNS AS c {_PRIMARY_KEY_JOIN} WHERE c.TABLE_SCHEMA = :schema_name "
+                f"AND c.TABLE_NAME IN ({placeholders}) ORDER BY c.TABLE_NAME, c.ORDINAL_POSITION",
+                "reading table columns", params=params,
+            )
+            for row in result:
+                # INFORMATION_SCHEMA lookup collation can be broader than the
+                # project's exact grants. Only the selected stored names are
+                # projected; never fold a different returned object's identity.
+                if row[0] not in selected:
+                    continue
+                columns[row[0]].append(_column_metadata(row[1:]))
+        return columns
 
     def get_indexes(self, table_name: str) -> list[dict[str, Any]]:
         """Get bounded index structure, preserving unknown legacy visibility."""
@@ -600,23 +652,15 @@ class MySQLAdapter(DatabaseAdapter):
     def check_connection(self) -> tuple[bool, str]:
         """Check MySQL connection status."""
         try:
-            self.execute("SELECT 1")
-        except DatabaseQueryError as error:
+            self._execute_metadata("SELECT 1", "checking connection")
+        except MetadataQueryError as error:
             return False, str(error)
 
         return True, "MySQL connection successful"
 
     def get_database_name(self) -> str | None:
-        """Get current database name."""
-        try:
-            result = self.execute("SELECT DATABASE()")
-        except DatabaseQueryError:
-            return self._db_name
-
-        if not result:
-            return self._db_name
-
-        return result[0][0]
+        """Display the configured binding without opening or retiring a session."""
+        return self._db_name
 
     def close(self) -> None:
         """Dispose SQLAlchemy engine."""

@@ -1,0 +1,180 @@
+{
+  "native_host": {
+    "calls": 12,
+    "passed": 7,
+    "failed": 5,
+    "checks": [
+      {
+        "case": "sqlite_features_sqlite:pages",
+        "passed": false,
+        "failures": [
+          "complete columns including actual PRIMARY positions"
+        ]
+      },
+      {
+        "case": "sqlite_features_sqlite:pages_fts",
+        "passed": true,
+        "failures": []
+      },
+      {
+        "case": "sqlite_features_sqlite:compact",
+        "passed": true,
+        "failures": []
+      },
+      {
+        "case": "sqlite_features_sqlite:full",
+        "passed": false,
+        "failures": [
+          "audit_log: complete columns including actual PRIMARY positions",
+          "org_units: complete columns including actual PRIMARY positions",
+          "page_revisions: complete columns including actual PRIMARY positions",
+          "pages: complete columns including actual PRIMARY positions",
+          "people: complete columns including actual PRIMARY positions"
+        ]
+      },
+      {
+        "case": "sakila_mysql:film_actor",
+        "passed": false,
+        "failures": [
+          "complete columns including actual PRIMARY positions"
+        ]
+      },
+      {
+        "case": "sakila_mysql:film_category",
+        "passed": false,
+        "failures": [
+          "complete columns including actual PRIMARY positions"
+        ]
+      },
+      {
+        "case": "sakila_mysql:compact",
+        "passed": true,
+        "failures": []
+      },
+      {
+        "case": "sakila_mysql:full",
+        "passed": false,
+        "failures": [
+          "actor: complete columns including actual PRIMARY positions",
+          "address: complete columns including actual PRIMARY positions",
+          "category: complete columns including actual PRIMARY positions",
+          "city: complete columns including actual PRIMARY positions",
+          "country: complete columns including actual PRIMARY positions",
+          "customer: complete columns including actual PRIMARY positions",
+          "film: complete columns including actual PRIMARY positions",
+          "film_actor: complete columns including actual PRIMARY positions",
+          "film_category: complete columns including actual PRIMARY positions",
+          "film_text: complete columns including actual PRIMARY positions",
+          "inventory: complete columns including actual PRIMARY positions",
+          "language: complete columns including actual PRIMARY positions",
+          "payment: complete columns including actual PRIMARY positions",
+          "rental: complete columns including actual PRIMARY positions",
+          "staff: complete columns including actual PRIMARY positions",
+          "store: complete columns including actual PRIMARY positions"
+        ]
+      },
+      {
+        "case": "sqlite-values",
+        "passed": true,
+        "failures": []
+      },
+      {
+        "case": "mysql-values",
+        "passed": true,
+        "failures": []
+      },
+      {
+        "case": "shadow-denial",
+        "passed": true,
+        "failures": []
+      },
+      {
+        "case": "function-denial",
+        "passed": true,
+        "failures": []
+      }
+    ]
+  },
+  "fresh_configured_cli": {
+    "calls": 12,
+    "passed": 12,
+    "failed": 0,
+    "checks": [
+      {
+        "case": "sqlite_features_sqlite:pages",
+        "passed": true,
+        "failures": []
+      },
+      {
+        "case": "sqlite_features_sqlite:pages_fts",
+        "passed": true,
+        "failures": []
+      },
+      {
+        "case": "sqlite_features_sqlite:compact",
+        "passed": true,
+        "failures": []
+      },
+      {
+        "case": "sqlite_features_sqlite:full",
+        "passed": true,
+        "failures": []
+      },
+      {
+        "case": "sakila_mysql:film_actor",
+        "passed": true,
+        "failures": []
+      },
+      {
+        "case": "sakila_mysql:film_category",
+        "passed": true,
+        "failures": []
+      },
+      {
+        "case": "sakila_mysql:compact",
+        "passed": true,
+        "failures": []
+      },
+      {
+        "case": "sakila_mysql:full",
+        "passed": true,
+        "failures": []
+      },
+      {
+        "case": "sqlite-values",
+        "passed": true,
+        "failures": []
+      },
+      {
+        "case": "mysql-values",
+        "passed": true,
+        "failures": []
+      },
+      {
+        "case": "shadow-denial",
+        "passed": true,
+        "failures": []
+      },
+      {
+        "case": "function-denial",
+        "passed": true,
+        "failures": []
+      }
+    ]
+  },
+  "resident_acceptance_complete": false,
+  "resources_unchanged": 77,
+  "private_tomls_unchanged": 3,
+  "sqlite_file_unchanged": true,
+  "independent_catalogs_unchanged": {
+    "sqlite_tables": 6,
+    "mysql_tables": 16,
+    "mysql_columns": 89
+  },
+  "prior_seals": {
+    "manifests": 73,
+    "records": 2279
+  },
+  "decision": "Owner chose to reconnect later; keep native failure evidence and pending status. MySQL is the server validation target; MariaDB is not an acceptance requirement.",
+  "scope": "No production/configuration/prompt/dependency change, new build/full regression/model/token/latency claim. Host binding/cache root cause is unconfirmed."
+}

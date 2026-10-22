@@ -1,0 +1,32 @@
+{
+  "scope": "Resident before owner restart; not final acceptance",
+  "tool": "query",
+  "arguments": {
+    "connection_id": "sqlite_features_sqlite",
+    "sql": "SELECT 7 AS n,99 AS n"
+  },
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"success\":true,\"data\":[{\"n\":99}],\"row_count\":1,\"total_rows\":1,\"truncated\":false,\"truncation_note\":null,\"query\":\"SELECT 7 AS n,99 AS n\",\"connection_id\":\"sqlite_features_sqlite\",\"db_type\":\"sqlite\"}"
+      }
+    ],
+    "structuredContent": {
+      "success": true,
+      "data": [
+        {
+          "n": 99
+        }
+      ],
+      "row_count": 1,
+      "total_rows": 1,
+      "truncated": false,
+      "truncation_note": null,
+      "query": "SELECT 7 AS n,99 AS n",
+      "connection_id": "sqlite_features_sqlite",
+      "db_type": "sqlite"
+    },
+    "isError": false
+  }
+}

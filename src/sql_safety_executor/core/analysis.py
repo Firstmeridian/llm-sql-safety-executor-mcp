@@ -12,7 +12,7 @@ from sqlglot.dialects.mysql import MySQL
 from sqlglot.dialects.sqlite import SQLite
 from sqlglot.errors import ParseError, TokenError
 from sqlglot.tokenizer_core import Token, TokenType
-from .read_rules import _ACCOUNT_FUNCTIONS, _LOCK_FUNCTIONS, _EXPENSIVE_FUNCTIONS
+from .read_rules import _ACCOUNT_FUNCTIONS, _LOCK_FUNCTIONS, _EXPENSIVE_FUNCTIONS, _SQLITE_PRAGMA_OBJECTS
 
 from sql_safety_executor.database.identifiers import ascii_identifier_lower
 from sql_safety_executor.database.relations import RelationReference
@@ -66,6 +66,16 @@ class RelationUse:
 
 
 @dataclass(frozen=True)
+class VirtualRelationUse:
+    """Known builtin relation call, distinct from physical table grants."""
+    name: str
+    schema: str | None
+    scope: int
+    source: str | None
+    kind: Literal["builtin", "sqlite_named", "sqlite_json"] = "builtin"
+
+
+@dataclass(frozen=True)
 class SQLAnalysis:
     status: Literal["complete", "partial", "failed"]
     statement_kind: str
@@ -86,6 +96,9 @@ class SQLAnalysis:
     ctes: tuple[CTEDeclaration, ...] = ()
     relation_uses: tuple[RelationUse, ...] = ()
     explain_payload: str | None = None
+    has_locking_read: bool = False
+    has_session_assignment: bool = False
+    virtual_relations: tuple[VirtualRelationUse, ...] = ()
 
     @property
     def complete(self) -> bool:
@@ -93,7 +106,7 @@ class SQLAnalysis:
 
 
 @lru_cache(maxsize=16)
-def _mysql_dialect(ansi_quotes: bool, no_backslash: bool, pipes_concat: bool = False):
+def _mysql_dialect(ansi_quotes: bool, no_backslash: bool, pipes_concat: bool = False, high_not: bool = False):
     # These classes are cached interpretation settings, never policy results.
     class SessionMySQL(MySQL):
         DPIPE_IS_STRING_CONCAT = pipes_concat
@@ -105,6 +118,15 @@ def _mysql_dialect(ansi_quotes: bool, no_backslash: bool, pipes_concat: bool = F
 
         class Parser(MySQL.Parser):
             FUNCTIONS = {**MySQL.Parser.FUNCTIONS, **_reserved_parsers()}
+            # SQLGlot puts both spellings in NOT's unary dispatch. MySQL's !
+            # always binds tightly; NOT does so only under HIGH_NOT_PRECEDENCE.
+            # Retain infix NOT IN/BETWEEN/LIKE parsing and original token text.
+            UNARY_PARSERS = {**MySQL.Parser.UNARY_PARSERS, TokenType.NOT:
+                lambda self: self.expression(exp.Not(this=(
+                    self._parse_unary() if high_not or self._prev.text == "!"
+                    else self._parse_equality()
+                )))
+            }
             def _statement_modifiers(self, allowed):
                 while self._curr and self._curr.token_type != TokenType.IDENTIFIER and self._curr.text.translate(_ASCII_UPPER) in allowed:
                     self._advance()
@@ -274,7 +296,19 @@ class _SQLite(SQLite):
         def _parse_in(self, this, alias=False):
             if self._curr and self._curr.token_type != TokenType.IDENTIFIER and self._curr.text.isidentifier():
                 self._curr.token_type = TokenType.VAR
+            if self._curr.token_type not in {TokenType.L_PAREN, TokenType.L_BRACKET}:
+                # SQLite's table-form IN has the same name/argument semantics
+                # as FROM. Scalar function aliases and arity do not apply.
+                return self.expression(exp.In(this=this, field=self._parse_table_parts()))
             return super()._parse_in(this, alias=alias)
+
+        def _parse_table_part(self, schema=False):
+            if not schema:
+                function = self._parse_function(anonymous=True, optional_parens=False)
+                if function is not None:
+                    function.meta["sqlite_relation_call"] = True
+                    return function
+            return super()._parse_table_part(schema=schema)
 
         def _parse_table_parts(self, *args, **kwargs):
             if self._prev.token_type == TokenType.INDEXED_BY and self._curr.text.isidentifier() and self._curr.token_type != TokenType.IDENTIFIER:
@@ -289,14 +323,22 @@ class _SQLite(SQLite):
             return super()._parse_cte()
 
         def _parse_table(self, *args, **kwargs):
-            # This is a relation-target slot, not a clause-boundary test.
-            if self._curr and self._curr.token_type not in {TokenType.IDENTIFIER, TokenType.TABLE} and self._curr.text.isidentifier():
+            # Preserve real subquery dispatch. WITH is also a legal SQLite
+            # business name: only its declaration opener belongs to a query.
+            start = self._index + 1
+            if start < self._tokens_size and self._tokens[start].token_type == TokenType.RECURSIVE:
+                start += 1
+            with_query = (self._curr.token_type == TokenType.WITH and start + 1 < self._tokens_size
+                          and self._tokens[start + 1].token_type in {TokenType.ALIAS, TokenType.L_PAREN})
+            if (self._curr and self._curr.token_type not in {
+                    TokenType.IDENTIFIER, TokenType.TABLE, TokenType.SELECT, TokenType.VALUES}
+                    and not with_query and self._curr.text.isidentifier()):
                 self._curr.token_type = TokenType.VAR
             return super()._parse_table(*args, **kwargs)
 
 
 def _tokens(sql: str, context: DialectContext):
-    dialect = (_mysql_dialect("ANSI_QUOTES" in context.sql_modes, "NO_BACKSLASH_ESCAPES" in context.sql_modes, "PIPES_AS_CONCAT" in context.sql_modes)
+    dialect = (_mysql_dialect("ANSI_QUOTES" in context.sql_modes, "NO_BACKSLASH_ESCAPES" in context.sql_modes, "PIPES_AS_CONCAT" in context.sql_modes, "HIGH_NOT_PRECEDENCE" in context.sql_modes)
                if context.dialect == "mysql" else _SQLite())
     tokens = dialect.tokenize(sql)
     # SQLGlot classifies keywords with Unicode upper(). Restore non-ASCII
@@ -322,6 +364,97 @@ def _tokens(sql: str, context: DialectContext):
     return dialect, tokens
 
 
+_MYSQL_PLAN_HINTS = frozenset({
+    "BKA", "NO_BKA", "BNL", "NO_BNL", "DERIVED_CONDITION_PUSHDOWN", "NO_DERIVED_CONDITION_PUSHDOWN",
+    "GROUP_INDEX", "NO_GROUP_INDEX", "HASH_JOIN", "NO_HASH_JOIN", "INDEX", "NO_INDEX",
+    "INDEX_MERGE", "NO_INDEX_MERGE", "JOIN_FIXED_ORDER", "JOIN_INDEX", "NO_JOIN_INDEX",
+    "JOIN_ORDER", "JOIN_PREFIX", "JOIN_SUFFIX", "MERGE", "NO_MERGE", "MRR", "NO_MRR",
+    "NO_ICP", "NO_RANGE_OPTIMIZATION", "ORDER_INDEX", "NO_ORDER_INDEX", "QB_NAME",
+    "SEMIJOIN", "NO_SEMIJOIN", "SKIP_SCAN", "NO_SKIP_SCAN", "SUBQUERY",
+})
+
+
+def _mysql_plan_hint_supported(body: str, dialect) -> bool:
+    """Recognize only complete named plan hints with flat name arguments.
+
+    No SET_VAR, resource assignment, timeout override, unknown names, nested
+    expressions or parser fallback-to-string. This is a supported subset, not
+    proof that the server applies a hint or accepts all its arguments.
+    """
+    tokens = dialect.tokenize(body)
+    end = 0
+    for token in tokens:
+        if body[end:token.start].strip() or token.comments:
+            return False
+        end = token.end + 1
+    if body[end:].strip():
+        return False
+    index = 0
+    while index < len(tokens):
+        name = tokens[index]
+        if name.token_type in {TokenType.STRING, TokenType.IDENTIFIER} or name.text.translate(_ASCII_UPPER) not in _MYSQL_PLAN_HINTS:
+            return False
+        index += 1
+        if index >= len(tokens) or tokens[index].token_type != TokenType.L_PAREN:
+            return False
+        index += 1
+        arguments = []
+        while index < len(tokens) and tokens[index].token_type != TokenType.R_PAREN:
+            token = tokens[index]
+            if not (token.token_type == TokenType.IDENTIFIER or
+                    token.token_type not in {TokenType.STRING, TokenType.NATIONAL_STRING} and token.text.isidentifier() or
+                    token.token_type == TokenType.COMMA or token.token_type == TokenType.PARAMETER and token.text == "@"):
+                return False
+            if token.token_type == TokenType.COMMA and (not arguments or arguments[-1].token_type in {TokenType.COMMA, TokenType.PARAMETER}):
+                return False
+            arguments.append(token)
+            index += 1
+        if index == len(tokens) or arguments and arguments[-1].token_type in {TokenType.COMMA, TokenType.PARAMETER}:
+            return False
+        index += 1
+    return True
+
+
+def has_unsupported_sql_comments(sql: str, tokens, context: DialectContext, dialect) -> bool:
+    """Check every raw trivia region/hint, never strings or quoted names."""
+    previous_end = 0
+    gaps = []
+    for token in tokens:
+        gaps.append(sql[previous_end:token.start])
+        if token.token_type == TokenType.HINT:
+            gaps.append(sql[token.start:token.end + 1])
+        previous_end = token.end + 1
+    gaps.append(sql[previous_end:])
+    if context.dialect == "mysql" and any(a.text == b.text == "-" and a.end + 1 == b.start and (b.end + 1 == len(sql) or not sql[b.end + 1].isspace()) for a, b in zip(tokens, tokens[1:])):
+        return True
+    for gap in gaps:
+        index = 0
+        while index < len(gap):
+            if gap[index].isspace():
+                index += 1
+            elif gap.startswith("/*", index):
+                end = gap.find("*/", index + 2)
+                if end < 0:
+                    return True
+                if context.dialect == "mysql":
+                    if gap.startswith(("/*!", "/*M!"), index):
+                        return True
+                    if gap.startswith("/*+", index) and not _mysql_plan_hint_supported(gap[index + 3:end], dialect):
+                        return True
+                index = end + 2
+            elif gap.startswith("--", index):
+                if context.dialect == "mysql" and (index + 2 == len(gap) or not gap[index + 2].isspace()):
+                    return True
+                end = gap.find("\n", index + 2)
+                index = len(gap) if end < 0 else end + 1
+            elif context.dialect == "mysql" and gap[index] == "#":
+                end = gap.find("\n", index + 1)
+                index = len(gap) if end < 0 else end + 1
+            else:
+                return True
+    return False
+
+
 def analyze_sql(sql: str, context: DialectContext, *, view_definition: bool = False) -> SQLAnalysis:
     """Complete means complete for this project's supported analysis contract.
 
@@ -330,11 +463,13 @@ def analyze_sql(sql: str, context: DialectContext, *, view_definition: bool = Fa
     """
     if not sql.strip():
         return SQLAnalysis("failed", "empty", unsupported=("empty_sql",), context_key=context.fingerprint)
-    if context.dialect == "mysql" and "HIGH_NOT_PRECEDENCE" in context.sql_modes:
-        return SQLAnalysis("partial", "unknown", unsupported=("sql_mode_not_supported",), context_key=context.fingerprint)
     prefix = []
     try:
-        dialect, tokens = _tokens(sql, context)
+        dialect, raw_tokens = _tokens(sql, context)
+        # HINT is comment trivia, including after a final terminator. Retain
+        # raw tokens for complete dialect checks; statement shape uses only
+        # executable tokens and their unchanged original positions.
+        tokens = [token for token in raw_tokens if token.token_type != TokenType.HINT]
         prefix = [token.text.translate(_ASCII_UPPER) for token in tokens[:4]]
         if any(a.token_type == TokenType.L_BRACE and b.text.translate(_ASCII_UPPER) == "OJ" for a, b in zip(tokens, tokens[1:])):
             return SQLAnalysis("partial", "unknown", unsupported=("odbc_relation",), context_key=context.fingerprint)
@@ -342,17 +477,25 @@ def analyze_sql(sql: str, context: DialectContext, *, view_definition: bool = Fa
             return SQLAnalysis("failed", "unknown", unsupported=("multiple_statements",), context_key=context.fingerprint)
         if any(a.token_type == TokenType.COMMA and b.token_type == TokenType.R_PAREN for a, b in zip(tokens, tokens[1:])):
             return SQLAnalysis("failed", "with" if prefix[:1] == ["WITH"] else "unknown", unsupported=("sql_parse_failed",), context_key=context.fingerprint)
-        previous_end = 0
-        gaps = []
-        for token in tokens:
-            gaps.append(sql[previous_end:token.start])
-            previous_end = token.end + 1
-        gaps.append(sql[previous_end:])
-        adjacent_dash = any(a.text == b.text == "-" and a.end + 1 == b.start and (b.end + 1 == len(sql) or not sql[b.end + 1].isspace()) for a, b in zip(tokens, tokens[1:]))
-        if adjacent_dash or any(token.token_type == TokenType.HINT for token in tokens) or any(re.search(r"/\*(?:!|\+|M!)|--(?:$|[^\s])", gap, flags=re.ASCII) for gap in gaps):
+        if has_unsupported_sql_comments(sql, raw_tokens, context, dialect):
             return SQLAnalysis("complete", "unsafe_comment", context_key=context.fingerprint)
+        # Hints have been validated from all original spans. Omit them only
+        # from analysis so hint-relative AST offsets cannot impersonate names,
+        # functions or dependencies in the actual SQL. Execute original SQL.
         if prefix[:1] == ["SHOW"]:
             return SQLAnalysis("complete", "show", context_key=context.fingerprint)
+        if (prefix[:1] in (["SELECT"], ["WITH"], ["EXPLAIN"], ["DESCRIBE"], ["DESC"])
+                and any(token.token_type == TokenType.PLACEHOLDER and token.text == "?" for token in tokens)):
+            return SQLAnalysis("partial", "unsupported_binding", context_key=context.fingerprint)
+        if (context.dialect == "mysql" and prefix[:1] in (["DO"], ["HANDLER"])
+                and tokens[0].token_type not in {TokenType.IDENTIFIER, TokenType.STRING}):
+            return SQLAnalysis("complete", "nonread_command", context_key=context.fingerprint)
+        if context.dialect == "mysql" and any(
+                a.token_type == TokenType.INTO and b.token_type == TokenType.PARAMETER
+                for a, b in zip(tokens, tokens[1:])):
+            # Includes MySQL's trailing INTO form, which upstream cannot parse.
+            # This is a rejection fact, never an executable incomplete plan.
+            return SQLAnalysis("complete", "select", has_session_assignment=True, context_key=context.fingerprint)
         if any(a.token_type == TokenType.INTO and b.token_type not in {TokenType.STRING, TokenType.IDENTIFIER} and b.text.translate(_ASCII_UPPER) in {"OUTFILE", "DUMPFILE"} for a, b in zip(tokens, tokens[1:])):
             return SQLAnalysis("complete", "select", has_file_output=True, context_key=context.fingerprint)
         explained = bool(prefix and prefix[0] in {"EXPLAIN", "DESCRIBE", "DESC"})
@@ -367,7 +510,11 @@ def analyze_sql(sql: str, context: DialectContext, *, view_definition: bool = Fa
                 tokens = tokens[3:]
             elif prefix[0] == "EXPLAIN":
                 tokens = tokens[1:]
-        trees = [tree for tree in dialect.parser().parse(tokens, sql) if tree is not None]
+        # A trailing comment after a terminator becomes a Semicolon node in
+        # SQLGlot. All raw trivia was checked above; this is no executable
+        # statement. Original-token and tree checks still reject real SQL.
+        trees = [tree for tree in dialect.parser().parse(tokens, sql)
+                 if tree is not None and not isinstance(tree, exp.Semicolon)]
         if len(trees) != 1:
             return SQLAnalysis("failed", "unknown", unsupported=("multiple_statements",), context_key=context.fingerprint)
         tree = trees[0]
@@ -393,8 +540,10 @@ def analyze_sql(sql: str, context: DialectContext, *, view_definition: bool = Fa
     scope_records: list[QueryScope] = []
     cte_records: list[CTEDeclaration] = []
     relation_uses: list[RelationUse] = []
+    virtual_relations: list[VirtualRelationUse] = []
     token_at = {token.start: token for token in tokens}
     derived = nested_write = file_output = system_variable = False
+    locking_read = session_assignment = False
 
     def occurrence(identifier, role: NameRole, scope: int):
         if not isinstance(identifier, exp.Identifier):
@@ -415,9 +564,14 @@ def analyze_sql(sql: str, context: DialectContext, *, view_definition: bool = Fa
             function = node.expression
             name = function.name if isinstance(function, exp.Anonymous) else function.sql_name()
             occurrence(node.this, "schema", scope)
+            if context.dialect == "sqlite" and ascii_identifier_lower(name) in {"json_each", "json_tree"}:
+                virtual_relations.append(VirtualRelationUse(ascii_identifier_lower(name), node.this.name, scope, source, "sqlite_json"))
+                return
             ref = RelationReference(name, node.this.name)
             relations.add(ref)
             relation_uses.append(RelationUse(ref, scope, source))
+            if context.dialect == "sqlite" and ascii_identifier_lower(name) not in _SQLITE_PRAGMA_OBJECTS:
+                virtual_relations.append(VirtualRelationUse(name, node.this.name, scope, source, "sqlite_named"))
             return
         if isinstance(node, exp.Column):  # SQLite's table-form IN operand
             parts = node.parts
@@ -429,9 +583,35 @@ def analyze_sql(sql: str, context: DialectContext, *, view_definition: bool = Fa
             fn = node.this if isinstance(node, exp.Table) else node
             if isinstance(fn, exp.Func):
                 name = fn.name if isinstance(fn, exp.Anonymous) else fn.sql_name()
-                ref = RelationReference(name)
+                schema = node.db if isinstance(node, exp.Table) and node.db else None
+                if context.dialect == "sqlite" and fn.meta.get("sqlite_relation_call"):
+                    identifier = fn.this if isinstance(fn.this, exp.Identifier) else exp.Identifier(this=name)
+                    if not identifier.meta:
+                        identifier.meta.update(fn.meta)
+                    occurrence(identifier, "relation", scope)
+                    if schema:
+                        occurrence(node.args.get("db"), "schema", scope)
+                if isinstance(node, exp.Table) and node.catalog:
+                    unsupported.add("relation_components")
+                    return
+                builtin = (context.dialect == "sqlite" and ascii_identifier_lower(name) in {"json_each", "json_tree"}
+                           or context.dialect == "mysql" and isinstance(fn, exp.JSONTable))
+                if builtin:
+                    if schema:
+                        occurrence(node.args.get("db"), "schema", scope)
+                    virtual_relations.append(VirtualRelationUse(
+                        ascii_identifier_lower(name), schema, scope, source,
+                        "sqlite_json" if context.dialect == "sqlite" else "builtin"))
+                    return
+                ref = RelationReference(name, schema)
                 relations.add(ref)
                 relation_uses.append(RelationUse(ref, scope, source))
+                if context.dialect == "sqlite" and ascii_identifier_lower(name) not in _SQLITE_PRAGMA_OBJECTS:
+                    # A named SQLite virtual call has an ordinary root identity.
+                    # Actual module support is verified from the execution
+                    # connection's catalog before it gains internal abilities.
+                    virtual_relations.append(VirtualRelationUse(name, schema, scope, source, "sqlite_named"))
+                    return
                 if membership and context.dialect == "sqlite":
                     return
             unsupported.add("virtual_relation")
@@ -451,7 +631,7 @@ def analyze_sql(sql: str, context: DialectContext, *, view_definition: bool = Fa
             relation_uses.append(RelationUse(ref, scope, source))
 
     def walk(node, visible: frozenset[str], *, root=False, scope=0, source=None):
-        nonlocal scopes, derived, nested_write, file_output, system_variable
+        nonlocal scopes, derived, nested_write, file_output, system_variable, locking_read, session_assignment
         new_scope = root or isinstance(node, (exp.Select, exp.SetOperation))
         parent_scope = scope or None
         if new_scope:
@@ -497,13 +677,13 @@ def analyze_sql(sql: str, context: DialectContext, *, view_definition: bool = Fa
         if isinstance(node, exp.Table):
             if isinstance(node.parent, exp.Table) and node.parent.args.get("indexed") is node:
                 occurrence(node.this, "index", scope)
-            else:
+            elif not (isinstance(node.parent, exp.In) and node.parent.args.get("field") is node):
                 reference(node, own, scope, source)
             if isinstance(node.parent, (exp.Exists, exp.SetOperation)):
                 unsupported.add("table_query_expression")
         if isinstance(node, exp.In) and node.args.get("field") is not None:
             reference(node.args["field"], own, scope, source, membership=True)
-        if isinstance(node, exp.Func):
+        if isinstance(node, exp.Func) and not node.meta.get("sqlite_relation_call"):
             position = node.meta.get("start")
             original = token_at.get(position) if isinstance(position, int) else None
             name = original.text if original is not None else node.name if isinstance(node, exp.Anonymous) else node.sql_name()
@@ -515,7 +695,14 @@ def analyze_sql(sql: str, context: DialectContext, *, view_definition: bool = Fa
         if isinstance(node, exp.Parameter) and isinstance(node.this, exp.Parameter):
             system_variable = True
         if isinstance(node, exp.Into):
-            file_output = True
+            if isinstance(node.this, exp.Table) and isinstance(node.this.this, exp.Parameter):
+                session_assignment = True
+            else:
+                file_output = True
+        if isinstance(node, exp.PropertyEQ) and isinstance(node.this, exp.Parameter):
+            session_assignment = True
+        if isinstance(node, exp.Lock):
+            locking_read = True
         if isinstance(node, exp.From) or isinstance(node, exp.Join):
             if isinstance(node.this, (exp.Subquery, exp.Paren)):
                 derived = True
@@ -547,6 +734,8 @@ def analyze_sql(sql: str, context: DialectContext, *, view_definition: bool = Fa
         tuple(sorted(scope_records, key=lambda item: item.identity)), tuple(sorted(cte_records, key=lambda item: (item.scope, item.order))),
         tuple(relation_uses),
         type(tree).__name__.lower() if explained else None,
+        locking_read, session_assignment,
+        tuple(virtual_relations),
     )
 
 

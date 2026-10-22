@@ -1,0 +1,165 @@
+{
+  "date": "2026-10-20",
+  "version": "3.8.2",
+  "status": "source_package_passed_resident_pending",
+  "scope": "DRR-121 SQLite comments; DRR-122 bounded MySQL plan hints; DRR-123 actual-session NOT and bang precedence.",
+  "checks": {
+    "full_regression_passed": 2920,
+    "full_regression_skipped": 4,
+    "subsequent_query_skill_tests_passed": 2,
+    "source_stdio_calls": 64,
+    "installed_stdio_calls": 64,
+    "matrix_groups": 1513,
+    "read_shape_recoveries": 370,
+    "managed_recoveries": 341,
+    "no_allow_to_deny_in_frozen_matrix": true,
+    "sqlparse_verdicts_unchanged": true,
+    "mysql_physical_sessions": 16,
+    "mysql_scalar_truth": 272,
+    "mysql_nonexecuting_plans": 128,
+    "dependencies_unchanged": true,
+    "wheel_sha256": "49e82ea0c224089028b8a0886a3beed2842cc720afa927f204df5f095b18b2bc"
+  },
+  "startup_warm_gateway_ms": {
+    "baseline_median_ms": 8.9524105,
+    "optimized_median_ms": 8.8523835,
+    "delta_ms": -0.10002699999999898,
+    "delta_percent": -1.117319184592791
+  },
+  "timed_calls": 960,
+  "warmup_calls": 192,
+  "cost_conclusion": "Small balanced warm SQLite workload: no clear regression; only 21/40 pairs faster in either protocol. No speedup or model-cost guarantee.",
+  "previous_manifests_verified": 25,
+  "previous_files_verified": 600,
+  "markdown_local_links_checked": 888,
+  "evidence": {
+    "before.json": {
+      "file": "before.json.gz",
+      "bytes": 9426,
+      "sha256": "d77699dfe9bb41ba20e70c105be4b3e444f8f4f05639454d9ad94080406bdb69"
+    },
+    "after_resources.json": {
+      "file": "after_resources.json.gz",
+      "bytes": 3751,
+      "sha256": "2178fdbc51f0ebee8cbe8aa3829e362d04d39493405c45243d802b15393dc44f"
+    },
+    "verification.json": {
+      "file": "verification.json.gz",
+      "bytes": 7380,
+      "sha256": "44668b3e0ada4fc7379a0e8204dde69dfdf3bd87efe07a422e28d33dda2de3e2"
+    },
+    "installed_resources.json": {
+      "file": "installed_resources.json.gz",
+      "bytes": 4496,
+      "sha256": "0b18d2f35c7607f1bb44af0bd7939a506bbfee1198bc10df0a98599a1278e776"
+    },
+    "before_runtime.tar.gz": {
+      "file": "before_runtime.tar.gz",
+      "bytes": 126629,
+      "sha256": "7391e0b220a2ea6c736a2f876fbfa2a9aab1b629192ced1b98df20716b5ddc79"
+    },
+    "after_runtime.tar.gz": {
+      "file": "after_runtime.tar.gz",
+      "bytes": 127657,
+      "sha256": "22cd52e09573862b38a0001ae9c32c16588b724d7eb5e49a31e5a24f912cbc44"
+    },
+    "before_matrix.json.gz": {
+      "file": "before_matrix.json.gz",
+      "bytes": 40472,
+      "sha256": "77d591c13dec6305c730c3699c3e1b83e219e914f7f35bb4459309300145a092"
+    },
+    "after_matrix.json.gz": {
+      "file": "after_matrix.json.gz",
+      "bytes": 37309,
+      "sha256": "70dc1d113e34353eec16a5a92e19852887d05552eddc5b770caa10338c752d66"
+    },
+    "mysql_truth.json.gz": {
+      "file": "mysql_truth.json.gz",
+      "bytes": 3561,
+      "sha256": "0d7855348bd23e57c685bfec2847303747f3e970336b5b59297cb1cd79439bcd"
+    },
+    "source_stdio.json.gz": {
+      "file": "source_stdio.json.gz",
+      "bytes": 52174,
+      "sha256": "5dc6caebfad116fc8869a27a9ed22741c3343799bdcfa60291ca43e7fd43ec53"
+    },
+    "installed_stdio.json.gz": {
+      "file": "installed_stdio.json.gz",
+      "bytes": 52179,
+      "sha256": "6db35fb5a4beb2b9ea4fc52ca5bf78734e0966dac5f2797ad8780b04aa251483"
+    },
+    "startup_cost.json": {
+      "file": "startup_cost.json.gz",
+      "bytes": 5924,
+      "sha256": "b91c8650013a6d17fd03517ba4cdad7e4f5e50642afde4177925fce0754dd9b7"
+    },
+    "paired_cost.json.gz": {
+      "file": "paired_cost.json.gz",
+      "bytes": 20283,
+      "sha256": "42df6838b04cc6605731be6adedbdc64c2eb1319c6eb8cba3fe2a3c2faad9213"
+    },
+    "full_pytest_first.log": {
+      "file": "full_pytest_first.log.gz",
+      "bytes": 869,
+      "sha256": "6b87068652fffb92a2f0ff3134be782820c94dde4c079731dc3e02dda0b9949e"
+    },
+    "query_readiness.log": {
+      "file": "query_readiness.log.gz",
+      "bytes": 397,
+      "sha256": "fffa069b6ae5809bfd29c02afd40660326427665d9f36560be643a9eed21df2a"
+    },
+    "targeted_first.log": {
+      "file": "targeted_first.log.gz",
+      "bytes": 2186,
+      "sha256": "83d96ec2d645dc507ce4b237179a589d862aab5090de67b20c3ecb572822c86c"
+    },
+    "targeted_final.log": {
+      "file": "targeted_final.log.gz",
+      "bytes": 1275,
+      "sha256": "d8fb66dd9c7cc6346157c7adeecf5e6eb6dffbf1679e602d716d3a2bfd25a8ee"
+    },
+    "targeted_verified.log": {
+      "file": "targeted_verified.log.gz",
+      "bytes": 466,
+      "sha256": "9115aacd93b82ff12840266040e7234187b37e6e1b04bc8a87ca320e69524d0f"
+    },
+    "typecheck.log": {
+      "file": "typecheck.log.gz",
+      "bytes": 53,
+      "sha256": "c8f40ac3b3f577d99ca528dc797ac395a63bdcedd0b425151e1b76ffc54e42f5"
+    },
+    "prompt_contract.log": {
+      "file": "prompt_contract.log.gz",
+      "bytes": 74,
+      "sha256": "090e5d838501a835953ba08eeacb177cf0ecef59e67add02b2bcb919113e87ea"
+    },
+    "installed_prompt.log": {
+      "file": "installed_prompt.log.gz",
+      "bytes": 74,
+      "sha256": "090e5d838501a835953ba08eeacb177cf0ecef59e67add02b2bcb919113e87ea"
+    },
+    "build_install.log": {
+      "file": "build_install.log.gz",
+      "bytes": 317,
+      "sha256": "589bada83e4bae419d78e575939e3ebc20c7f46781041a24faa56d99cf80487b"
+    },
+    "before_matrix_initial_literal.json.gz": {
+      "file": "before_matrix_initial_literal.json.gz",
+      "bytes": 41472,
+      "sha256": "7c502c4f566830c686640bd10d77c3daf4c14a7b045535ed84201fd5ac0a3f66"
+    },
+    "before_matrix_initial_literal.log": {
+      "file": "before_matrix_initial_literal.log.gz",
+      "bytes": 71,
+      "sha256": "5d1b94c69f349035457f83f40b39897d6265c1f114aca7eaa706f49f0484ddbd"
+    },
+    "matrix_initial.py.gz": {
+      "file": "matrix_initial.py.gz",
+      "bytes": 2179,
+      "sha256": "d270fbc7c3e960df0d78b213d165508ac0717c4a16c8e27f21e58a68a88350f5"
+    }
+  },
+  "collection_layer": "Application observations and selected test/build diagnostics; not full JSON-RPC frames, notifications, original field omission or model usage. Opaque fixture handles consistently redacted before output.",
+  "public_omissions": "Duplicate large console transcripts and wheel binary remain local; original values/results, frozen runtime archives, recipes, build/resource/wheel digests and corrected-fixture failures are retained. No new native or complete-model acceptance claim.",
+  "limits": "Synthetic read matrix checks shape/functions, not full grants; independent scoped tests cover authorization. Generated AST SQL is diagnostic only; execution retains original SQL. Native evidence must append after owner restart without modifying this checkpoint."
+}

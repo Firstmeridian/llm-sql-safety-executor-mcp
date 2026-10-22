@@ -1,0 +1,126 @@
+[
+  {
+    "agent_id": "01a15f0b-7a1a-7730-a739-08d3987689d8",
+    "nickname": "Jason",
+    "task": "telemetry",
+    "trial": 1,
+    "marker": "RDCAP.telemetry.1",
+    "started_utc": "2026-10-21T15:19:10.221Z",
+    "turn2_sent": true
+  },
+  {
+    "agent_id": "01a15f0b-7a90-76e2-b6d5-d7287a30587f",
+    "nickname": "Halley",
+    "task": "knowledge",
+    "trial": 1,
+    "marker": "RDCAP.knowledge.1",
+    "started_utc": "2026-10-21T15:19:10.318Z",
+    "turn2_sent": true
+  },
+  {
+    "agent_id": "01a15f0b-7af5-79f2-bae2-390b061df8ec",
+    "nickname": "Locke",
+    "task": "search",
+    "trial": 1,
+    "marker": "RDCAP.search.1",
+    "started_utc": "2026-10-21T15:19:10.440Z",
+    "turn2_sent": true
+  },
+  {
+    "agent_id": "01a15f0b-7b73-7121-a919-111b3c90b38b",
+    "nickname": "Copernicus",
+    "task": "finance",
+    "trial": 1,
+    "marker": "RDAUD.finance.1",
+    "started_utc": "2026-10-21T15:19:10.568Z"
+  },
+  {
+    "agent_id": "01a15f0b-7bee-7962-9161-cc5cf38e92ac",
+    "nickname": "Avicenna",
+    "task": "mutation",
+    "trial": 1,
+    "marker": "RDAUD.mutation.1",
+    "started_utc": "2026-10-21T15:19:10.714Z",
+    "turn2_sent": true
+  },
+  {
+    "agent_id": "01a15f11-680a-7eb2-a917-c865e40fe22d",
+    "nickname": "Erdos",
+    "task": "telemetry",
+    "trial": 2,
+    "marker": "RDCAP.telemetry.2",
+    "started_utc": "2026-10-21T15:25:38.801Z"
+  },
+  {
+    "agent_id": "01a15f11-6880-72b1-a604-b7145bafb2ca",
+    "nickname": "Raman",
+    "task": "knowledge",
+    "trial": 2,
+    "marker": "RDCAP.knowledge.2",
+    "started_utc": "2026-10-21T15:25:38.907Z"
+  },
+  {
+    "agent_id": "01a15f11-68e2-73e1-b8e6-232a3a9dbf28",
+    "nickname": "Ampere",
+    "task": "search",
+    "trial": 2,
+    "marker": "RDCAP.search.2",
+    "started_utc": "2026-10-21T15:25:39.006Z"
+  },
+  {
+    "agent_id": "01a15f11-6946-75d1-bca1-d4fc0ed17ae3",
+    "nickname": "Gibbs",
+    "task": "mutation",
+    "trial": 2,
+    "marker": "RDAUD.mutation.2",
+    "started_utc": "2026-10-21T15:25:39.113Z"
+  },
+  {
+    "agent_id": "01a15f12-84b8-7562-91e3-403bb8936a6c",
+    "nickname": "Mill",
+    "task": "finance",
+    "trial": 2,
+    "marker": "RDAUD.finance.2",
+    "started_utc": "2026-10-21T15:26:51.675Z"
+  },
+  {
+    "agent_id": "01a15f14-9ea6-7b01-a70f-c4950668b301",
+    "nickname": "Banach",
+    "task": "telemetry",
+    "trial": 3,
+    "marker": "RDCAP.telemetry.3",
+    "started_utc": "2026-10-21T15:29:09.383Z"
+  },
+  {
+    "agent_id": "01a15f14-9f0e-7a02-a55f-694d50a25aa5",
+    "nickname": "Beauvoir",
+    "task": "knowledge",
+    "trial": 3,
+    "marker": "RDCAP.knowledge.3",
+    "started_utc": "2026-10-21T15:29:09.486Z"
+  },
+  {
+    "agent_id": "01a15f14-9f76-7202-9770-8ce7f0b4893e",
+    "nickname": "Newton",
+    "task": "search",
+    "trial": 3,
+    "marker": "RDCAP.search.3",
+    "started_utc": "2026-10-21T15:29:09.586Z"
+  },
+  {
+    "agent_id": "01a15f14-9fdb-71a1-b4f9-61d306bd3c6d",
+    "nickname": "Russell",
+    "task": "mutation",
+    "trial": 3,
+    "marker": "RDAUD.mutation.3",
+    "started_utc": "2026-10-21T15:29:09.690Z"
+  },
+  {
+    "agent_id": "01a15f16-0ab8-78f0-8376-5325979c6663",
+    "nickname": "Aristotle",
+    "task": "finance",
+    "trial": 3,
+    "marker": "RDAUD.finance.3",
+    "started_utc": "2026-10-21T15:30:42.577Z"
+  }
+]

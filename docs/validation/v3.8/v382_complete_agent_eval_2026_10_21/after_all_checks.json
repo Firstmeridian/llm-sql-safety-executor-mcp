@@ -1,0 +1,78 @@
+{
+  "all_checks_passed": true,
+  "sqlite_files": {
+    "analytics_demo_sqlite": {
+      "file_sha256": "30a8570e11947237cae2af6a699ab62ffe097e4d9a970b0d76d32f30f48016af"
+    },
+    "live_test_sqlite": {
+      "file_sha256": "bf16a07c0b11d20056d6311f0b33b34f8ac3e10898ed71579ea5910990f07a7b"
+    },
+    "union_test_sqlite": {
+      "file_sha256": "f952e49b1a93e3623c9ef950fbc2f9158dd2f46efdecdf429a84060917909fba"
+    },
+    "rich_mutation_sqlite": {
+      "file_sha256": "dc89c92c850ee56f1463231d62fbbcedca264ed254936edaef6829b864a62e8e"
+    },
+    "analytics_rich_sqlite": {
+      "file_sha256": "0a97c0a62d971dac1ee0d5dba65f7b6d6bba0d029a4023e3a554ac0ce0be1bb3"
+    },
+    "chinook_sqlite": {
+      "file_sha256": "7651ba378ac2fcd0dfc3c66fb101f7a7eed3ba39a612ec642b96e20702061f15"
+    },
+    "geo_stores_sqlite": {
+      "file_sha256": "763bdff56848ade43354bcafd3d90dbf90bcf7603469864e5496968fabdaac23"
+    },
+    "iot_telemetry_sqlite": {
+      "file_sha256": "b636efff8bfd6e458458a62277fb00b1302edae6df74e4804407ec61745de408"
+    },
+    "logistics_flights_sqlite": {
+      "file_sha256": "eed1d6b8efc9109fb07a7bd942d125774f3121f256aca3532c9cf07acc059993"
+    },
+    "sqlite_features_sqlite": {
+      "file_sha256": "119f6f613a1a78a0a64dde41d061d3bee55b07b1e89375f400dec5ecf3de1add"
+    }
+  },
+  "sakila": {
+    "payment": {
+      "rows": 16044,
+      "sha256": "6ab763951dbf57b835d3db5473b3c9b1806cf347796e7f7e610e2acd14d84290"
+    },
+    "rental": {
+      "rows": 16044,
+      "sha256": "a1908a3c6f93301882f2cfcd3f23168d59d6a858d68e01c2b5bf902a1d4a1484"
+    },
+    "inventory": {
+      "rows": 4581,
+      "sha256": "665d34ff1630c8361ea901e10c4efa78c3fd1a18b9a698235e456a2cf81624e7"
+    },
+    "film": {
+      "rows": 1000,
+      "sha256": "db07400a344384151f3b48156d84b1034233b831b4bc842efca51b5410bda5ab"
+    }
+  },
+  "private_config_hashes": {
+    "server.toml": "fa06f1b753c96899ee57f1d5567790cb00b8afa6fc7ece09491cac85671d77f9",
+    "connections.toml": "e4859da2fba7ed74b2155d9491389dd65347dc71beed101a336299cc73cb9811",
+    "skills.toml": "5229e3fe17a74aaf3a1d0d33a5399d6337ec2cdbc4dfc95880349761d55d32bb"
+  },
+  "runtime_resources_match": 77,
+  "configured_connections": [
+    "analytics_demo_sqlite",
+    "analytics_rich_sqlite",
+    "chinook_sqlite",
+    "exoplanets_mysql",
+    "geo_stores_sqlite",
+    "iot_telemetry_sqlite",
+    "live_test_sqlite",
+    "logistics_flights_sqlite",
+    "orders_demo_mysql",
+    "rich_mutation_sqlite",
+    "sakila_mysql",
+    "sqlite_features_sqlite",
+    "trade_analysis_mysql",
+    "union_test_sqlite",
+    "us_equities_mysql",
+    "world_demo_mysql"
+  ],
+  "scope": "Read-only independent after-check; no global/config changes or compensating write."
+}

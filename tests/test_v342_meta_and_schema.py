@@ -308,7 +308,7 @@ def test_table_discovery_error_is_not_reported_as_empty_schema(base_server, monk
     def fail_metadata():
         raise base_server.MetadataQueryError("listing tables")
 
-    monkeypatch.setattr(adapter, "get_tables", fail_metadata)
+    monkeypatch.setattr(adapter, "get_table_directory", fail_metadata)
 
     for tool in (base_server.list_tables, base_server.get_full_schema):
         result = asyncio.run(tool(ctx=_DummyContext()))
@@ -540,9 +540,10 @@ def test_get_full_schema_explicit_full_retains_adapter_projection(base_server):
         "grouping_basis",
     ):
         assert grouping_field not in payload
-    assert {"name", "type", "nullable", "key", "default"} == set(
+    assert {"name", "type", "nullable", "key", "default", "primary_key_position"} == set(
         payload["schema"]["widgets"]["columns"][0]
     )
+    assert payload["schema"]["widgets"]["columns"][0]["primary_key_position"] == 1
 
 
 def test_get_full_schema_compact_groups_only_equal_adapter_metadata(base_server):

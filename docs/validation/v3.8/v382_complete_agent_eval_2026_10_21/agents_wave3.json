@@ -1,0 +1,42 @@
+[
+  {
+    "agent_id": "01a15f14-9ea6-7b01-a70f-c4950668b301",
+    "nickname": "Banach",
+    "task": "telemetry",
+    "trial": 3,
+    "marker": "RDCAP.telemetry.3",
+    "started_utc": "2026-10-21T15:29:09.383Z"
+  },
+  {
+    "agent_id": "01a15f14-9f0e-7a02-a55f-694d50a25aa5",
+    "nickname": "Beauvoir",
+    "task": "knowledge",
+    "trial": 3,
+    "marker": "RDCAP.knowledge.3",
+    "started_utc": "2026-10-21T15:29:09.486Z"
+  },
+  {
+    "agent_id": "01a15f14-9f76-7202-9770-8ce7f0b4893e",
+    "nickname": "Newton",
+    "task": "search",
+    "trial": 3,
+    "marker": "RDCAP.search.3",
+    "started_utc": "2026-10-21T15:29:09.586Z"
+  },
+  {
+    "agent_id": "01a15f14-9fdb-71a1-b4f9-61d306bd3c6d",
+    "nickname": "Russell",
+    "task": "mutation",
+    "trial": 3,
+    "marker": "RDAUD.mutation.3",
+    "started_utc": "2026-10-21T15:29:09.690Z"
+  },
+  {
+    "agent_id": "01a15f16-0ab8-78f0-8376-5325979c6663",
+    "nickname": "Aristotle",
+    "task": "finance",
+    "trial": 3,
+    "marker": "RDAUD.finance.3",
+    "started_utc": "2026-10-21T15:30:42.577Z"
+  }
+]

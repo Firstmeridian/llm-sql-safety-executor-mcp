@@ -443,7 +443,7 @@ class TestMySQLAdapter:
         def fake_execute(sql, timeout=None, params=None):
             calls.append((sql, params))
             if "INFORMATION_SCHEMA.COLUMNS" in sql:
-                return [("id", "int", "NO", "PRI", None)]
+                return [("id", "int", "NO", "PRI", None, 1)]
             return [(7,)]
 
         monkeypatch.setattr(adapter, "execute", fake_execute)

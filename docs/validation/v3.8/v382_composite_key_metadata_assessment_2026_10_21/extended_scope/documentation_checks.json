@@ -1,0 +1,41 @@
+{
+  "new_links": [
+    {
+      "from": "REFACTORING_LOG.md",
+      "target": "docs/validation/v3.8/v382_composite_key_metadata_assessment_2026_10_21/extended_scope/README.md",
+      "exists": true
+    },
+    {
+      "from": "REFACTORING_LOG_ZH.md",
+      "target": "docs/validation/v3.8/v382_composite_key_metadata_assessment_2026_10_21/extended_scope/README.md",
+      "exists": true
+    },
+    {
+      "from": "local_archive/v382_review/20261021_metadata_followup_assessment/extended_scope/reports/README_ZH.md",
+      "target": "../../../../../docs/validation/v3.8/v382_composite_key_metadata_assessment_2026_10_21/extended_scope/README.md",
+      "exists": true
+    },
+    {
+      "from": "local_archive/v382_review/README.md",
+      "target": "20261021_metadata_followup_assessment/extended_scope/reports/README_ZH.md",
+      "exists": true
+    },
+    {
+      "from": "local_archive/v382_review/handoff/session-handoff-v381-v382-20261019-ZH.md",
+      "target": "../20261021_metadata_followup_assessment/extended_scope/reports/README_ZH.md",
+      "exists": true
+    }
+  ],
+  "production_change": false,
+  "risk_scope": "No new confirmed independent production defect; DRR141 remains open",
+  "docs": {
+    "REFACTORING_LOG.md": "ced950729086bdcbb7f351a6f2e1a22b4ed94eb66de3b038619ce594593be122",
+    "REFACTORING_LOG_ZH.md": "a3852a1e24d44ee12860c43617ad9f6aec0c631483133c1c805d824dcb611fe1",
+    "local_archive/v382_review/20261021_metadata_followup_assessment/extended_scope/reports/README_ZH.md": "6eb0ea5848a0517b54e0e256abba621eefbee76f85edaa8089d3e54ee14b4543",
+    "docs/validation/v3.8/v382_composite_key_metadata_assessment_2026_10_21/extended_scope/README.md": "4aad0798aefeaa96d17e43adfee33af507fdb85a81d624cd4d893888e3b17b3c",
+    "local_archive/v382_review/README.md": "caa65498d3b159c62c531e99f4a1d19e4c7224304a198ed92c173d7fc14a57f4",
+    "local_archive/v382_review/handoff/session-handoff-v381-v382-20261019-ZH.md": "7b58105945725ee8fe42521fb9a630548d57ac87543fda00f09647e3b87301c9"
+  },
+  "commit_draft_changed": false,
+  "mysql_live_catalog_published": false
+}

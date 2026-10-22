@@ -1,0 +1,91 @@
+{
+  "scope": "Final serial A/B/A after own full regression, build, Client and integrity jobs completed; no parallel benchmark; baseline pre-DRR-136 worktree includes DRR-135 and earlier uncommitted repairs, not HEAD",
+  "measurement": "warm direct adapter, in-memory SQLite,9 groups x30 calls after15 warmups,0/1/8/64 ordinary two-key indexes, no collisions",
+  "rows": [
+    {
+      "indexes": 0,
+      "operation": "get_columns",
+      "A1_ms": 1.0800700998515822,
+      "B_ms": 0.2490014335004768,
+      "A2_ms": 1.0536273332642547,
+      "old_statements": 1,
+      "new_statements": 1,
+      "results_identical": true
+    },
+    {
+      "indexes": 0,
+      "operation": "get_indexes",
+      "A1_ms": 2.6671157667199927,
+      "B_ms": 1.0045650000392925,
+      "A2_ms": 2.579322266683448,
+      "old_statements": 2,
+      "new_statements": 2,
+      "results_identical": true
+    },
+    {
+      "indexes": 1,
+      "operation": "get_columns",
+      "A1_ms": 1.002727399948829,
+      "B_ms": 0.2796117999726751,
+      "A2_ms": 0.8574293999117799,
+      "old_statements": 1,
+      "new_statements": 1,
+      "results_identical": true
+    },
+    {
+      "indexes": 1,
+      "operation": "get_indexes",
+      "A1_ms": 2.7192970332786595,
+      "B_ms": 1.253225566567077,
+      "A2_ms": 2.6248484001068086,
+      "old_statements": 2,
+      "new_statements": 3,
+      "results_identical": true
+    },
+    {
+      "indexes": 8,
+      "operation": "get_columns",
+      "A1_ms": 1.0848177999529678,
+      "B_ms": 0.34704313341838616,
+      "A2_ms": 0.9802006665267982,
+      "old_statements": 1,
+      "new_statements": 1,
+      "results_identical": true
+    },
+    {
+      "indexes": 8,
+      "operation": "get_indexes",
+      "A1_ms": 3.061081000002256,
+      "B_ms": 4.700857333227759,
+      "A2_ms": 2.85907953317898,
+      "old_statements": 2,
+      "new_statements": 10,
+      "results_identical": true
+    },
+    {
+      "indexes": 64,
+      "operation": "get_columns",
+      "A1_ms": 1.0664118667288374,
+      "B_ms": 0.27661239995116677,
+      "A2_ms": 0.976924666853544,
+      "old_statements": 1,
+      "new_statements": 1,
+      "results_identical": true
+    },
+    {
+      "indexes": 64,
+      "operation": "get_indexes",
+      "A1_ms": 4.42419906660992,
+      "B_ms": 32.685255000008816,
+      "A2_ms": 5.134311166815071,
+      "old_statements": 2,
+      "new_statements": 66,
+      "results_identical": true
+    }
+  ],
+  "limits": [
+    "Not full MCP tool or model task latency, token or billing measurement",
+    "Not cold boot, file I/O, all schemas or arbitrary SQLite extension coverage",
+    "Correctness repair; per-index statement overhead retained, no generic caching introduced"
+  ]
+}

@@ -1,0 +1,72 @@
+{
+  "date": "2026-10-21",
+  "checkpoint": "source_package_verified_resident_restart_pending",
+  "scope": "3126 regression passes/4 optional skips; final source/package each176 application calls, matching77 resources; no new model or raw protocol claims",
+  "append_rule": "Preserve this checkpoint. Append resident_restart supplement after owner restart; never rewrite old evidence.",
+  "files": {
+    "README.md": {
+      "bytes": 2393,
+      "sha256": "b7a2a57c8416dab641ffdef3fab00b7a86c1727d6878c68bafc0485ab718af6d"
+    },
+    "checks/full-encoding-final.log.gz": {
+      "bytes": 935,
+      "sha256": "d5b10206298d7e64eb338ea681b7f0e8477b77c346f0889a0df02f443870aed1"
+    },
+    "checks/installed-prompts.log.gz": {
+      "bytes": 74,
+      "sha256": "090e5d838501a835953ba08eeacb177cf0ecef59e67add02b2bcb919113e87ea"
+    },
+    "checks/prompts.log.gz": {
+      "bytes": 74,
+      "sha256": "090e5d838501a835953ba08eeacb177cf0ecef59e67add02b2bcb919113e87ea"
+    },
+    "checks/types-encoding-final.log.gz": {
+      "bytes": 53,
+      "sha256": "c8f40ac3b3f577d99ca528dc797ac395a63bdcedd0b425151e1b76ffc54e42f5"
+    },
+    "evidence/cost-protocol-a1.json": {
+      "bytes": 1319,
+      "sha256": "5f815a6a7bbd1d2304bae78bdf93ac334af69acef07aa4771abe6dd2cd1091ba"
+    },
+    "evidence/cost-protocol-a2.json": {
+      "bytes": 1318,
+      "sha256": "114fb9efe58b4ba69d4b1da5e83b993f0517b8e03cd099d3cbd685b89c79e124"
+    },
+    "evidence/cost-protocol-b.json": {
+      "bytes": 1245,
+      "sha256": "de55e367262b31ec66ef382c0ba9e59cf4cb2ffebc820af50532e3b6bf2771a6"
+    },
+    "evidence/final-checks.json": {
+      "bytes": 8915,
+      "sha256": "a6e87acfbf878d26b79ecba7e1f7c25653c44e88893fa267572172f7be69ed07"
+    },
+    "evidence/installed-canonical.json.gz": {
+      "bytes": 25958,
+      "sha256": "07f494902382fd229ba4305ead4b52662a5d2c6cd7c21e60422349aa8b9b92a2"
+    },
+    "evidence/installed_resources-encoding-final.json": {
+      "bytes": 9065,
+      "sha256": "5ce600dd7189209cf0c2ebd275b6b215bc805b69d171b941b66c0d9b22c920b5"
+    },
+    "evidence/native_before.json": {
+      "bytes": 874,
+      "sha256": "05c82b15219e62091dffd21cfa4b7c803a216842ebf028b5aa3d52fb17eaab3f"
+    },
+    "evidence/native_plan.json": {
+      "bytes": 13830,
+      "sha256": "6727a391e61e3b6802473521f6260db66e21e75b4a63a3527b4b5c07351f6bb6"
+    },
+    "evidence/preparation_notes.json": {
+      "bytes": 1280,
+      "sha256": "c8ec402cade80fc795323edf817e4a645da22f9124a574e921cfd37a0dbf891f"
+    },
+    "evidence/preserved_seals.json": {
+      "bytes": 9241,
+      "sha256": "72f49e2b7d9c5cc3f7fb333cc92c5b24ec8df4eebf542fa2be825ebb210bf531"
+    },
+    "evidence/source-canonical.json.gz": {
+      "bytes": 25936,
+      "sha256": "35207f6cb1620de1c82011b4686d8775e5840a0ceea65bdf96d33fa6101c955f"
+    }
+  }
+}

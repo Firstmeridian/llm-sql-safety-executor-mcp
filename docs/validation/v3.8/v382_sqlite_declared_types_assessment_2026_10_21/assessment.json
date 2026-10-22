@@ -1,0 +1,55 @@
+{
+  "finding": "DRR-2026-140",
+  "severity": "P3",
+  "status": "Confirmed old metadata defect; assessment only, not repaired",
+  "source_calls": 184,
+  "source_component_observations": 36,
+  "baseline_calls": 32,
+  "native_calls": 2,
+  "current_groups": {
+    "inprocess:auto": 46,
+    "inprocess:legacy": 46,
+    "stdio:auto": 46,
+    "stdio:legacy": 46
+  },
+  "text_structured_equal": true,
+  "current_empty_type_objects": [
+    "untyped",
+    "quoted_empty",
+    "as_const",
+    "generated",
+    "generated_stored",
+    "searchable",
+    "v_expr",
+    "v_unary"
+  ],
+  "old_compact_groups": 9,
+  "proposed_declared_type_preservation_groups": 11,
+  "proposal_scope": "Pure signature calculation, not patched production/tool results",
+  "raw_and_query_skill_storage_semantics_preserved": true,
+  "schema_tables": 14,
+  "schema_columns": 17,
+  "view_schema_overview": "Views excluded by existing directory contract, but describe_table is checked",
+  "native_fts_columns_reported": [
+    "TEXT",
+    "TEXT"
+  ],
+  "native_fts_raw_declared_types": [
+    "",
+    ""
+  ],
+  "native_oracle": "Prior sealed independent metadata, with configured SQLite file SHA unchanged",
+  "runtime_resources_unchanged": 77,
+  "private_configs_unchanged": 3,
+  "configured_sqlite_unchanged": true,
+  "baseline_sqlite_py_matches_commit": true,
+  "prior_manifests_unchanged": 61,
+  "prior_file_records_unchanged": 2020,
+  "new_confirmed_P1_P2": 0,
+  "new_independent_production_roots": 1,
+  "new_model_trials": 0,
+  "new_builds": 0,
+  "new_full_regression_runs": 0,
+  "configured_database_writes": false,
+  "limits": "Only selected type/metadata neighbors; not all SQL or whole database semantics; previous37 external rowid variants not independently replayed here"
+}

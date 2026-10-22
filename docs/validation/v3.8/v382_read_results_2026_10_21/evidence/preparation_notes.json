@@ -1,0 +1,11 @@
+{
+  "scope": "Intermediate records retained, not pooled as final acceptance",
+  "records": [
+    "First type run: sandbox dependency search failed and missing schema helper import was a real code issue; restored import and final outside-sandbox types pass.",
+    "First complete run: 1 test fake lacked the new JSON shadow metadata method; added the explicit interface to the fixture, not a production compatibility shim. 3122 passed/1 failed/4 skipped retained.",
+    "Intermediate complete run: 3123 passed/4 skipped before the protocol-codec size revision; source/package intermediate records and wheels retain their own hashes.",
+    "Initial documentation edit stopped at a missing Chinese heading after the English README update; corrected the actual heading. No runtime defect was attributed to this script error.",
+    "Early cost attempts had overlapping scheduling and an invalid cleanup method; no complete cost record was produced. Corrected to adapter.close, then captured complete serial samples. Prototype, pre-codec and final-codec samples remain separate.",
+    "Final full regression: 3126 passed/4 optional skipped. Final source/package runs each 176 calls, with 24 expected readiness ToolErrors. No new configured database writes or dependency upgrade."
+  ]
+}

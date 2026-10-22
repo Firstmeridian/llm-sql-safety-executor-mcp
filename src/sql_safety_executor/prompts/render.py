@@ -33,7 +33,7 @@ def connection_policies(config) -> str:
             lines.append(f"- {alias} ({connection.db_type}): reads disabled")
             continue
         scope = (
-            "all tables"
+            "all relations in default schema"
             if policy.read_mode == "all"
             else f"allowlist of {len(policy.allowed_tables)} table(s)"
         )

@@ -1,0 +1,104 @@
+{
+  "date": "2026-10-21",
+  "checkpoint": "DRR141 reported restart: native7/12, fresh CLI12/12, owner deferred channel reconnect",
+  "scope": "Actual native mismatch retained; no source/configuration/database mutation or new model/regression/cost claim. MySQL server target; MariaDB not required.",
+  "append_rule": "Preserve parent pending and this failure checkpoint; append reconnection results separately",
+  "files": {
+    "README.md": {
+      "bytes": 1957,
+      "sha256": "8d554d552efa03e897dfa2ce0e9cb791beae6cce7efbae618c1d2389584dfa21"
+    },
+    "before.json.gz": {
+      "bytes": 8010,
+      "sha256": "3f2fabb0a5dfd79618b318e7e016dc178e4f5b79005e5025e79905bcec753d11",
+      "decoded_bytes": 25571,
+      "decoded_sha256": "d38418a3ca017c8c18ab00f48668d0759ff6c39c6165627977da06b8ce0bc54a"
+    },
+    "current_native_catalogs.json.gz": {
+      "bytes": 1786,
+      "sha256": "c51021758b17e8e3b670a52b0d7fc16fb178f01eea6339c22478931a73c75332",
+      "decoded_bytes": 28437,
+      "decoded_sha256": "20dc93248492bd993c765494c284716d5ba77aa0f6d66a98d96c1145d21ff5d4"
+    },
+    "diagnose_processes.py.gz": {
+      "bytes": 1068,
+      "sha256": "cab8b4af2b21e46c7e2e733f0ea3cdaaa88731cab6a0bf6091ab02f7ad0997f4",
+      "decoded_bytes": 2346,
+      "decoded_sha256": "287eec396866b86747854a746a2d546484c02565c3693c85e27cac74f0038899"
+    },
+    "documentation_checks.json": {
+      "bytes": 2532,
+      "sha256": "96e7ffe820d473bddb28fdc9faefbdcc084f007d28dff43feec763ce8be3341f"
+    },
+    "exec_ancestry.json": {
+      "bytes": 472,
+      "sha256": "9d40d5535f950082517ed4857589d8a3684582057dc6ecbd246862b10d46107b"
+    },
+    "fresh_cli.log.gz": {
+      "bytes": 925,
+      "sha256": "021cbab3aaacdac66fb44344894849ff47b04fc7ab4358202a2d13aeef6b02b0",
+      "decoded_bytes": 4374,
+      "decoded_sha256": "6e040bf25fc1c743cc197b62dbcba7236faad16901271a3b4a8624359fcd6a8f"
+    },
+    "fresh_cli.py.gz": {
+      "bytes": 762,
+      "sha256": "c21079762f72eff73909a30d6da2a4142cd38c9f89b08e0532a21ccf92e08549",
+      "decoded_bytes": 1473,
+      "decoded_sha256": "134dd80f25b2c789e121fc70fabcb0a3d2cf80a437ee7bd9a15030ee2258077b"
+    },
+    "fresh_cli_results.json.gz": {
+      "bytes": 7839,
+      "sha256": "3a654a7f0442b6e259c54608bd2ab43afcce2ce02ad67fa1801f65129f164424",
+      "decoded_bytes": 105353,
+      "decoded_sha256": "b5815cce2dd674e8961d07e9804a594e435a253ecec53aa838ded5c7b880f7b4"
+    },
+    "native_results.json.gz": {
+      "bytes": 7531,
+      "sha256": "2bcf4daa06b9d13a22d7c2c12e75329694ec552cdeda8f703feb752c57b7427f",
+      "decoded_bytes": 103444,
+      "decoded_sha256": "f8499a992fa301e873b18105357bb6f4be756fede53528457fdf980a2da6fba4"
+    },
+    "notes.json": {
+      "bytes": 917,
+      "sha256": "b13ce0919a8f529a3d90a8836ace3a3adbf38d33074b000476e3b4a065f4884d"
+    },
+    "process_diagnostics.json": {
+      "bytes": 4922,
+      "sha256": "1bac48cb4f0ea745ba204d4ea140f0f21c4d6189326a98031e1f04343accd2fc"
+    },
+    "public_report_before.md.gz": {
+      "bytes": 4624,
+      "sha256": "6d7729de19d748c24392786c95e0ad98e799d05f7d6f85de0ab6fbd2ff1c35d6",
+      "decoded_bytes": 8674,
+      "decoded_sha256": "100850dcc4cfd6de58aa6c90927ac3dd4472d8327169e377abdd4e0ce13816a8"
+    },
+    "seal.py.gz": {
+      "bytes": 2823,
+      "sha256": "166e046ad86fa5c3337e7d04f1b4b19c38d23dbfc37571d2c016f6e7cf6e2e86",
+      "decoded_bytes": 7187,
+      "decoded_sha256": "415be02190e7b109cd45b664e2c99073b9772fed26748b409a797668af8be6a0"
+    },
+    "tool_metadata.json.gz": {
+      "bytes": 4222,
+      "sha256": "dd84b636dbb7d2536076a60c42406798678e5b60570d7d12d890d794b991bfb3",
+      "decoded_bytes": 22190,
+      "decoded_sha256": "0fcb3999f9f75b78be32785c3a0ffe41213b4d534af9908e307567ea19236307"
+    },
+    "verification.json": {
+      "bytes": 5199,
+      "sha256": "cd1f072a68711ea12316e60603a845c2f353ba66dee139f3799c4f5f01c70e4e"
+    },
+    "verification.log.gz": {
+      "bytes": 767,
+      "sha256": "5cf5c0d43f89ed9ac9081eb3ece279635e503a7e1dce7b5f481cb8dd2ddb89d3",
+      "decoded_bytes": 3895,
+      "decoded_sha256": "47229c981016c8c5e798638a6705218f0b0860e12a04464a85cb7a02e324f647"
+    },
+    "verify.py.gz": {
+      "bytes": 3340,
+      "sha256": "2f47ecba4343c2bbd26417245b7c393ff778a8b307c262f30918d018925b980d",
+      "decoded_bytes": 9917,
+      "decoded_sha256": "517450bda8f9651683373b32c08e68b77e770c1b0596e8b0f023fbe31ed9e0d0"
+    }
+  }
+}

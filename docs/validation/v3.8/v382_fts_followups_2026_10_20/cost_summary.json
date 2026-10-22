@@ -1,0 +1,54 @@
+{
+  "rows": [
+    {
+      "case": "physical",
+      "before_p50_ms": 0.7679525,
+      "after_p50_ms": 0.6091805,
+      "A1_p50_ms": 0.9183975,
+      "A2_p50_ms": 0.694642,
+      "change_pct": -20.674716209661405,
+      "separate_trace_identical": true,
+      "trace_statement_counts": [
+        3,
+        3,
+        3
+      ]
+    },
+    {
+      "case": "view",
+      "before_p50_ms": 1.5746285,
+      "after_p50_ms": 1.2357765,
+      "A1_p50_ms": 1.7404425,
+      "A2_p50_ms": 1.307566,
+      "change_pct": -21.51948856508058,
+      "separate_trace_identical": true,
+      "trace_statement_counts": [
+        4,
+        4,
+        4
+      ]
+    },
+    {
+      "case": "fts_view",
+      "before_p50_ms": 1.6891525,
+      "after_p50_ms": 1.6822055,
+      "A1_p50_ms": 1.852278,
+      "A2_p50_ms": 1.6441305,
+      "change_pct": -0.4112713328133455,
+      "separate_trace_identical": true,
+      "trace_statement_counts": [
+        10,
+        10,
+        10
+      ]
+    }
+  ],
+  "changed_runtime_files": [
+    "core/policy.py",
+    "core/read_rules.py",
+    "database/authorizer.py"
+  ],
+  "timed_adapter_reads": 315,
+  "separate_traced_reads": 9,
+  "scope": "One serial direct-adapter A1/B/A2 on generated one-row SQLite fixtures, tests/builds completed first. Exclude first three per case/stage; retain all samples and between-stage drift. No MCP/Host/model performance guarantee."
+}

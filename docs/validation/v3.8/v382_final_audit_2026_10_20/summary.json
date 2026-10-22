@@ -1,0 +1,108 @@
+{
+  "verified_utc": "2026-10-20T08:49:10.399700+00:00",
+  "status": "audit_completed_two_open_functional_findings",
+  "runtime_changes": false,
+  "dependency_or_private_config_changes": false,
+  "configured_business_writes": false,
+  "version": "3.8.2",
+  "findings": [
+    {
+      "id": "DRR-2026-124",
+      "priority": "P2",
+      "status": "open",
+      "existing_in_both_complete_old_packages": true
+    },
+    {
+      "id": "DRR-2026-125",
+      "priority": "P2",
+      "status": "open",
+      "existing_in_both_complete_old_packages": true
+    }
+  ],
+  "sqlite_native_cases": 32,
+  "expected_current_sqlite_shape_refusals": 20,
+  "managed_binding_comparisons": 12,
+  "in_process_client_calls": 22,
+  "current_host_constant_calls": 4,
+  "independent_mysql_reads": 4,
+  "startup_prototype": {
+    "implemented": false,
+    "identical_complete_decisions": 89,
+    "analysis_counts": [
+      445,
+      262
+    ],
+    "A_median_ms": 34.0665075,
+    "B_median_ms": 5.629474,
+    "pairs": 30,
+    "warmup_pairs": 5,
+    "paired_relative_median_percent": -83.64527407919672
+  },
+  "column_prototype": {
+    "implemented": false,
+    "selected_tables": 16,
+    "columns": 89,
+    "column_queries": [
+      16,
+      1
+    ],
+    "timeout_setups": [
+      16,
+      1
+    ],
+    "A_median_ms": 209.764252,
+    "B_median_ms": 16.482028,
+    "pairs": 12,
+    "warmup_pairs": 3,
+    "paired_relative_median_percent": -92.18974487442904
+  },
+  "previous_manifests_verified": 29,
+  "previous_file_records_verified": 701,
+  "runtime_resources_unchanged_and_matching_wheel": 77,
+  "README_and_frozen_dependency_files_unchanged": true,
+  "markdown_local_links_verified": 897,
+  "diff_check_passed": true,
+  "evidence": {
+    "before.json": {
+      "file": "before.json.gz",
+      "sha256": "8e5edd1c594df154e147bdeaaa1499fb778aa7e8d965278395bafbf13e2ba70a",
+      "bytes": 5792
+    },
+    "tail_comments.json.gz": {
+      "file": "tail_comments.json.gz",
+      "sha256": "af09bcf30c0f44a198dccf2cc5e96852999f17737e028d1e3ba154c732b9a7ac",
+      "bytes": 7469
+    },
+    "managed_colons.json.gz": {
+      "file": "managed_colons.json.gz",
+      "sha256": "3bbb32bce77a36db2c07d14679c9294910e4af5f5a9d49a2cd2b4c60f41f11aa",
+      "bytes": 1857
+    },
+    "native_application.json": {
+      "file": "native_application.json.gz",
+      "sha256": "b7060774a70adb5cd36a06fc2b245447e43bd0b8ae2c420853feccf185ca920c",
+      "bytes": 723
+    },
+    "mysql_tail_truth.json": {
+      "file": "mysql_tail_truth.json.gz",
+      "sha256": "dac9ab2683c780fbd14f24d825ce3533260ec5322907c76a578f18901d5ee74f",
+      "bytes": 314
+    },
+    "startup_candidate.json": {
+      "file": "startup_candidate.json.gz",
+      "sha256": "3af2d7746ce2b68e08f69c361d77bc6cb0463945aa0991c8cc22a00318198703",
+      "bytes": 1362
+    },
+    "mysql_column_candidate.json": {
+      "file": "mysql_column_candidate.json.gz",
+      "sha256": "4c8f595e15b5d62bafb08acbd7f01e1a7bb5a59c27814250643c045ceaac8d48",
+      "bytes": 948
+    },
+    "tail_comments_parser_diagnostic_failure.log": {
+      "file": "tail_comments_parser_diagnostic_failure.log.gz",
+      "sha256": "14643678fcdb6c6c4d6cfe33b2ff430ea28e3d0c5019ef73b0fde3297350aaa1",
+      "bytes": 473
+    }
+  },
+  "limits": "Audit observations, not repaired-feature acceptance or proof of no other defects. No new full-suite/installed/complete-model/provider-usage or complete-wire claim. Candidate times are pure startup classification and warm adapter-column phases, not delivered tool/model speedups. Earlier evidence keeps attribution. Duplicate successful Client console logs remain local; selected initial diagnostic failure retained. No authorizer/state-cache bypass or automatic statistics maintenance."
+}

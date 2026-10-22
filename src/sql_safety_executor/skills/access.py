@@ -12,6 +12,7 @@ from sql_safety_executor.database.relations import RelationReference
 from sql_safety_executor.database.outcomes import MetadataQueryError
 from sql_safety_executor.core.connections import read_access_enabled
 from sql_safety_executor.core.policy import _validate_sql_query_policy
+from sql_safety_executor.database.errors import DatabaseQueryError
 from sql_safety_executor.skills.catalog import SkillMetadata
 
 logger = logging.getLogger(__name__)
@@ -199,6 +200,8 @@ def _get_skill_schema_snapshot(
 
     try:
         relations = connection.adapter.get_read_relations()
+        json_names = (connection.adapter.get_json_name_observation()
+                        if connection.db_type == "sqlite" else None)
     except MetadataQueryError as exc:
         logger.warning("Skills schema readiness check unavailable: %s", exc)
         return _SkillSchemaSnapshot(
@@ -215,6 +218,7 @@ def _get_skill_schema_snapshot(
             for relation in relations
         ),
         schema_name=connection.default_schema,
+        json_name_observation=json_names,
     )
 
 
@@ -225,30 +229,65 @@ def _query_skill_blocked_tables(
     """Return required query-skill tables blocked by target allowlist."""
     if meta.type != "query" or not meta.declared_relations:
         return []
-    allowed_tables = connection.policy.allowed_tables
-    if allowed_tables is None or "*" in allowed_tables:
-        return []
-    return [table.display_name for table in meta.declared_relations if not connection.policy.allows_relation(table)]
+    return [table.display_name for table in meta.declared_relations
+            if not connection.policy.allows_relation(table, default_schema=connection.default_schema)]
 
 
-def _inferred_skill_relations(meta: SkillMetadata, connection: ConnectionContext) -> list[RelationReference]:
+def _inferred_skill_relations(meta: SkillMetadata, connection: ConnectionContext, snapshot: _SkillSchemaSnapshot | None = None) -> list[RelationReference]:
     """Keep independently inferred dependencies distinct from declarations."""
     if meta.type == "query" and meta._sql_template is not None:
         from sql_safety_executor.core.analysis import analyze_sql
         context = connection.adapter.analysis_context
         key = context.fingerprint
-        if key not in meta._inferred_tables:
+        if key not in meta._inferred_analysis:
             analysis = analyze_sql(meta._sql_template, context)
             if not analysis.complete:
                 raise ValueError("Skill SQL dependency analysis is incomplete for this connection")
-            meta._inferred_tables[key] = list(analysis.relations)
-        return meta._inferred_tables[key]
+            meta._inferred_analysis[key] = analysis
+        analysis = meta._inferred_analysis[key]
+        inferred = list(analysis.relations)
+        for reference, state in _conditional_skill_relations(analysis, connection, snapshot).items():
+            if state != "builtin" and reference not in inferred:
+                inferred.append(reference)
+        return inferred
     return []
 
 
-def _required_skill_relations(meta: SkillMetadata, connection: ConnectionContext) -> list[RelationReference]:
+def _conditional_skill_relations(analysis, connection, snapshot):
+    """Keep unknown JSON-name identities; absence outside observed scope is not proof."""
+    result = {}
+    for use in analysis.virtual_relations:
+        if use.kind != "sqlite_json":
+            continue
+        reference = RelationReference(use.name, use.schema)
+        state = "unverified"
+        if snapshot is not None and snapshot.available:
+            key = connection.policy.relation_key(reference)
+            default = connection.policy.table_key(snapshot.schema_name) if snapshot.schema_name else None
+            observation = snapshot.json_name_observation
+            if use.schema is None:
+                stored = next((ref for ref in observation.relations
+                               if connection.policy.table_key(ref.name) == key.name), None) if observation else None
+                if stored is not None:
+                    reference, state = stored, "stored"
+                elif observation is not None and observation.complete:
+                    reference, state = reference.in_schema(snapshot.schema_name), "builtin"
+            else:
+                stored = next((ref for ref in observation.relations
+                               if connection.policy.relation_key(ref) == key), None) if observation else None
+                if stored is not None:
+                    reference, state = stored, "stored"
+                elif key in snapshot.table_names:
+                    state = "stored"
+                elif key.schema == default:
+                    state = "builtin"
+        result[reference] = state
+    return result
+
+
+def _required_skill_relations(meta: SkillMetadata, connection: ConnectionContext, snapshot: _SkillSchemaSnapshot | None = None) -> list[RelationReference]:
     """Resolve inference for this target, without changing declared restrictions."""
-    inferred = _inferred_skill_relations(meta, connection)
+    inferred = _inferred_skill_relations(meta, connection, snapshot)
     required: dict[RelationReference, RelationReference] = {}
     declared = meta.declared_relations
     for table in [*declared, *inferred]:
@@ -309,6 +348,88 @@ def _mutation_connection_policy_state(
     return True, True, None
 
 
+def _skill_schema_readiness_state(
+    meta: SkillMetadata,
+    schema_snapshot: _SkillSchemaSnapshot,
+    connection: ConnectionContext,
+) -> dict[str, Any]:
+    """Evaluate dependency/schema readiness without evaluating execution policy."""
+    reasons: list[str] = []
+    missing_tables: list[str] = []
+    unverified_tables: list[str] = []
+    schema_ready = True
+    analysis_complete = True
+    inferred_tables = None
+    try:
+        required_relations = _required_skill_relations(meta, connection, schema_snapshot)
+        inferred_tables = [ref.display_name for ref in _inferred_skill_relations(meta, connection, schema_snapshot)]
+    except ValueError:
+        analysis_complete = False
+        schema_ready = False
+        required_relations = meta.declared_relations
+        reasons.append("SQL dependency analysis is incomplete for this target; dependencies are unverified.")
+    required_tables = [table.display_name for table in required_relations]
+    cached = meta._inferred_analysis.get(connection.adapter.analysis_context.fingerprint) if meta.type == "query" else None
+    conditional = _conditional_skill_relations(cached, connection, schema_snapshot) if cached is not None else {}
+    conditional_blocked = [table.display_name for table, state in conditional.items()
+        if state == "stored"
+        and not connection.policy.allows_relation(table, default_schema=connection.default_schema)]
+    if conditional_blocked:
+        schema_ready = False
+        reasons.append(f"Required table(s) are not authorized on this connection: {conditional_blocked}.")
+    if schema_snapshot.enabled and required_tables:
+        if not schema_snapshot.available:
+            schema_ready = False
+            unverified_tables = required_tables
+            reasons.append(
+                "Required table readiness could not be verified because "
+                "database metadata is unavailable for the target connection."
+            )
+        else:
+            scope = connection.policy.table_key(schema_snapshot.schema_name) if schema_snapshot.schema_name is not None else None
+            unverified_relations = [
+                table for table in required_relations
+                if (table.schema is not None
+                    and connection.policy.relation_key(table).schema != scope)
+                or conditional.get(table) == "unverified"
+            ]
+            unverified_tables = [table.display_name for table in unverified_relations]
+            if unverified_tables:
+                schema_ready = False
+                reasons.append(
+                    "Schema readiness does not cover required table(s): "
+                    f"{unverified_tables}."
+                )
+            missing_tables = [
+                table.display_name
+                for table in required_relations
+                if table not in unverified_relations
+                and connection.policy.relation_key(table.in_schema(schema_snapshot.schema_name))
+                not in schema_snapshot.table_names
+            ]
+            if missing_tables:
+                schema_ready = False
+                reasons.append(
+                    "Required table(s) are missing from the current database "
+                    f"schema: {missing_tables}."
+                )
+    return {
+        "reasons": reasons,
+        "schema_ready": schema_ready,
+        "schema_check_enabled": schema_snapshot.enabled,
+        "schema_check_available": schema_snapshot.available and not unverified_tables and analysis_complete,
+        "missing_tables": missing_tables,
+        "unverified_tables": unverified_tables,
+        "required_tables": required_tables,
+        "declared_tables": [ref.display_name for ref in meta.declared_relations],
+        "inferred_tables": inferred_tables,
+        "analysis_complete": analysis_complete,
+        "conditional_dependencies": [{"relation": ref.display_name, "state": state}
+                                     for ref, state in conditional.items()],
+        "_blocked_relations": conditional_blocked,
+    }
+
+
 def _skill_availability_state(
     runtime,
     meta: SkillMetadata,
@@ -317,8 +438,6 @@ def _skill_availability_state(
 ) -> dict[str, Any]:
     """Describe whether a discovered skill can execute in the current state."""
     reasons: list[str] = []
-    missing_tables: list[str] = []
-    unverified_tables: list[str] = []
     blocked_tables: list[str] = []
     excluded_profiles = _skill_excluded_profiles(runtime, meta)
     connection_scope = _skill_connection_scope_state(runtime, meta, connection)
@@ -334,7 +453,6 @@ def _skill_availability_state(
         connection,
     )
     profile_allowed = not excluded_profiles
-    schema_ready = True
     policy_allowed = True
 
     if excluded_profiles:
@@ -360,6 +478,13 @@ def _skill_availability_state(
         reasons.append(mutation_policy_reason)
         policy_allowed = False
 
+    if (meta.type == "mutation" and mutation_enabled and mutation_policy_allowed
+            and profile_allowed and db_compatible and connection_scope["connection_scope_allowed"]):
+        decision = _managed_plan_policy_decision(runtime, meta, connection)
+        if not decision.allowed:
+            policy_allowed = False
+            reasons.append(decision.message or "Managed mutation plan cannot use the target SQL semantics.")
+
     blocked_tables = _query_skill_blocked_tables(meta, connection)
     if meta.type == "query":
         if meta._sql_template is None:
@@ -376,52 +501,14 @@ def _skill_availability_state(
                 policy_allowed = False
                 reasons.append(f"Skill '{meta.name}' failed SQL safety policy: {decision.message}")
 
-    analysis_complete = True
-    inferred_tables = None
-    try:
-        required_relations = _required_skill_relations(meta, connection)
-        inferred_tables = list(_inferred_skill_tables(meta, connection))
-    except ValueError:
-        analysis_complete = False
+    readiness = _skill_schema_readiness_state(meta, schema_snapshot, connection)
+    for table in readiness.pop("_blocked_relations"):
+        if table not in blocked_tables:
+            blocked_tables.append(table)
         policy_allowed = False
-        schema_ready = False
-        required_relations = meta.declared_relations
-        reasons.append("SQL dependency analysis is incomplete for this target; dependencies are unverified.")
-    required_tables = [table.display_name for table in required_relations]
-    if schema_snapshot.enabled and required_tables:
-        if not schema_snapshot.available:
-            schema_ready = False
-            reasons.append(
-                "Required table readiness could not be verified because "
-                "database metadata is unavailable for the target connection."
-            )
-        else:
-            scope = connection.policy.table_key(schema_snapshot.schema_name) if schema_snapshot.schema_name is not None else None
-            unverified_relations = [
-                table for table in required_relations
-                if table.schema is not None
-                and connection.policy.relation_key(table).schema != scope
-            ]
-            unverified_tables = [table.display_name for table in unverified_relations]
-            if unverified_tables:
-                schema_ready = False
-                reasons.append(
-                    "Schema readiness does not cover required table(s): "
-                    f"{unverified_tables}."
-                )
-            missing_tables = [
-                table.display_name
-                for table in required_relations
-                if table not in unverified_relations
-                and connection.policy.relation_key(table.in_schema(schema_snapshot.schema_name))
-                not in schema_snapshot.table_names
-            ]
-            if missing_tables:
-                schema_ready = False
-                reasons.append(
-                    "Required table(s) are missing from the current database "
-                    f"schema: {missing_tables}."
-                )
+    if not readiness["analysis_complete"]:
+        policy_allowed = False
+    reasons.extend(readiness.pop("reasons"))
 
     executable = not reasons
     return {
@@ -436,15 +523,7 @@ def _skill_availability_state(
         "excluded_profiles": excluded_profiles,
         "policy_allowed": policy_allowed,
         "blocked_tables": blocked_tables,
-        "schema_ready": schema_ready,
-        "schema_check_enabled": schema_snapshot.enabled,
-        "schema_check_available": schema_snapshot.available and not unverified_tables and analysis_complete,
-        "missing_tables": missing_tables,
-        "unverified_tables": unverified_tables,
-        "required_tables": required_tables,
-        "declared_tables": [ref.display_name for ref in meta.declared_relations],
-        "inferred_tables": inferred_tables,
-        "analysis_complete": analysis_complete,
+        **readiness,
     }
 
 
@@ -488,7 +567,7 @@ def _ensure_skill_schema_ready(
             "because database metadata is unavailable for the target connection."
         )
 
-    availability = _skill_availability_state(runtime, meta, schema_snapshot, connection)
+    availability = _skill_schema_readiness_state(meta, schema_snapshot, connection)
     if availability["unverified_tables"]:
         raise ToolError(
             f"Skill '{meta.name}' schema readiness could not verify table(s): "
@@ -499,6 +578,21 @@ def _ensure_skill_schema_ready(
             f"Skill '{meta.name}' requires table(s) not found in the "
             f"target connection schema: {availability['missing_tables']}"
         )
+
+
+def _managed_plan_policy_decision(runtime, meta: SkillMetadata, connection: ConnectionContext) -> PolicyDecision:
+    """Use target semantics, never another connection's or startup candidates."""
+    if meta._managed_mutation_plan is None:
+        return PolicyDecision.allow()
+    try:
+        context = connection.adapter.resolve_analysis_context()
+    except DatabaseQueryError:
+        return PolicyDecision.deny("session_semantics_unavailable", "Managed mutation target SQL semantics could not be verified; no write was attempted.")
+    return runtime.classify_managed_plan(
+        meta._managed_mutation_plan.sql, context,
+        runtime.config.skills.mutation.managed_plan_parser,
+        frozenset(item.target for item in meta._managed_mutation_plan.parameters),
+    )
 
 
 def _query_skill_policy_decision(meta: SkillMetadata, connection: ConnectionContext) -> PolicyDecision:
@@ -632,6 +726,8 @@ def _project_skill_meta(
                 "inferred_tables": availability["inferred_tables"],
                 "analysis_complete": availability["analysis_complete"],
             })
+            if availability["conditional_dependencies"]:
+                projected["conditional_dependencies"] = availability["conditional_dependencies"]
 
     return projected
 

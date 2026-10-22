@@ -1,0 +1,50 @@
+{
+  "scope": "v3.8.2 DRR-135 final repair and separate assessment of old DRR-136",
+  "preparation": [
+    {
+      "stage": "sandbox_focused_subset",
+      "outcome": "Stopped only this task's hanging pytest process after its partial progress; subprocess tests did not complete under the sandbox. Outside-sandbox full regressions are separate."
+    },
+    {
+      "stage": "sandbox_types",
+      "outcome": "56 unresolved dependency import errors and one warning under sandbox; outside-sandbox final types report zero errors and warnings."
+    },
+    {
+      "stage": "new_regression_first_attempt",
+      "outcome": "4 failures/59 passes from test code: broad fake clock also broke the default metadata query, and frozen policy was mutated directly. Narrowed the fake clock to the observer; replaced the immutable registry configuration for the grant-revocation test. Final67 pass."
+    },
+    {
+      "stage": "intermediate_package",
+      "outcome": "Retain first source/wheel each332 calls and3189-pass full regression. Final explicit and resolved stored identity parity adds4 tests; rebuilt final wheel and repeated final source/wheel checks and full3193 run. Do not pool intermediate packages."
+    },
+    {
+      "stage": "exploratory_cost",
+      "outcome": "Initial cost-a1/cost-b retained only as exploratory records; integrity hashing overlapped B. Final a1-final/b-final/a2-final executed serially in one driver after checks, with no concurrent task work."
+    },
+    {
+      "stage": "independent_old_defect",
+      "outcome": "DRR-136 newly confirmed now, not claimed as an earlier confirmed finding and not repaired. Baseline/current metadata components each30 calls and Client each32 agree."
+    }
+  ],
+  "final": {
+    "regression": {
+      "passed": 3193,
+      "skipped": 4,
+      "warnings": 491
+    },
+    "new_regression_cases": 67,
+    "source_calls": 332,
+    "installed_calls": 332,
+    "application_frames_identical": true,
+    "readiness_toolerrors_per_scope": 68,
+    "types": "0 errors, 0 warnings",
+    "runtime_resources": 77,
+    "changed_runtime_resources": 5,
+    "private_tomls_changed": 0,
+    "configured_database_calls": 0,
+    "new_model_trials": 0,
+    "native_checks_frozen": 17,
+    "native_state": "owner restart pending"
+  },
+  "limits": "Application records only, not full JSON-RPC/notifications or model traces. Source/package acceptance includes special attached/failure fixtures; native plan uses only existing aliases/grants. The open metadata defect is not included as a fixed feature."
+}

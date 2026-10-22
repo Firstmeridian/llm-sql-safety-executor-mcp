@@ -1,0 +1,23 @@
+{
+  "same_prompt_resources": 21,
+  "runtime_changes_since_historical_agent_batch": [
+    "config/models.py",
+    "core/analysis.py",
+    "core/queries.py",
+    "core/results.py",
+    "core/schema.py",
+    "core/types.py",
+    "database/authorizer.py",
+    "database/base.py",
+    "database/errors.py",
+    "database/mysql.py",
+    "database/relations.py",
+    "database/sqlite.py",
+    "skills/access.py",
+    "skills/catalog.py",
+    "skills/tools.py"
+  ],
+  "native_sql_tools": 10,
+  "timing_baseline_python_exists": true,
+  "scope": "Historical Agent comparison includes multiple correctness repairs since October20; fixed workflow timing uses immediate pre-DRR141 wheel. Do not mix the two baselines or attribute all model deltas to PRIMARY repair."
+}

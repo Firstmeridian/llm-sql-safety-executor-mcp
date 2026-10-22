@@ -1,0 +1,202 @@
+{
+  "date": "2026-10-20",
+  "owner_restart_confirmed": true,
+  "connection_id": "sqlite_features_sqlite",
+  "total": 8,
+  "passed": 8,
+  "successful_reads": 5,
+  "expected_refusals": 3,
+  "content_matches_structured": true,
+  "checks": [
+    {
+      "index": 0,
+      "tool": "query",
+      "arguments": {
+        "connection_id": "sqlite_features_sqlite",
+        "sql": "SELECT 7 AS n"
+      },
+      "passed": true,
+      "expectation": {
+        "data": [
+          {
+            "n": 7
+          }
+        ]
+      }
+    },
+    {
+      "index": 1,
+      "tool": "query",
+      "arguments": {
+        "connection_id": "sqlite_features_sqlite",
+        "sql": "SELECT COUNT(*) AS n FROM main.pages_fts WHERE pages_fts MATCH 'sqlite'"
+      },
+      "passed": true,
+      "expectation": {
+        "data": [
+          {
+            "n": 4
+          }
+        ]
+      }
+    },
+    {
+      "index": 2,
+      "tool": "query",
+      "arguments": {
+        "connection_id": "sqlite_features_sqlite",
+        "sql": "SELECT COUNT(*) AS n FROM main.pages_fts('sqlite')"
+      },
+      "passed": true,
+      "expectation": {
+        "data": [
+          {
+            "n": 4
+          }
+        ]
+      }
+    },
+    {
+      "index": 3,
+      "tool": "query",
+      "arguments": {
+        "connection_id": "sqlite_features_sqlite",
+        "sql": "SELECT ('absent title','absent body') IN main.pages_fts('sqlite') AS n"
+      },
+      "passed": true,
+      "expectation": {
+        "data": [
+          {
+            "n": 0
+          }
+        ]
+      }
+    },
+    {
+      "index": 4,
+      "tool": "describe_table",
+      "arguments": {
+        "connection_id": "sqlite_features_sqlite",
+        "table_name": "pages_fts"
+      },
+      "passed": true,
+      "expectation": {
+        "row_count": 42
+      }
+    },
+    {
+      "index": 5,
+      "tool": "query",
+      "arguments": {
+        "connection_id": "sqlite_features_sqlite",
+        "sql": "SELECT * FROM main.pages_fts_idx LIMIT 1"
+      },
+      "passed": true,
+      "expectation": {
+        "error_code": "table_access_denied"
+      }
+    },
+    {
+      "index": 6,
+      "tool": "query",
+      "arguments": {
+        "connection_id": "sqlite_features_sqlite",
+        "sql": "SELECT SLEEP(0)"
+      },
+      "passed": true,
+      "expectation": {
+        "error_code": "expensive_function_denied"
+      }
+    },
+    {
+      "index": 7,
+      "tool": "query",
+      "arguments": {
+        "connection_id": "sqlite_features_sqlite",
+        "sql": "SELECT value FROM aux.json_each('[7]')"
+      },
+      "passed": true,
+      "expectation": {
+        "error_code": "relation_scope_unresolved"
+      }
+    }
+  ],
+  "independent_truth": {
+    "data": [
+      {
+        "sql": "SELECT COUNT(*) AS n FROM main.pages_fts WHERE pages_fts MATCH 'sqlite'",
+        "data": [
+          {
+            "n": 4
+          }
+        ]
+      },
+      {
+        "sql": "SELECT COUNT(*) AS n FROM main.pages_fts('sqlite')",
+        "data": [
+          {
+            "n": 4
+          }
+        ]
+      },
+      {
+        "sql": "SELECT ('absent title','absent body') IN main.pages_fts('sqlite') AS n",
+        "data": [
+          {
+            "n": 0
+          }
+        ]
+      }
+    ],
+    "root_row_count": 42,
+    "columns": [
+      {
+        "cid": 0,
+        "name": "title",
+        "type": "",
+        "notnull": 0,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 1,
+        "name": "body",
+        "type": "",
+        "notnull": 0,
+        "dflt_value": null,
+        "pk": 0
+      }
+    ],
+    "adapter_visible_columns": [
+      {
+        "column_name": "title",
+        "data_type": "TEXT",
+        "nullable": "YES",
+        "key_type": "",
+        "default_value": null
+      },
+      {
+        "column_name": "body",
+        "data_type": "TEXT",
+        "nullable": "YES",
+        "key_type": "",
+        "default_value": null
+      }
+    ],
+    "fts_definition": "CREATE VIRTUAL TABLE pages_fts USING fts5(title, body, content='pages', content_rowid='id', tokenize='porter unicode61')"
+  },
+  "database_sha256_before": "119f6f613a1a78a0a64dde41d061d3bee55b07b1e89375f400dec5ecf3de1add",
+  "database_sha256_after": "119f6f613a1a78a0a64dde41d061d3bee55b07b1e89375f400dec5ecf3de1add",
+  "matches_frozen_database": true,
+  "runtime_resources_match_previous_install": 76,
+  "prior_sealed_files_verified": 339,
+  "prior_manifests_verified": 13,
+  "verification_correction": "Initial verifier expected raw FTS PRAGMA declared types TEXT; SQLite actually returns empty types. Corrected verification to preserve raw declarations and compare the existing adapter TEXT mapping. No product change/repeated native call.",
+  "limits": [
+    "Existing configured FTS functionality after owner-confirmed restart, not resident source-hash attestation.",
+    "Exact trusted-precompiled content-view/aux FTS fixtures remain source/installed-wheel coverage, not these native inputs.",
+    "Canary first, then independent read/refusal groups; elapsed times are not a serial performance benchmark.",
+    "No new complete Luna task/model usage. Application responses/Host directory metadata are not full protocol frames."
+  ],
+  "cleanup": "No source, dependency, private configuration, grant or configured data changes; independent SQLite truth opened mode=ro. Existing parent seals retained."
+}

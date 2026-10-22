@@ -1,0 +1,41 @@
+{
+  "finding": "DRR-2026-140",
+  "status": "Implemented; source/wheel verified; owner restart and native plan pending",
+  "source_calls": 184,
+  "installed_calls": 184,
+  "component_observations_per_side": 36,
+  "text_structured_equal": true,
+  "source_installed_application_records_equal": true,
+  "native_type_comparison": "Direct raw PRAGMA strings, with no TEXT fallback or affinity inference",
+  "compact_groups_before": 9,
+  "compact_groups_after": 11,
+  "schema_tables": 14,
+  "schema_columns": 17,
+  "application_projection_chars": {
+    "compact": {
+      "old_application_text_chars": 2126,
+      "new_application_text_chars": 2314
+    },
+    "ungrouped": {
+      "old_application_text_chars": 2506,
+      "new_application_text_chars": 2482
+    },
+    "full": {
+      "old_application_text_chars": 2290,
+      "new_application_text_chars": 2266
+    }
+  },
+  "chars_are_provider_tokens": false,
+  "runtime_resources": 77,
+  "runtime_changes": [
+    "src/sql_safety_executor/database/sqlite.py"
+  ],
+  "private_configs_unchanged": 3,
+  "configured_sqlite_sha256": "119f6f613a1a78a0a64dde41d061d3bee55b07b1e89375f400dec5ecf3de1add",
+  "configured_sqlite_unchanged": true,
+  "prior_manifests_unchanged": 63,
+  "prior_file_records_unchanged": 2047,
+  "wheel_sha256": "7b836042ca4040f0703eee324a10dbd625f5806bbeb8d15a73bfd55d43802c46",
+  "new_model_trials": 0,
+  "limits": "Selected native-type metadata neighbors; no whole-project, latency, model-token or full-protocol claim; historical normalized checks preserved"
+}

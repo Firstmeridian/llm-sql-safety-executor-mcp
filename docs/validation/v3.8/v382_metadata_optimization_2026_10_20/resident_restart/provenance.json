@@ -1,0 +1,10 @@
+{
+  "date": "2026-10-20",
+  "owner_restart_confirmed": true,
+  "raw_local_calls_sha256": "1ff3aaf468ed1ebde75ab664fe52801f456e708b0948f964b89b9ffecad80002",
+  "frozen_native_plan_sha256": "69228622aa8df8540a45732fcdbf80f7312f717e763ae36f7b9b308cbbd7b99e",
+  "parent_local_manifest_sha256": "b348f14e3b3d9d76308e98347f1fc4066f2436917151bcedf21f8f5c80583dfb",
+  "parent_public_manifest_sha256": "6c4cb60b4a9921d3cf0c4616c7b18aa031b51a24fbbffd3134ac05bc864549fd",
+  "runtime_checkpoint_sha256": "654d3b836851cb3acdfec772d212d9ed4efc0bd607204ff11bfe445af6df7ba6",
+  "scope": "Actual native application responses. Catalog descriptions omitted publicly by hash; no hidden reasoning/full protocol frames/model usage collected."
+}

@@ -1,0 +1,9 @@
+{
+  "scope": "Assessment preparation and boundaries, not repair acceptance",
+  "component_fixture_correction": "Initial dotted-schema component grant flattened schema/name into an old declaration string, correctly producing table_access_denied. Keep components.json/log. Final components use structured RelationReference grants:4 controls pass,12 collisions produce unknown_column; production policy unchanged.",
+  "client_runs": "Source284,existing normal wheel96,isolated2c0a9e7 baseline14; all complete, no initialization failure or new package build/install. Expected application failures reproduced, not counted as repaired or successful business execution.",
+  "costs": "80 targeted fixed-PRAGMA calls prove schema/name/type feasibility only; no timed production prototype, model or token measurement.",
+  "native_scope": "No current Host calls; prior20/20 is preserved and did not include these fixtures.",
+  "commit_scope": "Current English commit draft remains unchanged;137/138 are open, not implemented fixes.",
+  "limitations": "Application content/structured records, not complete protocol frames or notifications; all configured data access zero."
+}

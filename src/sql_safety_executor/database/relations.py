@@ -47,6 +47,20 @@ class ReadRelation:
     kind: Literal["table", "view"]
 
 
+@dataclass(frozen=True)
+class SQLiteJSONNameObservation:
+    """One ordered catalog observation of the two conditional JSON names.
+
+    Relations follow SQLite lookup order. Searched schemas form a successful
+    prefix; a stored match in that prefix remains known if a later lookup fails.
+    Only a complete observation can prove the absence of a stored match.
+    """
+
+    relations: tuple[RelationReference, ...] = ()
+    searched_schemas: tuple[str, ...] = ()
+    complete: bool = False
+
+
 def render_relation(reference: RelationReference, db_type: str) -> str:
     """Quote components separately for generated database SQL.
 

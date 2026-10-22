@@ -135,8 +135,7 @@ Skills Scenario: unknown Skill → list_skills(search=..., detail_level="compact
 - **Query Restrictions**: On the supported MySQL/SQLite adapters, the full MCP
   policy accepts exactly one SELECT, DESCRIBE, or non-ANALYZE EXPLAIN. Raw SHOW
   is rejected; use `list_tables()`/`describe_table()` for metadata. Nested write
-  DML, `EXPLAIN ANALYZE`, executable comments/hints, and ambiguous
-  non-whitespace `--` forms are rejected.
+  DML and `EXPLAIN ANALYZE` are rejected. Comments follow the target dialect: SQLite block/hint-shaped comments are whitespace; MySQL permits reviewed plan-hint syntax while rejecting executable/state-changing hints and ambiguous `--` forms.
 - **SQL Parsing Validation**: Shared dialect/session-aware SQLGlot analysis and independent read policy; SQLite also checks actual compiled operations with an authorizer.
 - **Connection Security**: Explicit TOML and secret-source configuration. Named connections (`connection_id`) without accepting arbitrary DSNs from tools or model output.
 - **Error Isolation**: Comprehensive exception handling and reporting tailored for LLMs.
@@ -465,11 +464,13 @@ In recent updates, multiple efficiency optimizations have been carried out for t
 - **Row count fields may be imprecise**: `list_tables()` / `describe_table()` / `get_full_schema()` and `get_table_summary(exact_count=false)` return `row_count` as estimates:
   - **MySQL**: from `INFORMATION_SCHEMA.TABLES.TABLE_ROWS` (InnoDB may have significant deviation or lag)
   - **SQLite**: from `sqlite_stat1` (if ANALYZE has been run) or bounded 10,000-row sampling; if the sample cap is reached, the value is a lower-bound estimate unless statistics exist
-  - An individual `row_count` can be `null` when the adapter cannot safely provide an estimate; `null` means unknown, not an empty table. In that case, single-table tools also return `row_count_approximate=null` and `is_large=null` rather than classifying the table as small. This includes a SQLite name outside the conservative generated-metadata grammar and a table dropped between discovery and bounded sampling.
+  - An individual `row_count` can be `null` when the adapter cannot safely provide an estimate; `null` means unknown, not an empty table. In that case, single-table tools also return `row_count_approximate=null` and `is_large=null` rather than classifying the table as small. This includes a name outside the dialect's supported metadata-name envelope and a table dropped between discovery and bounded sampling.
   - Only recommended for "order of magnitude judgment/whether to add LIMIT/whether it is a large table" strategies.
   - If an exact count is needed, please use `SELECT COUNT(*) ...`, or enable `tools.table_summary=true` and use `get_table_summary(exact_count=True)` (note that large tables may be slow).
 
-- **Result truncation and projection to avoid Token explosion**: `query()` uses `limits.result_rows` / `limits.result_chars`, `list_tables()` uses `limits.overview_tables`, and `get_full_schema()` uses `limits.schema_tables`; therefore, returned rows or tables may not be complete. `limits.result_chars` does not cap schema-tool payloads. Use `get_full_schema(detail_level="compact")` for broad schema explanations, then `describe_table()` only for requested table details. Query truncation does not reduce database execution work or Python-side fetching; use explicit `WHERE`, `LIMIT`, and `ORDER BY` to limit work and stabilize ordering.
+- **Result truncation and projection to avoid Token explosion**: `query()`, Query Skills and `sample()` use `limits.result_rows` / `limits.result_chars`, `list_tables()` uses `limits.overview_tables`, and `get_full_schema()` uses `limits.schema_tables`; therefore, returned rows or tables may not be complete. `limits.result_chars` does not cap catalog/schema descriptions. Use `get_full_schema(detail_level="compact")` for broad schema explanations, then `describe_table()` only for requested table details. Query truncation does not reduce database execution work or Python-side fetching; use explicit `WHERE`, `LIMIT`, and `ORDER BY` to limit work and stabilize ordering.
+
+- **Faithful read results**: Output column labels must be unique; duplicate labels return `duplicate_result_columns` with a unique `AS` recovery hint instead of losing values. Binary values (including UTF-8-compatible BLOBs) use `{"$type":"binary","encoding":"base64","data":"AP8="}`; non-finite floats use `{"$type":"float","value":"Infinity"}` (`-Infinity`/`NaN` also supported). Other unsupported values return `result_encoding_failed`. Encoding precedes compact JSON character sizing. An oversized first row returns zero rows with `truncated=true`, an explicit reason and a projection hint; it is not an empty database result. Limits cover returned data, not the complete MCP frame or tokens; `result_chars` is 0 (disabled) or at least 2. `sample()` keeps its separate maximum of 20 requested rows.
 
 - **Some "Total" fields have "Visible Range" semantics**: For example, `total_tables` represents the number of visible tables after allowlist filtering and **before** response truncation. It is not necessarily the physical database total; `returned_table_count` is the number actually returned after truncation.
 
@@ -735,7 +736,7 @@ selection and does not turn a single-connection result into an all-connection re
 v3.8 connection conventions and trade-offs:
 
 - Resolve the target before policy, readiness, execution, metadata, audit and telemetry; tools cannot supply arbitrary DSNs.
-- Reads default to `deny`. An empty `allowlist` grants nothing; unrestricted business-table scope requires explicit `all`. `tables` is only meaningful for allowlists and rejects `"*"`.
+- Reads default to `deny`. An empty `allowlist` grants nothing; explicit `all` covers the configured default schema, subject to the remaining read rules. Cross-schema access requires an explicit allowlist. A bare grant identifies the default-schema object and accepts its qualified spelling. `tables` is only meaningful for allowlists and rejects `"*"`.
 - UNION additionally needs `allow_union=true` and valid table scope. Do not mechanically turn an old empty allowlist into both unrestricted reads and UNION permission.
 - Writes require Skills, global mutation enablement, admitted connection, connection mutation enablement and a matching Skill allowlist. There is no default-only implicit grant. Read scopes are not universal mutation scopes.
 - Only query/connect timeouts inherit built-in → common → connection values. Output limits belong to the service instance. `sql_assistant` stays connection-neutral; inspect the selected target through `list_connections()`.
@@ -790,6 +791,7 @@ exclude_profiles = []
 [skills.mutation]
 enabled = false
 allowed_connections = []
+managed_plan_parser = "sqlglot"
 [skills.mutation.preview]
 ttl_seconds = 300
 max_entries = 10000
@@ -811,6 +813,7 @@ agent_id = "unknown"
 | `policy.exclude_profiles` | [] | Trimmed, lowercased and deduplicated strings; blank entries fail. Matching profiles cannot execute and disappear from default discovery |
 | `mutation.enabled` | false | Global write switch, subject to four further configuration gates |
 | `mutation.allowed_connections` | [] | Exact target admission; empty grants nothing; connection Skill allowlist still applies |
+| `mutation.managed_plan_parser` | sqlglot | Managed-plan classifier: sqlglot or temporary opt-in sqlparse mode; restart required, no automatic fallback or read-policy bypass |
 | `mutation.preview.ttl_seconds` | 300 | 1–86400 seconds; invalid values fail startup rather than falling back |
 | `mutation.preview.max_entries` | 10000 | 1–100000 entries; full stores refuse issuance, not evict valid proposals |
 | `mutation.mrtr.enabled` | false | Optional managed single-statement approval; Skills and writes must also be enabled |
@@ -892,6 +895,20 @@ See [mcp_config.json](mcp_config.json) for the portable template. Private `confi
 ## Changelog
 
 ### v3.8.2 Dialect semantics and execution checks (October 16, 2026)
+
+October 20 managed-write migration defaults to SQLGlot with target dialect/session checks at discovery, preview and confirmation. Original SQL, named-bind checks, approval and transaction evidence remain separate. An explicit temporary sqlparse selector and dependency remain during observation; see [comparison, rollback limits and validation](docs/validation/v3.8/V3_8_2_MANAGED_PARSER_2026_10_20_ZH.md).
+
+Managed classification now reuses up to 128 immutable decisions per server instance, using exact SQL, full target context, parser and declared bind-name set. Schema readiness no longer repeats execution policy. Target semantics, grants, parameter values and one-use tokens are still checked on every applicable request; see [scope and costs](docs/validation/v3.8/V3_8_2_MANAGED_CLASSIFICATION_REUSE_2026_10_20_ZH.md).
+
+SQLite comment syntax, a bounded MySQL plan-hint subset and HIGH_NOT_PRECEDENCE-aware NOT/! grouping are now supported. Original SQL, session initialization, grants and approval remain independent; SET_VAR, resource/timeout hints and unknown hint syntax remain unsupported. See [scope and validation](docs/validation/v3.8/V3_8_2_DIALECT_COMMENTS_NOT_2026_10_20_ZH.md).
+
+Single reads now retain ordinary comments after a terminating semicolon. Managed plans share execution's literal-aware bind identification and recheck the actual target. Query Skill startup stops at the first valid candidate; MySQL schema overviews batch columns only for authorized, returned tables. No new Agent step or switch; see [repairs, measured costs and analysis-reuse study](docs/validation/v3.8/V3_8_2_READ_PLAN_REPAIR_2026_10_20_ZH.md).
+
+October 20 FTS follow-up checks restricted functions in reachable content views before execution and restores explicitly granted qualified FTS calls. Whole-view checks can conservatively refuse unused restricted expressions; see [scope and validation](docs/validation/v3.8/V3_8_2_FTS_FOLLOWUPS_2026_10_20_ZH.md).
+
+October 20 metadata optimization estimates only tables returned after authorization/truncation, batches SQLite statistics and skips transport tokenization when SQL contains no colon. Missing statistics still use guarded bounded reads; no grant, tool step or default row-count contract changes. See [decisions, measured costs and validation status](docs/validation/v3.8/V3_8_2_METADATA_OPTIMIZATION_2026_10_20_ZH.md).
+
+October 19 follow-up restores derived-table views, known JSON table functions and guarded FTS5 reads; unifies default-schema identities and all-mode scope; rejects executing locking reads and improves diagnostics/metadata reuse. SQLite authorizer stays enabled without a TOML bypass. Final package, restart and complete-Agent status are tracked separately in the [repair record](docs/validation/v3.8/V3_8_2_READ_CAPABILITIES_2026_10_19_ZH.md); earlier counts below retain their source attribution.
 
 Shared SQLGlot analysis preserves schema/name, quoting, scopes and original SQL. Structured `read.relations` and Skill `relations` express literal dotted names. Each MySQL physical connection initializes the full SQL-mode contract; SQLite checks compiled operations and view sources under exclusive connection ownership, with statement caching disabled. Readiness stays scoped to the default schema; view grants do not grant direct base access. See the [design/limits](docs/architecture/V3_8_2_SQL_SEMANTICS_ZH.md) and [version-specific acceptance](docs/validation/v3.8/V3_8_2_VALIDATION_2026_10_16_ZH.md). October 17 repairs also guard view-backed sample/count/estimate reads and restore non-executing SQLite DML/REPLACE plans. The subsequent trigger/WITH REPLACE/UPDATE OR repair passes **2067 tests, 4 skipped**, with clean type/prompt checks; final package and completed scoped post-restart verification (42/42) are tracked in the [plan follow-up](docs/validation/v3.8/V3_8_2_EXPLAIN_FOLLOWUP_2026_10_17_ZH.md). The preceding package/MySQL/native 28/28 checks retain their earlier-source scope in the [read-boundary report](docs/validation/v3.8/V3_8_2_READ_BOUNDARIES_2026_10_17_ZH.md). Earlier Host/Luna failures, scoring limits and cost measurements retain their tested-source attribution.
 
@@ -1535,6 +1552,29 @@ Output:
 ### 4. `describe_table`
 Usage: Get Table Structure - Column info, indexes, estimated row count, and query suggestions.
 
+SQLite columns include ordinary and VIRTUAL/STORED generated columns in database
+order. Generated columns carry `generation_type: "virtual"` or `"stored"` and
+cannot be written directly. Virtual-table hidden columns (`table_xinfo.hidden=1`)
+are excluded from default columns/counts; fields such as FTS `rank` may still be
+queried explicitly under the same authorization. Expressions are not returned or
+evaluated to obtain this metadata. Full schema preserves `generation_type`;
+compact groups mark generated fields in `generated_columns` and distinguish
+their metadata when grouping. See the [repair contract and acceptance](docs/validation/v3.8/V3_8_2_RELATION_CALLS_COLUMNS_2026_10_20_ZH.md).
+
+SQLite `data_type` (`type` in full schema, the second item in compact column
+pairs) preserves the native PRAGMA type string, including `""`. An empty type
+means SQLite supplies no nonempty type information; it does not mean `TEXT`
+or establish the affinity or runtime storage class. Compact grouping compares
+visible metadata, not full SQLite semantics. See the [declared-type repair](docs/validation/v3.8/V3_8_2_SQLITE_DECLARED_TYPES_REPAIR_2026_10_21_ZH.md).
+
+Actual PRIMARY members carry optional one-based `primary_key_position` in
+describe/summary columns and full schema; non-members omit it. Native `key_type`
+(`key` in full schema) remains a display flag: MySQL can report `PRI` for a
+non-null unique index without a PRIMARY constraint. Compact `primary_key` lists
+actual members in key order, or `[]` when absent. It is a member summary, not a
+complete physical key: use described index parts for repeated SQLite key parts,
+sort direction and collation. See the [shared key contract](docs/validation/v3.8/V3_8_2_PRIMARY_KEY_METADATA_REPAIR_2026_10_21_ZH.md).
+
 Returns full adapter-visible column metadata, indexes, and estimated row counts
 from adapter metadata/statistics (MySQL INFORMATION_SCHEMA; SQLite PRAGMA and
 sqlite_stat1 or bounded sampling). Since v3.8.1 each index lists `name`,
@@ -1545,6 +1585,11 @@ with `name: null`. Index comments, expressions, partial-index predicates and
 cardinality are not returned. This is not complete DDL: foreign keys, checks and
 other backend-specific properties are absent. Includes `is_large` for query
 planning and avoids automatic COUNT(*) full table scans.
+
+SQLite uses whole-table or verified nonpartial-index statistics, including the
+WITHOUT ROWID primary tree. Missing/unusable statistics fall back to a guarded
+read of at most 10,000 rows. Statistics can be stale and the bounded result may
+be a lower bound; use opt-in exact counts when current cardinality is required.
 
 If adapter metadata cannot be read, this tool returns `success=false` with
 `error_code="metadata_query_failed"` rather than a missing-table or zero-row
@@ -1631,9 +1676,9 @@ Output:
 ### 6. `get_full_schema`
 Usage: Fetch a compact or full visible database schema overview in one call.
 
-`detail_level="compact"` is the machine-visible default and is intended for broad table explanations and multi-table planning; omitting the parameter is equivalent to passing `compact`. It returns `[name, type]` column pairs, primary keys, column counts, and every table's row estimate. With `group_identical=true` (the default), tables share a group only when all column metadata currently exposed by the adapter and the column order are equal. For MySQL, that comparison covers column name, base data type, nullability, key marker, and default; it does **not** prove equality of complete DDL, indexes, foreign keys, checks, length/precision, unsigned flags, collations, or generated expressions. The response records this boundary in `grouping_basis`. Set `group_identical=false` when every compact table must remain separate; the parameter is ignored in full mode.
+`detail_level="compact"` is the machine-visible default and is intended for broad table explanations and multi-table planning; omitting the parameter is equivalent to passing `compact`. It returns `[name, type]` column pairs, ordered actual PRIMARY members, column counts, and every table's row estimate. With `group_identical=true` (the default), tables share a group only when all column metadata currently exposed by the adapter and the column order are equal. For MySQL, that comparison covers column name, base data type, nullability, key marker, default, and actual PRIMARY position; it does **not** prove equality of complete DDL, indexes, foreign keys, checks, length/precision, unsigned flags, collations, or generated expressions. The response records this boundary in `grouping_basis`. Set `group_identical=false` when every compact table must remain separate; the parameter is ignored in full mode.
 
-Request `detail_level="full"` explicitly for `nullable`, `default`, and key metadata across multiple tables. A database/metadata failure returns `success=false` with `error_code="metadata_query_failed"` instead of being reported as an empty database, empty schema, missing table, or zero-row estimate. A row estimate can be `null` when unavailable; null does not mean empty. If table discovery returns a database identifier outside the schema tools' conservative identifier grammar, projection fails explicitly with `error_code="unsupported_metadata_identifier"` rather than misclassifying it as a query failure or emitting an empty table. The visible table set may be filtered by allowlist and truncated by `limits.schema_tables`; use `describe_table()` for one-table drill-down.
+Request `detail_level="full"` explicitly for `nullable`, `default`, and key metadata across multiple tables. A database/metadata failure returns `success=false` with `error_code="metadata_query_failed"` instead of being reported as an empty database, empty schema, missing table, or zero-row estimate. A row estimate can be `null` when unavailable; null does not mean empty. If table discovery returns a database identifier outside the schema tools' dialect-specific metadata-name envelope, projection fails explicitly with `error_code="unsupported_metadata_identifier"` rather than misclassifying it as a query failure or emitting an empty table. The visible table set may be filtered by allowlist and truncated by `limits.schema_tables`; use `describe_table()` for one-table drill-down.
 
 Compact output:
 ```json
@@ -2103,6 +2148,8 @@ nor that short identifier.
 - **Failed-preview handling**: a preview result containing `error` or reporting `success=false` receives no token
 - **Optimistic locking**: Uses `WHERE status = :expected_status` at execution time and `expected_rowcount=1` before COMMIT; zero or multiple rows roll back
 - **Transaction outcome**: pre-COMMIT failures report `rolled_back` only when rollback is confirmed; COMMIT acknowledgement failure reports `unknown`; MySQL guarantees are limited to transactional InnoDB DML
+- **Read-analysis binding**: MySQL also verifies the exact original SQL before executing supplied analysis; valid matching calls and original parameters are preserved.
+- **SQLite writes**: establish a physical transaction before DML, complete and close RETURNING before checking the direct affected-row count, and verify physical rollback evidence. Unknown outcomes remain non-retryable. Trigger/cascade changes and returned rows are not added to the direct count. See the [contract and validation](docs/validation/v3.8/V3_8_2_SQLITE_WRITE_TRANSACTIONS_2026_10_22_ZH.md).
 - **Audit logging**: Mutation preview/execute paths attempt best-effort JSONL audit logging; audit write failures do not roll back data changes
 
 #### Example 3: `sample-reset-order-to-pending` (Portable Demo Reset)
@@ -2377,12 +2424,16 @@ For complete design details, execution flow diagrams, and industry best practice
 ## Requirements
 
 - Python 3.12+ and a MySQL or SQLite database.
-- FastMCP 4.0.10 / MCP SDK 2.2.0; SQLAlchemy, SQLGlot, sqlparse (managed write plans), PyMySQL, Pydantic and PyYAML are managed by `pyproject.toml` and locked in `uv.lock`.
+- FastMCP 4.0.10 / MCP SDK 2.2.0; SQLAlchemy, SQLGlot, sqlparse (temporary opt-in managed-plan mode), PyMySQL, Pydantic and PyYAML are managed by `pyproject.toml` and locked in `uv.lock`.
 - AutoGen examples use a separate environment. Indirect python-dotenv installation does not imply support for old environment configuration.
 
 ## Testing
 
 Default pytest collection is limited to `tests/` by `pyproject.toml`, with isolated temporary configuration and SQLite fixtures; the private `.env` is not loaded. Optional MySQL integration checks require `RUN_MYSQL_INTEGRATION_TESTS=1` and explicitly exported test credentials. This is a test-fixture input, not a server configuration fallback.
+
+For current acceptance, use the [contract validation entry points](scripts/validation/README.md). Deterministic `fast` success leaves live scenarios unverified; `release` explicitly runs the isolated SQLite/MySQL matrix. For installed-package acceptance, use the normal wheel's interpreter without `--source`. Missing prerequisites or unexpected release skips block acceptance. Dependency/runtime upgrades require relevant rechecks even when product source is unchanged; baseline comparison never automatically reuses results.
+
+**October 22 local verification:** the normally installed wheel passed **3541 tests/four initial optional skips**, then **860 application calls** and the **four actual MySQL tests with zero skips**. The GitHub Hosted release workflow has not yet run. These checks do not establish new model-token or performance benefits; see [evidence and limits](docs/validation/v3.8/V3_8_2_PORTABLE_RELEASE_GATES_2026_10_22_ZH.md). Earlier dated results below retain their original scope.
 
 ```bash
 uv run pytest -q -rs

@@ -1,5 +1,168 @@
 # v3.8.2 — Dialect/session semantics and execution authorization (October 16, 2026)
 
+### October 22 portable contracts and dependency-aware release gates
+
+- Add ordinary pytest sentinels with native truth, target branch hits and positive controls; no archive or historical checkout required.
+- Separate deterministic CI from explicit normally installed-wheel/MySQL release acceptance. Missing environment stays unverified/nonzero; require actual JUnit passes, matrix sizes, cleanup and matching product resources.
+- Capture actual Python/SQLite/dependency and validation identities; dependency/validation changes trigger the live workflow. Baseline comparison never automatically reuses results; Hosted first execution remains separately unverified. No production, prompt, private configuration or grant change. [Commands](../../scripts/validation/README.md), [evidence and limits](../validation/v3.8/V3_8_2_PORTABLE_RELEASE_GATES_2026_10_22_ZH.md).
+
+
+### October 22 bounded stabilization acceptance
+
+| Aspect | Decision and result |
+| --- | --- |
+| Scope / Why | Audit16 declared contract families against independent oracles, freeze four evidence gaps and finish S1–S4; do not infer stability from regression counts alone. |
+| Validation |254 selected regressions/no skips; source/existing normal wheel each332 application calls (SQLite204, actual MySQL128) agree. Two isolated result-function variants concretely violate duplicate-label/first-row-limit contracts; positive controls pass. Reused real-write matrices and historical sentinels retain verified source attribution. |
+| Contract / Limits | Three gates pass within the fixed matrix. No new runtime/prompt/configuration/grant/dependency change or mandatory Agent step; no new model/cost claim or restart needed. Preserve93 framework deprecation warnings, historical failures and documented temp/schema/network boundaries. Not a defect-free guarantee. |
+| Evidence | [Final acceptance and stopping conditions](../validation/v3.8/V3_8_2_STABILIZATION_2026_10_22_ZH.md); previous3505 full passes/four optional skips are reused, not increased by the254 selected reruns. |
+
+### October 22 exact MySQL analysis binding and real InnoDB gate
+
+| Aspect | Decision and result |
+| --- | --- |
+| Why / Change | DRR-144's internal source mismatch could reach MySQL's base executor. Add exact analysis.source_sql equality beside completeness/context; no prior exposed MCP failure reproduced. |
+| Contract | Preserve original SQL/params and supported matching calls. Owner confirms independent transactional-business truth, cross-entry binding and effective known-bad sentinels; AUTO_INCREMENT gaps are allowed and comparisons stay test-only. |
+| Validation | Source/wheel each14 write groups,19 faults,3 races and96 calls/32 preview-confirm-replay flows; real server errors/disconnects separated from client injections. Explicit live MySQL tests4/4; default full3505 pass/4 skip, clean types/prompts and77 resources match. |
+| Compromises / Scope | No write-adapter/config/grant/prompt/dependency or mandatory Agent-step change. No new model/performance claim; unknown commit injection is in-process, not a network-partition test. Owner-restarted native6/6 passes within the frozen read/refusal scope; internal mismatch proof remains source/package scoped. [Original evidence](../validation/v3.8/V3_8_2_MYSQL_WRITE_CONTRACTS_2026_10_22_ZH.md), [separate restart supplement](../validation/v3.8/v382_mysql_write_contracts_2026_10_22/resident_restart/README.md). |
+| Stabilization order | [Finite plan](../validation/v3.8/V3_8_2_STABILIZATION_PLAN_2026_10_22_ZH.md):16 contract families; audit evidence/gaps, cross-entry binding/lifecycle, results/execution, then sentinels/closure. S0 scoped complete; remaining S1–S4 not yet accepted. |
+
+### October 22 SQLite physical transactions and completed DML counts
+
+| Aspect | Decision and result |
+| --- | --- |
+| Why | Legacy sqlite3 implicit BEGIN omitted WITH/semicolon DML; logical rollback could claim rolled_back after persistence. Unfinished RETURNING and cached/unknown counts also rejected valid writes. |
+| Change | Establish/verify physical BEGIN before original DML, finish/close results before the count check, and use same-connection changes() for actual unknown-count DML. Confirm physical rollback state; retain uncertain outcomes and retire unresolved connections. |
+| Compromises | Explicit transaction work, fallback count queries and result consumption; direct counts exclude triggers/cascades/returned rows. No read-authorizer/global-engine/prompt/configuration/dependency change or mandatory Agent step. |
+| Validation | 120 new regressions; full3493 passes/four optional skips, clean types/prompts, source/normal-wheel each432 application calls and136 preview-confirm-replay flows with independent post-cleanup truth. Owner-restarted native12/12 passes; additional each254 private write attempts and known-bad sentinels pass. No configured writes/new full-model claim. Preserve [original costs and scope](../validation/v3.8/V3_8_2_SQLITE_WRITE_TRANSACTIONS_2026_10_22_ZH.md) and the [separate restart/quality assessment](../validation/v3.8/V3_8_2_WRITE_RESTART_AND_STABILIZATION_2026_10_22_ZH.md). |
+
+### Complete Agent audit after the latest owner restart
+
+| Item | Decision and result |
+| --- | --- |
+| Why | Verify resident PRIMARY metadata and actual complex-task costs, rather than infer Agent behavior from component tests. |
+| Validation | Native12/12; fifteen same-prompt Luna-medium two-turn tasks pass,65 successful SQL results match native replay. Calls+4.63%, business total tokens+3.85%, public task time increases; separate local flow costs retain regressions and phase drift. |
+| Compromises | Three natural-cancel probes retain initial business2/3 plus one reminder and strict wording1/3, despite no writes or post-cancel calls. No independent causal guidance claim, universal speed/token claim or new runtime change. |
+| Evidence | [Tasks, measured usage and limitations](../validation/v3.8/V3_8_2_COMPLETE_AGENT_EVAL_2026_10_21_ZH.md). Historical channel failures and previous source-scoped results remain sealed. |
+
+### October 21 actual PRIMARY identity and member order
+
+| Aspect | Decision and contract |
+| --- | --- |
+| Why | Compact used table-column order for composite keys; MySQL PRI can also label a non-null unique index without a PRIMARY constraint. |
+| Change | Optional one-based `primary_key_position` comes from SQLite table_xinfo or MySQL actual PRIMARY directory in the existing column query. Compact orders members; full/describe/summary preserve positions and grouping distinguishes them. Native key flags remain separate. |
+| Compromises | MySQL catalog-join work and larger accurate payloads/groups. Compact summarizes members, not repeated SQLite physical key parts or full DDL; described indexes retain those parts. No extra mandatory Agent call, prompt/configuration/grant change or new dependency. |
+| Validation | Shared SQLite/MySQL matrix, independent native catalogs, source/normal-wheel checks and serial local costs are tracked in the [repair record](../validation/v3.8/V3_8_2_PRIMARY_KEY_METADATA_REPAIR_2026_10_21_ZH.md). Latest owner restart completes native12/12, including actual PRIMARY positions; preserve the earlier native7/12 versus fresh CLI12/12 mismatch and its unconfirmed cause. MySQL is the server target; MariaDB is not required. Prior native/model evidence remains source-scoped. |
+
+### October 21 native SQLite type metadata
+
+DRR-140 preserves database-reported type strings, including empty, across describe/summary and compact/full schema. Empty and TEXT no longer merge in compact groups. This is declaration metadata, not inferred affinity or runtime type; additional groups can grow responses. No new database query, prompt, configuration or required Agent call. Source/normal-wheel checks pass; after the owner restart all9 frozen native checks pass. Additional144 calls per source/wheel retain native type/default metadata across10 adjacent object cases; no new production defect was confirmed in that scope. Earlier normalized-type evidence and137/138/139 acceptance retain their scope. [Repair and limits](../validation/v3.8/V3_8_2_SQLITE_DECLARED_TYPES_REPAIR_2026_10_21_ZH.md).
+
+### October 21 FTS catalog/statistics and cold-rowid repairs
+
+DRR-137/138/139 are repaired: fixed actual-schema PRAGMAs prevent FTS catalog shadows, verified table/full-index statistics replace arbitrary partial-index estimates, and implicit external-content rowid bindings match SQLite compilation. Source/normal-wheel each488 application checks agree; 3340 regressions pass with4 optional skips. After the owner restart, all10 frozen existing-alias native checks pass with unchanged resources, private configuration and SQLite file. Special collision/partial-index/cold-rowid fixtures remain source/package scoped; additional bounded catalog cost and prior estimate limits are retained. The earlier open assessment and all failures remain historical evidence. [Repair and costs](../validation/v3.8/V3_8_2_FTS_CATALOG_STATISTICS_REPAIR_2026_10_21_ZH.md), [resident supplement](../validation/v3.8/v382_fts_catalog_statistics_repair_2026_10_21/resident_restart/README.md), [earlier assessment](../validation/v3.8/V3_8_2_FTS_CATALOG_STATISTICS_ASSESSMENT_2026_10_21_ZH.md).
+
+### October 21 faithful read results and conditional dependencies
+
+DRR-135 is subsequently repaired with ordered two-name observations, completeness and bounded schema/time work. Explicit and resolved stored identities agree; non-default readiness remains unverified and actual authorization stays live. Final source/wheel checks pass; the combined owner restart now passes 20/20 scoped native checks, and earlier checkpoints are not relabeled. The independently confirmed old DRR-136 is also repaired with fixed main-bound metadata PRAGMAs, preserving generated columns and full index attributes with bounded fetch. N real indexes now need N+2 catalog statements; costs and scope are retained. DRR-135/136 completed one combined owner restart: pages: 10 columns/complete indexes and compact/full: 6 tables / 34 columns agree with independent metadata; the native default catalog behaves as configured. Special fixtures remain source/package scoped. [Resident supplement](../validation/v3.8/v382_metadata_pragma_repair_2026_10_21/resident_restart/README.md). [Metadata repair](../validation/v3.8/V3_8_2_METADATA_PRAGMA_REPAIR_2026_10_21_ZH.md). [Repair, costs and remaining scope](../validation/v3.8/V3_8_2_ATTACHED_JSON_REPAIR_2026_10_21_ZH.md).
+
+| Aspect | Decision and contract |
+| --- | --- |
+| Why | Duplicate labels silently dropped values, BLOB success depended on UTF-8, non-finite numbers became null, oversized first rows escaped limits, and non-default JSON-name dependencies vanished. |
+| Change | Share actual-label checking, tagged binary/base64 and float encoding, structured representation errors and compact JSON data limits across query/Query Skills/sample. Zero returned rows may mean a flagged oversized first row. |
+| Readiness | Retain builtin/stored/unverified identities; bounded ordered SQLite observations include attached schemas and prove absence only when complete. Non-default schemas remain unverified. No new AST adapter, grant, authorizer relaxation or cache. |
+| Compromises | Binary representation changes and grows, duplicate labels require AS retry, sample gains truncation metadata, result_chars=1 is rejected. Encoding and bounded ordered catalog observations have costs; no extra mandatory tool step for normal reads. |
+| Validation | All 16 frozen native query checks pass after the owner restart, with matching text/structured results and unchanged configuration/database hashes. Special Skill/sample cases retain source/package coverage; regression, costs and preserved failures remain separate in the [current record](../validation/v3.8/V3_8_2_READ_RESULTS_2026_10_21_ZH.md). No new model/token comparison is claimed. |
+
+### October 20 relation-call names and generated columns
+
+Preserve SQLite relation-call identities and arguments across FROM/JOIN/IN;
+scalar names and arity no longer change FTS roots. Actual module/grant checks
+support JSON-name FTS collisions, while fresh Skill schema snapshots supply
+conditional dependencies. SQLite metadata includes visible generated columns,
+marks virtual/stored generation and keeps virtual hidden columns separate from
+default counts. No new switch, dependency or required Agent round trip.
+After the maintainer restart, 12/12 frozen native checks pass, including generated
+columns, business truth and continued refusals, with unchanged database/config
+hashes. Source/package/native acceptance and remaining limits are tracked in the
+[repair record](../validation/v3.8/V3_8_2_RELATION_CALLS_COLUMNS_2026_10_20_ZH.md).
+
+### October 20 read/binding repair, startup/column optimization and reuse study
+
+Subsequent complete-model acceptance on the same runtime: fifteen actual Luna
+medium two-turn trials pass; sixty successful original SQL results match native
+replay. Nine prompt/data/model-matched historical business comparisons show
+calls78→73 and total token-6.30%, output+13.13%; subgroups can increase and this
+is not randomized source A/B or guidance ablation. Three initially unavailable
+threads resumed as Sol ultra, so their results/costs are separate diagnostics;
+three fresh Luna replacements complete the protocol. Actual turn-context checks
+are now required after recovery. Eleven new database aliases were already in
+connections.toml, with sixteen visible natively; no new private config/runtime
+change. [Tasks, usage, correction and limits](../validation/v3.8/V3_8_2_COMPLETE_AGENT_EVAL_2026_10_20_ZH.md).
+
+| Aspect | Decision and contract |
+| --- | --- |
+| Why | Ordinary trailing comments falsely made a read multi-statement; raw text bind scanning rejected valid literal/comment/name colons. Startup evaluated unnecessary candidates; MySQL full schema repeated per-table column round trips. |
+| Change | Verify all original comments, ignore non-executable tail nodes, share actual transport binding identity with both managed classifiers, and require each startup candidate to satisfy syntax plus exact declared binds. Pure classifier keys include declared names. Query Skill startup stops at first allow; authorized/truncated column projections use explicit bounded get_columns_batch. |
+| Preserved | Original SQL and actual-session semantics; independent grants, parameters, readiness, approval, consumed-token rechecks and transactions. No version/dependency/private grant change or extra Agent step. |
+| Compromises | MySQL backend customizations need the batch hook; remove phantom parameters formerly used to work around bind misidentification. Explicit temporary sqlparse retains older trailing-comment limits. Whole metadata operation fails on batch/empty-column errors; no partial success. |
+| Costs | Fixed 16-table MySQL schema stdio improves 81–85% paired medians; 22-Skill warm Runtime setup improves about 43%. SQLite has mixed small changes, including a +3% group; warm managed cycles show no clear regression or speedup. Not full Agent/cold-start claims. |
+| Reuse decision | Study 16 operation-local pure-read scenarios. Cold dependency inference benefits; tested warm/raw/view/trigger-plan paths have no duplicate key. No generic production request cache; prefer evaluating direct handoff of an existing analysis. No authorization/catalog/state cache or authorizer bypass. |
+| Validation | 3003 full-suite passes/four optional skips, then two additional session-binding passes; clean type/prompt checks; 84 source/84 installed stdio calls, six installed MySQL calls and 77 matching resources. Five real MySQL catalogs, 16 actual sessions, 32 literal comparisons/32 non-executing plans pass with unchanged orders. After owner restart, 34/34 scoped native checks pass with exact MySQL metadata/monthly-report truth, two unconfirmed previews, seven refusals and unchanged data digests; no new model or native timing claim. [Evidence and decisions](../validation/v3.8/V3_8_2_READ_PLAN_REPAIR_2026_10_20_ZH.md). |
+
+### October 20 earlier final audit (documentation only at that checkpoint)
+
+Two existing functional refusals remain open as DRR-124/125: trailing ordinary comments after a terminating semicolon can reject a single read, and literal/comment/name colons can reject a managed plan during binding discovery. HEAD and the accepted pre-comment runtime reproduce both. This audit changes no runtime or dependencies; 22 Client/four current-Host calls supplement independent engine checks. Startup short-circuit and bounded MySQL column-query timings are **unimplemented local prototypes**, not delivered tool/model speedups. Findings, proposed repairs, costs and handoff status are in the [audit](../validation/v3.8/V3_8_2_FINAL_AUDIT_2026_10_20_ZH.md).
+
+### October 20 dialect comments, bounded plan hints and NOT precedence
+
+| Task | Behavior and limits |
+| --- | --- |
+| SQLite comments (DRR-121) | Follow native block/dash comment semantics, including hint/directive-shaped text; strings and quoted business names are not comments. Raw query and Query Skill/readiness agree. |
+| MySQL plan hints (DRR-122) | Inspect every original comment span; accept a named plan-hint subset with flat name arguments. Reject executable/MariaDB comments, SET_VAR, resource/timeout overrides, unknown/incomplete hints and nested expressions. Hints grant no data access; server application is not guaranteed. |
+| Session NOT (DRR-123) | Existing unary dispatch differentiates ! and actual HIGH_NOT_PRECEDENCE; retain infix NOT grammar, original SQL and per-physical-session initialization. One dispatch entry adds a pinned private-API dependency, with no new parser method override. |
+| Preserved/cost | Original SQL/binds, live grants, token consumption, rollback and commit evidence, 128-entry pure classification reuse, version/dependencies/config and tool steps. Explicit sqlparse rollback keeps its old rules. Managed startup candidates grow from 9 to 17; measure startup separately from warm requests. |
+| Validation | Full 2920 pass/four optional skips plus two subsequently added Query Skill checks; type/prompt pass. 1513 paired case/context groups retain original sqlparse outcomes with no allow→deny verdict changes in the frozen corpus. Sixteen real MySQL sessions verify 272 scalars and 128 non-executing plans; 64 source/64 installed calls and 30/30 current-Host checks after owner restart pass, without configured writes or changed order digests. Preserve source/package costs and native scope separately in the [record](../validation/v3.8/V3_8_2_DIALECT_COMMENTS_NOT_2026_10_20_ZH.md). |
+
+### October 20 readiness separation and pure classification reuse
+
+| Aspect | Decision and contract |
+| --- | --- |
+| Why | Schema guards called full availability policy only to consume readiness fields; the fixed six-call lifecycle classified plans 11 times. |
+| Change | Share readiness-only dependency/schema evaluation; reuse immutable classification decisions in a 128-entry per-runtime LRU keyed by exact SQL, complete DialectContext and parser. Pure classification denials may be retained; thrown exceptions and connection resolution are not cached. |
+| Preserved | Full discovery policy; live grants, profiles, parameters, readiness and token checks. Confirmation still resolves target semantics after token consumption; MySQL physical-session initialization and original SQL/binds/transaction evidence remain. No dependency/config/tool-step change. |
+| Limits | Bounded entries retain SQL/context/decisions until eviction or runtime close. Concurrent misses may repeat pure work. Those were deferred at the DRR-120 checkpoint; their separate later support is recorded above. |
+| Validation | A1 independently records 11→7 classifications. Final source/package and matched costs pass; after the owner restart 22/22 native checks pass with unchanged SQLite hashes/full-order digest. Scope and limits are separated in the [optimization record](../validation/v3.8/V3_8_2_MANAGED_CLASSIFICATION_REUSE_2026_10_20_ZH.md). Historical costs and model evidence retain their source attribution. |
+
+### October 20 managed-plan parser migration
+
+| Aspect | Decision and contract |
+| --- | --- |
+| Why | Managed plans were classified only at Skill load with dialect-neutral sqlparse, separately from the new SQLGlot/session foundation. |
+| Decision | Default `[skills.mutation] managed_plan_parser="sqlglot"`; retain explicit `"sqlparse"` rollback and dependency for observation, then review removal after two or three releases. No automatic fallback. |
+| Contract | Startup candidates follow declared database types; target discovery/preview and consumed confirmation use actual target context. Existing MySQL initialization enforces that mode contract on every physical execution session. Keep independent write rules, original SQL, exact named bindings, approval, one-use tokens and transaction outcomes. |
+| Compromises | Rollback retains old dialect-neutral limitations and two implementations still need tests. SQLGlot is not engine validation; HIGH_NOT_PRECEDENCE was unsupported at that migration checkpoint; subsequent support is recorded above. No new private parser override, authorizer switch, version bump or private configuration change. |
+| Validation | Frozen 98-case/10-context comparison, isolated SQLite lifecycle tests, 64 actual MySQL EXPLAIN checks and 40 source/40 installed stdio calls; after the owner restart, 16 current-Host calls satisfy the scoped contracts, preserving one search-expectation correction and unchanged SQLite data. Full regression, costs and coverage limits are separated in the [migration record](../validation/v3.8/V3_8_2_MANAGED_PARSER_2026_10_20_ZH.md). |
+
+### October 20 FTS cached-content and qualified-call repair
+
+| Aspect | Decision and contract |
+| --- | --- |
+| Why | Trusted full projection could cache FTS content-view functions; named aux FTS calls also inherited a builtin-only schema restriction. |
+| Change | Check shared restricted-function facts in complete reachable view/trigger definitions before execution; restrict builtin qualification checks to builtin uses. |
+| Preserved | Original SQL, derived views/indirect grants, named-root module checks, default all-mode/readiness scope, direct shadow/content restrictions, version/dependencies/config and required Agent steps. |
+| Cost/limits | Entire reachable definitions are checked, including unused restricted expressions. Existing schema/UDF/generated-column boundaries remain; no extra parse/catalog query or off switch. |
+| Validation | 40 new regressions; [before/after, source/package, costs and resident status](../validation/v3.8/V3_8_2_FTS_FOLLOWUPS_2026_10_20_ZH.md). Earlier checkpoints retain their attribution. |
+
+### October 20 metadata projection and statistics optimization
+
+| Aspect | Decision and contract |
+| --- | --- |
+| Why | SQLite estimated every granted table before overview truncation and repeatedly checked statistics/tokenized fixed SQL. |
+| Change | Discover table identities, apply grants/limits, then enrich only returned estimates; batch selected SQLite statistics and fast-path colon-free transport text. |
+| Preserved | Guarded bounded reads, default-schema identity, unknown/error results, visible totals/order, MySQL catalog estimates, version/dependencies/config and required Agent steps. |
+| Cost/limits | New adapter directory method for real extensions; 200-bind/result batches preserve first-statistic semantics, not an atomic/persistent cache. Partial-index statistics remain approximate; analysis/catalog caches are deferred. |
+| Validation | [Source/package, matched costs and resident restart status](../validation/v3.8/V3_8_2_METADATA_OPTIMIZATION_2026_10_20_ZH.md); prior audit/model evidence and the separate FTS follow-up retain their scope. |
+
 ### Why
 
 Quoted spelling, physical object names, CTE scope and database session state have different semantics. Repeated token parsers and a connection-independent dialect setting could disagree across raw queries, Skills, readiness and metadata. SQLite additionally resolves temp/attached objects and view sources during compilation.
@@ -8,7 +171,7 @@ Quoted spelling, physical object names, CTE scope and database session state hav
 
 - Use pinned SQLGlot 30.22.0 for one shared structured read analysis with explicit dialect/session context, original lexical names, scopes, physical references, call identity and completeness. Delete the replaced CTE parser; retain independent managed-write plan checks. Execute original SQL/parameters, never regenerated AST SQL; partial analysis cannot imply zero dependencies.
 - Preserve component-based RelationReference and independent grants. Add strict `read.relations` and Skill `relations` maps. SQLite supports forward/implicit-recursive CTE visibility; MySQL preserves ordered/explicit-recursion rules. Metadata uses dialect name envelopes and component quoting, with a separate SQLAlchemy literal-colon transport layer. Offline config explain serializes structured declarations.
-- Initialize/verify a complete MySQL sql_mode contract for every physical connection before dialect inspection. Configure expanded individual modes or inherit the first initialized full set. Support ANSI_QUOTES/NO_BACKSLASH_ESCAPES/PIPES_AS_CONCAT interpretation; explicitly refuse HIGH_NOT_PRECEDENCE. Arbitrary trusted operations and full writes retire their sessions; normal reads/metadata reuse controlled sessions.
+- Initialize/verify a complete MySQL sql_mode contract for every physical connection before dialect inspection. Configure expanded individual modes or inherit the first initialized full set. Support ANSI_QUOTES/NO_BACKSLASH_ESCAPES/PIPES_AS_CONCAT and HIGH_NOT_PRECEDENCE interpretation; prefix NOT follows the actual mode and ! binds tightly. Arbitrary trusted operations and full writes retire their sessions; normal reads/metadata reuse controlled sessions.
 - SQLite authorizer checks actual compiled objects/operations and known view/CTE source edges throughout result consumption. Exclusive adapter ownership covers reads, metadata and full write transactions. Disable DBAPI statement caching; refresh per-request view dependency edges, including external schema changes. Fixed internal metadata/write operations remain trusted. A view grant does not grant direct base reads.
 
 ### Compromises and costs
@@ -18,6 +181,12 @@ SQLGlot parsing is not native syntax/catalog proof. Unsupported relation forms a
 ### Validation
 
 The baseline is owner commit 3323f9c (1750 passed/four skipped). Final regression, type/prompt, native SQLite/MySQL mode matrix, pool lifecycle, wheel/stdio checks, measured costs, the completed initial Host/Luna batch and final native/three-trial CTE-count supplement (with model failures retained) are tracked separately in the [v3.8.2 report](../validation/v3.8/V3_8_2_VALIDATION_2026_10_16_ZH.md). Historical v3.8.1 statements below retain their original scope. Decisions: DRR-2026-100–106 and [implementation contract](../architecture/V3_8_2_SQL_SEMANTICS_ZH.md).
+
+### October 19 read-capability and scope repair
+
+Restore SQLite derived-table views, builtin JSON relations and catalog COUNT identity; support verified FTS5 roots with scoped shadow/content/data_version abilities, preserving direct-root authorization and cache limits. Bind all-mode to the configured schema and bare grants to default objects; cross-schema access requires existing explicit allowlists. Reject executing locking reads, improve precise diagnostics and eliminate unnecessary MySQL display/diagnostic reconnects. Keep authorizer enabled without a TOML bypass, pinned dependencies and original SQL. Unknown modules gain no FTS abilities, while their ordinary scans retain existing checks.
+
+This changes the all/bare-grant contract intentionally before release. It does not change DB privileges, turn MySQL views/routines into an engine sandbox, or add required Agent calls. Validation includes 2667 full passes/four skips, 108 source and 108 installed stdio calls, 30/30 post-restart native checks and 9/9 complete two-turn Luna outcomes. Retain one corrected analytical draft, repeated discovery, oversized catalog output and measured cost limits in the [new report](../validation/v3.8/V3_8_2_READ_CAPABILITIES_2026_10_19_ZH.md); previous evidence below keeps its own source scope.
 
 ### October 17 read-boundary review repair
 
@@ -672,3 +841,8 @@ DRR-2026-098; [findings, remaining support gap and evidence](../validation/v3.8/
 | Native scope | After the maintainer restart, 20/20 native checks pass with matching text/structured results: ten exact baseline inputs and ten adjacent/refusal/MySQL/ordinary-Skill controls. Keep the old refusal checkpoint and prior diagnostic/model evidence separate; full CTE Skill readiness remains private Client/installed evidence. |
 
 DRR-2026-099 repairs the reproduced functional gap in 098; [implementation, costs and evidence](../validation/v3.8/V3_8_1_CTE_ANALYSIS_2026_10_15_ZH.md). Version remains 3.8.1.
+
+
+### October 21 follow-up: FTS catalogs, table cardinality and rowid identity
+
+DRR-137/138/139 use fixed actual-schema FTS metadata PRAGMAs, true table/verified full-index statistics and canonical external-content rowid bindings. Recover valid cold reads without expanding direct grants. Source and normal-wheel each488 application checks agree; extra bounded catalog cost and old estimate limits are retained. The subsequent owner restart passes all10 frozen existing-alias native checks; special fixtures retain source/package coverage. [Implementation and evidence](../validation/v3.8/V3_8_2_FTS_CATALOG_STATISTICS_REPAIR_2026_10_21_ZH.md).

@@ -1,0 +1,154 @@
+{
+  "observed_utc": "2026-10-21T14:07:19.685373+00:00",
+  "processes": [
+    {
+      "pid": 37609,
+      "ppid": 34825,
+      "name": "sql-safety-exec",
+      "start_utc": "2026-10-21T09:24:41.470000+00:00",
+      "executable": "/usr/bin/python3.12",
+      "cwd": "/home/andy/my_programs/llm-sql-safety-executor-mcp",
+      "launch_arguments": [
+        "/home/andy/my_programs/llm-sql-safety-executor-mcp/.venv-v38/bin/python",
+        "/home/andy/my_programs/llm-sql-safety-executor-mcp/.venv-v38/bin/sql-safety-executor",
+        "/home/andy/my_programs/llm-sql-safety-executor-mcp/config/server.toml"
+      ],
+      "ancestors": [
+        {
+          "pid": 34825,
+          "ppid": 34739,
+          "name": "codex",
+          "start_utc": "2026-10-21T09:18:04.880000+00:00"
+        },
+        {
+          "pid": 34739,
+          "ppid": 34655,
+          "name": "MainThread",
+          "start_utc": "2026-10-21T09:17:46.310000+00:00"
+        },
+        {
+          "pid": 34655,
+          "ppid": 34651,
+          "name": "MainThread",
+          "start_utc": "2026-10-21T09:17:41.300000+00:00"
+        },
+        {
+          "pid": 34651,
+          "ppid": 34645,
+          "name": "sh",
+          "start_utc": "2026-10-21T09:17:41.280000+00:00"
+        },
+        {
+          "pid": 34645,
+          "ppid": 34644,
+          "name": "sh",
+          "start_utc": "2026-10-21T09:17:41.210000+00:00"
+        }
+      ]
+    },
+    {
+      "pid": 79763,
+      "ppid": 1827,
+      "name": "sql-safety-exec",
+      "start_utc": "2026-10-21T11:53:46.220000+00:00",
+      "executable": "/usr/bin/python3.12",
+      "cwd": "/home/andy/my_programs/llm-sql-safety-executor-mcp",
+      "launch_arguments": [
+        "/home/andy/my_programs/llm-sql-safety-executor-mcp/.venv-v38/bin/python",
+        "/home/andy/my_programs/llm-sql-safety-executor-mcp/.venv-v38/bin/sql-safety-executor",
+        "/home/andy/my_programs/llm-sql-safety-executor-mcp/config/server.toml"
+      ],
+      "ancestors": [
+        {
+          "pid": 1827,
+          "ppid": 542,
+          "name": "codex",
+          "start_utc": "2026-10-21T08:22:17.870000+00:00"
+        },
+        {
+          "pid": 542,
+          "ppid": 1,
+          "name": "Relay(543)",
+          "start_utc": "2026-10-21T08:20:27.400000+00:00"
+        },
+        {
+          "pid": 1,
+          "ppid": 0,
+          "name": "systemd",
+          "start_utc": "2026-10-21T08:20:04.260000+00:00"
+        }
+      ]
+    },
+    {
+      "pid": 79915,
+      "ppid": 1827,
+      "name": "sql-safety-exec",
+      "start_utc": "2026-10-21T11:54:06.190000+00:00",
+      "executable": "/usr/bin/python3.12",
+      "cwd": "/home/andy/my_programs/llm-sql-safety-executor-mcp",
+      "launch_arguments": [
+        "/home/andy/my_programs/llm-sql-safety-executor-mcp/.venv-v38/bin/python",
+        "/home/andy/my_programs/llm-sql-safety-executor-mcp/.venv-v38/bin/sql-safety-executor",
+        "/home/andy/my_programs/llm-sql-safety-executor-mcp/config/server.toml"
+      ],
+      "ancestors": [
+        {
+          "pid": 1827,
+          "ppid": 542,
+          "name": "codex",
+          "start_utc": "2026-10-21T08:22:17.870000+00:00"
+        },
+        {
+          "pid": 542,
+          "ppid": 1,
+          "name": "Relay(543)",
+          "start_utc": "2026-10-21T08:20:27.400000+00:00"
+        },
+        {
+          "pid": 1,
+          "ppid": 0,
+          "name": "systemd",
+          "start_utc": "2026-10-21T08:20:04.260000+00:00"
+        }
+      ]
+    },
+    {
+      "pid": 127637,
+      "ppid": 1827,
+      "name": "sql-safety-exec",
+      "start_utc": "2026-10-21T13:59:51.970000+00:00",
+      "executable": "/usr/bin/python3.12",
+      "cwd": "/home/andy/my_programs/llm-sql-safety-executor-mcp",
+      "launch_arguments": [
+        "/home/andy/my_programs/llm-sql-safety-executor-mcp/.venv-v38/bin/python",
+        "/home/andy/my_programs/llm-sql-safety-executor-mcp/.venv-v38/bin/sql-safety-executor",
+        "/home/andy/my_programs/llm-sql-safety-executor-mcp/config/server.toml"
+      ],
+      "ancestors": [
+        {
+          "pid": 1827,
+          "ppid": 542,
+          "name": "codex",
+          "start_utc": "2026-10-21T08:22:17.870000+00:00"
+        },
+        {
+          "pid": 542,
+          "ppid": 1,
+          "name": "Relay(543)",
+          "start_utc": "2026-10-21T08:20:27.400000+00:00"
+        },
+        {
+          "pid": 1,
+          "ppid": 0,
+          "name": "systemd",
+          "start_utc": "2026-10-21T08:20:04.260000+00:00"
+        }
+      ]
+    }
+  ],
+  "source_mtime_utc": {
+    "src/sql_safety_executor/database/sqlite.py": "2026-10-21T12:59:53.403085+00:00",
+    "src/sql_safety_executor/database/mysql.py": "2026-10-21T12:59:53.295084+00:00"
+  },
+  "limit": "Multiple launches and their ancestor names do not identify which process serves the current MCP tool channel. No process stopped, attached or modified; no environment/credentials read."
+}

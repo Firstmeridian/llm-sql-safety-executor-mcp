@@ -1,0 +1,20 @@
+--- before/sqlite.py
++++ current/sqlite.py
+@@ -550,6 +550,8 @@
+ 
+         table_xinfo hidden=1 denotes virtual-table hidden columns, excluded
+         from this projection; 2/3 denote visible VIRTUAL/STORED generated columns.
++        Preserve the database-reported type, including an empty string. It
++        describes metadata, not inferred affinity or the stored value's type.
+         """
+         if not self.valid_metadata_identifier(table_name):
+             return []
+@@ -564,7 +566,7 @@
+             # Map SQLite PRAGMA output to consistent format
+             column = {
+                     "column_name": row[1],
+-                    "data_type": row[2] or "TEXT",  # SQLite allows empty type
++                    "data_type": row[2],
+                     "nullable": "NO" if row[3] else "YES",
+                     "key_type": "PRI" if row[5] else "",
+                     "default_value": row[4],

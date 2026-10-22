@@ -1,0 +1,52 @@
+{
+  "scope": "Advertised names/description digests, not assertion that every tool was invoked",
+  "tools": [
+    {
+      "name": "mcp__sql_safety_executor_mcp__check_connection",
+      "description_sha256": "d41a2625478d42731204e154c8fda912e9f9a99f0095b0508904da08ba7d98fe"
+    },
+    {
+      "name": "mcp__sql_safety_executor_mcp__describe_table",
+      "description_sha256": "b981543cf2deba5830640a90f680aa7ad4239103ff92f93f14fece955c9980e8"
+    },
+    {
+      "name": "mcp__sql_safety_executor_mcp__execute_mutation_skill",
+      "description_sha256": "7c599a171151814741cb9d6b73e36f70927987df59e26e8c9298f2c0780cd7bb"
+    },
+    {
+      "name": "mcp__sql_safety_executor_mcp__execute_query_skill",
+      "description_sha256": "54c8c7f74ae8b35a6589a8ad9fa74f1a8f9ef1ff5ad26513a76d1d6898e856e9"
+    },
+    {
+      "name": "mcp__sql_safety_executor_mcp__get_full_schema",
+      "description_sha256": "b6d78c6a24cc98f3ff8357b9a8608275e338df2ae01b02c4f09e85795248633f"
+    },
+    {
+      "name": "mcp__sql_safety_executor_mcp__get_skill_detail",
+      "description_sha256": "208a32bedf1d0e3b7d641cdb87013f4614fac6d14278665902d786253ec873e2"
+    },
+    {
+      "name": "mcp__sql_safety_executor_mcp__list_connections",
+      "description_sha256": "3bf84eb51059714591f742d8f861fef3cb9f835c8b8be51e65556d3a2d9171e5"
+    },
+    {
+      "name": "mcp__sql_safety_executor_mcp__list_skills",
+      "description_sha256": "8ded7096a3f038cac0ae9e7cbdac3f719cca9e4531693412ce6f85afb0ffce14"
+    },
+    {
+      "name": "mcp__sql_safety_executor_mcp__list_tables",
+      "description_sha256": "73521e6ba408817287fa31044cfbfd48607864e85e5f89ffc04d2c8e18611aef"
+    },
+    {
+      "name": "mcp__sql_safety_executor_mcp__query",
+      "description_sha256": "15a4bead16b4b5c6259fad5a435578dbbdf10dc4a59f858f495c19630fd0ccd0"
+    }
+  ],
+  "advertised_count": 10,
+  "invoked_tools": [
+    "describe_table",
+    "get_full_schema",
+    "list_skills",
+    "query"
+  ]
+}

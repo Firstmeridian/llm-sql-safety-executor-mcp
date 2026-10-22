@@ -1,0 +1,628 @@
+{
+  "client": [
+    {
+      "case": "analytics_demo",
+      "mode": "auto",
+      "tool": "list_tables",
+      "baseline_median_ms": 18.026812,
+      "current_median_ms": 11.506379500000001,
+      "ratio": 0.6382925333664101,
+      "delta_ms": -6.520432499999998,
+      "a1_ms": 16.155614,
+      "a2_ms": 19.3209495,
+      "payload_match_including_guidance": true
+    },
+    {
+      "case": "analytics_demo",
+      "mode": "auto",
+      "tool": "get_full_schema",
+      "baseline_median_ms": 20.7498655,
+      "current_median_ms": 14.253067,
+      "ratio": 0.6868992476119906,
+      "delta_ms": -6.496798499999999,
+      "a1_ms": 18.960377,
+      "a2_ms": 21.833371,
+      "payload_match_including_guidance": true
+    },
+    {
+      "case": "chinook",
+      "mode": "auto",
+      "tool": "list_tables",
+      "baseline_median_ms": 35.471939500000005,
+      "current_median_ms": 52.031412,
+      "ratio": 1.4668330159956435,
+      "delta_ms": 16.5594725,
+      "a1_ms": 28.056081499999998,
+      "a2_ms": 37.939310500000005,
+      "payload_match_including_guidance": true
+    },
+    {
+      "case": "chinook",
+      "mode": "auto",
+      "tool": "get_full_schema",
+      "baseline_median_ms": 39.737987000000004,
+      "current_median_ms": 78.95822749999999,
+      "ratio": 1.9869709932715007,
+      "delta_ms": 39.22024049999999,
+      "a1_ms": 36.063359500000004,
+      "a2_ms": 40.9954295,
+      "payload_match_including_guidance": true
+    },
+    {
+      "case": "geo_stores_demo",
+      "mode": "auto",
+      "tool": "list_tables",
+      "baseline_median_ms": 19.239314999999998,
+      "current_median_ms": 24.8893715,
+      "ratio": 1.2936724358429603,
+      "delta_ms": 5.650056500000002,
+      "a1_ms": 15.998345,
+      "a2_ms": 21.278038000000002,
+      "payload_match_including_guidance": true
+    },
+    {
+      "case": "geo_stores_demo",
+      "mode": "auto",
+      "tool": "get_full_schema",
+      "baseline_median_ms": 19.8528395,
+      "current_median_ms": 27.2504995,
+      "ratio": 1.3726247824649969,
+      "delta_ms": 7.397659999999998,
+      "a1_ms": 17.011150999999998,
+      "a2_ms": 26.1436415,
+      "payload_match_including_guidance": true
+    },
+    {
+      "case": "iot_telemetry_demo",
+      "mode": "auto",
+      "tool": "list_tables",
+      "baseline_median_ms": 27.4875245,
+      "current_median_ms": 26.69033,
+      "ratio": 0.9709979521800881,
+      "delta_ms": -0.7971944999999998,
+      "a1_ms": 20.840384,
+      "a2_ms": 32.611492999999996,
+      "payload_match_including_guidance": true
+    },
+    {
+      "case": "iot_telemetry_demo",
+      "mode": "auto",
+      "tool": "get_full_schema",
+      "baseline_median_ms": 32.0092535,
+      "current_median_ms": 30.2532725,
+      "ratio": 0.9451414572976531,
+      "delta_ms": -1.7559809999999985,
+      "a1_ms": 23.913496000000002,
+      "a2_ms": 33.0464575,
+      "payload_match_including_guidance": true
+    },
+    {
+      "case": "logistics_flights_demo",
+      "mode": "auto",
+      "tool": "list_tables",
+      "baseline_median_ms": 20.689009499999997,
+      "current_median_ms": 21.094803499999998,
+      "ratio": 1.0196139887702211,
+      "delta_ms": 0.4057940000000002,
+      "a1_ms": 15.3502825,
+      "a2_ms": 22.2929215,
+      "payload_match_including_guidance": true
+    },
+    {
+      "case": "logistics_flights_demo",
+      "mode": "auto",
+      "tool": "get_full_schema",
+      "baseline_median_ms": 20.669593,
+      "current_median_ms": 20.4945515,
+      "ratio": 0.9915314491194869,
+      "delta_ms": -0.17504149999999896,
+      "a1_ms": 17.051519499999998,
+      "a2_ms": 23.6929265,
+      "payload_match_including_guidance": true
+    },
+    {
+      "case": "tables_1_stats_0_limit_0",
+      "mode": "auto",
+      "tool": "list_tables",
+      "baseline_median_ms": 9.0006875,
+      "current_median_ms": 7.8066675,
+      "ratio": 0.8673412447660248,
+      "delta_ms": -1.19402,
+      "a1_ms": 6.5274065,
+      "a2_ms": 11.696435000000001,
+      "payload_match_including_guidance": true
+    },
+    {
+      "case": "tables_1_stats_0_limit_0",
+      "mode": "auto",
+      "tool": "get_full_schema",
+      "baseline_median_ms": 8.9263905,
+      "current_median_ms": 7.716613499999999,
+      "ratio": 0.8644718713571851,
+      "delta_ms": -1.2097770000000008,
+      "a1_ms": 6.898622,
+      "a2_ms": 11.1160435,
+      "payload_match_including_guidance": true
+    },
+    {
+      "case": "tables_10_stats_0_limit_0",
+      "mode": "auto",
+      "tool": "list_tables",
+      "baseline_median_ms": 29.813477,
+      "current_median_ms": 29.26241,
+      "ratio": 0.9815161780694013,
+      "delta_ms": -0.5510669999999998,
+      "a1_ms": 22.6062075,
+      "a2_ms": 35.8363625,
+      "payload_match_including_guidance": true
+    },
+    {
+      "case": "tables_10_stats_0_limit_0",
+      "mode": "auto",
+      "tool": "get_full_schema",
+      "baseline_median_ms": 35.2137485,
+      "current_median_ms": 34.970512,
+      "ratio": 0.9930925700795529,
+      "delta_ms": -0.24323650000000185,
+      "a1_ms": 26.6205225,
+      "a2_ms": 40.7118375,
+      "payload_match_including_guidance": true
+    },
+    {
+      "case": "tables_50_stats_0_limit_0",
+      "mode": "auto",
+      "tool": "list_tables",
+      "baseline_median_ms": 115.3812295,
+      "current_median_ms": 98.016613,
+      "ratio": 0.8495022407435865,
+      "delta_ms": -17.364616499999997,
+      "a1_ms": 102.994297,
+      "a2_ms": 118.3756,
+      "payload_match_including_guidance": true
+    },
+    {
+      "case": "tables_50_stats_0_limit_0",
+      "mode": "auto",
+      "tool": "get_full_schema",
+      "baseline_median_ms": 128.2325585,
+      "current_median_ms": 121.54007999999999,
+      "ratio": 0.947809834114789,
+      "delta_ms": -6.692478500000021,
+      "a1_ms": 116.2664235,
+      "a2_ms": 130.9945055,
+      "payload_match_including_guidance": true
+    },
+    {
+      "case": "tables_50_stats_1_limit_0",
+      "mode": "auto",
+      "tool": "list_tables",
+      "baseline_median_ms": 49.6558235,
+      "current_median_ms": 10.444494500000001,
+      "ratio": 0.2103377562553162,
+      "delta_ms": -39.21132899999999,
+      "a1_ms": 38.551868999999996,
+      "a2_ms": 59.935072,
+      "payload_match_including_guidance": true
+    },
+    {
+      "case": "tables_50_stats_1_limit_0",
+      "mode": "auto",
+      "tool": "get_full_schema",
+      "baseline_median_ms": 71.3694015,
+      "current_median_ms": 36.889443,
+      "ratio": 0.5168803748480363,
+      "delta_ms": -34.479958499999995,
+      "a1_ms": 75.100409,
+      "a2_ms": 70.1477115,
+      "payload_match_including_guidance": true
+    },
+    {
+      "case": "tables_50_stats_0_limit_5",
+      "mode": "auto",
+      "tool": "list_tables",
+      "baseline_median_ms": 120.60112050000001,
+      "current_median_ms": 17.000402,
+      "ratio": 0.14096388101137086,
+      "delta_ms": -103.6007185,
+      "a1_ms": 93.365745,
+      "a2_ms": 127.7887605,
+      "payload_match_including_guidance": true
+    },
+    {
+      "case": "tables_50_stats_0_limit_5",
+      "mode": "auto",
+      "tool": "get_full_schema",
+      "baseline_median_ms": 111.425816,
+      "current_median_ms": 18.67593,
+      "ratio": 0.16760864466094644,
+      "delta_ms": -92.749886,
+      "a1_ms": 96.7821505,
+      "a2_ms": 115.70663400000001,
+      "payload_match_including_guidance": true
+    },
+    {
+      "case": "analytics_demo",
+      "mode": "legacy",
+      "tool": "list_tables",
+      "baseline_median_ms": 20.957634,
+      "current_median_ms": 18.5568315,
+      "ratio": 0.8854449648276138,
+      "delta_ms": -2.4008024999999975,
+      "a1_ms": 17.660101,
+      "a2_ms": 21.986209000000002,
+      "payload_match_including_guidance": true
+    },
+    {
+      "case": "analytics_demo",
+      "mode": "legacy",
+      "tool": "get_full_schema",
+      "baseline_median_ms": 25.364174,
+      "current_median_ms": 21.637217999999997,
+      "ratio": 0.8530621970973704,
+      "delta_ms": -3.7269560000000013,
+      "a1_ms": 24.387607,
+      "a2_ms": 25.364174,
+      "payload_match_including_guidance": true
+    },
+    {
+      "case": "chinook",
+      "mode": "legacy",
+      "tool": "list_tables",
+      "baseline_median_ms": 38.0388045,
+      "current_median_ms": 45.628425,
+      "ratio": 1.1995231080408955,
+      "delta_ms": 7.589620500000002,
+      "a1_ms": 28.777517,
+      "a2_ms": 46.976787,
+      "payload_match_including_guidance": true
+    },
+    {
+      "case": "chinook",
+      "mode": "legacy",
+      "tool": "get_full_schema",
+      "baseline_median_ms": 44.6314345,
+      "current_median_ms": 41.323574,
+      "ratio": 0.9258849611925425,
+      "delta_ms": -3.3078604999999968,
+      "a1_ms": 33.9986725,
+      "a2_ms": 45.073589999999996,
+      "payload_match_including_guidance": true
+    },
+    {
+      "case": "geo_stores_demo",
+      "mode": "legacy",
+      "tool": "list_tables",
+      "baseline_median_ms": 20.977290500000002,
+      "current_median_ms": 20.747653999999997,
+      "ratio": 0.9890530905314009,
+      "delta_ms": -0.22963650000000513,
+      "a1_ms": 17.5890055,
+      "a2_ms": 22.6714185,
+      "payload_match_including_guidance": true
+    },
+    {
+      "case": "geo_stores_demo",
+      "mode": "legacy",
+      "tool": "get_full_schema",
+      "baseline_median_ms": 21.709016499999997,
+      "current_median_ms": 22.290547,
+      "ratio": 1.026787510157358,
+      "delta_ms": 0.5815305000000031,
+      "a1_ms": 18.942086500000002,
+      "a2_ms": 24.3385475,
+      "payload_match_including_guidance": true
+    },
+    {
+      "case": "iot_telemetry_demo",
+      "mode": "legacy",
+      "tool": "list_tables",
+      "baseline_median_ms": 27.835793,
+      "current_median_ms": 35.48075,
+      "ratio": 1.274644843062312,
+      "delta_ms": 7.644957000000002,
+      "a1_ms": 21.7543535,
+      "a2_ms": 31.1941865,
+      "payload_match_including_guidance": true
+    },
+    {
+      "case": "iot_telemetry_demo",
+      "mode": "legacy",
+      "tool": "get_full_schema",
+      "baseline_median_ms": 33.72037,
+      "current_median_ms": 43.207896500000004,
+      "ratio": 1.281358908576626,
+      "delta_ms": 9.487526500000001,
+      "a1_ms": 25.615551500000002,
+      "a2_ms": 35.570712,
+      "payload_match_including_guidance": true
+    },
+    {
+      "case": "logistics_flights_demo",
+      "mode": "legacy",
+      "tool": "list_tables",
+      "baseline_median_ms": 20.106959500000002,
+      "current_median_ms": 20.077325000000002,
+      "ratio": 0.9985261570751162,
+      "delta_ms": -0.02963450000000023,
+      "a1_ms": 17.307284000000003,
+      "a2_ms": 21.637618000000003,
+      "payload_match_including_guidance": true
+    },
+    {
+      "case": "logistics_flights_demo",
+      "mode": "legacy",
+      "tool": "get_full_schema",
+      "baseline_median_ms": 24.532245500000002,
+      "current_median_ms": 20.797244,
+      "ratio": 0.8477513401698185,
+      "delta_ms": -3.7350015000000027,
+      "a1_ms": 17.647814500000003,
+      "a2_ms": 25.542227500000003,
+      "payload_match_including_guidance": true
+    },
+    {
+      "case": "tables_1_stats_0_limit_0",
+      "mode": "legacy",
+      "tool": "list_tables",
+      "baseline_median_ms": 10.4494145,
+      "current_median_ms": 9.739063,
+      "ratio": 0.9320199710711065,
+      "delta_ms": -0.7103514999999998,
+      "a1_ms": 7.6877665,
+      "a2_ms": 11.3822575,
+      "payload_match_including_guidance": true
+    },
+    {
+      "case": "tables_1_stats_0_limit_0",
+      "mode": "legacy",
+      "tool": "get_full_schema",
+      "baseline_median_ms": 9.5791295,
+      "current_median_ms": 10.161257500000001,
+      "ratio": 1.060770448922316,
+      "delta_ms": 0.5821280000000009,
+      "a1_ms": 7.910972,
+      "a2_ms": 10.236251,
+      "payload_match_including_guidance": true
+    },
+    {
+      "case": "tables_10_stats_0_limit_0",
+      "mode": "legacy",
+      "tool": "list_tables",
+      "baseline_median_ms": 30.719721999999997,
+      "current_median_ms": 26.825383000000002,
+      "ratio": 0.8732300051413228,
+      "delta_ms": -3.894338999999995,
+      "a1_ms": 24.9875885,
+      "a2_ms": 32.619425,
+      "payload_match_including_guidance": true
+    },
+    {
+      "case": "tables_10_stats_0_limit_0",
+      "mode": "legacy",
+      "tool": "get_full_schema",
+      "baseline_median_ms": 33.2509055,
+      "current_median_ms": 33.162852,
+      "ratio": 0.997351846553472,
+      "delta_ms": -0.0880535000000009,
+      "a1_ms": 27.9627815,
+      "a2_ms": 35.0201625,
+      "payload_match_including_guidance": true
+    },
+    {
+      "case": "tables_50_stats_0_limit_0",
+      "mode": "legacy",
+      "tool": "list_tables",
+      "baseline_median_ms": 113.9672875,
+      "current_median_ms": 101.51984949999999,
+      "ratio": 0.8907806066718925,
+      "delta_ms": -12.447438000000005,
+      "a1_ms": 96.83762899999999,
+      "a2_ms": 119.633326,
+      "payload_match_including_guidance": true
+    },
+    {
+      "case": "tables_50_stats_0_limit_0",
+      "mode": "legacy",
+      "tool": "get_full_schema",
+      "baseline_median_ms": 134.1730265,
+      "current_median_ms": 115.59337049999999,
+      "ratio": 0.8615246560008095,
+      "delta_ms": -18.579656,
+      "a1_ms": 114.55276,
+      "a2_ms": 139.67627950000002,
+      "payload_match_including_guidance": true
+    },
+    {
+      "case": "tables_50_stats_1_limit_0",
+      "mode": "legacy",
+      "tool": "list_tables",
+      "baseline_median_ms": 49.336152999999996,
+      "current_median_ms": 11.266712,
+      "ratio": 0.22836624493198732,
+      "delta_ms": -38.069441,
+      "a1_ms": 47.1921715,
+      "a2_ms": 50.201259,
+      "payload_match_including_guidance": true
+    },
+    {
+      "case": "tables_50_stats_1_limit_0",
+      "mode": "legacy",
+      "tool": "get_full_schema",
+      "baseline_median_ms": 67.3530145,
+      "current_median_ms": 38.168015,
+      "ratio": 0.5666860686688344,
+      "delta_ms": -29.184999500000004,
+      "a1_ms": 59.6603715,
+      "a2_ms": 71.5142385,
+      "payload_match_including_guidance": true
+    },
+    {
+      "case": "tables_50_stats_0_limit_5",
+      "mode": "legacy",
+      "tool": "list_tables",
+      "baseline_median_ms": 128.220208,
+      "current_median_ms": 23.701431499999998,
+      "ratio": 0.18484942326719667,
+      "delta_ms": -104.51877650000002,
+      "a1_ms": 96.36419950000001,
+      "a2_ms": 138.11302,
+      "payload_match_including_guidance": true
+    },
+    {
+      "case": "tables_50_stats_0_limit_5",
+      "mode": "legacy",
+      "tool": "get_full_schema",
+      "baseline_median_ms": 116.9282005,
+      "current_median_ms": 22.2934545,
+      "ratio": 0.19065934825534236,
+      "delta_ms": -94.634746,
+      "a1_ms": 101.7054195,
+      "a2_ms": 119.7616625,
+      "payload_match_including_guidance": true
+    }
+  ],
+  "direct": [
+    {
+      "case": "analytics_demo",
+      "operation": "single_estimate",
+      "baseline_ms": 1.9823705,
+      "current_ms": 1.607013,
+      "ratio": 0.8106521964486457
+    },
+    {
+      "case": "analytics_demo",
+      "operation": "get_tables",
+      "baseline_ms": 12.5274305,
+      "current_ms": 9.105544,
+      "ratio": 0.7268484945895329
+    },
+    {
+      "case": "chinook",
+      "operation": "single_estimate",
+      "baseline_ms": 2.136178,
+      "current_ms": 2.306094,
+      "ratio": 1.0795420606335238
+    },
+    {
+      "case": "chinook",
+      "operation": "get_tables",
+      "baseline_ms": 27.834082000000002,
+      "current_ms": 23.827858,
+      "ratio": 0.856067679904083
+    },
+    {
+      "case": "geo_stores_demo",
+      "operation": "single_estimate",
+      "baseline_ms": 2.1604485,
+      "current_ms": 2.114824,
+      "ratio": 0.9788819312286314
+    },
+    {
+      "case": "geo_stores_demo",
+      "operation": "get_tables",
+      "baseline_ms": 12.110609,
+      "current_ms": 10.372599,
+      "ratio": 0.8564886373591947
+    },
+    {
+      "case": "iot_telemetry_demo",
+      "operation": "single_estimate",
+      "baseline_ms": 2.319892,
+      "current_ms": 2.102638,
+      "ratio": 0.9063516749917668
+    },
+    {
+      "case": "iot_telemetry_demo",
+      "operation": "get_tables",
+      "baseline_ms": 20.012567,
+      "current_ms": 21.4099,
+      "ratio": 1.0698227768581612
+    },
+    {
+      "case": "logistics_flights_demo",
+      "operation": "single_estimate",
+      "baseline_ms": 2.240739,
+      "current_ms": 2.229221,
+      "ratio": 0.9948597315439236
+    },
+    {
+      "case": "logistics_flights_demo",
+      "operation": "get_tables",
+      "baseline_ms": 13.158258499999999,
+      "current_ms": 11.366129,
+      "ratio": 0.8638019233320277
+    },
+    {
+      "case": "tables_1_stats_0_limit_0",
+      "operation": "single_estimate",
+      "baseline_ms": 2.0608725,
+      "current_ms": 1.862573,
+      "ratio": 0.9037788606524665
+    },
+    {
+      "case": "tables_1_stats_0_limit_0",
+      "operation": "get_tables",
+      "baseline_ms": 2.776878,
+      "current_ms": 2.244875,
+      "ratio": 0.8084168623900654
+    },
+    {
+      "case": "tables_10_stats_0_limit_0",
+      "operation": "single_estimate",
+      "baseline_ms": 2.096091,
+      "current_ms": 1.854741,
+      "ratio": 0.884857098284378
+    },
+    {
+      "case": "tables_10_stats_0_limit_0",
+      "operation": "get_tables",
+      "baseline_ms": 23.8653145,
+      "current_ms": 18.083645,
+      "ratio": 0.7577375525472334
+    },
+    {
+      "case": "tables_50_stats_0_limit_0",
+      "operation": "single_estimate",
+      "baseline_ms": 2.0366099999999996,
+      "current_ms": 2.007764,
+      "ratio": 0.9858362671301821
+    },
+    {
+      "case": "tables_50_stats_0_limit_0",
+      "operation": "get_tables",
+      "baseline_ms": 110.2833045,
+      "current_ms": 89.539912,
+      "ratio": 0.811908134290626
+    },
+    {
+      "case": "tables_50_stats_1_limit_0",
+      "operation": "single_estimate",
+      "baseline_ms": 0.680286,
+      "current_ms": 0.599247,
+      "ratio": 0.8808751025304064
+    },
+    {
+      "case": "tables_50_stats_1_limit_0",
+      "operation": "get_tables",
+      "baseline_ms": 36.903056,
+      "current_ms": 2.823691,
+      "ratio": 0.07651645435543333
+    },
+    {
+      "case": "tables_50_stats_0_limit_5",
+      "operation": "single_estimate",
+      "baseline_ms": 1.818025,
+      "current_ms": 1.640659,
+      "ratio": 0.9024402854746222
+    },
+    {
+      "case": "tables_50_stats_0_limit_5",
+      "operation": "get_tables",
+      "baseline_ms": 108.277174,
+      "current_ms": 82.362456,
+      "ratio": 0.7606631477101535
+    }
+  ],
+  "tool_calls": 1080,
+  "limits": "Same source-selected frozen dependencies, serial A/B/A, frozen uncommitted pre-optimization repairs versus current worktree. Ten temporary snapshots/fixtures; auto and legacy each 9 calls/tool/case/stage, first excluded. Installed-wheel/resident-Host/model validation is separate, not a timing stage; logging disabled equally. Instrumented profile is separate. Direct calls each 21 warmed samples/operation/case/stage. Statistical intervals not estimated."
+}

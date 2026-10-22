@@ -1,0 +1,20 @@
+{
+  "date": "2026-10-20",
+  "checkpoint": "scoped_resident_acceptance_passed",
+  "scope": "12 frozen native read-only checks; preserve 40 prior manifests and source/package/model attribution.",
+  "append_rule": "Do not overwrite; append a separate dated supplement for subsequent work.",
+  "files": {
+    "README.md": {
+      "bytes": 2176,
+      "sha256": "a3adab9028c02713ebe864e4ca68bf02a7c9358cf8f1a868c3ab0a7012139a91"
+    },
+    "evidence/after_checks.json": {
+      "bytes": 9996,
+      "sha256": "30686a1318651c50552cef72b1039d61c397e35b24386c23e997b489bd3e7648"
+    },
+    "evidence/native_results.json": {
+      "bytes": 40918,
+      "sha256": "e58acb26e0914548d57f0c0268806b644be387ec9a0f61588d784ca6d911694d"
+    }
+  }
+}

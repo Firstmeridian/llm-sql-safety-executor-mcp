@@ -1,0 +1,5 @@
+# Composite-key metadata assessment — 2026-10-21
+
+DRR-141: nonblocking existing P3 information limitation, not an authorization or documented-grouping breach. Compact primary_key lists members in table-column order; real composite-key order remains correct in describe_table indexes. This is an assessment, not an implemented repair. See the [report](../V3_8_2_COMPOSITE_KEY_METADATA_ASSESSMENT_2026_10_21_ZH.md).
+
+Source and existing-normal-wheel each44 application calls, four SQLite ordinary/WITHOUT ROWID objects and both Client modes/transports. Raw values and independent native key truth agree; application text/structured and source/wheel records match. Compressed probe/verifier scripts and results are reproducible from their original private batch paths with fresh output files. Old2c0a9e7 age is based on code comparison only, not a replay. No new resident/MySQL/model/full-suite/build/install/performance coverage.77 resources, three private TOMLs and67 prior seals2133 records remain unchanged. These are application records, not full protocol frames. No production, configuration or grant change.

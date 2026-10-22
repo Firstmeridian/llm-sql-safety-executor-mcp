@@ -229,7 +229,7 @@ def test_mysql_metadata_uses_configured_schema_for_every_observation(monkeypatch
         assert "DATABASE()" not in sql and params["schema_name"] == "fixed-schema"
         if "TABLE_TYPE IN" in sql: return [("orders", "BASE TABLE"), ("report", "VIEW")]
         if "TABLE_TYPE = 'BASE TABLE'" in sql: return [("orders", 1)]
-        if "INFORMATION_SCHEMA.COLUMNS" in sql: return [("n", "int", "YES", "", None)]
+        if "INFORMATION_SCHEMA.COLUMNS" in sql: return [("n", "int", "YES", "", None, None)]
         if "INFORMATION_SCHEMA.STATISTICS" in sql: return []
         return [(1,)]
     monkeypatch.setattr(adapter, "execute", execute)

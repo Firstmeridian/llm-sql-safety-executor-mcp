@@ -25,10 +25,10 @@ from sql_safety_executor.core.policy import _prepare_sql_read
 from sql_safety_executor.database.errors import DatabaseQueryError
 from sql_safety_executor.core.results import (
     _context_client_id,
-    _serialize_result,
+    _prepare_read_result,
+    ReadResultError,
     _skill_tool_result,
     _tool_result,
-    _truncate_result,
 )
 from sql_safety_executor.skills.access import (
     _aggregate_skill_categories,
@@ -388,6 +388,7 @@ async def execute_query_skill(
         plan = _prepare_sql_read(runtime, sql_template, connection.policy, adapter=connection.adapter)
         decision = plan.decision
     failure = None
+    prepared = None
     result: list = []
     if not decision.allowed:
         failure = decision.error_payload()
@@ -395,7 +396,8 @@ async def execute_query_skill(
         _ensure_skill_schema_ready(runtime, meta, connection)
         try:
             result = connection.adapter.execute_read(sql_template, params=validated_params, policy=connection.policy, analysis=plan.analysis if plan is not None else None)
-        except DatabaseQueryError as error:
+            prepared = _prepare_read_result(runtime, result)
+        except (DatabaseQueryError, ReadResultError) as error:
             failure = error.error_payload()
     if failure is not None:
         await ctx.warning(f"Query skill failed: {failure['error_code']}")
@@ -412,19 +414,11 @@ async def execute_query_skill(
             connection=connection, success=False,
         )
 
-    # Success — serialize and truncate (reuse existing helpers)
-    data = _serialize_result(result)
-    total_rows = len(result) if isinstance(result, list) else 0
-
-    truncation_result = _truncate_result(runtime, data, total_rows)
-
-    if truncation_result["truncated"]:
-        await ctx.warning(
-            f"Truncated returned payload: {truncation_result['returned_rows']}/{total_rows} rows shown. "
-            f"Add WHERE/LIMIT/ORDER BY to limit database work and stabilize ordering."
-        )
+    assert prepared is not None
+    if prepared["truncated"]:
+        await ctx.warning(prepared["truncation_note"])
     else:
-        await ctx.info(f"Query skill returned {total_rows} rows")
+        await ctx.info(f"Query skill returned {prepared['total_rows']} rows")
 
     audit_logged = False
     if runtime.config.skills.audit.queries:
@@ -434,9 +428,9 @@ async def execute_query_skill(
             mode="query",
             result={
                 "success": True,
-                "rowcount": truncation_result["returned_rows"],
-                "total_rows": total_rows,
-                "truncated": truncation_result["truncated"],
+                "rowcount": prepared["row_count"],
+                "total_rows": prepared["total_rows"],
+                "truncated": prepared["truncated"],
             },
             client_id=client_id,
             connection_id=connection.connection_id,
@@ -448,17 +442,7 @@ async def execute_query_skill(
         "skill_name": skill_name,
         "connection_id": connection.connection_id,
         "db_type": connection.db_type,
-        "data": truncation_result["data"],
-        "row_count": truncation_result["returned_rows"],
-        "total_rows": total_rows,
-        "truncated": truncation_result["truncated"],
-        "truncation_note": (
-            f"Showing {truncation_result['returned_rows']}/{total_rows} fetched rows. "
-            f"Truncation limits the returned payload only; add WHERE/LIMIT/ORDER BY "
-            f"to limit database work and stabilize ordering."
-        )
-        if truncation_result["truncated"]
-        else None,
+        **prepared,
     }
     return _skill_tool_result(
         payload,
@@ -466,8 +450,8 @@ async def execute_query_skill(
         mode="query",
         start_time=start_time,
         connection=connection,
-        row_count=truncation_result["returned_rows"],
-        total_rows=total_rows,
-        truncated=truncation_result["truncated"],
+        row_count=prepared["row_count"],
+        total_rows=prepared["total_rows"],
+        truncated=prepared["truncated"],
         audit_logged=audit_logged,
     )

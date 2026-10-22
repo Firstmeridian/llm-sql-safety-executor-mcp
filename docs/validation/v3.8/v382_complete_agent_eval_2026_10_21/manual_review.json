@@ -1,0 +1,110 @@
+{
+  "telemetry_1": {
+    "checks": {
+      "final_business_truth_matches": true,
+      "scope_and_grain_explained": true
+    },
+    "notes": "Latest-view grain, independent crit aggregation, exact TYO low-voltage/time correct."
+  },
+  "telemetry_2": {
+    "checks": {
+      "final_business_truth_matches": true,
+      "scope_and_grain_explained": true
+    },
+    "notes": "All requested business results correct; unnecessary sqlite_master view-definition request correctly refused by allowlist, recovered with authorized relations. Keep extra work."
+  },
+  "telemetry_3": {
+    "checks": {
+      "final_business_truth_matches": true,
+      "scope_and_grain_explained": true
+    },
+    "notes": "Correct requested results; additional overall23.25C is correct for equal per-site temperature sample counts but not requested."
+  },
+  "knowledge_1": {
+    "checks": {
+      "final_business_truth_matches": true,
+      "scope_and_grain_explained": true
+    },
+    "notes": "Correct publication/states, distinct page-tag allocation and active eng-author scope; redundant table-list before compact, samples and split aggregates add calls. Final repeated SQL adds output."
+  },
+  "knowledge_2": {
+    "checks": {
+      "final_business_truth_matches": true,
+      "scope_and_grain_explained": true
+    },
+    "notes": "Correct exact counts distinguished from metadata estimate, exact JSON membership, author order and scopes."
+  },
+  "knowledge_3": {
+    "checks": {
+      "final_business_truth_matches": true,
+      "scope_and_grain_explained": true
+    },
+    "notes": "Correct generated status, distinct tags and EXISTS JSON membership; full SQL repetition adds output."
+  },
+  "search_1": {
+    "checks": {
+      "final_business_truth_matches": true,
+      "scope_and_grain_explained": true
+    },
+    "notes": "Correct final FTS relevance and publication scope; first SQL used explicitly disallowed FROM subquery, refused and recovered with CTE. Not parser false refusal."
+  },
+  "search_2": {
+    "checks": {
+      "final_business_truth_matches": true,
+      "scope_and_grain_explained": true
+    },
+    "notes": "Correct true FTS, BM25 order, publication membership and draft exclusion."
+  },
+  "search_3": {
+    "checks": {
+      "final_business_truth_matches": true,
+      "scope_and_grain_explained": true
+    },
+    "notes": "Correct true FTS and all requested IDs/authors in both rounds; no shadow access."
+  },
+  "finance_1": {
+    "checks": {
+      "final_business_truth_matches": true,
+      "scope_and_grain_explained": true
+    },
+    "notes": "Correct per-rental-store payment grain/reconciliation/top films and store1 historical-as-of rentals/money/five examples; distinguishes historical from current. Whole-ledger payment count is not required in final prose."
+  },
+  "finance_2": {
+    "checks": {
+      "final_business_truth_matches": true,
+      "scope_and_grain_explained": true
+    },
+    "notes": "Correct financial results, distinct rentals, date cutoff and historical-status wording."
+  },
+  "mutation_1": {
+    "checks": {
+      "final_business_truth_matches": true,
+      "scope_and_grain_explained": true,
+      "preview_cancel_state_language_correct": true
+    },
+    "notes": "Rejected delivered then valid shipped-only preview; distinguishes estimate/not_executed from execution and prior read/current unchecked. No DB call after cancel, no revoked-token claim or handle."
+  },
+  "mutation_2": {
+    "checks": {
+      "final_business_truth_matches": true,
+      "scope_and_grain_explained": true,
+      "preview_cancel_state_language_correct": true
+    },
+    "notes": "Correct rejected/preview phases and cancellation; no fresh read, execute or token-revocation claim."
+  },
+  "mutation_3": {
+    "checks": {
+      "final_business_truth_matches": true,
+      "scope_and_grain_explained": true,
+      "preview_cancel_state_language_correct": true
+    },
+    "notes": "Correct lifecycle recovery and shipped-only preview; final separates prior observation from current uncertainty and no tool revocation."
+  },
+  "finance_3": {
+    "checks": {
+      "final_business_truth_matches": true,
+      "scope_and_grain_explained": true
+    },
+    "notes": "Correct store-grain July financial reconciliation/top films, store1 historical-as-of counts/money/example dates; no present unreturned-status claim."
+  }
+}

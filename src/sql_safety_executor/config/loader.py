@@ -192,6 +192,7 @@ def load_config(path: str | Path) -> AppConfig:
             mutation_skills=frozenset(connection.mutation.skills),
             read_mode=connection.read.mode,
             case_sensitive_tables=case_sensitive,
+            default_schema=connection.mysql.database if connection.mysql else "main",
         )
         timeouts = {}
         for key in ("query_seconds", "connect_seconds"):

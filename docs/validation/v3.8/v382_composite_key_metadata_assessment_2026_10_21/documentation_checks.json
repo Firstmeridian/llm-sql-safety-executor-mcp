@@ -1,0 +1,21 @@
+{
+  "documents": {
+    "REFACTORING_LOG.md": "1e84c456413028060cd32cb9591e70c6ab3111190a2e3c9ef7ed48d3e48442b9",
+    "REFACTORING_LOG_ZH.md": "0554fcb5f2dbfb0e8f12625e99f852784012466b1d0e3a107508fc5811bbdd54",
+    "docs/security/DESIGN_RISK_REGISTER.md": "3736de64bf545845540804a0d571e602180f79ccd69d8eab1079af40c20c19ff",
+    "docs/security/DESIGN_RISK_REGISTER_ZH.md": "3bb81f93844ba45186ef44bd416a9fbdd3f598210fad326ce544efb81a897602",
+    "local_archive/v382_review/README.md": "0f00923844c0804ac7f73d6f548b9d2ddb559b504d26d05a8afc18d42c13ad9f",
+    "local_archive/v382_review/handoff/session-handoff-v381-v382-20261019-ZH.md": "af31cbda664ef4058133803b90fe9d6fcc17a2fcbf18d00d402f03d5ca311cda",
+    "docs/validation/v3.8/V3_8_2_COMPOSITE_KEY_METADATA_ASSESSMENT_2026_10_21_ZH.md": "e132d75956426fd144427dcdb2ecb38301922ba2100abd34ce7892a606fba9cb",
+    "docs/validation/v3.8/v382_composite_key_metadata_assessment_2026_10_21/README.md": "0bff9864cb7f563c8f6fb4e986c9d41efe1cae69c12341c47b484ff6a5f45204",
+    "local_archive/v382_review/20261021_metadata_followup_assessment/reports/README_ZH.md": "dc5e03a5fdbecf39b6cb66d1766c74a2733046b696f7ae6fa56b06c0eb098d06"
+  },
+  "local_links": 447,
+  "broken_links": [],
+  "git_diff_check": "passed",
+  "status": "DRR141 assessed information limitation, not implemented; no production/config/grant change",
+  "cumulative_manifests": 69,
+  "cumulative_records": 2154,
+  "new_private_records": 12,
+  "new_public_records": 9
+}

@@ -1,0 +1,43 @@
+{
+  "date": "2026-10-20",
+  "checkpoint": "performance_ability_assessment_complete",
+  "scope": "No production repair/optimization. Existing acceptance and historical evidence retain their scope.",
+  "files": {
+    "README.md": {
+      "sha256": "b5af1c81f7e7239648ac75edc62f52d1c92f5687e46286f51b4f788ba8d06161",
+      "bytes": 4067
+    },
+    "ability_boundaries.json.gz": {
+      "sha256": "413304207befcbb4c484df55d18d5cfd122cd1020ea6bcbf7b4e745b219161e3",
+      "bytes": 1029
+    },
+    "ability_boundaries.py.gz": {
+      "sha256": "f883dedb9300c7ea9afe647ca7c08a86af83f90e289712c52e9020bba8579c34",
+      "bytes": 1895
+    },
+    "classification_counts.json.gz": {
+      "sha256": "203e8f3f6e87390b617e4eb82a2be7c7725f834a3cf96470b6630b87216f4187",
+      "bytes": 347
+    },
+    "classification_counts.py.gz": {
+      "sha256": "0a94e465dcd6a2a1b3c61fc3f74ea6ae430479c32dea23052c7887df5f85592f",
+      "bytes": 1541
+    },
+    "export_evidence.py.gz": {
+      "sha256": "3d3a762465c1b2bd79f408a934985e02b548456a09311fdeef0b78ce48b5d7a0",
+      "bytes": 2975
+    },
+    "lifecycle_cost.json.gz": {
+      "sha256": "ac38cb297282a87f060d1f3edfe814478377298ed26efb0fdfba51dc7f358280",
+      "bytes": 22940
+    },
+    "lifecycle_cost.py.gz": {
+      "sha256": "e8786f387500f56302edcbe6e2f79c9b99e006eb7e37ea1207650da3ff769107",
+      "bytes": 3320
+    },
+    "summary.json": {
+      "sha256": "34702fc30097d37395d20c6aead2e8090b75cf545bdfc850cfc6dad5b95ba254",
+      "bytes": 2431
+    }
+  }
+}

@@ -27,7 +27,7 @@ sql-safety-executor config explain --config /path/server.toml
 | `server.tool_timeout_seconds` | 120，非负有限数；0 禁用工具超时 |
 | `tools.schema` | true，历史上只控制可选 `sample`；基础 metadata 工具仍注册 |
 | `tools.table_summary` / `tools.large_table_threshold` | false / 1000（非负整数） |
-| `limits.result_rows` / `result_chars` | 100 / 16000；0 不限额 |
+| `limits.result_rows` / `result_chars` | 100 / 16000；0 不限额；result_chars 非零时至少 2 |
 | `limits.sql_chars` | 20000；0 不限额，继续保留原输入作用域 |
 | `limits.schema_tables` / `overview_tables` | 50 / 100；0 不限额 |
 | `defaults.timeouts.query_seconds` / `connect_seconds` | 30 / 10；正整数 |
@@ -66,7 +66,7 @@ mysql.password = { value = "literal" }        # 三选一
 
 ## 读取和写入
 
-`read.mode = "deny"` 阻止读取。`allowlist` 只授权列出的表，空表集合不授权；`all` 必须显式设置且不能同时填写 `tables`。表名不允许 `*`，需要全部权限时用 `all`。查询继续通过完整的只读语法、系统 schema、文件操作、UNION 和表范围检查；旧的部分检查 `execute_sql()` 已移除。
+`read.mode = "deny"` 阻止读取。`allowlist` 只授权列出的关系，空集合不授权；`all` 必须显式设置，覆盖配置默认 schema，不能同时填写 `tables`／`relations`。跨 schema 使用 allowlist＋明确组件。表名不允许 `*`。裸声明绑定默认对象，也接受默认 schema 限定引用；temp／aux／其它库同名对象不继承。查询继续检查只读语法、系统 schema、文件操作、锁读、UNION 和表范围；旧的部分检查 `execute_sql()` 已移除。
 
 Query Skill 的发现、详情和执行共享读取准入判断；即使 SQL 为 `SELECT 1`、没有声明表，deny 或空 allowlist 下也不可执行，并从 `available_only=true` 的发现中隐藏。明确未授权的依赖先拒绝；MySQL CTE 大小写歧义可以在最低必需依赖已授权后触发一次无物理表的常量能力探测，成功结果按适配器缓存，失败保持精确比较并在 30 秒后允许重试。启动目录扫描仍无数据库 I/O；schema readiness 是另一项元数据检查。
 
@@ -78,7 +78,7 @@ Query Skill 的发现、详情和执行共享读取准入判断；即使 SQL 为
 
 自 v3.8.1 起，服务启动时会把每个连接的读取状态、表范围类型（all 或含表数量的 allowlist）和 UNION 状态写入 MCP instructions，供 Agent 在编写 SQL 前参考；不列表名、主机或路径，超过 12 个连接时只给数量。修改这些字段后需重启服务并刷新 Host 工具定义。该文本只是指导，执行时仍由完整读取策略独立检查。
 
-`read.tables` 的大小写规则（v3.8.1 起）：SQLite 连接不区分大小写；MySQL 连接保留配置中的大小写并精确匹配，因为 `lower_case_table_names=0`（Linux 默认）时 `Orders` 与 `orders` 是不同的表。MySQL 条目应写成数据库中的存储名；在不区分大小写的服务器上，大小写不同的查询引用也会被拒绝。`mode = "all"` 不受这项大小写限制影响。Skill schema readiness 也使用对应连接的表身份；它只观察可用性，不授权执行。见 DRR-2026-076。
+`read.tables` 的大小写规则（v3.8.1 起）：SQLite 连接仅折叠 ASCII 大小写；MySQL 连接保留配置中的大小写并精确匹配，因为 `lower_case_table_names=0`（Linux 默认）时 `Orders` 与 `orders` 是不同的表。MySQL 条目应写成数据库中的存储名；在不区分大小写的服务器上，大小写不同的查询引用也会被拒绝。`mode = "all"` 不列默认 schema 内的表名白名单；schema 范围仍须检查，不能据此跨库。Skill schema readiness 也使用对应连接的表身份；它只观察可用性，不授权执行。见 DRR-2026-076 及本页 v3.8.2 范围更新。
 
 10 月 12 日复核后的读取子集保守拒绝关系括号组、单引号对象、ODBC 包装和 TABLE 表达式；可用标准标识符引用及受支持的 JOIN／CTE。v3.8.2 起，CTE 按实际方言处理：SQLite 支持前向引用和隐式递归；MySQL 保持定义顺序与显式递归自引用，不豁免实际同名物理表。内置 PRAGMA 对象名保留，普通 `pragma_` 列、别名及非保留业务表名允许。`read.mode="all"` 仍执行结构、系统对象等检查，不能绕过这些限制。
 
@@ -173,7 +173,7 @@ args = ["serve", "--config", "/absolute/project/config/server.toml"]
 
 维护者确认项目未正式发布：旧 `.env`、旧启动入口、旧 SDK 迁移及假想历史调用方兼容，不纳入本轮修复；现有历史迁移说明保留供参考，不增加兼容加载或旧接口包装。更好的设计应主动报告并建议。版本仍为 3.8.1。
 
-SQLite IN/NOT IN 裸关系也受 read.tables 与内置 PRAGMA 检查；限定名需匹配限定条目（例如 main.orders），普通 orders 不授权其他 schema。字符串关键字不触发 UNION／FROM 规则。MySQL CTE 使用连接测得的 ASCII 比较规则，能力未知时保守精确；含 UNION 的递归写法受 allow_union 控制。SQL／策略失败通过 success=false/error_code/error 与可选 hint 返回；Query Skill 不再以 Error: 字符串识别数据库失败。详情与未验证环境见[本轮记录](../validation/v3.8/V3_8_1_FOLLOWUP_2026_10_13_ZH.md)。
+SQLite IN/NOT IN 裸关系也受 read.tables 与内置 PRAGMA 检查。当时限定名需匹配限定条目；本次 v3.8.2 已统一默认对象身份，`orders` 与 `main.orders` 授权等价，但不授权 temp／aux 等其它 schema。字符串关键字不触发 UNION／FROM 规则。MySQL CTE 使用连接测得的 ASCII 比较规则，能力未知时保守精确；含 UNION 的递归写法受 allow_union 控制。SQL／策略失败通过 success=false/error_code/error 与可选 hint 返回；Query Skill 不再以 Error: 字符串识别数据库失败。详情与当时未验证环境见[本轮记录](../validation/v3.8/V3_8_1_FOLLOWUP_2026_10_13_ZH.md)。
 
 ## v3.8.1 读取函数限制
 
@@ -186,7 +186,7 @@ read.tables 和 Skill 声明的 tables 是名称声明，保留真实空白及�
 
 ## 结构化关系与 schema readiness（2026-10-15）
 
-read.tables=["main.orders"] 授权 FROM main.orders，不授权单个字面 FROM "main.orders"；read.tables=["main.main.orders"] 可授权 FROM main."main.orders"。声明字符串只在首个点分开 schema/name，不解析 SQL 引号；任意带点 schema 的声明语法未扩展。普通 orders 不自动授权限定引用。元数据操作的裸名字绑定已知默认 schema，因此限定 grant 可发现／描述当前 orders，不会泄露字面点号对象。
+read.tables=["main.orders"] 授权 FROM main.orders，不授权单个字面 FROM "main.orders"；read.tables=["main.main.orders"] 可授权 FROM main."main.orders"。声明字符串只在首个点分开 schema/name，不解析 SQL 引号；任意带点 schema 的声明语法未扩展。当时裸 grant 不自动授权限定引用；2026-10-19 收敛为下节的默认对象身份，裸名与默认限定名均可引用同一获准对象。元数据操作绑定默认 schema，不泄露字面点号对象。
 
 默认 readiness 观察 SQLite main／配置的 MySQL database。其他显式 schema 的依赖返回 unverified_tables，不假报 missing_tables，也不由默认同名表替代；关闭 readiness 不增加表授权。full Skill 补充 schema 核验标志和两类数组，字符串展示不成为授权键。版本／运行依赖不变，生产 AST／authorizer 仍暂缓。见[本轮验收与支持边界](../validation/v3.8/V3_8_1_RELATION_IDENTITY_2026_10_15_ZH.md)。
 
@@ -195,6 +195,8 @@ read.tables=["main.orders"] 授权 FROM main.orders，不授权单个字面 FROM
 表工具仍接收保守语法的裸 table_name；授权与生成 SQL 使用同一个结构化对象。SQLite 的 sample 和 get_table_summary(exact_count=true) 固定读取 main，避免同名 temp／aux 替代。MySQL 的生成读取与元数据绑定配置库，但同一会话的临时表仍可能遮蔽同名永久表；绑定配置库不提供临时对象隔离。配置数据库名逐组件引用，不能把 schema.name 作为单个标识符。
 
 readiness 观察默认 schema 中 table／view，表发现工具仍只列普通表；关闭 readiness 不扩大授权。视图存在性不保证底层访问、列语义或可写。Mutation validate 的 valid 须为严格 bool、errors 若存在须为字符串 list、附加字段可 JSON 序列化；非法返回固定安全失败，执行阶段仍消费一次性令牌。无需新增 TOML 字段或 Agent 步骤；第三方 adapter 应实现 metadata_schema／get_read_relations。MySQL 临时对象生命周期另行设计。见[本批验收](../validation/v3.8/V3_8_1_SCHEMA_BINDING_2026_10_15_ZH.md)。
+
+v3.8.2 元数据优化另外要求 adapter 实现 get_table_directory：仅返回有序 table_name／row_count，不执行用户数据扫描；昂贵估算放在 enrich_row_estimates，只处理公开工具已授权并截断的表。目录可免费取得估算的 backend 沿用默认补全方法；get_tables 便捷入口组合这两个方法。SQLite 统计仅在一次补全中批读，不新增 TOML 缓存开关，不自动 ANALYZE；limits.overview_tables／schema_tables 仍只改变返回上限，0 仍为不限。见[接口和验收](../validation/v3.8/V3_8_2_METADATA_OPTIMIZATION_2026_10_20_ZH.md)。
 
 SQLite 目录只排除字面 sqlite_ 内部前缀，合法 sqliteX... 表／视图不能被下划线通配误过滤；此过滤不扩大读授权。该补修没有新增配置字段；见[字面前缀验证](../validation/v3.8/V3_8_1_SQLITE_PREFIX_2026_10_15_ZH.md)。
 
@@ -209,7 +211,7 @@ mode = "allowlist"
 relations = [{ schema = "main", name = "orders" }, { schema = "main", name = "main.orders" }]
 ```
 
-这分别授权 `main.orders` 和 `main."main.orders"`，不自动互通。省略 schema 表示裸引用；SQLite authorizer 将裸 grant 限定在默认 main，temp/aux 的同名对象不能继承。普通读取不因此增加 Agent 工具步骤。表工具输入仍是裸业务名称，但改为方言支持包络加安全组件引用：SQLite 可含点、空格、引用字符和超过 64 字符的名称；空名/NUL 不支持。MySQL 物理名继续遵守其长度、BMP 和尾空格限制，不对合法名称 trim。
+这分别授权 `main.orders` 和 `main."main.orders"`，不自动互通。省略 schema 表示默认 schema 的对象；默认对象的裸名和限定名共享授权，temp/aux 同名对象不能继承。普通读取不因此增加 Agent 工具步骤。表工具输入仍是裸业务名称，但改为方言支持包络加安全组件引用：SQLite 可含点、空格、引用字符和超过 64 字符的名称；空名/NUL 不支持。MySQL 物理名继续遵守其长度、BMP 和尾空格限制，不对合法名称 trim。
 
 Skill frontmatter 可声明相同身份；声明是额外约束／依赖，不能增加 grant：
 
@@ -221,6 +223,54 @@ relations:
 
 Query Skill full 返回 `analysis_complete`；不完整推断为 `inferred_tables=null`，不可执行，不能当成无依赖。readiness 只观察 main／配置的 MySQL database；其他 schema 仍为 unverified。
 
-MySQL 可配置 `mysql.sql_mode = ["STRICT_TRANS_TABLES", "NO_ENGINE_SUBSTITUTION", "ANSI_QUOTES"]`。该数组是完整集合，不是增量；不要无意移除严格模式。省略则继承首个初始化物理会话的完整集合，后续连接／重连保持该约定；不是每次请求探测。只接受展开的模式名称，ANSI/TRADITIONAL 等组合别名返回配置错误。解析适配 ANSI_QUOTES、NO_BACKSLASH_ESCAPES、PIPES_AS_CONCAT；HIGH_NOT_PRECEDENCE 返回 sql_mode_unsupported。可信扩展经任意 execute 或完整写事务后会销毁会话，增加重新连接成本；直接操作私有 engine 的扩展自行维护约定。
+MySQL 可配置 `mysql.sql_mode = ["STRICT_TRANS_TABLES", "NO_ENGINE_SUBSTITUTION", "ANSI_QUOTES"]`。该数组是完整集合，不是增量；不要无意移除严格模式。省略则继承首个初始化物理会话的完整集合，后续连接／重连保持该约定；不是每次请求探测。只接受展开的模式名称，ANSI/TRADITIONAL 等组合别名返回配置错误。解析适配 ANSI_QUOTES、NO_BACKSLASH_ESCAPES、PIPES_AS_CONCAT 与 HIGH_NOT_PRECEDENCE；前缀 NOT 按实际模式分组，! 始终高优先级，中缀 NOT IN／BETWEEN／LIKE 仍按原语法处理。可信扩展经任意 execute 或完整写事务后会销毁会话，增加重新连接成本；直接操作私有 engine 的扩展自行维护约定。
 
-SQLite 使用连接独占及 `cached_statements=0`，authorizer 在编译至取完结果期间生效；固定目录／统计信息与受管写入为独立可信上下文；sample、精确计数及会读取数据的 SQLite 估算激活读取 guard，估算被拒时行数为 null，列／索引仍可用。视图可经已授权视图读取，底表不因此获得直接 grant。复杂／歧义来源、虚拟关系视图或预算超限返回 view_scope_unresolved；完整预算、缓存、同步取消和可信 schema/UDF 限制见[架构决议](../architecture/V3_8_2_SQL_SEMANTICS_ZH.md)。MySQL 无等价 authorizer，限定配置库本身不能防止同会话临时表遮蔽；会话销毁约定解决复用污染，不保证任意存储例程无副作用。
+注释规则按实际连接方言生效。SQLite hint形块注释是普通注释；MySQL只支持已识别的计划提示子集，SET_VAR／资源／超时／未知提示仍不支持。无新增配置开关，原始SQL／会话／批准契约保持；[范围与验收](../validation/v3.8/V3_8_2_DIALECT_COMMENTS_NOT_2026_10_20_ZH.md)。
+
+SQLite 使用连接独占及 `cached_statements=0`，authorizer 在编译至取完结果期间生效；固定目录／统计信息与受管写入为独立可信上下文；sample、精确计数及会读取数据的 SQLite 估算激活读取 guard，估算被拒时行数为 null，列／索引仍可用。视图可经已授权视图读取，底表不因此获得直接 grant。复杂／歧义来源、不支持的虚拟关系或预算超限返回明确拒绝；完整预算、缓存、同步取消和可信 schema/UDF 限制见[架构决议](../architecture/V3_8_2_SQL_SEMANTICS_ZH.md)。MySQL 无等价 authorizer，限定配置库本身不能防止同会话临时表遮蔽；会话销毁约定解决复用污染，不保证任意存储例程无副作用。
+
+
+## 2026-10-19：范围、JSON／FTS 与执行保障
+
+`all` 限定默认 schema；跨 schema 仍可用 allowlist 的结构化 `relations` 声明，不新增 all＋例外组合。`list_connections()` 的 policy 补充 `read_scope`／`default_schema` 事实，读取启用不等于存在性证明。SQLite 目录在明确授权下可读；COUNT(*) 与列读取保持一致，原始 PRAGMA／状态限制不变。
+
+SQLite 支持内置 json_each/json_tree，MySQL 支持 JSON_TABLE；函数参数中的真实表、相关子查询和受限操作仍检查，不把内置函数名当作物理表 grant。SQLite FTS5 以已授权根表建立限定内部依赖，使用者无需直接授权影子表或 external-content 表；直接访问它们仍按原有 grant 检查。未知表函数模块不借用这些能力，其它虚表的普通扫描保持既有检查。
+
+普通读取拒绝执行型 FOR UPDATE／FOR SHARE／LOCK IN SHARE MODE 及修饰，确认不执行的 EXPLAIN 仍可分析；执行型 EXPLAIN ANALYZE 继续拒绝。INTO @变量／@变量赋值与文件输出分别诊断；位置参数 ?／?1 不受此接口支持，可使用命名参数 Query Skill。
+
+**authorizer 始终用于 SQLite 受控读取，本轮不增加 TOML 关闭开关。** 关闭会改变视图／实际对象的保障且增加两套行为维护成本，不能作为兼容性补丁。固定元数据／受管写入是内部限定上下文，不是对外的绕过参数。MySQL 没有等价 authorizer。新语义、成本及源码／安装／驻留状态见[补修记录](../validation/v3.8/V3_8_2_READ_CAPABILITIES_2026_10_19_ZH.md)。
+
+## 2026-10-20：受管写入计划解析器观察期
+
+```toml
+[skills.mutation]
+managed_plan_parser = "sqlglot" # 默认；临时回退可明确改为 "sqlparse"
+```
+
+只接受这两个小写字符串；拼错、布尔值或未知值启动报错。配置是进程快照，修改后重启并重新预览，旧令牌不会跨进程恢复。`config explain` 展示 `skills.mutation.managed_plan_parser` 的值和来源。公开写入示例已补字段，私有配置无需增加字段即可采用默认值。
+
+选择项仅控制受管 INSERT／UPDATE／DELETE 计划的分类，不关闭读取策略、SQLite authorizer、写入准入、人工批准、一次性令牌或事务证据检查。无逐工具覆盖和失败后自动回退。命令式 Mutation 不通过它分类任意 Python 回调；Python Skill 仍是可信代码。
+
+启动时没有实际执行连接，仅按 Skill 的 databases 尝试 SQLite／受支持 MySQL 模式候选；至少一种接受才加载。面向具体目标的发现／详情、预览和消费令牌后的执行前再次复验。MySQL 沿用每物理连接初始化／核验完整 sql_mode 的约定，不把另一个会话的一次探测永久套到整个池，也不新增每请求模式探测。
+
+临时 sqlparse 路径保留旧的、忽略方言／模式的类型分类，因此回退不提供相同的语法与注释保证；它不修改现有绑定或批准边界。SQLGlot 也不是完整数据库验证器，部分数据库非法语法仍能解析。观察两至三个后续发布检查点后再决定删除回退、配置字段和依赖；不因时间到期自动移除。退出条件、差异、成本和验收见[迁移记录](../validation/v3.8/V3_8_2_MANAGED_PARSER_2026_10_20_ZH.md)。
+
+## 2026-10-20 补修后的绑定与元数据约定
+
+DRR-124／125已完成源码／安装补修，维护者重启后另通过34/34限定原生核验：合法单句读取支持终止分号后普通注释；受管计划按实际方言／会话共享执行侧真实绑定身份，不再把字面／注释／引用名称中的冒号当参数。两解析器均获得绑定修复，但显式临时sqlparse仍保留旧尾注释分类限制，不等同于默认AST能力。实际占位符与声明目标仍须精确匹配，过去为绕过误认而声明的假参数应删除；无需新增配置或grant。
+
+get_full_schema列读取先授权和截断，再经get_columns_batch。MySQL每批最多199个表名加1个配置schema绑定，按精确返回名称投影；SQLite基类组合原逐表接口。扩展backend若定制MySQL列行为，应考虑新批量钩子，不提供旧接口探测兼容。没有新TOML开关或Agent步骤。Query Skill启动首个候选允许即可停止；具体连接的发现／预览／执行及消费令牌后仍按实际上下文核验。
+
+纯分类缓存键增加声明绑定名，值／授权／状态不缓存。请求内纯读取分析只做研究，未加通用缓存。实现、成本及已知范围见[补修记录](../validation/v3.8/V3_8_2_READ_PLAN_REPAIR_2026_10_20_ZH.md)。以下保留此前仅审计时的开放记录。
+
+## 2026-10-20 前次审计时的两项功能限制
+
+DRR-124／125的历史审计曾发现尾注释误报multiple_statements及计划字面冒号误作参数，sqlparse回退也不能解决；[原评估](../validation/v3.8/V3_8_2_FINAL_AUDIT_2026_10_20_ZH.md)保留当时未修状态。后续已共享真实绑定身份并正确忽略无执行内容的尾部节点，原SQL及指令注释检查保留，无需修改配置或grant。[当前实现及验收](../validation/v3.8/V3_8_2_READ_PLAN_REPAIR_2026_10_20_ZH.md)。
+
+## 读取结果与条件依赖（2026-10-21）
+
+query／Query Skill／sample 共用实际列标签检查、带类型的 binary/base64 与非有限 float 编码，以及编码后的紧凑 JSON 数据字符限额。首行超限允许零行，返回截断原因及缩小列投影提示；sample 同时受请求 1～20 行上限约束。目录／列／索引描述不受此限额，完整协议帧／通知、SQL 回显、数据库执行／fetch 和模型 token 也不由此限制。result_chars=1 无法容纳空数组，配置明确拒绝；0 仍关闭该限额。无新增开关或依赖。
+
+Skill的JSON名称条件依赖保留builtin／stored／unverified三态。启用readiness时，SQLite观察两个名称，按TEMP→main→附加顺序保留实际身份及覆盖完整性；最多32个schema，共用观察查询超时。完整确认无同名存储对象才判builtin，部分观察保留unverified。非默认schema仍按已有范围无法核验；关闭时无新探测，实际模块／grant／authorizer继续即时核验，只缓存纯语法。[当前契约及验收](../validation/v3.8/V3_8_2_ATTACHED_JSON_REPAIR_2026_10_21_ZH.md)。
+
+内部adapter扩展钩子get_json_shadow_relations已由get_json_name_observation及专用不可变观察类型替换；None表示未观察，不保留假想旧接口兼容。不新增TOML开关或grant。DRR-136现已改用四类固定main绑定PRAGMA读取列／索引，业务名称不再遮蔽内部元数据函数；不新增TOML开关或扩大grant。索引N+2次目录读取及有界取回的代价见[补修记录](../validation/v3.8/V3_8_2_METADATA_PRAGMA_REPAIR_2026_10_21_ZH.md)。DRR-135/136统一重启后20/20限定原生通过；特殊附加／碰撞仍归属源码／安装。磁盘摘要不能单独证明驻留内存身份。

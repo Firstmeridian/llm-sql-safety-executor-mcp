@@ -13,6 +13,31 @@ Start with the project [README](../README.md) for the motivation, design, quick 
 
 ## Design and reusable guides
 
+- [Portable sentinels and dependency-aware release gates](validation/v3.8/V3_8_2_PORTABLE_RELEASE_GATES_2026_10_22_ZH.md) — ordinary pytest, explicit live acceptance and environment-bound evidence; [reusable commands](../scripts/validation/README.md).
+
+- [v3.8.2 bounded stabilization acceptance](validation/v3.8/V3_8_2_STABILIZATION_2026_10_22_ZH.md) —16 frozen contract families and three scoped gates pass;254 selected regressions, source/wheel each332 application calls, independent oracles and sentinels. [Plan and stop conditions](validation/v3.8/V3_8_2_STABILIZATION_PLAN_2026_10_22_ZH.md).
+- [v3.8.2 MySQL binding and real InnoDB write gate](validation/v3.8/V3_8_2_MYSQL_WRITE_CONTRACTS_2026_10_22_ZH.md) — exact-source check, native failure truth and unknown/token lifecycle; source/package passed, [owner-restarted native6/6](validation/v3.8/v382_mysql_write_contracts_2026_10_22/resident_restart/README.md) separately sealed.
+- [v3.8.2 SQLite physical write transactions and completed row counts](validation/v3.8/V3_8_2_SQLITE_WRITE_TRANSACTIONS_2026_10_22_ZH.md) — WITH/semicolon rollback, RETURNING and private source/package lifecycle proof; [post-restart12/12 and stability assessment](validation/v3.8/V3_8_2_WRITE_RESTART_AND_STABILIZATION_2026_10_22_ZH.md) separately preserve scope and remaining work.
+
+- [v3.8.2 latest complete Agent tasks and actual costs](validation/v3.8/V3_8_2_COMPLETE_AGENT_EVAL_2026_10_21_ZH.md) — native12/12; fifteen paired tasks pass, tokens+3.85%, calls+4.63%; three natural-cancel probes retain interpretation failures.
+- [v3.8.2 actual PRIMARY identity and ordered members](validation/v3.8/V3_8_2_PRIMARY_KEY_METADATA_REPAIR_2026_10_21_ZH.md) — shared SQLite/MySQL contract, native truth and costs; latest native12/12; earlier7/12 mismatch preserved; MariaDB is not required.
+- [v3.8.2 SQLite declared-type repair](validation/v3.8/V3_8_2_SQLITE_DECLARED_TYPES_REPAIR_2026_10_21_ZH.md) — preserve native empty types;9/9 scoped native checks pass after owner restart, plus144 adjacent calls per source/wheel.
+- [v3.8.2 SQLite declared-type assessment](validation/v3.8/V3_8_2_SQLITE_DECLARED_TYPES_ASSESSMENT_2026_10_21_ZH.md) — confirmed old P3, empty types shown as TEXT; historical assessment before the approved repair.
+
+- [v3.8.2 FTS catalog, statistics sources and external-content rowid repair](validation/v3.8/V3_8_2_FTS_CATALOG_STATISTICS_REPAIR_2026_10_21_ZH.md) — source/package verified; all10 frozen existing-alias native checks pass after the owner restart, with special fixtures scoped separately.
+
+- [v3.8.2 relation-call identity, JSON-name binding and SQLite generated columns (Chinese)](validation/v3.8/V3_8_2_RELATION_CALLS_COLUMNS_2026_10_20_ZH.md).
+- [v3.8.2 complete Agent tasks: actual tokens, calls, interpretation and configuration (Chinese)](validation/v3.8/V3_8_2_COMPLETE_AGENT_EVAL_2026_10_20_ZH.md).
+- [v3.8.2 trailing-comment/binding repairs, column batches and read-analysis reuse study (Chinese)](validation/v3.8/V3_8_2_READ_PLAN_REPAIR_2026_10_20_ZH.md).
+- [Earlier v3.8.2 audit: findings and optimization prototypes before repair (Chinese)](validation/v3.8/V3_8_2_FINAL_AUDIT_2026_10_20_ZH.md).
+- [v3.8.2 dialect comments, bounded MySQL plan hints and NOT precedence (Chinese)](validation/v3.8/V3_8_2_DIALECT_COMMENTS_NOT_2026_10_20_ZH.md).
+- [v3.8.2 readiness separation and bounded managed classification reuse (Chinese)](validation/v3.8/V3_8_2_MANAGED_CLASSIFICATION_REUSE_2026_10_20_ZH.md).
+- [v3.8.2 managed-plan SQLGlot migration, temporary rollback and dialect validation (Chinese)](validation/v3.8/V3_8_2_MANAGED_PARSER_2026_10_20_ZH.md).
+- [v3.8.2 read-capability, scope and JSON/FTS repair (Chinese)](validation/v3.8/V3_8_2_READ_CAPABILITIES_2026_10_19_ZH.md).
+- [v3.8.2 post-repair audit: MySQL metadata costs and historical FTS findings (Chinese)](validation/v3.8/V3_8_2_POSTREPAIR_AUDIT_2026_10_20_ZH.md)。
+- [v3.8.2 SQLite metadata regression: measurements and optimization priorities (Chinese)](validation/v3.8/V3_8_2_SQLITE_METADATA_COST_2026_10_20_ZH.md).
+- [v3.8.2 FTS cached-content functions and qualified root repair (Chinese)](validation/v3.8/V3_8_2_FTS_FOLLOWUPS_2026_10_20_ZH.md).
+- [v3.8.2 metadata optimization: implementation, matched costs and restart status (Chinese)](validation/v3.8/V3_8_2_METADATA_OPTIMIZATION_2026_10_20_ZH.md).
 - [Refactoring log](../REFACTORING_LOG.md) / [中文](../REFACTORING_LOG_ZH.md): actively maintained changes, decisions, trade-offs and validation, including v3.8.
 - [v3.8 implementation decisions (Chinese)](architecture/V3_8_IMPLEMENTATION_ZH.md): package structure, instance state and reference-plan review.
 - [Tool contracts and evaluation](guides/PROMPT_ENGINEERING_BEST_PRACTICES.md): schemas, descriptions, prompts and behavior checks.
@@ -77,3 +102,10 @@ Guides stay under `docs/guides/` even when their titles identify an earlier vers
 - [Old public environment templates](history/config/): migration references only; the server no longer loads `.env`.
 
 Root READMEs and refactoring logs remain maintained documents. SQL and business Skill definitions remain under the root `skills/` directory; the framework SDK lives in `src/sql_safety_executor/skills/`.
+
+- [v3.8.2 faithful read results and conditional dependencies (2026-10-21)](validation/v3.8/V3_8_2_READ_RESULTS_2026_10_21_ZH.md) — shared encoding, limits and scoped readiness; source/package/native evidence stays separate.
+- [v3.8.2 attached JSON-name readiness assessment (2026-10-21)](validation/v3.8/V3_8_2_ATTACHED_JSON_READINESS_2026_10_21_ZH.md) — historical assessment: 332 source calls, DRR-135 then open; subsequent repair follows.
+- [v3.8.2 ordered attached-name repair (2026-10-21)](validation/v3.8/V3_8_2_ATTACHED_JSON_REPAIR_2026_10_21_ZH.md) — DRR-135 implemented, 67 new regressions, original source/wheel each 332 calls; combined post-restart 20/20 passes, special fixtures retain source/package coverage.
+- [v3.8.2 metadata-name collisions (2026-10-21)](validation/v3.8/V3_8_2_METADATA_NAME_COLLISIONS_2026_10_21_ZH.md) — historical independent old P2/DRR-136 assessment; subsequent repair follows.
+- [v3.8.2 metadata PRAGMA repair (2026-10-21)](validation/v3.8/V3_8_2_METADATA_PRAGMA_REPAIR_2026_10_21_ZH.md) — DRR-136 implemented; collision/budget/value controls and serial costs; combined post-restart 20/20 verified; [separate supplement](validation/v3.8/v382_metadata_pragma_repair_2026_10_21/resident_restart/README.md).
+- [v3.8.2 FTS catalog/statistics assessment (2026-10-21)](validation/v3.8/V3_8_2_FTS_CATALOG_STATISTICS_ASSESSMENT_2026_10_21_ZH.md) — historical open assessment: two P2s, 394 disposable Client calls; subsequent repair and scoped acceptance are linked above.

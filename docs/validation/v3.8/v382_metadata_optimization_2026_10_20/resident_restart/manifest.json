@@ -1,0 +1,21 @@
+{
+  "files": {
+    "README.md": {
+      "bytes": 763,
+      "sha256": "917054993d1d663f108ff258c6d3701c2a405f1a0eac91c7046807920321c1f3"
+    },
+    "native_calls.json.gz": {
+      "bytes": 4953,
+      "sha256": "103234030775f87d8acb29bf642a06e31f950243b65cbe4d857bf67625205b34"
+    },
+    "provenance.json": {
+      "bytes": 722,
+      "sha256": "90b177b253218571a6a985b694f9db8d8539d26359bca290408a31614689dcb2"
+    },
+    "summary.json": {
+      "bytes": 2932,
+      "sha256": "e253964fe9a68c576b01008aa5a9c8ab2c4acb1d2a2b003fd32bf668cef18578"
+    }
+  },
+  "scope": "Independent native restart supplement"
+}

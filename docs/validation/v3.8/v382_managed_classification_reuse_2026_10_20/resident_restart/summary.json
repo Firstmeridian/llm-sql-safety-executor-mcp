@@ -1,0 +1,245 @@
+{
+  "owner_restart_confirmed": true,
+  "verified_utc": "2026-10-20T07:26:58.673152+00:00",
+  "passed": 22,
+  "total": 22,
+  "checks": [
+    {
+      "index": 0,
+      "id": "routing_catalog",
+      "passed": true,
+      "errors": []
+    },
+    {
+      "index": 1,
+      "id": "canary",
+      "passed": true,
+      "errors": []
+    },
+    {
+      "index": 2,
+      "id": "snapshot_before",
+      "passed": true,
+      "errors": []
+    },
+    {
+      "index": 3,
+      "id": "available_first",
+      "passed": true,
+      "errors": []
+    },
+    {
+      "index": 4,
+      "id": "execution_detail_first",
+      "passed": true,
+      "errors": []
+    },
+    {
+      "index": 5,
+      "id": "update_preview_first",
+      "passed": true,
+      "errors": []
+    },
+    {
+      "index": 6,
+      "id": "available_repeat",
+      "passed": true,
+      "errors": []
+    },
+    {
+      "index": 7,
+      "id": "execution_detail_repeat",
+      "passed": true,
+      "errors": []
+    },
+    {
+      "index": 8,
+      "id": "update_preview_repeat",
+      "passed": true,
+      "errors": []
+    },
+    {
+      "index": 9,
+      "id": "reset_preview",
+      "passed": true,
+      "errors": []
+    },
+    {
+      "index": 10,
+      "id": "backward_refused",
+      "passed": true,
+      "errors": []
+    },
+    {
+      "index": 11,
+      "id": "unexpected_parameter_refused",
+      "passed": true,
+      "errors": []
+    },
+    {
+      "index": 12,
+      "id": "readonly_catalog",
+      "passed": true,
+      "errors": []
+    },
+    {
+      "index": 13,
+      "id": "readonly_detail",
+      "passed": true,
+      "errors": []
+    },
+    {
+      "index": 14,
+      "id": "readonly_preview_refused",
+      "passed": true,
+      "errors": []
+    },
+    {
+      "index": 15,
+      "id": "mysql_canary",
+      "passed": true,
+      "errors": []
+    },
+    {
+      "index": 16,
+      "id": "mysql_cte_case",
+      "passed": true,
+      "errors": []
+    },
+    {
+      "index": 17,
+      "id": "fts",
+      "passed": true,
+      "errors": []
+    },
+    {
+      "index": 18,
+      "id": "function_refused",
+      "passed": true,
+      "errors": []
+    },
+    {
+      "index": 19,
+      "id": "shadow_refused",
+      "passed": true,
+      "errors": []
+    },
+    {
+      "index": 20,
+      "id": "raw_write_refused",
+      "passed": true,
+      "errors": []
+    },
+    {
+      "index": 21,
+      "id": "snapshot_after",
+      "passed": true,
+      "errors": []
+    }
+  ],
+  "routing_catalog_checks": 1,
+  "successful_query_reads": 6,
+  "catalog_detail_checks": 6,
+  "successful_previews": 3,
+  "expected_refusals": 6,
+  "independent_truth": {
+    "rich_mutation_sqlite": {
+      "file_sha256_before": "dc89c92c850ee56f1463231d62fbbcedca264ed254936edaef6829b864a62e8e",
+      "file_sha256_after": "dc89c92c850ee56f1463231d62fbbcedca264ed254936edaef6829b864a62e8e",
+      "snapshot": [
+        {
+          "id": 1,
+          "status": "confirmed"
+        },
+        {
+          "id": 2,
+          "status": "confirmed"
+        },
+        {
+          "id": 3,
+          "status": "confirmed"
+        },
+        {
+          "id": 4,
+          "status": "returned"
+        },
+        {
+          "id": 5,
+          "status": "returned"
+        },
+        {
+          "id": 6,
+          "status": "returned"
+        },
+        {
+          "id": 7,
+          "status": "confirmed"
+        },
+        {
+          "id": 8,
+          "status": "confirmed"
+        },
+        {
+          "id": 9,
+          "status": "confirmed"
+        },
+        {
+          "id": 10,
+          "status": "returned"
+        },
+        {
+          "id": 11,
+          "status": "returned"
+        },
+        {
+          "id": 12,
+          "status": "returned"
+        }
+      ],
+      "row_count": 80,
+      "all_order_rows_sha256": "239b4438689ac57977ac5cedcf2464cf1b56272b33c7cf638b2a0dee0567f61c"
+    },
+    "sqlite_features_sqlite": {
+      "file_sha256_before": "119f6f613a1a78a0a64dde41d061d3bee55b07b1e89375f400dec5ecf3de1add",
+      "file_sha256_after": "119f6f613a1a78a0a64dde41d061d3bee55b07b1e89375f400dec5ecf3de1add",
+      "fts_match_count": 4
+    }
+  },
+  "source_resources_match_final_wheel": 77,
+  "old_manifest_count": 23,
+  "old_sealed_files_verified": 580,
+  "tool_description_digests": [
+    {
+      "name": "mcp__sql_safety_executor_mcp__execute_mutation_skill",
+      "description_sha256": "7c599a171151814741cb9d6b73e36f70927987df59e26e8c9298f2c0780cd7bb"
+    },
+    {
+      "name": "mcp__sql_safety_executor_mcp__get_skill_detail",
+      "description_sha256": "208a32bedf1d0e3b7d641cdb87013f4614fac6d14278665902d786253ec873e2"
+    },
+    {
+      "name": "mcp__sql_safety_executor_mcp__list_connections",
+      "description_sha256": "3bf84eb51059714591f742d8f861fef3cb9f835c8b8be51e65556d3a2d9171e5"
+    },
+    {
+      "name": "mcp__sql_safety_executor_mcp__list_skills",
+      "description_sha256": "8ded7096a3f038cac0ae9e7cbdac3f719cca9e4531693412ce6f85afb0ffce14"
+    },
+    {
+      "name": "mcp__sql_safety_executor_mcp__query",
+      "description_sha256": "15a4bead16b4b5c6259fad5a435578dbbdf10dc4a59f858f495c19630fd0ccd0"
+    }
+  ],
+  "preview_ttl_seconds": 300,
+  "preview_handling": "Three confirm=false previews; handles redacted before disk export. No confirmation or public revocation. Handles are abandoned subject to configured natural TTL; no observation of expiry is claimed.",
+  "source_or_configuration_changes_this_supplement": false,
+  "configured_business_writes": false,
+  "limits": [
+    "Current Host behavior after owner-confirmed restart; not an in-memory source-hash or LRU-hit attestation.",
+    "Repeated native discovery/detail/preview is consistency coverage; isolated counters establish cold/warm parse counts.",
+    "Consumed-confirmation/context-change/transaction evidence remains source/package coverage; no identical native replay.",
+    "No new complete-model trial, provider usage comparison, matched native performance A/B or two-protocol claim.",
+    "Application records and losslessly split model-visible tool descriptions; not full protocol frames or original field omission proof."
+  ],
+  "all_checks_passed": true
+}

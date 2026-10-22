@@ -125,7 +125,10 @@ def test_shared_sql_policy_rejects_mysql_comment_semantic_mismatches(
     module = _reload_server(monkeypatch)
 
     assert module.is_sql_safe(sql) is False
-    decision = module._validate_sql_query_policy(sql)
+    # These inputs target MySQL comment semantics. SQLite treats the same
+    # comments as whitespace; its actual target policy must remain distinct.
+    policy = module.ConnectionPolicy(case_sensitive_tables=True, allowed_tables={"*"})
+    decision = module._validate_sql_query_policy(sql, policy)
     is_safe = decision.allowed
     error = decision.message
 
@@ -249,9 +252,9 @@ def test_system_schema_names_in_string_literals_are_not_tables(monkeypatch):
 @pytest.mark.parametrize(
     "sql,reason",
     [
-        ("SELECT @@hostname", "System variables"),
-        ("SELECT @@GLOBAL.datadir, 1", "System variables"),
-        ("SELECT id FROM orders WHERE @@secure_file_priv IS NULL", "System variables"),
+        ("SELECT @@hostname", "System variable"),
+        ("SELECT @@GLOBAL.datadir, 1", "System variable"),
+        ("SELECT id FROM orders WHERE @@secure_file_priv IS NULL", "System variable"),
         ("SELECT CURRENT_USER()", "Account and role"),
         ("SELECT current_user(), 1", "Account and role"),
         ("SELECT USER()", "Account and role"),
@@ -544,7 +547,7 @@ def test_table_allowlist_requires_exact_qualified_reference(monkeypatch):
     assert "orders" in error
 
 
-def test_table_allowlist_fails_closed_on_ambiguous_table_target(monkeypatch):
+def test_known_json_builtin_is_not_a_physical_table_grant(monkeypatch):
     module = _reload_server(monkeypatch)
     policy = module.ConnectionPolicy(
         allow_union=False,
@@ -557,16 +560,16 @@ def test_table_allowlist_fails_closed_on_ambiguous_table_target(monkeypatch):
     is_safe = decision.allowed
     error = decision.message
 
-    assert is_safe is False
-    assert decision.error_code in {"sql_parse_failed", "relation_scope_unresolved", "relation_group_unsupported"}
+    assert is_safe is True
+    assert decision.error_code is None
 
     decision = module._validate_sql_query_policy(
         "SELECT * FROM json_each('[1, 2]') AS item", policy
     )
     is_safe = decision.allowed
     error = decision.message
-    assert is_safe is False
-    assert decision.error_code in {"sql_parse_failed", "relation_scope_unresolved", "relation_group_unsupported"}
+    assert is_safe is True
+    assert decision.error_code is None
 
 
 def test_explicit_external_skills_directory_is_accepted(tmp_path,monkeypatch):

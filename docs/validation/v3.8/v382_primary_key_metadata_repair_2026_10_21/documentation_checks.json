@@ -1,0 +1,32 @@
+{
+  "documents": {
+    "README.md": "ac06aee38fa21b02546723d5d194b8210cb3f86da0beca6a96291fb9e63f034e",
+    "README_ZH.md": "44bf6643443a502aa8bf2fd025f45df7708bec2451e4033a8058ce81e5d41ed1",
+    "REFACTORING_LOG.md": "fe511208d64cef939020ea258c9970eded6d9e8c2721d0abfab133d04ac6f99a",
+    "REFACTORING_LOG_ZH.md": "a9cdc402d30f0f26f391f305ed1637dc42fa654f57f9b76a73b751669af1fbbf",
+    "docs/README.md": "bbd056f7d06730d9afadcc6cf089372d30ea055e64df02269a380190e926cb00",
+    "docs/README_ZH.md": "1261eff66e653e7975f80dc16e813eeeacc75298856d9af2fff36319d3695a31",
+    "docs/releases/RELEASE_NOTES_v3_8.md": "b07b54a8c6c479ee3e5f516e6a1498c956da581a7a017f746255c8df45c117f8",
+    "docs/architecture/V3_8_2_SQL_SEMANTICS_ZH.md": "c0ebee9300a3f0bd0ff3e4c38f6182462dd842c7dc406502ca614574de826207",
+    "docs/guides/TEST_MCP_CLIENT_GUIDE.md": "80bd87da047adb46265446fc7e29a1783f37dd10f4b21909798b640cd123ea19",
+    "docs/security/DESIGN_RISK_REGISTER.md": "95fce5b91cc12b4cb98004524e7ede0e7a46426e9aaa49a5bc73a0ffa614cb7e",
+    "docs/security/DESIGN_RISK_REGISTER_ZH.md": "b8b113c1a8e67cbe9253bf0e54af0cd43a019c167a18ae9bc6ce826a295c282a",
+    "docs/security/V3_8_SECURITY.md": "890a6e0c16811b29bf5027e8a7530751e701a3d14455b85be3c7df3976c2b328",
+    "docs/validation/v3.8/V3_8_2_PRIMARY_KEY_METADATA_REPAIR_2026_10_21_ZH.md": "100850dcc4cfd6de58aa6c90927ac3dd4472d8327169e377abdd4e0ce13816a8",
+    "docs/validation/v3.8/v382_primary_key_metadata_repair_2026_10_21/README.md": "acf46327ca4255f81cd25245cb4a2f5f447fa83ae00542bd4f2fb214e33d9e8f",
+    "local_archive/v382_review/README.md": "2cb607952c5df8228ca73b0e5541b18bcb6d1ce61805a7c1fc23baefe2c3a53e",
+    "local_archive/v382_review/handoff/session-handoff-v381-v382-20261019-ZH.md": "2cc35f81fd533815398b724d6c8a1ff7703a03c594cdca159890450c888ed42a",
+    "local_archive/v382_review/20261021_primary_key_metadata_repair/reports/README_ZH.md": "4e2be73cc9b03277289b91a35d0f608042bfd0b4c1197383d6d482bed9c8953f"
+  },
+  "local_links_checked": 1043,
+  "broken_links": [],
+  "git_diff_check": "passed",
+  "current_status": "DRR141 source/package passed; 12 native checks pending owner restart",
+  "prior_manifests": 71,
+  "prior_file_records": 2180,
+  "new_private_records": 53,
+  "new_public_records": 46,
+  "cumulative_manifests": 73,
+  "cumulative_file_records": 2279,
+  "note": "Historical seals, failure records, assessment uncertainty and earlier scoped model/native acceptance retained."
+}

@@ -1,0 +1,38 @@
+{
+  "version": "3.8.2",
+  "regressions": {
+    "passed": 3373,
+    "skipped": 4,
+    "warnings": 549,
+    "seconds": 297.22
+  },
+  "new_regressions": 20,
+  "pyright": "0 errors, 0 warnings",
+  "prompt_contract": "passed",
+  "resources_equal": 77,
+  "source_calls": 192,
+  "installed_calls": 192,
+  "baseline_calls": 192,
+  "modes": [
+    "auto",
+    "legacy"
+  ],
+  "transports": [
+    "inprocess",
+    "stdio"
+  ],
+  "fixture_objects_per_backend": 13,
+  "private_tomls_unchanged": 3,
+  "prior_manifests": 71,
+  "prior_file_records": 2180,
+  "current_native_status": "pending owner restart; 12-check plan frozen",
+  "new_model_trials": 0,
+  "normal_wheel_sha256": "dd57552ec055c8b88190b31aed72c10e0c00474bf8c05422c5711682b72970cd",
+  "production_changes": [
+    "database/base.py",
+    "database/mysql.py",
+    "database/sqlite.py",
+    "core/schema.py"
+  ],
+  "performance": "Serial same-fixture A1/B/A2, 5 warmups and 30 measured samples per phase per operation; local costs, not provider tokens or speed guarantee"
+}

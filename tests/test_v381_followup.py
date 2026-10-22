@@ -88,9 +88,10 @@ def test_membership_pragma_denied_independently_of_allowlist(sql, read_policy):
     assert not decision.allowed and "PRAGMA" in decision.message
 
 
-def test_membership_virtual_table_is_not_a_cte_exemption():
+def test_builtin_membership_keeps_real_cte_body_dependencies():
     assert _validate_sql_query_policy(None, "SELECT (0,1,'integer',1,1,NULL,'$[0]','$') IN json_each('[1]')", policy("json_each")).allowed
-    decision = _validate_sql_query_policy(None, "WITH json_each AS (SELECT 1) SELECT 1 IN json_each('[1]')", policy("allowed"))
+    assert _validate_sql_query_policy(None, "WITH chosen AS (SELECT 1) SELECT (0,1,'integer',1,1,NULL,'$[0]','$') IN json_each('[1]')", policy("allowed")).allowed
+    decision = _validate_sql_query_policy(None, "WITH json_each AS (SELECT n FROM secret) SELECT 1 IN json_each('[1]')", policy("allowed"))
     assert decision.error_code == "table_access_denied"
 
 

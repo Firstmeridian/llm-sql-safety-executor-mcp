@@ -570,6 +570,9 @@ class TestRunExecuteAudit:
         assert plan is not None
 
         class PlainResultAdapter:
+            def resolve_analysis_context(self):
+                return adapter_with_orders.resolve_analysis_context()
+
             def execute_write(self, sql, params, *, expected_rowcount):
                 return {"success": True, "rowcount": expected_rowcount}
 

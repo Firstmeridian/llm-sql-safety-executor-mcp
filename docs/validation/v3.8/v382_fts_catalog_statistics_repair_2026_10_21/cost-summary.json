@@ -1,0 +1,149 @@
+{
+  "scope": "Serial warm direct adapter A/B/A, baseline immediately pre137/138/139 not HEAD; marked baseline drift; partial-stat outputs differ, not a speedup comparison; no model/tool/token claim",
+  "cases": {
+    "fts_internal": {
+      "A1_ms": 1.519484039999952,
+      "B_ms": 0.9705524799937848,
+      "A2_ms": 0.9143075600150041,
+      "same_output": true,
+      "A1_pragmas": 1,
+      "B_pragmas": 6,
+      "A2_pragmas": 1,
+      "A1_result": [
+        [
+          "hello"
+        ]
+      ],
+      "B_result": [
+        [
+          "hello"
+        ]
+      ],
+      "A2_result": [
+        [
+          "hello"
+        ]
+      ]
+    },
+    "fts_external_id": {
+      "A1_ms": 1.7067467999913788,
+      "B_ms": 1.1218965999978536,
+      "A2_ms": 1.0716251199846738,
+      "same_output": true,
+      "A1_pragmas": 1,
+      "B_pragmas": 6,
+      "A2_pragmas": 1,
+      "A1_result": [
+        [
+          "hello"
+        ]
+      ],
+      "B_result": [
+        [
+          "hello"
+        ]
+      ],
+      "A2_result": [
+        [
+          "hello"
+        ]
+      ]
+    },
+    "fts_external_default_warm": {
+      "A1_ms": 1.7940212000030442,
+      "B_ms": 1.1646730800021032,
+      "A2_ms": 1.0316272799900617,
+      "same_output": true,
+      "A1_pragmas": 1,
+      "B_pragmas": 9,
+      "A2_pragmas": 1,
+      "A1_result": [
+        [
+          "hello"
+        ]
+      ],
+      "B_result": [
+        [
+          "hello"
+        ]
+      ],
+      "A2_result": [
+        [
+          "hello"
+        ]
+      ]
+    },
+    "stats_none": {
+      "A1_ms": 2.232075680003618,
+      "B_ms": 1.5601990400136856,
+      "A2_ms": 1.7185218400118174,
+      "same_output": true,
+      "A1_pragmas": 1,
+      "B_pragmas": 1,
+      "A2_pragmas": 1,
+      "A1_result": 1500,
+      "B_result": 1500,
+      "A2_result": 1500
+    },
+    "stats_table": {
+      "A1_ms": 0.7491445599953295,
+      "B_ms": 0.6008799599840131,
+      "A2_ms": 0.6764582399955543,
+      "same_output": true,
+      "A1_pragmas": 0,
+      "B_pragmas": 0,
+      "A2_pragmas": 0,
+      "A1_result": 1500,
+      "B_result": 1500,
+      "A2_result": 1500
+    },
+    "stats_full1": {
+      "A1_ms": 0.7110369200017885,
+      "B_ms": 1.0900549599864462,
+      "A2_ms": 0.49078120000558556,
+      "same_output": true,
+      "A1_pragmas": 0,
+      "B_pragmas": 1,
+      "A2_pragmas": 0,
+      "A1_result": 1500,
+      "B_result": 1500,
+      "A2_result": 1500
+    },
+    "stats_full64": {
+      "A1_ms": 0.7901239199964039,
+      "B_ms": 2.575470800002222,
+      "A2_ms": 0.4448591199980001,
+      "same_output": true,
+      "A1_pragmas": 0,
+      "B_pragmas": 1,
+      "A2_pragmas": 0,
+      "A1_result": 1500,
+      "B_result": 1500,
+      "A2_result": 1500
+    },
+    "stats_without_rowid": {
+      "A1_ms": 0.8000791999984358,
+      "B_ms": 1.3139533200046571,
+      "A2_ms": 0.4970404400046391,
+      "same_output": true,
+      "A1_pragmas": 0,
+      "B_pragmas": 2,
+      "A2_pragmas": 0,
+      "A1_result": 1500,
+      "B_result": 1500,
+      "A2_result": 1500
+    },
+    "stats_partial": {
+      "A1_ms": 0.8194273600020097,
+      "B_ms": 0.5202487200040196,
+      "A2_ms": 0.5406101599874091,
+      "same_output": false,
+      "A1_pragmas": 0,
+      "B_pragmas": 0,
+      "A2_pragmas": 0,
+      "A1_result": 1,
+      "B_result": 1500,
+      "A2_result": 1
+    }
+  }
+}

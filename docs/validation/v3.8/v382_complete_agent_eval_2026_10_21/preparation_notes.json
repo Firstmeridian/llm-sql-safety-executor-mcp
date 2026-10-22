@@ -1,0 +1,25 @@
+{
+  "corrections": [
+    {
+      "stage": "freeze archive inventory",
+      "issue": "New freeze initially referenced private supplement manifest under evidence rather than batch root; captured74 instead of75.",
+      "resolution": "Corrected new script/new unsealed inventory; verified75 existing seals2316records. Business prompts/truth/source unaffected."
+    },
+    {
+      "stage": "historical model audit",
+      "issue": "Not every older collector record embeds actual_model_contexts; initial checker raised KeyError.",
+      "resolution": "Read old independently sealed model_context_check.json and require exact old agent_id; never infer model from requested spawn arguments."
+    },
+    {
+      "stage": "formal verification initial dependency failure",
+      "issue": "Verifier launched after failed model audit and stopped before replay because model_context_check.json was absent.",
+      "resolution": "Retained this preparation failure; corrected audit to use sealed historical model evidence, then reran verifier with log."
+    },
+    {
+      "stage": "documentation sanity",
+      "issue": "DRR141 was previously a separate three-column table below DRR140; adjacency assertion detected the old layout.",
+      "resolution": "Merged the current bilingual141 row into the preceding four-column table, retaining all facts; no historical sealed file changed."
+    }
+  ],
+  "runtime_change": false
+}

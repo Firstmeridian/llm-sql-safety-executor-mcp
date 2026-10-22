@@ -1,0 +1,59 @@
+{
+  "baseline_whole_workflow_median_reference_ms": 275.9894027503833,
+  "current_whole_workflow_median_reference_ms": 280.7109887489787,
+  "delta_ms": 4.721585998595401,
+  "delta_percent": 1.7107852517314948,
+  "per_call": [
+    {
+      "operation": "schema_compact",
+      "baseline_median_reference_ms": 34.71281799920689,
+      "current_median_reference_ms": 42.68542974932643,
+      "delta_ms": 7.97261175011954,
+      "delta_percent": 22.96734235261941
+    },
+    {
+      "operation": "stores",
+      "baseline_median_reference_ms": 44.92462200141745,
+      "current_median_reference_ms": 43.78033000011783,
+      "delta_ms": -1.1442920012996183,
+      "delta_percent": -2.5471377394416628
+    },
+    {
+      "operation": "total",
+      "baseline_median_reference_ms": 21.785176750199753,
+      "current_median_reference_ms": 20.883885749753972,
+      "delta_ms": -0.9012910004457808,
+      "delta_percent": -4.1371755243506
+    },
+    {
+      "operation": "unattributed",
+      "baseline_median_reference_ms": 36.92829274950782,
+      "current_median_reference_ms": 35.78682175066206,
+      "delta_ms": -1.1414709988457616,
+      "delta_percent": -3.091047307788075
+    },
+    {
+      "operation": "top_films",
+      "baseline_median_reference_ms": 54.79539424959512,
+      "current_median_reference_ms": 52.70443224981136,
+      "delta_ms": -2.090961999783758,
+      "delta_percent": -3.815944804155158
+    },
+    {
+      "operation": "asof",
+      "baseline_median_reference_ms": 36.9586384995273,
+      "current_median_reference_ms": 35.61182149860542,
+      "delta_ms": -1.3468170009218738,
+      "delta_percent": -3.644119631027809
+    },
+    {
+      "operation": "asof_examples",
+      "baseline_median_reference_ms": 37.493394751436426,
+      "current_median_reference_ms": 35.020568750042,
+      "delta_ms": -2.4728260013944237,
+      "delta_percent": -6.595364377613966
+    }
+  ],
+  "original_first_workflow_measurement_retained": true,
+  "notes": "A1/A2 and B/B2 median means; not a confidence interval. Both repeated phase drift and original+16.14% remain. Current schema call adds measurable work; other per-call medians do not consistently regress. No universal no-slowdown or speed claim."
+}

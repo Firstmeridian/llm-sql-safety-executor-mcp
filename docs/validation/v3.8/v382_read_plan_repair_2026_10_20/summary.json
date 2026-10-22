@@ -1,0 +1,258 @@
+{
+  "verified_utc": "2026-10-20T09:42:25.493921+00:00",
+  "version": "3.8.2",
+  "status": "source_package_passed_resident_pending",
+  "findings_repaired": [
+    "DRR-2026-124",
+    "DRR-2026-125"
+  ],
+  "optimizations_implemented": [
+    "query_startup_first_allow",
+    "bounded_selected_mysql_columns"
+  ],
+  "pure_read_request_cache": "studied_only_not_in_production",
+  "changed_runtime_resources": [
+    "core/analysis.py",
+    "core/managed_sql.py",
+    "core/policy.py",
+    "core/runtime.py",
+    "core/schema.py",
+    "database/base.py",
+    "database/mysql.py",
+    "database/transport.py",
+    "skills/access.py",
+    "skills/mutation.py"
+  ],
+  "matching_source_and_wheel_resources": 77,
+  "full_suite": {
+    "passed": 3003,
+    "optional_skipped": 4
+  },
+  "subsequent_session_binding_tests": 2,
+  "source_stdio_calls": 84,
+  "installed_stdio_calls": 84,
+  "additional_installed_mysql_calls": 6,
+  "mysql": {
+    "catalogs": 5,
+    "physical_sessions": 16,
+    "literal_comparisons": 32,
+    "nonexecuting_plans": 32,
+    "orders_unchanged": true
+  },
+  "old_matrix_groups_unchanged": 1513,
+  "metadata_cost": {
+    "timed_calls": 400,
+    "warmup_calls": 60,
+    "samples": "metadata_cost.json.gz"
+  },
+  "managed_cost": {
+    "timed_calls": 720,
+    "warmup_calls": 120,
+    "restored_cycles": 140,
+    "samples": "paired_cost.json.gz"
+  },
+  "startup_cost": {
+    "baseline_median_ms": 73.21932100000001,
+    "optimized_median_ms": 41.7548675,
+    "delta_percent": -42.97288348248954
+  },
+  "pure_read_study_scenarios": 16,
+  "new_complete_model_trials": 0,
+  "prior_manifests_verified": 31,
+  "prior_file_records_verified": 739,
+  "frozen_dependency_and_builtin_files_unchanged": true,
+  "configured_business_writes": false,
+  "private_configuration_or_grant_changes": false,
+  "wheel_sha256": "83421bc8e03f6106c557a895d6db43e2e08fa069fb9ac5289cca6f0fd6556ca2",
+  "durable_wheel": "evidence/dist/llm_sql_safety_executor_mcp-3.8.2-py3-none-any.whl",
+  "markdown_local_links_verified": 919,
+  "diff_check_passed": true,
+  "evidence": {
+    "after_resources.json": {
+      "file": "after_resources.json.gz",
+      "sha256": "94e2725ddc4d205622dd032ba118ebe1a94f6c2fc4aa7b844eda1b7a0dd0ad46",
+      "bytes": 3706
+    },
+    "after_runtime.tar.gz": {
+      "file": "after_runtime.tar.gz",
+      "sha256": "c258cedeb061c615e2e89f7461741acd4236a5606597de25d421519fc18edabe",
+      "bytes": 129044
+    },
+    "before.json": {
+      "file": "before.json.gz",
+      "sha256": "e4bb033a07ff2f5b2f000ae42ccc02b999e645079e289263f04a78a1d6d0e664",
+      "bytes": 9431
+    },
+    "before_runtime.tar.gz": {
+      "file": "before_runtime.tar.gz",
+      "sha256": "0062b01f77885333ba10bf6e5f0cde0bdefb6cc86bbc0c6aaaef6b6d570be9e4",
+      "bytes": 127658
+    },
+    "build_install.log": {
+      "file": "build_install.log.gz",
+      "sha256": "c1f92fbd17757fe4621ade1bd99d7a7379d2050a66f4dc79b559084ba7da25a3",
+      "bytes": 318
+    },
+    "comment_matrix.json.gz": {
+      "file": "comment_matrix.json.gz",
+      "sha256": "34e8789ec55cf94f011f74a34cc6e6c3547c75744ec5bb3d18786897f72dc885",
+      "bytes": 37305
+    },
+    "comment_matrix.log": {
+      "file": "comment_matrix.log.gz",
+      "sha256": "5d1b94c69f349035457f83f40b39897d6265c1f114aca7eaa706f49f0484ddbd",
+      "bytes": 71
+    },
+    "full_pytest.log": {
+      "file": "full_pytest.log.gz",
+      "sha256": "047cc6d762692f4149c0afcc9e13c1f71372a20ac15b2a3412d95cb733f07d5d",
+      "bytes": 906
+    },
+    "full_pytest_sandbox_interrupted.log": {
+      "file": "full_pytest_sandbox_interrupted.log.gz",
+      "sha256": "7af61086d796c5887bdbbbea8057134722bc4d6a9203a1fe63ba1b6f6a02338a",
+      "bytes": 39
+    },
+    "installed_mysql_stdio.json.gz": {
+      "file": "installed_mysql_stdio.json.gz",
+      "sha256": "6234c9a3db1aae82dc088fd34f609b18f5c9f46602846a3eae5b8dd9d3831d40",
+      "bytes": 8194
+    },
+    "installed_mysql_stdio.log": {
+      "file": "installed_mysql_stdio.log.gz",
+      "sha256": "f6f275892a3ef6956fe0938e9b517d362d94ecb87b45972c44d1c884b9570504",
+      "bytes": 1115
+    },
+    "installed_prompt.log": {
+      "file": "installed_prompt.log.gz",
+      "sha256": "090e5d838501a835953ba08eeacb177cf0ecef59e67add02b2bcb919113e87ea",
+      "bytes": 74
+    },
+    "installed_resources.json": {
+      "file": "installed_resources.json.gz",
+      "sha256": "09821dd29beec313f8a52c35c3732b15cedfac25bcc5335ba1f89131c0b8f49a",
+      "bytes": 4491
+    },
+    "installed_stdio.json.gz": {
+      "file": "installed_stdio.json.gz",
+      "sha256": "203c4193d226e1d3085a8e78bb2e99809ad48a73be99f7616585264a5206d883",
+      "bytes": 56920
+    },
+    "installed_stdio.log": {
+      "file": "installed_stdio.log.gz",
+      "sha256": "47b34e34767c40172477131d1fe98386ca3cb4f5270136c859aaf7f5b9cddd33",
+      "bytes": 3143
+    },
+    "managed_cost.log": {
+      "file": "managed_cost.log.gz",
+      "sha256": "128b148b995a5334b478f53d3be8543e8f50110097884a709c157b49f1ec26db",
+      "bytes": 4849
+    },
+    "metadata_cost.json.gz": {
+      "file": "metadata_cost.json.gz",
+      "sha256": "749595b34adacaa46830848e420c745c83c953f65ee3bba5fbb921a20058a4a6",
+      "bytes": 13695
+    },
+    "metadata_cost.log": {
+      "file": "metadata_cost.log.gz",
+      "sha256": "833a29721bfe6de5dd3c59423faeba3fc93751b58737eae754f8e4ca7cac0c6d",
+      "bytes": 3830
+    },
+    "mysql_functional.json.gz": {
+      "file": "mysql_functional.json.gz",
+      "sha256": "8a58ef086d7c9d1a27d285a17c0affd4e743517d6206cb6e29d25ce43a3de712",
+      "bytes": 1647
+    },
+    "mysql_functional.log": {
+      "file": "mysql_functional.log.gz",
+      "sha256": "ed626997d35c6fc2786edfd6fe724c2eca908e220cbdda9908f4b2806f1b6e2a",
+      "bytes": 121
+    },
+    "new_regression_final.log": {
+      "file": "new_regression_final.log.gz",
+      "sha256": "493a29221bee8d44a64985b4a7cf31c0894866e8e8f6ec340eda73c41fec136b",
+      "bytes": 502
+    },
+    "new_regression_initial.log": {
+      "file": "new_regression_initial.log.gz",
+      "sha256": "8ad5c2898d562a9386bb1463fb497593fcde46cac1567f3801a351a8fc51728b",
+      "bytes": 1331
+    },
+    "paired_cost.json.gz": {
+      "file": "paired_cost.json.gz",
+      "sha256": "2f1b5bd976462ca757ee81bc8e5845491a2769d44318e6fd91c473c1bcf3787b",
+      "bytes": 16547
+    },
+    "prompt_contract.log": {
+      "file": "prompt_contract.log.gz",
+      "sha256": "090e5d838501a835953ba08eeacb177cf0ecef59e67add02b2bcb919113e87ea",
+      "bytes": 74
+    },
+    "read_analysis_complex.json.gz": {
+      "file": "read_analysis_complex.json.gz",
+      "sha256": "5f8a8b3d5556b2356c365d6b878f7c6e0c7c91b31e37bae50dcaed3e1a40a031",
+      "bytes": 5283
+    },
+    "read_analysis_complex.log": {
+      "file": "read_analysis_complex.log.gz",
+      "sha256": "66d381ca8d5df9f68387fc085cebde47f8b802618b802ab71427485ba746adaa",
+      "bytes": 314
+    },
+    "read_analysis_study.json.gz": {
+      "file": "read_analysis_study.json.gz",
+      "sha256": "d12dadbf66102ffaf0ebc6970c4a1375edc9c10f402ea41011e74bc1fa36c797",
+      "bytes": 10169
+    },
+    "read_analysis_study.log": {
+      "file": "read_analysis_study.log.gz",
+      "sha256": "c7a718dc3cd5dc1c5a947634b36142269aa8ee4ccf8c90c6204eafc478ebe444",
+      "bytes": 780
+    },
+    "session_binding_extra.log": {
+      "file": "session_binding_extra.log.gz",
+      "sha256": "b3ae928ec2b08394e80e5e20dc0a6b5d95dfc21c7b4c0f84fbfb823238d7093b",
+      "bytes": 65
+    },
+    "source_stdio.json.gz": {
+      "file": "source_stdio.json.gz",
+      "sha256": "d333636ae5f278090286f122d935b5a632d579e9447cb96929c9263fb2e1af15",
+      "bytes": 56904
+    },
+    "source_stdio.log": {
+      "file": "source_stdio.log.gz",
+      "sha256": "041feb8e62d4d5104718240da28e21959f1668b1a9350a8c3e90b5fb4b1a4506",
+      "bytes": 3128
+    },
+    "source_stdio_relative_path_failure.log": {
+      "file": "source_stdio_relative_path_failure.log.gz",
+      "sha256": "ac594bd2d784f17559ab027a21b8c049e6f2fc6102b9379591f61b7f911fdda8",
+      "bytes": 381
+    },
+    "source_stdio_sandbox_interrupted.log": {
+      "file": "source_stdio_sandbox_interrupted.log.gz",
+      "sha256": "300c9bc8eea71d4a438a1163e71f99807314d186687345704309c2178ba8198b",
+      "bytes": 349
+    },
+    "startup_cost.json": {
+      "file": "startup_cost.json.gz",
+      "sha256": "841fc794677e32f01ea16a7de1ead3d67e812a9fbebd68828cf72e5954c76399",
+      "bytes": 6351
+    },
+    "startup_cost.log": {
+      "file": "startup_cost.log.gz",
+      "sha256": "0183dd273957f690310fd8013457d7dce943d5d9ff505f9ae96d3b7efeec600e",
+      "bytes": 144
+    },
+    "targeted_initial.log": {
+      "file": "targeted_initial.log.gz",
+      "sha256": "c10e62b40129da25236a4d72539b2cda7c5487bc0f5453800752f2181bb45918",
+      "bytes": 431
+    },
+    "typecheck_initial.log": {
+      "file": "typecheck_initial.log.gz",
+      "sha256": "c8f40ac3b3f577d99ca528dc797ac395a63bdcedd0b425151e1b76ffc54e42f5",
+      "bytes": 53
+    }
+  },
+  "limits": "Source/package evidence, not resident/model/wire acceptance. Positive syntax freedom is paired with restricted-operation refusals. Costs are scoped warm measurements with control/mixed groups retained; direct-handler cache prototype is not deployed. Prior seals/failed attempts remain unchanged; append resident_restart after owner manual restart."
+}

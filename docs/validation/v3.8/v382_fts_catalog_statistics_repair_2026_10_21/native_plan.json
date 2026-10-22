@@ -1,0 +1,100 @@
+{
+  "status": "pending owner restart; no native calls run for this batch",
+  "calls": [
+    {
+      "id": "connection",
+      "tool": "check_connection",
+      "arguments": {
+        "connection_id": "sqlite_features_sqlite"
+      }
+    },
+    {
+      "id": "constant",
+      "tool": "query",
+      "arguments": {
+        "connection_id": "sqlite_features_sqlite",
+        "sql": "SELECT 7 AS n"
+      }
+    },
+    {
+      "id": "fts_match",
+      "tool": "query",
+      "arguments": {
+        "connection_id": "sqlite_features_sqlite",
+        "sql": "SELECT COUNT(*) AS n FROM main.pages_fts WHERE pages_fts MATCH 'database'"
+      }
+    },
+    {
+      "id": "fts_call",
+      "tool": "query",
+      "arguments": {
+        "connection_id": "sqlite_features_sqlite",
+        "sql": "SELECT COUNT(*) AS n FROM main.pages_fts('database')"
+      }
+    },
+    {
+      "id": "columns",
+      "tool": "describe_table",
+      "arguments": {
+        "connection_id": "sqlite_features_sqlite",
+        "table_name": "pages"
+      }
+    },
+    {
+      "id": "compact",
+      "tool": "get_full_schema",
+      "arguments": {
+        "connection_id": "sqlite_features_sqlite",
+        "detail_level": "compact"
+      }
+    },
+    {
+      "id": "full",
+      "tool": "get_full_schema",
+      "arguments": {
+        "connection_id": "sqlite_features_sqlite",
+        "detail_level": "full"
+      }
+    },
+    {
+      "id": "shadow_denied",
+      "tool": "query",
+      "arguments": {
+        "connection_id": "sqlite_features_sqlite",
+        "sql": "SELECT * FROM main.pages_fts_data LIMIT 1"
+      }
+    },
+    {
+      "id": "function_denied",
+      "tool": "query",
+      "arguments": {
+        "connection_id": "sqlite_features_sqlite",
+        "sql": "SELECT SLEEP(0) AS n"
+      }
+    },
+    {
+      "id": "mysql_constant",
+      "tool": "query",
+      "arguments": {
+        "connection_id": "trade_analysis_mysql",
+        "sql": "SELECT 7 AS n"
+      }
+    }
+  ],
+  "oracle": {
+    "fts_count": 1,
+    "pages_visible_columns": [
+      "id",
+      "parent_id",
+      "author_id",
+      "title",
+      "body",
+      "meta",
+      "status",
+      "created_at",
+      "updated_at",
+      "version"
+    ]
+  },
+  "scope": "Existing aliases only; does not recreate catalog-collision/partial-index/default-rowid fixtures. No writes/config changes."
+}

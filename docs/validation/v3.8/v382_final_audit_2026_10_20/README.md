@@ -1,0 +1,9 @@
+# Final audit: open functional findings and measured candidates
+
+2026-10-20. Audit/documentation only; current 77 runtime resources, dependencies, README package metadata, private configuration/grants and configured business data remain unchanged. Two existing functional refusals remain **open**, not repaired: DRR-124 treats a semicolon followed by an ordinary comment as multiple statements; DRR-125 mistakes colon text in literals/comments/quoted names for managed-plan bindings during loading. Complete 2c0a9e7 and pre-comment package imports reproduce both.
+
+Evidence retains 32 native-valid SQLite/shape inputs, two old package roots, ten tail-comment in-process Client calls, four current-Host constant calls, four native MySQL reads, twelve managed binding comparisons and twelve Client calls across two modes/parsers. Expected refusals are observations of the defects, not successful feature acceptance. One audit-only raw EXPLAIN parser diagnostic failure is preserved; the project has its own correct unwrapping. No new full regression, installed-wheel, complete-model trial, provider usage or full-wire claim.
+
+Two **unimplemented** prototypes are measured serially: first-allow startup short-circuit preserves 89 complete decisions and changes 445 analyses to 262; 20-template classifier batches measure 34.067→5.629ms over 30 warm pairs. Bounded selected-table MySQL columns preserve 16 tables/89 columns, 16 column queries/16 timeout setups→one each; adapter-stage median 209.764→16.482ms over 12 pairs. These are not full startup/tool/model speedups, nor production changes; retain warmups, every pair and limits.
+
+summary.json references compressed application results/recipes and samples; manifest.json seals this audit separately. Preserve all 29 old manifests/701 file records and earlier source/package/native/model attribution. [Findings, decisions, sources and next steps](../V3_8_2_FINAL_AUDIT_2026_10_20_ZH.md).

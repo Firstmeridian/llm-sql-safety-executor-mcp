@@ -1,0 +1,151 @@
+{
+  "date": "2026-10-20",
+  "checkpoint": "source_package_passed_resident_pending",
+  "scope": "DRR-121/122/123 source/package, matrix, MySQL truth and fixed costs only. No new native/model acceptance. Append later resident evidence separately. Python caches excluded.",
+  "files": {
+    "README.md": {
+      "bytes": 3834,
+      "sha256": "559df2b81a506ce6e188cf6f8a64131147055d47ac981c5297dde3c239e815cd"
+    },
+    "after_matrix.json.gz": {
+      "bytes": 37309,
+      "sha256": "70dc1d113e34353eec16a5a92e19852887d05552eddc5b770caa10338c752d66"
+    },
+    "after_resources.json.gz": {
+      "bytes": 3751,
+      "sha256": "2178fdbc51f0ebee8cbe8aa3829e362d04d39493405c45243d802b15393dc44f"
+    },
+    "after_runtime.tar.gz": {
+      "bytes": 127657,
+      "sha256": "22cd52e09573862b38a0001ae9c32c16588b724d7eb5e49a31e5a24f912cbc44"
+    },
+    "before.json.gz": {
+      "bytes": 9426,
+      "sha256": "d77699dfe9bb41ba20e70c105be4b3e444f8f4f05639454d9ad94080406bdb69"
+    },
+    "before_matrix.json.gz": {
+      "bytes": 40472,
+      "sha256": "77d591c13dec6305c730c3699c3e1b83e219e914f7f35bb4459309300145a092"
+    },
+    "before_matrix_initial_literal.json.gz": {
+      "bytes": 41472,
+      "sha256": "7c502c4f566830c686640bd10d77c3daf4c14a7b045535ed84201fd5ac0a3f66"
+    },
+    "before_matrix_initial_literal.log.gz": {
+      "bytes": 71,
+      "sha256": "5d1b94c69f349035457f83f40b39897d6265c1f114aca7eaa706f49f0484ddbd"
+    },
+    "before_runtime.tar.gz": {
+      "bytes": 126629,
+      "sha256": "7391e0b220a2ea6c736a2f876fbfa2a9aab1b629192ced1b98df20716b5ddc79"
+    },
+    "build_install.log.gz": {
+      "bytes": 317,
+      "sha256": "589bada83e4bae419d78e575939e3ebc20c7f46781041a24faa56d99cf80487b"
+    },
+    "build_install.py.gz": {
+      "bytes": 2354,
+      "sha256": "fe230a6497b27fd0a56432be51a29d85d01de2bd879d79a4e89248bb999facc0"
+    },
+    "export_evidence.py.gz": {
+      "bytes": 2757,
+      "sha256": "365e6aad302635c3547e8d63d4007f2c88f15da83c0bc855fcdea74e24404293"
+    },
+    "full_pytest_first.log.gz": {
+      "bytes": 869,
+      "sha256": "6b87068652fffb92a2f0ff3134be782820c94dde4c079731dc3e02dda0b9949e"
+    },
+    "installed_prompt.log.gz": {
+      "bytes": 74,
+      "sha256": "090e5d838501a835953ba08eeacb177cf0ecef59e67add02b2bcb919113e87ea"
+    },
+    "installed_resources.json.gz": {
+      "bytes": 4496,
+      "sha256": "0b18d2f35c7607f1bb44af0bd7939a506bbfee1198bc10df0a98599a1278e776"
+    },
+    "installed_stdio.json.gz": {
+      "bytes": 52179,
+      "sha256": "6db35fb5a4beb2b9ea4fc52ca5bf78734e0966dac5f2797ad8780b04aa251483"
+    },
+    "matrix.py.gz": {
+      "bytes": 2181,
+      "sha256": "09ae6b546acc90d7d183e26c53d9eb0ca7df993a91324cb5efa6c4e15e5833e6"
+    },
+    "matrix_initial.py.gz": {
+      "bytes": 2179,
+      "sha256": "d270fbc7c3e960df0d78b213d165508ac0717c4a16c8e27f21e58a68a88350f5"
+    },
+    "mysql_truth.json.gz": {
+      "bytes": 3561,
+      "sha256": "0d7855348bd23e57c685bfec2847303747f3e970336b5b59297cb1cd79439bcd"
+    },
+    "mysql_truth.py.gz": {
+      "bytes": 2110,
+      "sha256": "6f4a153aad4aceb68cdc919f6f89f9451ddabf896e9ecf881bd7ac2eb0d06632"
+    },
+    "paired_cost.json.gz": {
+      "bytes": 20283,
+      "sha256": "42df6838b04cc6605731be6adedbdc64c2eb1319c6eb8cba3fe2a3c2faad9213"
+    },
+    "paired_cost.py.gz": {
+      "bytes": 3310,
+      "sha256": "9daf1574f73e509646cae7089f97ff6b8ed2c187628e13f4c5a4e690e89e4b97"
+    },
+    "prompt_contract.log.gz": {
+      "bytes": 74,
+      "sha256": "090e5d838501a835953ba08eeacb177cf0ecef59e67add02b2bcb919113e87ea"
+    },
+    "query_readiness.log.gz": {
+      "bytes": 397,
+      "sha256": "fffa069b6ae5809bfd29c02afd40660326427665d9f36560be643a9eed21df2a"
+    },
+    "seal.py.gz": {
+      "bytes": 701,
+      "sha256": "0d66932c5ca4eb14e426844f3085c21f39d45bee630288ab74e0a3ff81379be0"
+    },
+    "source_stdio.json.gz": {
+      "bytes": 52174,
+      "sha256": "5dc6caebfad116fc8869a27a9ed22741c3343799bdcfa60291ca43e7fd43ec53"
+    },
+    "startup_cost.json.gz": {
+      "bytes": 5924,
+      "sha256": "b91c8650013a6d17fd03517ba4cdad7e4f5e50642afde4177925fce0754dd9b7"
+    },
+    "startup_cost.py.gz": {
+      "bytes": 1859,
+      "sha256": "deadb39ca3112025f96df3dde5782e4cd6d2991841c77777c5c5e932b00b87b8"
+    },
+    "summary.json": {
+      "bytes": 6668,
+      "sha256": "d90d91c364404336aae44ae9e29f2dca7c0f10f321b73ff1b627601701480ca9"
+    },
+    "targeted_final.log.gz": {
+      "bytes": 1275,
+      "sha256": "d8fb66dd9c7cc6346157c7adeecf5e6eb6dffbf1679e602d716d3a2bfd25a8ee"
+    },
+    "targeted_first.log.gz": {
+      "bytes": 2186,
+      "sha256": "83d96ec2d645dc507ce4b237179a589d862aab5090de67b20c3ecb572822c86c"
+    },
+    "targeted_verified.log.gz": {
+      "bytes": 466,
+      "sha256": "9115aacd93b82ff12840266040e7234187b37e6e1b04bc8a87ca320e69524d0f"
+    },
+    "typecheck.log.gz": {
+      "bytes": 53,
+      "sha256": "c8f40ac3b3f577d99ca528dc797ac395a63bdcedd0b425151e1b76ffc54e42f5"
+    },
+    "validation_comment_modes.py.gz": {
+      "bytes": 3458,
+      "sha256": "999d7b2d33a75b2ecfcd1a742afa8c389b8d0a01c52abce1934c94192e960db8"
+    },
+    "verification.json.gz": {
+      "bytes": 7380,
+      "sha256": "44668b3e0ada4fc7379a0e8204dde69dfdf3bd87efe07a422e28d33dda2de3e2"
+    },
+    "verify_checkpoint.py.gz": {
+      "bytes": 2667,
+      "sha256": "788f44608074ff5aeaee55c5be9fc5dbdc4d8e8b979d308e85408ced48e7bd99"
+    }
+  }
+}

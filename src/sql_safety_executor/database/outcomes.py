@@ -1,7 +1,7 @@
 from __future__ import annotations
 import logging
 from enum import Enum
-from typing import Any
+from typing import Any, Callable
 
 logger = logging.getLogger(__name__)
 
@@ -119,13 +119,28 @@ def _rollback_outcome(
     *,
     connection: Any,
     business_write_attempted: bool,
+    transaction_state: Callable[[], bool | None] | None = None,
 ) -> tuple[WriteExecutionOutcome, BaseException | None]:
-    """Attempt rollback without treating a post-COMMIT rollback as evidence."""
+    """Rollback with optional backend evidence, never after uncertain COMMIT.
+
+    SQLite's logical RootTransaction can be active without a physical BEGIN.
+    Its probe must establish an active physical transaction before rollback
+    and its completion afterwards. Missing/failed probes are not confirmation.
+    The existing transactional-MySQL evidence contract remains independent.
+    """
+    def physical_state_is(expected: bool) -> bool:
+        if transaction_state is None:
+            return True
+        try:
+            return transaction_state() is expected
+        except Exception:
+            return False
+
     # SQLAlchemy can finish rollback locally when the transaction is inactive
     # or its DBAPI connection was invalidated. That is not a server acknowledgement.
     rollback_can_be_confirmed = getattr(
         transaction, "is_active", False
-    ) is True and _write_connection_is_valid(connection)
+    ) is True and _write_connection_is_valid(connection) and physical_state_is(True)
     try:
         transaction.rollback()
     except BaseException as rollback_error:
@@ -137,7 +152,8 @@ def _rollback_outcome(
             return WriteExecutionOutcome.UNKNOWN, rollback_error
         return WriteExecutionOutcome.NOT_EXECUTED, rollback_error
     if business_write_attempted:
-        if rollback_can_be_confirmed and _write_connection_is_valid(connection):
+        if (rollback_can_be_confirmed and _write_connection_is_valid(connection)
+                and physical_state_is(False)):
             return WriteExecutionOutcome.ROLLED_BACK, None
         return WriteExecutionOutcome.UNKNOWN, None
     return WriteExecutionOutcome.NOT_EXECUTED, None

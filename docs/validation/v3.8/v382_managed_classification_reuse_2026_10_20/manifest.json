@@ -1,0 +1,171 @@
+{
+  "date": "2026-10-20",
+  "checkpoint": "source_package_passed_resident_pending",
+  "scope": "No complete-model or new native acceptance claim. Later resident supplement must not rewrite this checkpoint. Python caches excluded.",
+  "files": {
+    "README.md": {
+      "bytes": 3260,
+      "sha256": "fee0435800356071f09128b71c25606c31738b4ff7911610193ca0afc5edbcda"
+    },
+    "a1_lifecycle_cost.json.gz": {
+      "bytes": 22777,
+      "sha256": "7bc4498c209f410519360282cbe4c7737d11d09fa3b70c0cfea0d452ebe1eaf5"
+    },
+    "a1_lifecycle_preflight_failed.log.gz": {
+      "bytes": 560,
+      "sha256": "bddb4c40fa2d1ea247f4bb4430b988bf2684b35a3553fed0a0247c8c6f887bf9"
+    },
+    "a1_resources.json.gz": {
+      "bytes": 3753,
+      "sha256": "4720978cea0095b891c99a749e00d0dfcac1123acdfa42e79a5909093ae441c7"
+    },
+    "a1_runtime.tar.gz": {
+      "bytes": 126265,
+      "sha256": "f8e318acca9bb248e1488c486da4f70bdd25af842cd5a4f1ed255cf4d15c86f2"
+    },
+    "a2_classification_counts.json.gz": {
+      "bytes": 428,
+      "sha256": "d349baf8c11ae03fa2876877bc197c42d79966c43d214a15d34b14a2510c0859"
+    },
+    "a2_lifecycle_cost.json.gz": {
+      "bytes": 23278,
+      "sha256": "6727f8353d64b89c2e866c1834166fa050e9e0c912c2f40c30828f89e42fba0d"
+    },
+    "a2_resources.json.gz": {
+      "bytes": 3747,
+      "sha256": "e6562e60c4ac8a070bbcca9534674cfe74a686d16cfd0110dfcbe808bd9b759c"
+    },
+    "after_runtime.tar.gz": {
+      "bytes": 126628,
+      "sha256": "e86c2709335ecb3aa1c6f14b669a94c7e0b9838623acf06627772ec921135e7f"
+    },
+    "before.json.gz": {
+      "bytes": 9262,
+      "sha256": "a74a1e6c93b14fc4b9e297f219446a19cd9411b2beedb96e306f2ca35b6b38ec"
+    },
+    "before_runtime.tar.gz": {
+      "bytes": 126180,
+      "sha256": "898379ac71238bd15a4a5e7e2d2ede35f82a7757e102e6e7eccdcf03e924f15d"
+    },
+    "build_install.py.gz": {
+      "bytes": 2354,
+      "sha256": "fe230a6497b27fd0a56432be51a29d85d01de2bd879d79a4e89248bb999facc0"
+    },
+    "cache_matrix.json.gz": {
+      "bytes": 13724,
+      "sha256": "8bc3376fe5015064c9c4bacf8c30251f31bdf7de1df5db40c256099fb327daa5"
+    },
+    "cache_matrix.py.gz": {
+      "bytes": 1160,
+      "sha256": "944b164bc5e285452b98e0c16a8c148335d7720090e411f70065ce9f77ca1be4"
+    },
+    "classification_counts.json.gz": {
+      "bytes": 343,
+      "sha256": "1ef3de581a38269a7ebe531b74fade8991d93107da1fee32bcb06738dfa6b06a"
+    },
+    "classification_counts_a1.py.gz": {
+      "bytes": 1540,
+      "sha256": "0306edb1eedaa0dda3a1b23b4ce625f89416692411dffe5c6d21c726bebcb70c"
+    },
+    "classification_counts_a2.py.gz": {
+      "bytes": 1704,
+      "sha256": "7bcf9b0d2f46f000e35a6de9ae2f39d5688c6c090b413fb627b0583aca872385"
+    },
+    "compare_rules.py.gz": {
+      "bytes": 1860,
+      "sha256": "1867241114580d4a37415dbd9240e6bec58e3b777ed21feb2760bb8ad45940a2"
+    },
+    "corpus.json.gz": {
+      "bytes": 2399,
+      "sha256": "bcd5cf20ae6d2b3c707e1abf40a7b87c3f49ef25df00b7e8301184f676138829"
+    },
+    "export_evidence.py.gz": {
+      "bytes": 2199,
+      "sha256": "f26d5e18788939fbe7faf5ba5c581e2353decad20d5ba228a3fa7e5539a4f404"
+    },
+    "final_comparison.json.gz": {
+      "bytes": 11548,
+      "sha256": "27e7193771f70d2fff596ebd49f63090c47afdba1380566b8ac6bff736593965"
+    },
+    "full_pytest.log.gz": {
+      "bytes": 859,
+      "sha256": "0198de96a205028889f0ac5826b83d139da23505b9e11a3c933d45f69d2297ec"
+    },
+    "installed_prompt_contract.log.gz": {
+      "bytes": 74,
+      "sha256": "090e5d838501a835953ba08eeacb177cf0ecef59e67add02b2bcb919113e87ea"
+    },
+    "installed_resources.json.gz": {
+      "bytes": 4494,
+      "sha256": "73c5f44bd0a3129f9526bdac1b55769dc071cede4c8351d8a2b3a8e9ca1d8876"
+    },
+    "installed_stdio.json.gz": {
+      "bytes": 46153,
+      "sha256": "9a02cbc683839a643652c9fbdc56a19a5f27e012070a95e248d1b91038cf32d7"
+    },
+    "installed_stdio_process.json.gz": {
+      "bytes": 338,
+      "sha256": "c8ebcded934e5d22de0fdc6e7dd7831b1e84da70ccef4ca58ba0f2d17db11248"
+    },
+    "lifecycle_cost.py.gz": {
+      "bytes": 3385,
+      "sha256": "10628b67a55241ed858d30845def52461e23839a0e758e8a17e46d936e9df56c"
+    },
+    "paired_cost.json.gz": {
+      "bytes": 32008,
+      "sha256": "62fa7a3f0e7f305e3160a1ba2216da91eef894ae1d4e54a467f5d62ebc9ad20b"
+    },
+    "paired_cost.py.gz": {
+      "bytes": 3306,
+      "sha256": "62baf0fdaa7ef36bacfe1b9985f2b540de48639e269ec9c060235d05b7ad9a16"
+    },
+    "paired_cost_edit_syntax_failure.log.gz": {
+      "bytes": 205,
+      "sha256": "8e473f6b4b192d846d656a4155cc6eca4e00de995126f9f7b65d87b6e1a15ed9"
+    },
+    "paired_cost_initial_context_failure.transcript.txt.gz": {
+      "bytes": 369,
+      "sha256": "29affb7900e6b24be7a2cd9a6f7b465ad29b748cdb24134e16f67f28a2f0fcad"
+    },
+    "performance_summary.json.gz": {
+      "bytes": 590,
+      "sha256": "a29f6feae5cfc2456f97d2cf7d0ef5ea1afc37c67d43c99a5a60a777b20e2ed7"
+    },
+    "prompt_contract.log.gz": {
+      "bytes": 74,
+      "sha256": "090e5d838501a835953ba08eeacb177cf0ecef59e67add02b2bcb919113e87ea"
+    },
+    "rule_comparison_container_type_failure.log.gz": {
+      "bytes": 1199,
+      "sha256": "f114b673a612550db6d13e7adb62746c0749f3901a27bac68cf357de3a931092"
+    },
+    "rule_comparison_verified.json.gz": {
+      "bytes": 292,
+      "sha256": "8f5f60308509abaffb3a47b4e44b6f17e1d2b58f5a288d6f9e16f2e8bd7298ec"
+    },
+    "seal.py.gz": {
+      "bytes": 674,
+      "sha256": "6d8076ef383736e61dd45be0b5afe0c71997458115761b76610684197f9d168d"
+    },
+    "source_stdio.json.gz": {
+      "bytes": 46136,
+      "sha256": "18036ff9e8baddbbccedfdf7a678c8453ef7ed722efbd16e2486c1af621f639f"
+    },
+    "summary.json": {
+      "bytes": 11565,
+      "sha256": "cfb696344b073f839d7d881370e2ea78ef462b2a6c366f0fcd7e0e78f2372817"
+    },
+    "typecheck.log.gz": {
+      "bytes": 53,
+      "sha256": "c8f40ac3b3f577d99ca528dc797ac395a63bdcedd0b425151e1b76ffc54e42f5"
+    },
+    "verification.json.gz": {
+      "bytes": 4167,
+      "sha256": "112c164c05e6be861cf828b44ced6cb427729d95f456ca03350a4a853c91a4d3"
+    },
+    "verify_checkpoint.py.gz": {
+      "bytes": 1653,
+      "sha256": "9704ca7277c3fd0cd0e81f9db2de0fcf01cfb03e400247ff981518ab46e844e0"
+    }
+  }
+}

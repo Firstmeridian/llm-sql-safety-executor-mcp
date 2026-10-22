@@ -1,0 +1,28 @@
+{
+  "mysql": {
+    "version": "8.0.25",
+    "lower_case_table_names": 1,
+    "actual_session_sql_mode": "STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION"
+  },
+  "sqlite": {
+    "version": "3.45.1"
+  },
+  "aliases": [
+    "trade_analysis_mysql",
+    "analytics_demo_sqlite",
+    "live_test_sqlite",
+    "union_test_sqlite",
+    "rich_mutation_sqlite",
+    "orders_demo_mysql",
+    "us_equities_mysql",
+    "exoplanets_mysql",
+    "world_demo_mysql",
+    "sakila_mysql",
+    "analytics_rich_sqlite",
+    "chinook_sqlite",
+    "geo_stores_sqlite",
+    "iot_telemetry_sqlite",
+    "logistics_flights_sqlite",
+    "sqlite_features_sqlite"
+  ]
+}

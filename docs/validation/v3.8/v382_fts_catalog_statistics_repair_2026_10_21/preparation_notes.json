@@ -1,0 +1,74 @@
+[
+  {
+    "file": "targeted-initial.log",
+    "status": "43 initial failures/128 passes",
+    "explanation": "Harness used fetch-returning adapter.execute for DDL, inspected adapter after Client lifespan closure and passed empty executemany. Separately external default-rowid cold failures were genuine DRR139, not a fixture error. Later tests separate catalog collision from rowid tests."
+  },
+  {
+    "file": "targeted-second.log",
+    "status": "81 passed",
+    "explanation": "Corrected DDL/lifespan/empty-insert fixtures and explicit-id FTS control. No production grants loosened."
+  },
+  {
+    "file": "targeted-final.log",
+    "status": "204 passed",
+    "explanation": "Added independent rowid correction/cold-warm and declared-name coverage. Subsequent six statistics-shadow tests included in final complete regression."
+  },
+  {
+    "file": "rowid-current.log",
+    "status": "initial component aborted",
+    "explanation": "Total_changes sampled before setup transaction commit, which flushes FTS internal changes. Snapshot moved after setup commit, preserving original log. Database rows were not changed by guarded reads."
+  },
+  {
+    "files": [
+      "rowid-current.json",
+      "rowid-before.json"
+    ],
+    "status": "15/15 trusted-warm successes each",
+    "explanation": "Trusted native oracle first masks cold failure. These are intentional warm controls, not cold acceptance."
+  },
+  {
+    "files": [
+      "rowid-cold-before.json",
+      "rowid-cold-current.json",
+      "rowid-cold-after.json"
+    ],
+    "status": "8/15 refusals before,15/15 successes after",
+    "explanation": "Cold cases independently confirm and repair DRR139. Frozen pre-batch source establishes preexistence; intermediate current record is not a separately sealed runtime snapshot."
+  },
+  {
+    "files": [
+      "type-initial.log",
+      "type-absolute.log",
+      "type-final.log",
+      "type-third-final.log"
+    ],
+    "status": "sandbox import path failures retained; final independent checks0/0",
+    "explanation": "Relative and absolute sandbox runs omitted installed dependency search paths. Independently executed final checks pass; no dependency/global installation needed."
+  },
+  {
+    "file": "source.log",
+    "status": "aborted matrix, no final results JSON",
+    "explanation": "New rowid fixture was incorrectly split as a three-part collision scenario. Final self-contained driver fixes classification; accepted source-final and installed-final are distinct files."
+  },
+  {
+    "file": "regression-final.log",
+    "status": "interrupted sandbox full run; not acceptance",
+    "explanation": "Long slow Client-related progress. After validating exact previously identified PID command/cwd, stopped only this test process. Separate independent execution writes regression-completed.log. No root-cause attribution to Host cache or blanket sandbox claims."
+  },
+  {
+    "file": "verification.log",
+    "status": "initial verifier assertion only",
+    "explanation": "Private fixture authorizes both anchor and target. Changed verifier to select target by identity, rather than assuming the first/only listed table. Accepted application data unchanged."
+  },
+  {
+    "file": "cost-A1.log",
+    "status": "aborted timing exporter; no completed JSON",
+    "explanation": "SQLAlchemy Row is not directly JSON serializable. Normalize measured result to lists outside timed loop; final A1/B/A2 use new output files."
+  },
+  {
+    "file": "native_plan.json",
+    "status": "frozen owner-restart plan10 calls",
+    "explanation": "Two independent sqlite3 mode=ro SELECT/PRAGMA calls on existing configured features database freeze FTS/column truth. This is not native MCP acceptance. Initial path probe used repository-relative rather than TOML-relative path and failed before opening; corrected without changing configuration."
+  }
+]

@@ -1,0 +1,11 @@
+# Dialect comments and NOT: scoped resident acceptance
+
+2026-10-20. After the owner's manual restart, **30/30 actual current-Host calls** meet the frozen expectations: one routing catalog, 12 reads, four discovery/detail calls, three unconfirmed previews and ten expected refusals. SQLite native comment forms, MySQL bounded plan/query-block hints, NOT/bang, literal preservation and ordinary managed previews agree with the declared contracts. Real functions, actual unauthorized relations, unsupported second hints, SET_VAR, timeout/unknown hints, executable comments and raw writes remain refused.
+
+No source, dependency, private configuration/grant or configured business-data change. Independent SQLite file/snapshot/full 80-order digest and MySQL full order digest remain identical. Current 77 source resources still match the final wheel; 27 earlier manifests/681 file records remain intact. Native behavior does not attest in-memory source hashes or LRU hits. Retain the parent source/package pending checkpoint as historical evidence.
+
+Existing Host sql_mode is unchanged; this smoke does not cover all 16 modes natively. The separate physical-session matrix, commented Query Skill and commented write lifecycle remain parent source/installed evidence. No new complete-model trial, provider-token measurement, matched native performance comparison or two-protocol native claim.
+
+Three preview handles are consistently redacted before disk export. Never confirmed, not actively revoked or observed expiring; configured natural TTL applies. Routing was observed before freezing, without database inspection; other calls follow the frozen order. Results are application observations; model-visible tool names/descriptions are not full protocol frames, schema catalog, notifications or original field-omission proof. One initial sandboxed independent-truth probe failed; the same command succeeded with targeted network escalation, without Full access. No finer connection root cause is asserted.
+
+summary.json contains checks/limits; lossless gzip artifacts retain the plan, application results, names/descriptions and recipes. manifest.json seals this supplement separately. [Detailed report and costs](../../V3_8_2_DIALECT_COMMENTS_NOT_2026_10_20_ZH.md).

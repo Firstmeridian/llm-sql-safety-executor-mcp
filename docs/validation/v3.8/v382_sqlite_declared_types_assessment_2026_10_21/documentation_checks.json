@@ -1,0 +1,23 @@
+{
+  "checked_local_document_links": 606,
+  "broken": [],
+  "documents": [
+    "REFACTORING_LOG.md",
+    "REFACTORING_LOG_ZH.md",
+    "docs/README.md",
+    "docs/README_ZH.md",
+    "docs/security/DESIGN_RISK_REGISTER.md",
+    "docs/security/DESIGN_RISK_REGISTER_ZH.md",
+    "docs/validation/v3.8/V3_8_2_SQLITE_DECLARED_TYPES_ASSESSMENT_2026_10_21_ZH.md",
+    "local_archive/v382_review/20261021_sqlite_declared_type_assessment/reports/README_ZH.md",
+    "docs/validation/v3.8/v382_sqlite_declared_types_assessment_2026_10_21/README.md",
+    "local_archive/v382_review/README.md",
+    "local_archive/v382_review/handoff/session-handoff-v381-v382-20261019-ZH.md"
+  ],
+  "git_diff_check": "pass",
+  "runtime_resources_unchanged": 77,
+  "private_configs_unchanged": 3,
+  "status": "DRR140 open P3 assessment only; prior137/138/139 scoped acceptance unchanged",
+  "current_commit_draft_unchanged_for_unimplemented_recommendation": true,
+  "report_sha256": "9a576e5b779fc6ec9f5bab8c131f020b96b34f194430ad9353ac4d868a118995"
+}

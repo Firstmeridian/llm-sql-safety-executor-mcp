@@ -13,6 +13,31 @@
 
 ## 设计与可复用指南
 
+- [可移植哨兵与依赖感知发布门槛](validation/v3.8/V3_8_2_PORTABLE_RELEASE_GATES_2026_10_22_ZH.md)：普通pytest、显式实库验收与环境身份；[可复用命令](../scripts/validation/README.md)。
+
+- [v3.8.2 有限范围稳定性验收](validation/v3.8/V3_8_2_STABILIZATION_2026_10_22_ZH.md)：16类冻结契约及三门槛范围内通过，254项定点回归、源码／wheel各332调用，独立真值与故障哨兵；[执行表与停止条件](validation/v3.8/V3_8_2_STABILIZATION_PLAN_2026_10_22_ZH.md)。
+- [v3.8.2 MySQL 原 SQL 绑定与真实 InnoDB 写入门槛](validation/v3.8/V3_8_2_MYSQL_WRITE_CONTRACTS_2026_10_22_ZH.md)：绑定修复、真实故障／独立真值及unknown／令牌；源码／安装通过，[维护者重启后原生6/6](validation/v3.8/v382_mysql_write_contracts_2026_10_22/resident_restart/README.md)另行封存。
+- [v3.8.2 SQLite 真实写入事务与完成态行数](validation/v3.8/V3_8_2_SQLITE_WRITE_TRANSACTIONS_2026_10_22_ZH.md)：WITH／分号回滚、RETURNING及私有源码／安装完整流程；[重启后12/12及稳定性复评](validation/v3.8/V3_8_2_WRITE_RESTART_AND_STABILIZATION_2026_10_22_ZH.md)独立保留范围与后续建议。
+
+- [v3.8.2 最新完整 Agent 任务与实际成本](validation/v3.8/V3_8_2_COMPLETE_AGENT_EVAL_2026_10_21_ZH.md) — 原生12/12；15项配对业务通过，token+3.85%、调用+4.63%；3项自然取消试验保留解释不足。
+- [v3.8.2 真实 PRIMARY 身份与有序成员](validation/v3.8/V3_8_2_PRIMARY_KEY_METADATA_REPAIR_2026_10_21_ZH.md) — SQLite／MySQL共享契约、真值及成本；最新原生12/12；此前7/12差异保留；MariaDB不作验收要求。
+- [v3.8.2 SQLite声明类型补修](validation/v3.8/V3_8_2_SQLITE_DECLARED_TYPES_REPAIR_2026_10_21_ZH.md) — 各投影／分组保留原生空类型；重启后9/9限定原生通过，另各144次源码／安装相邻调用通过。
+- [v3.8.2 SQLite声明类型复评](validation/v3.8/V3_8_2_SQLITE_DECLARED_TYPES_ASSESSMENT_2026_10_21_ZH.md) — 确认既有P3，空类型被展示为TEXT；修复前的历史评估，后续批准补修见上项。
+
+- [v3.8.2 FTS目录、统计来源及external-content rowid补修](validation/v3.8/V3_8_2_FTS_CATALOG_STATISTICS_REPAIR_2026_10_21_ZH.md) — 源码／安装通过；维护者重启后10/10既有别名原生核验通过，专用夹具范围单列。
+
+- [v3.8.2 关系调用身份、JSON 同名根与 SQLite 生成列补修](validation/v3.8/V3_8_2_RELATION_CALLS_COLUMNS_2026_10_20_ZH.md)。
+- [v3.8.2 完整Agent任务：实际token、调用、结果解释与配置复核](validation/v3.8/V3_8_2_COMPLETE_AGENT_EVAL_2026_10_20_ZH.md)。
+- [v3.8.2 尾注释／绑定补修、列批读及请求内复用研究](validation/v3.8/V3_8_2_READ_PLAN_REPAIR_2026_10_20_ZH.md)。
+- [v3.8.2 前次复查：补修前的问题及性能原型](validation/v3.8/V3_8_2_FINAL_AUDIT_2026_10_20_ZH.md)。
+- [v3.8.2 方言注释、MySQL计划提示与NOT优先级](validation/v3.8/V3_8_2_DIALECT_COMMENTS_NOT_2026_10_20_ZH.md).
+- [v3.8.2 readiness 职责拆分与有界受管分类复用](validation/v3.8/V3_8_2_MANAGED_CLASSIFICATION_REUSE_2026_10_20_ZH.md).
+- [v3.8.2 受管计划 SQLGlot 迁移、临时回退与方言验收](validation/v3.8/V3_8_2_MANAGED_PARSER_2026_10_20_ZH.md).
+- [v3.8.2 读取能力、schema 范围及 JSON／FTS 补修](validation/v3.8/V3_8_2_READ_CAPABILITIES_2026_10_19_ZH.md)。
+- [v3.8.2 补修后复核：MySQL 元数据成本与两项待修 FTS 边界](validation/v3.8/V3_8_2_POSTREPAIR_AUDIT_2026_10_20_ZH.md)。
+- [v3.8.2 SQLite 元数据退化：实测拆分与优化顺序](validation/v3.8/V3_8_2_SQLITE_METADATA_COST_2026_10_20_ZH.md)。
+- [v3.8.2 FTS 缓存内容函数与限定根补修](validation/v3.8/V3_8_2_FTS_FOLLOWUPS_2026_10_20_ZH.md)。
+- [v3.8.2 元数据优化：实现、成本及重启状态](validation/v3.8/V3_8_2_METADATA_OPTIMIZATION_2026_10_20_ZH.md)。
 - [重构日志](../REFACTORING_LOG_ZH.md) / [English](../REFACTORING_LOG.md)：持续维护变更、决策、取舍和验证记录，包含 v3.8。
 - [名称／会话语义、SQLGlot 与 SQLite authorizer](architecture/V3_8_2_SQL_SEMANTICS_ZH.md).
 - [v3.8.2 验收、成本与限制](validation/v3.8/V3_8_2_VALIDATION_2026_10_16_ZH.md).
@@ -77,3 +102,10 @@
 - [旧公开环境配置模板](history/config/)：仅作迁移参考，服务不再加载 `.env`。
 
 根目录 README 和重构日志继续维护。SQL 与业务 Skill 定义仍放在根目录 `skills/`，框架 SDK 位于 `src/sql_safety_executor/skills/`。
+
+- [v3.8.2 读取结果与条件依赖补修（2026-10-21）](validation/v3.8/V3_8_2_READ_RESULTS_2026_10_21_ZH.md) — 统一编码／限额／readiness，源码／安装／原生分开归属。
+- [v3.8.2 附加库JSON同名readiness复评（2026-10-21）](validation/v3.8/V3_8_2_ATTACHED_JSON_READINESS_2026_10_21_ZH.md) — 历史仅评估检查点，332次源码调用，当时DRR-135开放；随后补修见下项。
+- [v3.8.2 附加名称有序观察补修（2026-10-21）](validation/v3.8/V3_8_2_ATTACHED_JSON_REPAIR_2026_10_21_ZH.md) — DRR-135已实施，新增67回归，原源码／wheel各332调用；统一重启20/20通过，特殊夹具仍属源码／安装。
+- [v3.8.2 内部元数据名称遮蔽评估（2026-10-21）](validation/v3.8/V3_8_2_METADATA_NAME_COLLISIONS_2026_10_21_ZH.md) — 历史独立旧P2／DRR-136评估，随后补修见下项。
+- [v3.8.2 内部元数据PRAGMA补修（2026-10-21）](validation/v3.8/V3_8_2_METADATA_PRAGMA_REPAIR_2026_10_21_ZH.md) — DRR-136已实施，补名称碰撞／预算／返回值核对及串行成本；统一重启20/20已核验；[独立补充](validation/v3.8/v382_metadata_pragma_repair_2026_10_21/resident_restart/README.md)。
+- [v3.8.2 FTS目录／统计来源复评（2026-10-21）](validation/v3.8/V3_8_2_FTS_CATALOG_STATISTICS_ASSESSMENT_2026_10_21_ZH.md) — 历史开放检查点：两项P2、394次隔离Client调用；后续补修及限定验收见上方记录。

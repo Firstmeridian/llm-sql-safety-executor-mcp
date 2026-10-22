@@ -1,0 +1,929 @@
+{
+  "scope": "Disposable component adjacency/feasibility assessment; production code unchanged",
+  "fts": [
+    {
+      "root_schema": "main",
+      "shadow_schema": null,
+      "root_name": "Search 'Docs",
+      "native": [
+        [
+          "hello"
+        ]
+      ],
+      "current_guard": {
+        "success": true,
+        "rows": [
+          [
+            "hello"
+          ]
+        ]
+      },
+      "fixed_pragma_truth": {
+        "Search 'Docs_data": [
+          "main",
+          "Search 'Docs_data",
+          "shadow",
+          2,
+          0,
+          0
+        ],
+        "Search 'Docs_idx": [
+          "main",
+          "Search 'Docs_idx",
+          "shadow",
+          3,
+          1,
+          0
+        ],
+        "Search 'Docs_content": [
+          "main",
+          "Search 'Docs_content",
+          "shadow",
+          2,
+          0,
+          0
+        ],
+        "Search 'Docs_docsize": [
+          "main",
+          "Search 'Docs_docsize",
+          "shadow",
+          2,
+          0,
+          0
+        ],
+        "Search 'Docs_config": [
+          "main",
+          "Search 'Docs_config",
+          "shadow",
+          2,
+          1,
+          0
+        ]
+      }
+    },
+    {
+      "root_schema": "main",
+      "shadow_schema": "main",
+      "root_name": "Search 'Docs",
+      "native": [
+        [
+          "hello"
+        ]
+      ],
+      "current_guard": {
+        "success": false,
+        "error_code": "unknown_column"
+      },
+      "fixed_pragma_truth": {
+        "Search 'Docs_data": [
+          "main",
+          "Search 'Docs_data",
+          "shadow",
+          2,
+          0,
+          0
+        ],
+        "Search 'Docs_idx": [
+          "main",
+          "Search 'Docs_idx",
+          "shadow",
+          3,
+          1,
+          0
+        ],
+        "Search 'Docs_content": [
+          "main",
+          "Search 'Docs_content",
+          "shadow",
+          2,
+          0,
+          0
+        ],
+        "Search 'Docs_docsize": [
+          "main",
+          "Search 'Docs_docsize",
+          "shadow",
+          2,
+          0,
+          0
+        ],
+        "Search 'Docs_config": [
+          "main",
+          "Search 'Docs_config",
+          "shadow",
+          2,
+          1,
+          0
+        ]
+      }
+    },
+    {
+      "root_schema": "main",
+      "shadow_schema": "temp",
+      "root_name": "Search 'Docs",
+      "native": [
+        [
+          "hello"
+        ]
+      ],
+      "current_guard": {
+        "success": false,
+        "error_code": "unknown_column"
+      },
+      "fixed_pragma_truth": {
+        "Search 'Docs_data": [
+          "main",
+          "Search 'Docs_data",
+          "shadow",
+          2,
+          0,
+          0
+        ],
+        "Search 'Docs_idx": [
+          "main",
+          "Search 'Docs_idx",
+          "shadow",
+          3,
+          1,
+          0
+        ],
+        "Search 'Docs_content": [
+          "main",
+          "Search 'Docs_content",
+          "shadow",
+          2,
+          0,
+          0
+        ],
+        "Search 'Docs_docsize": [
+          "main",
+          "Search 'Docs_docsize",
+          "shadow",
+          2,
+          0,
+          0
+        ],
+        "Search 'Docs_config": [
+          "main",
+          "Search 'Docs_config",
+          "shadow",
+          2,
+          1,
+          0
+        ]
+      }
+    },
+    {
+      "root_schema": "main",
+      "shadow_schema": "aux",
+      "root_name": "Search 'Docs",
+      "native": [
+        [
+          "hello"
+        ]
+      ],
+      "current_guard": {
+        "success": false,
+        "error_code": "unknown_column"
+      },
+      "fixed_pragma_truth": {
+        "Search 'Docs_data": [
+          "main",
+          "Search 'Docs_data",
+          "shadow",
+          2,
+          0,
+          0
+        ],
+        "Search 'Docs_idx": [
+          "main",
+          "Search 'Docs_idx",
+          "shadow",
+          3,
+          1,
+          0
+        ],
+        "Search 'Docs_content": [
+          "main",
+          "Search 'Docs_content",
+          "shadow",
+          2,
+          0,
+          0
+        ],
+        "Search 'Docs_docsize": [
+          "main",
+          "Search 'Docs_docsize",
+          "shadow",
+          2,
+          0,
+          0
+        ],
+        "Search 'Docs_config": [
+          "main",
+          "Search 'Docs_config",
+          "shadow",
+          2,
+          1,
+          0
+        ]
+      }
+    },
+    {
+      "root_schema": "temp",
+      "shadow_schema": null,
+      "root_name": "Search 'Docs",
+      "native": [
+        [
+          "hello"
+        ]
+      ],
+      "current_guard": {
+        "success": true,
+        "rows": [
+          [
+            "hello"
+          ]
+        ]
+      },
+      "fixed_pragma_truth": {
+        "Search 'Docs_data": [
+          "temp",
+          "Search 'Docs_data",
+          "shadow",
+          2,
+          0,
+          0
+        ],
+        "Search 'Docs_idx": [
+          "temp",
+          "Search 'Docs_idx",
+          "shadow",
+          3,
+          1,
+          0
+        ],
+        "Search 'Docs_content": [
+          "temp",
+          "Search 'Docs_content",
+          "shadow",
+          2,
+          0,
+          0
+        ],
+        "Search 'Docs_docsize": [
+          "temp",
+          "Search 'Docs_docsize",
+          "shadow",
+          2,
+          0,
+          0
+        ],
+        "Search 'Docs_config": [
+          "temp",
+          "Search 'Docs_config",
+          "shadow",
+          2,
+          1,
+          0
+        ]
+      }
+    },
+    {
+      "root_schema": "temp",
+      "shadow_schema": "main",
+      "root_name": "Search 'Docs",
+      "native": [
+        [
+          "hello"
+        ]
+      ],
+      "current_guard": {
+        "success": false,
+        "error_code": "unknown_column"
+      },
+      "fixed_pragma_truth": {
+        "Search 'Docs_data": [
+          "temp",
+          "Search 'Docs_data",
+          "shadow",
+          2,
+          0,
+          0
+        ],
+        "Search 'Docs_idx": [
+          "temp",
+          "Search 'Docs_idx",
+          "shadow",
+          3,
+          1,
+          0
+        ],
+        "Search 'Docs_content": [
+          "temp",
+          "Search 'Docs_content",
+          "shadow",
+          2,
+          0,
+          0
+        ],
+        "Search 'Docs_docsize": [
+          "temp",
+          "Search 'Docs_docsize",
+          "shadow",
+          2,
+          0,
+          0
+        ],
+        "Search 'Docs_config": [
+          "temp",
+          "Search 'Docs_config",
+          "shadow",
+          2,
+          1,
+          0
+        ]
+      }
+    },
+    {
+      "root_schema": "temp",
+      "shadow_schema": "temp",
+      "root_name": "Search 'Docs",
+      "native": [
+        [
+          "hello"
+        ]
+      ],
+      "current_guard": {
+        "success": false,
+        "error_code": "unknown_column"
+      },
+      "fixed_pragma_truth": {
+        "Search 'Docs_data": [
+          "temp",
+          "Search 'Docs_data",
+          "shadow",
+          2,
+          0,
+          0
+        ],
+        "Search 'Docs_idx": [
+          "temp",
+          "Search 'Docs_idx",
+          "shadow",
+          3,
+          1,
+          0
+        ],
+        "Search 'Docs_content": [
+          "temp",
+          "Search 'Docs_content",
+          "shadow",
+          2,
+          0,
+          0
+        ],
+        "Search 'Docs_docsize": [
+          "temp",
+          "Search 'Docs_docsize",
+          "shadow",
+          2,
+          0,
+          0
+        ],
+        "Search 'Docs_config": [
+          "temp",
+          "Search 'Docs_config",
+          "shadow",
+          2,
+          1,
+          0
+        ]
+      }
+    },
+    {
+      "root_schema": "temp",
+      "shadow_schema": "aux",
+      "root_name": "Search 'Docs",
+      "native": [
+        [
+          "hello"
+        ]
+      ],
+      "current_guard": {
+        "success": false,
+        "error_code": "unknown_column"
+      },
+      "fixed_pragma_truth": {
+        "Search 'Docs_data": [
+          "temp",
+          "Search 'Docs_data",
+          "shadow",
+          2,
+          0,
+          0
+        ],
+        "Search 'Docs_idx": [
+          "temp",
+          "Search 'Docs_idx",
+          "shadow",
+          3,
+          1,
+          0
+        ],
+        "Search 'Docs_content": [
+          "temp",
+          "Search 'Docs_content",
+          "shadow",
+          2,
+          0,
+          0
+        ],
+        "Search 'Docs_docsize": [
+          "temp",
+          "Search 'Docs_docsize",
+          "shadow",
+          2,
+          0,
+          0
+        ],
+        "Search 'Docs_config": [
+          "temp",
+          "Search 'Docs_config",
+          "shadow",
+          2,
+          1,
+          0
+        ]
+      }
+    },
+    {
+      "root_schema": "aux",
+      "shadow_schema": null,
+      "root_name": "Search 'Docs",
+      "native": [
+        [
+          "hello"
+        ]
+      ],
+      "current_guard": {
+        "success": true,
+        "rows": [
+          [
+            "hello"
+          ]
+        ]
+      },
+      "fixed_pragma_truth": {
+        "Search 'Docs_data": [
+          "aux",
+          "Search 'Docs_data",
+          "shadow",
+          2,
+          0,
+          0
+        ],
+        "Search 'Docs_idx": [
+          "aux",
+          "Search 'Docs_idx",
+          "shadow",
+          3,
+          1,
+          0
+        ],
+        "Search 'Docs_content": [
+          "aux",
+          "Search 'Docs_content",
+          "shadow",
+          2,
+          0,
+          0
+        ],
+        "Search 'Docs_docsize": [
+          "aux",
+          "Search 'Docs_docsize",
+          "shadow",
+          2,
+          0,
+          0
+        ],
+        "Search 'Docs_config": [
+          "aux",
+          "Search 'Docs_config",
+          "shadow",
+          2,
+          1,
+          0
+        ]
+      }
+    },
+    {
+      "root_schema": "aux",
+      "shadow_schema": "main",
+      "root_name": "Search 'Docs",
+      "native": [
+        [
+          "hello"
+        ]
+      ],
+      "current_guard": {
+        "success": false,
+        "error_code": "unknown_column"
+      },
+      "fixed_pragma_truth": {
+        "Search 'Docs_data": [
+          "aux",
+          "Search 'Docs_data",
+          "shadow",
+          2,
+          0,
+          0
+        ],
+        "Search 'Docs_idx": [
+          "aux",
+          "Search 'Docs_idx",
+          "shadow",
+          3,
+          1,
+          0
+        ],
+        "Search 'Docs_content": [
+          "aux",
+          "Search 'Docs_content",
+          "shadow",
+          2,
+          0,
+          0
+        ],
+        "Search 'Docs_docsize": [
+          "aux",
+          "Search 'Docs_docsize",
+          "shadow",
+          2,
+          0,
+          0
+        ],
+        "Search 'Docs_config": [
+          "aux",
+          "Search 'Docs_config",
+          "shadow",
+          2,
+          1,
+          0
+        ]
+      }
+    },
+    {
+      "root_schema": "aux",
+      "shadow_schema": "temp",
+      "root_name": "Search 'Docs",
+      "native": [
+        [
+          "hello"
+        ]
+      ],
+      "current_guard": {
+        "success": false,
+        "error_code": "unknown_column"
+      },
+      "fixed_pragma_truth": {
+        "Search 'Docs_data": [
+          "aux",
+          "Search 'Docs_data",
+          "shadow",
+          2,
+          0,
+          0
+        ],
+        "Search 'Docs_idx": [
+          "aux",
+          "Search 'Docs_idx",
+          "shadow",
+          3,
+          1,
+          0
+        ],
+        "Search 'Docs_content": [
+          "aux",
+          "Search 'Docs_content",
+          "shadow",
+          2,
+          0,
+          0
+        ],
+        "Search 'Docs_docsize": [
+          "aux",
+          "Search 'Docs_docsize",
+          "shadow",
+          2,
+          0,
+          0
+        ],
+        "Search 'Docs_config": [
+          "aux",
+          "Search 'Docs_config",
+          "shadow",
+          2,
+          1,
+          0
+        ]
+      }
+    },
+    {
+      "root_schema": "aux",
+      "shadow_schema": "aux",
+      "root_name": "Search 'Docs",
+      "native": [
+        [
+          "hello"
+        ]
+      ],
+      "current_guard": {
+        "success": false,
+        "error_code": "unknown_column"
+      },
+      "fixed_pragma_truth": {
+        "Search 'Docs_data": [
+          "aux",
+          "Search 'Docs_data",
+          "shadow",
+          2,
+          0,
+          0
+        ],
+        "Search 'Docs_idx": [
+          "aux",
+          "Search 'Docs_idx",
+          "shadow",
+          3,
+          1,
+          0
+        ],
+        "Search 'Docs_content": [
+          "aux",
+          "Search 'Docs_content",
+          "shadow",
+          2,
+          0,
+          0
+        ],
+        "Search 'Docs_docsize": [
+          "aux",
+          "Search 'Docs_docsize",
+          "shadow",
+          2,
+          0,
+          0
+        ],
+        "Search 'Docs_config": [
+          "aux",
+          "Search 'Docs_config",
+          "shadow",
+          2,
+          1,
+          0
+        ]
+      }
+    },
+    {
+      "root_schema": "a.ux",
+      "shadow_schema": null,
+      "root_name": "Search 'Docs",
+      "native": [
+        [
+          "hello"
+        ]
+      ],
+      "current_guard": {
+        "success": true,
+        "rows": [
+          [
+            "hello"
+          ]
+        ]
+      },
+      "fixed_pragma_truth": {
+        "Search 'Docs_data": [
+          "a.ux",
+          "Search 'Docs_data",
+          "shadow",
+          2,
+          0,
+          0
+        ],
+        "Search 'Docs_idx": [
+          "a.ux",
+          "Search 'Docs_idx",
+          "shadow",
+          3,
+          1,
+          0
+        ],
+        "Search 'Docs_content": [
+          "a.ux",
+          "Search 'Docs_content",
+          "shadow",
+          2,
+          0,
+          0
+        ],
+        "Search 'Docs_docsize": [
+          "a.ux",
+          "Search 'Docs_docsize",
+          "shadow",
+          2,
+          0,
+          0
+        ],
+        "Search 'Docs_config": [
+          "a.ux",
+          "Search 'Docs_config",
+          "shadow",
+          2,
+          1,
+          0
+        ]
+      }
+    },
+    {
+      "root_schema": "a.ux",
+      "shadow_schema": "main",
+      "root_name": "Search 'Docs",
+      "native": [
+        [
+          "hello"
+        ]
+      ],
+      "current_guard": {
+        "success": false,
+        "error_code": "unknown_column"
+      },
+      "fixed_pragma_truth": {
+        "Search 'Docs_data": [
+          "a.ux",
+          "Search 'Docs_data",
+          "shadow",
+          2,
+          0,
+          0
+        ],
+        "Search 'Docs_idx": [
+          "a.ux",
+          "Search 'Docs_idx",
+          "shadow",
+          3,
+          1,
+          0
+        ],
+        "Search 'Docs_content": [
+          "a.ux",
+          "Search 'Docs_content",
+          "shadow",
+          2,
+          0,
+          0
+        ],
+        "Search 'Docs_docsize": [
+          "a.ux",
+          "Search 'Docs_docsize",
+          "shadow",
+          2,
+          0,
+          0
+        ],
+        "Search 'Docs_config": [
+          "a.ux",
+          "Search 'Docs_config",
+          "shadow",
+          2,
+          1,
+          0
+        ]
+      }
+    },
+    {
+      "root_schema": "a.ux",
+      "shadow_schema": "temp",
+      "root_name": "Search 'Docs",
+      "native": [
+        [
+          "hello"
+        ]
+      ],
+      "current_guard": {
+        "success": false,
+        "error_code": "unknown_column"
+      },
+      "fixed_pragma_truth": {
+        "Search 'Docs_data": [
+          "a.ux",
+          "Search 'Docs_data",
+          "shadow",
+          2,
+          0,
+          0
+        ],
+        "Search 'Docs_idx": [
+          "a.ux",
+          "Search 'Docs_idx",
+          "shadow",
+          3,
+          1,
+          0
+        ],
+        "Search 'Docs_content": [
+          "a.ux",
+          "Search 'Docs_content",
+          "shadow",
+          2,
+          0,
+          0
+        ],
+        "Search 'Docs_docsize": [
+          "a.ux",
+          "Search 'Docs_docsize",
+          "shadow",
+          2,
+          0,
+          0
+        ],
+        "Search 'Docs_config": [
+          "a.ux",
+          "Search 'Docs_config",
+          "shadow",
+          2,
+          1,
+          0
+        ]
+      }
+    },
+    {
+      "root_schema": "a.ux",
+      "shadow_schema": "aux",
+      "root_name": "Search 'Docs",
+      "native": [
+        [
+          "hello"
+        ]
+      ],
+      "current_guard": {
+        "success": false,
+        "error_code": "unknown_column"
+      },
+      "fixed_pragma_truth": {
+        "Search 'Docs_data": [
+          "a.ux",
+          "Search 'Docs_data",
+          "shadow",
+          2,
+          0,
+          0
+        ],
+        "Search 'Docs_idx": [
+          "a.ux",
+          "Search 'Docs_idx",
+          "shadow",
+          3,
+          1,
+          0
+        ],
+        "Search 'Docs_content": [
+          "a.ux",
+          "Search 'Docs_content",
+          "shadow",
+          2,
+          0,
+          0
+        ],
+        "Search 'Docs_docsize": [
+          "a.ux",
+          "Search 'Docs_docsize",
+          "shadow",
+          2,
+          0,
+          0
+        ],
+        "Search 'Docs_config": [
+          "a.ux",
+          "Search 'Docs_config",
+          "shadow",
+          2,
+          1,
+          0
+        ]
+      }
+    }
+  ],
+  "index_only_statistics": {
+    "scenario": "ANALYZE partial index only; no table-cardinality stat",
+    "truth": 1500,
+    "statistics": [
+      [
+        "orders",
+        "partial_orders",
+        "1 1"
+      ]
+    ],
+    "current_estimate": 1
+  }
+}

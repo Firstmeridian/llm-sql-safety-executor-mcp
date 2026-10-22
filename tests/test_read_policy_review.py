@@ -170,7 +170,7 @@ async def test_same_alias_prompt_isolation_without_adapter_access(tmp_path, monk
         # Keep both runtimes alive while rereading A after B.
         async with Client(servers[0]) as a, Client(servers[1]) as b:
             for index, client in [(0, a), (1, b), (0, a)]:
-                line = "- analytics (sqlite): reads all tables; UNION " + (
+                line = "- analytics (sqlite): reads all relations in default schema; UNION " + (
                     "allowed" if index == 0 else "disabled"
                 )
                 assert line in servers[index].instructions
@@ -201,7 +201,7 @@ def test_skill_readiness_uses_connection_table_identity(case_sensitive, required
     )
     connection = ConnectionContext(
         "analytics", config,
-        SimpleNamespace(analysis_context=DialectContext("mysql" if case_sensitive else "sqlite", cte_case_sensitive=case_sensitive, default_schema="business" if case_sensitive else "main"), resolve_analysis_context=lambda: DialectContext("mysql" if case_sensitive else "sqlite", cte_case_sensitive=case_sensitive, default_schema="business" if case_sensitive else "main"), cte_case_sensitive=case_sensitive, get_read_relations=lambda: [ReadRelation(RelationReference("Orders", "business" if case_sensitive else "main"), "table")]), policy,
+        SimpleNamespace(analysis_context=DialectContext("mysql" if case_sensitive else "sqlite", cte_case_sensitive=case_sensitive, default_schema="business" if case_sensitive else "main"), resolve_analysis_context=lambda: DialectContext("mysql" if case_sensitive else "sqlite", cte_case_sensitive=case_sensitive, default_schema="business" if case_sensitive else "main"), cte_case_sensitive=case_sensitive, get_json_name_observation=lambda: None, get_read_relations=lambda: [ReadRelation(RelationReference("Orders", "business" if case_sensitive else "main"), "table")]), policy,
     )
     runtime = SimpleNamespace(config=SimpleNamespace(
         skills=SimpleNamespace(

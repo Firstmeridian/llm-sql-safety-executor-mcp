@@ -1,0 +1,51 @@
+{
+  "finding": "DRR-2026-141",
+  "classification": "Existing nonblocking P3 information limitation; compact primary_key lists membership in table-column order, not actual composite-key order",
+  "source_calls": 44,
+  "installed_calls": 44,
+  "source_wheel_equal": true,
+  "groups_per_side": {
+    "inprocess:auto": 11,
+    "inprocess:legacy": 11,
+    "stdio:auto": 11,
+    "stdio:legacy": 11
+  },
+  "objects": 4,
+  "native_primary_keys": {
+    "ordinary_ab": [
+      "a",
+      "b"
+    ],
+    "ordinary_ba": [
+      "b",
+      "a"
+    ],
+    "without_rowid_ab": [
+      "a",
+      "b"
+    ],
+    "without_rowid_ba": [
+      "b",
+      "a"
+    ]
+  },
+  "compact_members_all": [
+    "a",
+    "b"
+  ],
+  "compact_group_count": 1,
+  "ungrouped_group_count": 4,
+  "describe_index_order_correct": true,
+  "raw_results_correct": true,
+  "not_a_breach_of_documented_grouping_scope": true,
+  "production_implementation": "not changed",
+  "resources_unchanged": 77,
+  "private_tomls_unchanged": 3,
+  "prior_manifests_unchanged": 67,
+  "prior_records_unchanged": 2133,
+  "new_native_host_calls": 0,
+  "new_model_trials": 0,
+  "new_builds": 0,
+  "new_full_suite_runs": 0,
+  "limits": "Four isolated SQLite composite-key fixtures; no live MySQL metadata or new resident test. Baseline age based on source comparison only. No authorization, result or measured performance regression shown."
+}

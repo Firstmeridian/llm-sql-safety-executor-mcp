@@ -1,0 +1,54 @@
+{
+  "scope": "Serial warm readiness only; not source HEAD, tool/model latency or tokens",
+  "package": "/home/andy/my_programs/llm-sql-safety-executor-mcp/src/sql_safety_executor",
+  "scenarios": {
+    "0": {
+      "samples_ms": [
+        0.4497104500478599,
+        0.48989438997523393,
+        0.4398538399982499,
+        0.4556847200001357,
+        0.46190827000827994,
+        0.5218381600570865,
+        0.45766764000291005
+      ],
+      "median_ms": 0.45766764000291005,
+      "catalog_statements": 4,
+      "default_relations": [
+        "main.ordinary"
+      ]
+    },
+    "1": {
+      "samples_ms": [
+        0.5646185400109971,
+        0.5553030699957162,
+        0.6095703200116986,
+        0.7889347599848406,
+        0.5822971900488483,
+        0.8025905999966199,
+        1.2614612600009423
+      ],
+      "median_ms": 0.6095703200116986,
+      "catalog_statements": 5,
+      "default_relations": [
+        "main.ordinary"
+      ]
+    },
+    "4": {
+      "samples_ms": [
+        0.8808866299659712,
+        1.038648280009511,
+        1.1948571100219851,
+        1.172747939999681,
+        1.1791680700116558,
+        1.4284022399806418,
+        1.4207558600173797
+      ],
+      "median_ms": 1.1791680700116558,
+      "catalog_statements": 8,
+      "default_relations": [
+        "main.ordinary"
+      ]
+    }
+  }
+}

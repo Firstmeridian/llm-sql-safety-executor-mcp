@@ -2,7 +2,11 @@
 
 > The list-or-error-string interface and is_sql_safe-only examples below belong to that historical design. Current read adapters return rows or raise DatabaseQueryError; metadata failures use MetadataQueryError, and MCP raw/Skill reads apply the shared structured target policy. See [current query contracts](../validation/v3.8/V3_8_1_FOLLOWUP_2026_10_13_ZH.md).
 
+> The TEXT fallback shown in this historical design is superseded by v3.8.2 DRR-140: current SQLite metadata preserves native PRAGMA type strings, including empty. It does not infer affinity or runtime storage type. See the [current contract and verification](../validation/v3.8/V3_8_2_SQLITE_DECLARED_TYPES_REPAIR_2026_10_21_ZH.md).
+
 # SQLite Adapter Design Document
+
+> Current v3.8.2 write boundary (DRR-142/143): explicitly establish a physical transaction before executing original DML, finish/close result cursors before direct-row checks, and confirm physical rollback state. Logical SQLAlchemy begin alone is insufficient under legacy sqlite3 transaction control. Do not apply the historical read lifecycle as a write guarantee. See the [current write contract and evidence](../validation/v3.8/V3_8_2_SQLITE_WRITE_TRANSACTIONS_2026_10_22_ZH.md).
 
 **Version:** 3.7.0
 **Date:** August 22, 2026

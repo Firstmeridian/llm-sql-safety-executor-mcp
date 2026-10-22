@@ -1,0 +1,284 @@
+{
+  "owner_restart_confirmed": true,
+  "verified_utc": "2026-10-20T08:23:45.179913+00:00",
+  "passed": 30,
+  "total": 30,
+  "checks": [
+    {
+      "index": 0,
+      "id": "routing_catalog",
+      "passed": true
+    },
+    {
+      "index": 1,
+      "id": "sqlite_canary",
+      "passed": true
+    },
+    {
+      "index": 2,
+      "id": "snapshot_before",
+      "passed": true
+    },
+    {
+      "index": 3,
+      "id": "sqlite_hint_comment",
+      "passed": true
+    },
+    {
+      "index": 4,
+      "id": "sqlite_executable_shape",
+      "passed": true
+    },
+    {
+      "index": 5,
+      "id": "sqlite_dash_comment",
+      "passed": true
+    },
+    {
+      "index": 6,
+      "id": "sqlite_comment_literal",
+      "passed": true
+    },
+    {
+      "index": 7,
+      "id": "mysql_canary",
+      "passed": true
+    },
+    {
+      "index": 8,
+      "id": "mysql_plan_hint",
+      "passed": true
+    },
+    {
+      "index": 9,
+      "id": "mysql_queryblock_hint",
+      "passed": true
+    },
+    {
+      "index": 10,
+      "id": "mysql_not_bang",
+      "passed": true
+    },
+    {
+      "index": 11,
+      "id": "mysql_comment_literal",
+      "passed": true
+    },
+    {
+      "index": 12,
+      "id": "mysql_set_var_refused",
+      "passed": true
+    },
+    {
+      "index": 13,
+      "id": "mysql_timeout_override_refused",
+      "passed": true
+    },
+    {
+      "index": 14,
+      "id": "mysql_unknown_hint_refused",
+      "passed": true
+    },
+    {
+      "index": 15,
+      "id": "mysql_executable_comment_refused",
+      "passed": true
+    },
+    {
+      "index": 16,
+      "id": "mysql_second_hint_refused",
+      "passed": true
+    },
+    {
+      "index": 17,
+      "id": "mysql_real_function_refused",
+      "passed": true
+    },
+    {
+      "index": 18,
+      "id": "mysql_real_relation_refused",
+      "passed": true
+    },
+    {
+      "index": 19,
+      "id": "sqlite_real_function_refused",
+      "passed": true
+    },
+    {
+      "index": 20,
+      "id": "sqlite_real_relation_refused",
+      "passed": true
+    },
+    {
+      "index": 21,
+      "id": "sqlite_raw_write_refused",
+      "passed": true
+    },
+    {
+      "index": 22,
+      "id": "available_first",
+      "passed": true
+    },
+    {
+      "index": 23,
+      "id": "execution_detail_first",
+      "passed": true
+    },
+    {
+      "index": 24,
+      "id": "update_preview_first",
+      "passed": true
+    },
+    {
+      "index": 25,
+      "id": "available_repeat",
+      "passed": true
+    },
+    {
+      "index": 26,
+      "id": "execution_detail_repeat",
+      "passed": true
+    },
+    {
+      "index": 27,
+      "id": "update_preview_repeat",
+      "passed": true
+    },
+    {
+      "index": 28,
+      "id": "reset_preview",
+      "passed": true
+    },
+    {
+      "index": 29,
+      "id": "snapshot_after",
+      "passed": true
+    }
+  ],
+  "routing_catalog_checks": 1,
+  "successful_query_reads": 12,
+  "catalog_detail_checks": 4,
+  "successful_previews": 3,
+  "expected_refusals": 10,
+  "independent_truth_unchanged": {
+    "rich_mutation_sqlite": {
+      "file_sha256": "dc89c92c850ee56f1463231d62fbbcedca264ed254936edaef6829b864a62e8e",
+      "snapshot": [
+        {
+          "id": 1,
+          "status": "confirmed"
+        },
+        {
+          "id": 2,
+          "status": "confirmed"
+        },
+        {
+          "id": 3,
+          "status": "confirmed"
+        },
+        {
+          "id": 4,
+          "status": "returned"
+        },
+        {
+          "id": 5,
+          "status": "returned"
+        },
+        {
+          "id": 6,
+          "status": "returned"
+        },
+        {
+          "id": 7,
+          "status": "confirmed"
+        },
+        {
+          "id": 8,
+          "status": "confirmed"
+        },
+        {
+          "id": 9,
+          "status": "confirmed"
+        },
+        {
+          "id": 10,
+          "status": "returned"
+        },
+        {
+          "id": 11,
+          "status": "returned"
+        },
+        {
+          "id": 12,
+          "status": "returned"
+        }
+      ],
+      "row_count": 80,
+      "all_order_rows_sha256": "239b4438689ac57977ac5cedcf2464cf1b56272b33c7cf638b2a0dee0567f61c"
+    },
+    "orders_demo_mysql": {
+      "sql_modes_on_separate_truth_adapter": [
+        "NO_ENGINE_SUBSTITUTION",
+        "STRICT_TRANS_TABLES"
+      ],
+      "row_count": 60,
+      "all_order_rows_sha256": "ca7c48eced0a90a3b153b9a4c385d3f69a22e3c1d5e62e6320cf68db50c94168"
+    }
+  },
+  "source_resources_match_final_wheel": 77,
+  "source_or_configuration_change_this_supplement": false,
+  "old_manifest_count": 27,
+  "old_sealed_files_verified": 681,
+  "tool_description_digests": [
+    {
+      "name": "mcp__sql_safety_executor_mcp__check_connection",
+      "description_sha256": "d41a2625478d42731204e154c8fda912e9f9a99f0095b0508904da08ba7d98fe"
+    },
+    {
+      "name": "mcp__sql_safety_executor_mcp__describe_table",
+      "description_sha256": "b981543cf2deba5830640a90f680aa7ad4239103ff92f93f14fece955c9980e8"
+    },
+    {
+      "name": "mcp__sql_safety_executor_mcp__execute_mutation_skill",
+      "description_sha256": "7c599a171151814741cb9d6b73e36f70927987df59e26e8c9298f2c0780cd7bb"
+    },
+    {
+      "name": "mcp__sql_safety_executor_mcp__execute_query_skill",
+      "description_sha256": "54c8c7f74ae8b35a6589a8ad9fa74f1a8f9ef1ff5ad26513a76d1d6898e856e9"
+    },
+    {
+      "name": "mcp__sql_safety_executor_mcp__get_full_schema",
+      "description_sha256": "b6d78c6a24cc98f3ff8357b9a8608275e338df2ae01b02c4f09e85795248633f"
+    },
+    {
+      "name": "mcp__sql_safety_executor_mcp__get_skill_detail",
+      "description_sha256": "208a32bedf1d0e3b7d641cdb87013f4614fac6d14278665902d786253ec873e2"
+    },
+    {
+      "name": "mcp__sql_safety_executor_mcp__list_connections",
+      "description_sha256": "3bf84eb51059714591f742d8f861fef3cb9f835c8b8be51e65556d3a2d9171e5"
+    },
+    {
+      "name": "mcp__sql_safety_executor_mcp__list_skills",
+      "description_sha256": "8ded7096a3f038cac0ae9e7cbdac3f719cca9e4531693412ce6f85afb0ffce14"
+    },
+    {
+      "name": "mcp__sql_safety_executor_mcp__list_tables",
+      "description_sha256": "73521e6ba408817287fa31044cfbfd48607864e85e5f89ffc04d2c8e18611aef"
+    },
+    {
+      "name": "mcp__sql_safety_executor_mcp__query",
+      "description_sha256": "15a4bead16b4b5c6259fad5a435578dbbdf10dc4a59f858f495c19630fd0ccd0"
+    }
+  ],
+  "preview_ttl_seconds": 300,
+  "preview_handling": "Three confirm=false previews; opaque handles consistently redacted before disk. No confirmations, active revocations or expiry observations. Natural configured TTL applies.",
+  "configured_business_writes": false,
+  "limits": [
+    "Current Host only. No configured writes, confirmations, private config or mode edits. Native NOT/bang exercises the existing session configuration, not all sixteen modes; separate truth adapter modes do not attest the Host physical session. Query Skill comments and commented managed writes retain source/installed fixture coverage. No complete-model/provider-usage or native performance A/B claim. Native behavior cannot attest in-memory hashes/cache hits. Preview handles abandoned subject to natural TTL, not actively revoked or observed expiring.",
+    "Application results and model-visible names/descriptions; not complete protocol frames or original field-omission proof.",
+    "NOT/bang semantics on this existing Host configuration only; sixteen actual-mode truth adapters remain separate source/package evidence.",
+    "One initial sandboxed truth probe failed session_semantics_unavailable; targeted network escalation succeeded. No Full access or config change was needed; underlying connection failure detail was not captured."
+  ],
+  "all_checks_passed": true
+}

@@ -1,0 +1,30 @@
+{
+  "exec_ancestors": [
+    {
+      "pid": 132461,
+      "ppid": 132460,
+      "name": "python"
+    },
+    {
+      "pid": 132460,
+      "ppid": 1827,
+      "name": "bash"
+    },
+    {
+      "pid": 1827,
+      "ppid": 542,
+      "name": "codex"
+    },
+    {
+      "pid": 542,
+      "ppid": 1,
+      "name": "Relay(543)"
+    },
+    {
+      "pid": 1,
+      "ppid": 0,
+      "name": "systemd"
+    }
+  ],
+  "scope": "Names and parent IDs only; no argv or environments read."
+}

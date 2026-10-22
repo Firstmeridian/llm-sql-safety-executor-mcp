@@ -5,6 +5,8 @@ directory = "../../../skills"
 [skills.mutation]
 enabled = true
 allowed_connections = ["demo_write"]
+# Temporary explicit rollback: "sqlparse". No automatic parser fallback.
+managed_plan_parser = "sqlglot"
 [skills.mutation.preview]
 ttl_seconds = 300
 max_entries = 1000

@@ -20,14 +20,15 @@ class ConnectionPolicy:
     # MySQL table identity may be case-sensitive (lower_case_table_names=0).
     case_sensitive_tables: bool = False
     allowed_relations: frozenset[RelationReference] | None = None
+    default_schema: str | None = None
     _relation_grants: frozenset[RelationReference] = field(init=False, repr=False)
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "_relation_grants", frozenset(
-            self.relation_key(RelationReference.from_declaration(name))
+            self.relation_key(RelationReference.from_declaration(name).in_schema(self.default_schema))
             for name in self.allowed_tables or () if name != "*"
         ) if self.allowed_relations is None else frozenset(
-            self.relation_key(reference) for reference in self.allowed_relations
+            self.relation_key(reference.in_schema(self.default_schema)) for reference in self.allowed_relations
         ))
 
     def table_key(self, name: str) -> str:
@@ -40,10 +41,17 @@ class ConnectionPolicy:
     def relation_key(self, relation: RelationReference) -> RelationReference:
         return relation.key(case_sensitive=self.case_sensitive_tables)
 
-    def allows_relation(self, relation: RelationReference) -> bool:
+    def allows_relation(self, relation: RelationReference, *, default_schema: str | None = None) -> bool:
+        """Bare declarations identify the bound default object, never a shadow."""
+        schema = default_schema or self.default_schema
+        resolved = self.relation_key(relation.in_schema(schema))
         if self.allowed_tables is None or "*" in self.allowed_tables:
-            return True
-        return self.relation_key(relation) in self._relation_grants
+            return schema is None or resolved.schema == self.table_key(schema)
+        if schema == self.default_schema:
+            return resolved in self._relation_grants
+        return resolved in {
+            self.relation_key(grant.in_schema(schema)) for grant in self._relation_grants
+        }
 
     def allows_metadata_table(self, name: str, schema: str | None) -> bool:
         """Metadata is bound to a known schema; names here are already decoded."""
@@ -51,17 +59,11 @@ class ConnectionPolicy:
 
     def allows_metadata_relation(self, relation: RelationReference) -> bool:
         """A bare declaration can authorize metadata in its fixed schema."""
-        return self.allows_relation(RelationReference(relation.name)) or (
-            relation.schema is not None and self.allows_relation(relation)
-        )
+        return self.allows_relation(relation, default_schema=self.default_schema or relation.schema)
 
     def allows_resolved_relation(self, relation: RelationReference, default_schema: str) -> bool:
         """A bare grant applies to the default schema, never any same-name object."""
-        return self.allows_relation(relation) or (
-            relation.schema is not None
-            and self.table_key(relation.schema) == self.table_key(default_schema)
-            and self.allows_relation(RelationReference(relation.name))
-        )
+        return self.allows_relation(relation, default_schema=default_schema)
 
 
 @dataclass(frozen=True)

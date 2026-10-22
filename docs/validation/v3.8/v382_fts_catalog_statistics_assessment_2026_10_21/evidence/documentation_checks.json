@@ -1,0 +1,25 @@
+{
+  "scope": "Assessment documentation synchronized, no production repair",
+  "checked_local_links": 716,
+  "broken_local_links": [],
+  "diff_check": "pass",
+  "updated_documents": [
+    "REFACTORING_LOG.md",
+    "REFACTORING_LOG_ZH.md",
+    "docs/README.md",
+    "docs/README_ZH.md",
+    "docs/security/DESIGN_RISK_REGISTER.md",
+    "docs/security/DESIGN_RISK_REGISTER_ZH.md",
+    "docs/security/V3_8_SECURITY.md",
+    "docs/architecture/V3_8_2_SQL_SEMANTICS_ZH.md",
+    "docs/releases/RELEASE_NOTES_v3_8.md",
+    "local_archive/v382_review/README.md",
+    "local_archive/v382_review/handoff/session-handoff-v381-v382-20261019-ZH.md",
+    "docs/validation/v3.8/V3_8_2_FTS_CATALOG_STATISTICS_ASSESSMENT_2026_10_21_ZH.md",
+    "local_archive/v382_review/20261021_fts_catalog_statistics_assessment/reports/README_ZH.md",
+    "docs/validation/v3.8/v382_fts_catalog_statistics_assessment_2026_10_21/README.md"
+  ],
+  "risks": "137/138 open P2;135/136 retain declared scoped acceptance",
+  "commit_message_unchanged": true,
+  "no_unimplemented_fix_claims": true
+}

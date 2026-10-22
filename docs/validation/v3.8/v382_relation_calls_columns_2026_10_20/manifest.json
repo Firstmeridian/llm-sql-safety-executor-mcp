@@ -1,0 +1,59 @@
+{
+  "date": "2026-10-20",
+  "checkpoint": "public_source_package_checkpoint",
+  "version": "3.8.2",
+  "resident_status": "pending_owner_restart",
+  "recording_layer": "application content/structured results, not full protocol frames/notifications/model usage",
+  "omissions": "No new model token run or causal timing claim. Local timing has substantial phase drift. Full local pre-repair source, intermediate failures and build recipes remain in the local archive.",
+  "cleanup": "Final fixture hashes unchanged; temporary fixture directories removed; private TOML hashes unchanged; no configured database writes or new grants.",
+  "files": {
+    "README.md": {
+      "bytes": 2161,
+      "sha256": "95d1c3d7eefc90d7dfc9c7bfe06d0e79ebee2fec914f886058ff055503668ddc"
+    },
+    "checks/full-final.log": {
+      "bytes": 5547,
+      "sha256": "a009390e2d66a703d93302fb8eefe82e1f15cf4f4e02b35f451be85d00733843"
+    },
+    "checks/prompts.log": {
+      "bytes": 55,
+      "sha256": "f0e0a884c0914987015a830aea57daf3a52000e3ea17c4899a6df1db394a16f2"
+    },
+    "checks/types-final.log": {
+      "bytes": 37,
+      "sha256": "6d88a1b220adb7a3d62092b6e38431f0b3fe8babe9864fab90e5849766260332"
+    },
+    "evidence/costs.json.gz": {
+      "bytes": 53132,
+      "sha256": "d4c8def1684c3de83987c6382cc567e3183ec0a8afcd8f1bb9f071b9206386c5"
+    },
+    "evidence/final-checks.json": {
+      "bytes": 8813,
+      "sha256": "694244d8e74a26eefb1f87e63d417274750f8ec87a8d2c4850c307aadbe8564a"
+    },
+    "evidence/installed-canonical.json.gz": {
+      "bytes": 26167,
+      "sha256": "f402d07d04a4021fa851fe83410a738adc5c52f82d588da5f5c474484ef862b9"
+    },
+    "evidence/installed_resources.json": {
+      "bytes": 9065,
+      "sha256": "799da69a1897e1f1307f0a1d44aa0083bc4d93dba28b37d02d61f296b8a540ee"
+    },
+    "evidence/native_before.json": {
+      "bytes": 5029,
+      "sha256": "13589459fbfabaf04858d8586073bdfc9a79de8af054bbe6b1d7298ae76503c9"
+    },
+    "evidence/native_plan.json": {
+      "bytes": 5491,
+      "sha256": "de87adc4321e4fbab8b67503480edef1ba44395bef007b86263b5b2b29e6532b"
+    },
+    "evidence/previous-seals.json": {
+      "bytes": 90,
+      "sha256": "218c84a3135b8ffeaaa63852ed0c5277c0cbf3dcdfc75d8b06776ccf2138cad8"
+    },
+    "evidence/source-canonical.json.gz": {
+      "bytes": 26143,
+      "sha256": "609e00de45df8c3bfdd96033d550a8f19d2deb7c731a0be484bf27b18a3e6c92"
+    }
+  }
+}

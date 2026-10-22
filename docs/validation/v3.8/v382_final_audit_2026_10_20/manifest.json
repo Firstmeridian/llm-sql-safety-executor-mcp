@@ -1,0 +1,71 @@
+{
+  "date": "2026-10-20",
+  "checkpoint": "audit_completed_two_open_functional_findings",
+  "scope": "Read-only audit and unimplemented performance prototypes; DRR-124/125 remain open. Python caches excluded; all parent seals retained.",
+  "files": {
+    "README.md": {
+      "bytes": 1944,
+      "sha256": "25fbacacdf5bdf03387c305cb8f2076bae5e2ebf2e6ac99aba3a3345c85258a7"
+    },
+    "before.json.gz": {
+      "bytes": 5792,
+      "sha256": "8e5edd1c594df154e147bdeaaa1499fb778aa7e8d965278395bafbf13e2ba70a"
+    },
+    "freeze.py.gz": {
+      "bytes": 1111,
+      "sha256": "ecc65ca088c53fc5021af2d188d0587de48241cb8a49b0305b9464290cc23bdf"
+    },
+    "managed_colons.json.gz": {
+      "bytes": 1857,
+      "sha256": "3bbb32bce77a36db2c07d14679c9294910e4af5f5a9d49a2cd2b4c60f41f11aa"
+    },
+    "managed_colons.py.gz": {
+      "bytes": 3051,
+      "sha256": "8c84643f5b44fa442774435efb7f6d32bee9447e9b5f1b8dc4a1f98115c4191a"
+    },
+    "mysql_column_candidate.json.gz": {
+      "bytes": 948,
+      "sha256": "4c8f595e15b5d62bafb08acbd7f01e1a7bb5a59c27814250643c045ceaac8d48"
+    },
+    "mysql_tail_truth.json.gz": {
+      "bytes": 314,
+      "sha256": "dac9ab2683c780fbd14f24d825ce3533260ec5322907c76a578f18901d5ee74f"
+    },
+    "mysql_tail_truth.py.gz": {
+      "bytes": 788,
+      "sha256": "1e44b7ca2a420a8b86be0821f3da61c7b14f203309af60eb506e4c4de0873c3f"
+    },
+    "native_application.json.gz": {
+      "bytes": 723,
+      "sha256": "b7060774a70adb5cd36a06fc2b245447e43bd0b8ae2c420853feccf185ca920c"
+    },
+    "performance_candidates.py.gz": {
+      "bytes": 3254,
+      "sha256": "d73d4789c50966df15e995e1e8c5d9c2f950c6b160ad79d90b4afe50254bd848"
+    },
+    "startup_candidate.json.gz": {
+      "bytes": 1362,
+      "sha256": "3af2d7746ce2b68e08f69c361d77bc6cb0463945aa0991c8cc22a00318198703"
+    },
+    "summary.json": {
+      "bytes": 3723,
+      "sha256": "b0bc72f624e4cc19e4c548794594c9440751d09172cc4add2c52fa78c55b928c"
+    },
+    "tail_comments.json.gz": {
+      "bytes": 7469,
+      "sha256": "af09bcf30c0f44a198dccf2cc5e96852999f17737e028d1e3ba154c732b9a7ac"
+    },
+    "tail_comments.py.gz": {
+      "bytes": 3432,
+      "sha256": "0033465b82290aba0552c7b6019e98b128229d7aec95db2b93cb5ebde8fb7a97"
+    },
+    "tail_comments_parser_diagnostic_failure.log.gz": {
+      "bytes": 473,
+      "sha256": "14643678fcdb6c6c4d6cfe33b2ff430ea28e3d0c5019ef73b0fde3297350aaa1"
+    },
+    "verify_export.py.gz": {
+      "bytes": 3430,
+      "sha256": "20938a626805bee5d3ea4eca87f12e76aba3ff6b65d78e4c1a3c4418b884ac1b"
+    }
+  }
+}

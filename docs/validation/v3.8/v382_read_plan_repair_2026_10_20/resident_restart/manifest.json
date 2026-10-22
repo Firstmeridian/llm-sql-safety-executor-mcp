@@ -1,0 +1,48 @@
+{
+  "date": "2026-10-20",
+  "checkpoint": "scoped_resident_acceptance_passed",
+  "files": {
+    "README.md": {
+      "bytes": 2131,
+      "sha256": "a8d46216730eda2fc994e30f7a06f5ff7aa8ed3aa477c3d9881476ae4d3ec081"
+    },
+    "export_evidence.py.gz": {
+      "bytes": 1816,
+      "sha256": "22a12c1117c1f1997aeaae833aa23f9fdbe938fc3b3fbc47f8472b8cb7b7def7"
+    },
+    "freeze_native.py.gz": {
+      "bytes": 3216,
+      "sha256": "e22c79f651fa88af943ef35d904e9746a568169f8bc81bd25385e6a85077880e"
+    },
+    "native_application.json.gz": {
+      "bytes": 14890,
+      "sha256": "8a0e5a4a6d661c948faf24d6ac6b0359473b615849d73243f42d5d9f1819980a"
+    },
+    "native_catalog.json.gz": {
+      "bytes": 9105,
+      "sha256": "f8ab784d13b2a3a3349ada0787eec9a2df3fd76a4ea9259de154d11f4ede67da"
+    },
+    "native_plan.json.gz": {
+      "bytes": 8723,
+      "sha256": "e8698dd59eed3748a4f7e6ea1bae53ecdf613b384a555c2823cd640ff5806546"
+    },
+    "plan_setup_notes.json.gz": {
+      "bytes": 269,
+      "sha256": "2bdce4bdc44a7aa8e8aef7fe9628907be0513f641fef4816257d5b4c230e2a09"
+    },
+    "summary.json": {
+      "bytes": 12203,
+      "sha256": "ac6a46e79f1a94c7f2154ed1374ccba202472ea23fc3013b074d36df6608d30e"
+    },
+    "sync_restart_docs.py.gz": {
+      "bytes": 3834,
+      "sha256": "f73ae4955e58b45be936b326ab36e5a76b18d42939f2d83f9f25557a8fdaab1c"
+    },
+    "verify_native.py.gz": {
+      "bytes": 2981,
+      "sha256": "171815f020810072e0450553370454124f2aac0fe441968b3b61b958e1bc318d"
+    }
+  },
+  "scope": "Scoped native restart acceptance only; preserve pending parents and source/package/model attribution.",
+  "append_rule": "Do not overwrite; append a separate dated supplement for subsequent work."
+}

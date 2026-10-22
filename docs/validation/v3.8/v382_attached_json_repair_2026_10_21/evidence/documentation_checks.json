@@ -1,0 +1,32 @@
+{
+  "markdown_files": [
+    "docs/validation/v3.8/V3_8_2_ATTACHED_JSON_REPAIR_2026_10_21_ZH.md",
+    "docs/validation/v3.8/V3_8_2_METADATA_NAME_COLLISIONS_2026_10_21_ZH.md",
+    "docs/validation/v3.8/v382_attached_json_repair_2026_10_21/README.md",
+    "docs/validation/v3.8/V3_8_2_ATTACHED_JSON_READINESS_2026_10_21_ZH.md",
+    "docs/validation/v3.8/V3_8_2_READ_RESULTS_2026_10_21_ZH.md",
+    "REFACTORING_LOG.md",
+    "REFACTORING_LOG_ZH.md",
+    "docs/security/DESIGN_RISK_REGISTER.md",
+    "docs/security/DESIGN_RISK_REGISTER_ZH.md",
+    "docs/README.md",
+    "docs/README_ZH.md",
+    "docs/releases/RELEASE_NOTES_v3_8.md",
+    "docs/architecture/V3_8_2_SQL_SEMANTICS_ZH.md",
+    "docs/security/V3_8_SECURITY.md",
+    "docs/guides/CONFIGURATION_ZH.md",
+    "docs/guides/TEST_MCP_CLIENT_GUIDE.md",
+    "local_archive/v382_review/README.md",
+    "local_archive/v382_review/handoff/session-handoff-v381-v382-20261019-ZH.md",
+    "local_archive/v382_review/20261021_attached_json_readiness_repair/reports/README_ZH.md"
+  ],
+  "local_targets": 772,
+  "missing_targets": [],
+  "git_diff_check": "passed",
+  "source_package_calls_each": 332,
+  "new_regressions": 67,
+  "native_state": "17 frozen checks pending owner restart",
+  "independent_finding": "DRR-136 open; assessment only",
+  "commit_message_language": "English including labels",
+  "commit_message_scope": "DRR-135 implemented; DRR-136 not claimed as fixed"
+}

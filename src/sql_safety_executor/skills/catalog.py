@@ -58,10 +58,12 @@ from typing import Any, Callable, Literal, TYPE_CHECKING
 import yaml
 
 if TYPE_CHECKING:
+    from sql_safety_executor.core.analysis import SQLAnalysis
     from sql_safety_executor.skills.mutation import ManagedMutationPlan, MutationBase
 
 from sql_safety_executor.core.sql import classify_sql_statement
 from sql_safety_executor.core.decisions import PolicyDecision
+from sql_safety_executor.core.managed_sql import ManagedPlanParser
 from sql_safety_executor.database.relations import RelationReference
 
 logger = logging.getLogger(__name__)
@@ -194,7 +196,7 @@ class SkillMetadata:
     relations: list[RelationReference] = field(default_factory=list)
     # -- Internal fields (populated by discover(), not from YAML) --
     _sql_template: str | None = field(default=None, repr=False)
-    _inferred_tables: dict[tuple, list[RelationReference]] = field(default_factory=dict, repr=False)
+    _inferred_analysis: dict[tuple, SQLAnalysis] = field(default_factory=dict, repr=False)
     _mutation_class: type | None = field(default=None, repr=False)
     _managed_mutation_plan: "ManagedMutationPlan | None" = field(
         default=None,
@@ -856,6 +858,7 @@ def _load_mutation_class(skill_name: str, mutation_path: Path) -> type:
 def _managed_plan_for_class(
     metadata: SkillMetadata,
     mutation_class: type,
+    parser: ManagedPlanParser = "sqlglot",
 ) -> "ManagedMutationPlan | None":
     """Validate and return a managed plan, including frontmatter references."""
     from sql_safety_executor.skills.mutation import (
@@ -877,7 +880,7 @@ def _managed_plan_for_class(
         raise TypeError(
             f"Skill '{metadata.name}': managed_plan must be a ManagedMutationPlan"
         )
-    validated_plan = validate_managed_mutation_plan(plan)
+    validated_plan = validate_managed_mutation_plan(plan, parser=parser, databases=metadata.databases)
     missing_param_keys = sorted(
         {
             item.key
@@ -1085,6 +1088,7 @@ class SkillCatalog:
         query_validator: QueryValidator | None = None,
         *,
         load_mutations: bool = True,
+        managed_plan_parser: ManagedPlanParser = "sqlglot",
     ) -> dict[str, SkillMetadata]:
         """
         Scan skills/ directory, parse all skill_def.md frontmatter, and return
@@ -1110,10 +1114,14 @@ class SkillCatalog:
             load_mutations: Import and validate mutation Python modules. Set false
                 when mutation execution is disabled so application mutation code is
                 not imported merely to list its metadata.
+            managed_plan_parser: Explicit temporary managed-plan classifier;
+                failures never select the other implementation automatically.
 
         Returns:
             Dict mapping skill_name -> SkillMetadata for enabled skills
         """
+        if managed_plan_parser not in {"sqlglot", "sqlparse"}:
+            raise ValueError("Unsupported managed mutation plan parser")
         self._skills_dir = skills_dir
         discovered: dict[str, SkillMetadata] = {}
         validate_query = query_validator or _default_query_validator
@@ -1190,7 +1198,7 @@ class SkillCatalog:
                 # Cache the SQL template (TOCTOU mitigation)
                 metadata._sql_template = sql_template
                 # Do not merge target-dependent inference into declared policy.
-                metadata._inferred_tables = {}
+                metadata._inferred_analysis = {}
 
             elif metadata.type == "mutation":
                 mutation_py_path = entry / metadata.source
@@ -1220,6 +1228,7 @@ class SkillCatalog:
                         metadata._managed_mutation_plan = _managed_plan_for_class(
                             metadata,
                             mutation_class,
+                            managed_plan_parser,
                         )
                     except Exception as e:
                         logger.error(

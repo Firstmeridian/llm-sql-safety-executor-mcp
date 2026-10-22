@@ -133,7 +133,7 @@ Skills 场景：未知 Skill → list_skills(search=..., detail_level="compact",
 - **查询限制**：当前 MySQL/SQLite adapter 的完整 MCP policy 每次只接受一条
   SELECT、DESCRIBE 或非 ANALYZE EXPLAIN。raw SHOW 会被拒绝，metadata discovery
   使用 `list_tables()`/`describe_table()`；嵌套写 DML、`EXPLAIN ANALYZE`、
-  executable comment/hint 与非空白 `--` 形式也会被拒绝
+  MySQL 可执行／状态设置提示与歧义 `--` 形式仍拒绝；SQLite 块注释按空白处理，MySQL 支持已识别的执行计划 hint 子集
 - **SQL 解析验证**：共享 SQLGlot 方言／会话分析及独立读取策略；SQLite 另以 authorizer 核验实际编译操作
 - **连接安全**：显式 TOML 与密钥来源管理。命名连接（`connection_id`），工具和模型输出不能传入任意 DSN。
 - **错误隔离**：面向LLM的全面异常处理和报告
@@ -461,9 +461,11 @@ Agent **既是决策者又是执行者**，安全保障依赖于：
   - 仅建议用于“量级判断/是否加 LIMIT/是否大表”等策略，不应当作精确计数。
   - 如需精确行数，请使用 `SELECT COUNT(*) ...`，或启用 `tools.table_summary=true` 后使用 `get_table_summary(exact_count=True)`（注意大表可能较慢）。
 
-- **通过截断和投影避免 Token 爆炸**：`query()` 使用 `limits.result_rows` / `limits.result_chars`，`list_tables()` 使用 `limits.overview_tables`，`get_full_schema()` 使用 `limits.schema_tables`，因此返回的行或表可能不是全量。`limits.result_chars` 不限制 Schema 工具 payload。全局解释优先使用 `get_full_schema(detail_level="compact")`，仅在需要某张表的详情时调用 `describe_table()`。`query()` 截断不等于限制数据库执行量或 Python 侧获取量；请在 SQL 中显式使用 `WHERE`、`LIMIT`、`ORDER BY` 来限制工作量并稳定结果顺序。
+- **通过截断和投影避免 Token 爆炸**：`query()`、Query Skill 和 `sample()` 共用 `limits.result_rows` / `limits.result_chars`，`list_tables()` 使用 `limits.overview_tables`，`get_full_schema()` 使用 `limits.schema_tables`，因此返回的行或表可能不是全量。`limits.result_chars` 不限制列／索引等 Schema 描述。全局解释优先使用 `get_full_schema(detail_level="compact")`，仅在需要某张表的详情时调用 `describe_table()`。`query()` 截断不等于限制数据库执行量或 Python 侧获取量；请在 SQL 中显式使用 `WHERE`、`LIMIT`、`ORDER BY` 来限制工作量并稳定结果顺序。
 
 - **部分“总数”字段是“可见范围”语义**：例如 `total_tables` 表示 allowlist 过滤后、响应截断前的可见表数量，并非数据库物理总表数；`returned_table_count` 才是截断后实际返回的数量。
+
+读取结果要求输出列标签唯一；重复时返回 `duplicate_result_columns` 和唯一 `AS` 提示，不静默丢值。二进制统一表示为 `{"$type":"binary","encoding":"base64","data":"AP8="}`，包括恰好可解码为 UTF-8 的 BLOB；非有限数值表示为 `{"$type":"float","value":"Infinity"}`（也支持 `-Infinity`／`NaN`）。其他不支持值返回 `result_encoding_failed`。先编码再按紧凑 JSON 字符数计算数据限额；首行过大时可返回零行，并以 `truncated=true`、原因及缩小列投影提示说明，不等于数据库无数据。`result_chars` 为 0（关闭）或至少 2；不承诺整个 MCP 帧或模型 token 上限。`sample()` 仍最多请求 20 行。
 
 ### 使用本项目的最佳实践
 - **推荐首先接入VS Code的GitHub Copilot进行试用。** VS Code中的GitHub Copilot是一个成熟的AI Agent工具，你可以按当前账户可用模型和额度，在测试数据库中进行使用，并控制额外请求费用。
@@ -715,7 +717,7 @@ query_seconds = 30
 v3.8 的连接约定与妥协：
 
 - 先解析目标，再做 SQL policy、schema readiness、执行、元数据、审计和遥测；工具不能传入任意 DSN。
-- `read.mode` 默认为 `deny`；`allowlist` 的空名单不授权，全部读取须显式 `all`。`tables` 只在 allowlist 下使用，不接受 `"*"`。
+- `read.mode` 默认为 `deny`；`allowlist` 的空名单不授权；显式 `all` 覆盖配置默认 schema，仍受其它读取规则约束。跨 schema 使用显式 allowlist；裸授权表示默认对象，也接受其默认 schema 限定写法。`tables` 只在 allowlist 下使用，不接受 `"*"`。
 - UNION 还需 `allow_union=true` 与有效表范围。旧空白名单不能机械转换成同时允许全部表和 UNION。
 - 写入必须通过 Skills 总开关、全局写入开关、全局连接准入、连接写入开关及连接 Skill 白名单；不再有 default-only 隐式授权。读取表范围不构成 Mutation 的通用写入范围。
 - 只有 query/connect timeout 允许“内置 → 公共 → 连接”覆盖；结果限额属于服务实例。`sql_assistant` 保持连接中立，通过 `list_connections()` 查看选定目标策略。
@@ -770,6 +772,7 @@ exclude_profiles = []
 [skills.mutation]
 enabled = false
 allowed_connections = []
+managed_plan_parser = "sqlglot"
 [skills.mutation.preview]
 ttl_seconds = 300
 max_entries = 10000
@@ -791,6 +794,7 @@ agent_id = "unknown"
 | `policy.exclude_profiles` | [] | 字符串去首尾空白、转小写并去重；空白项报错。匹配 profile 不可执行，并从默认发现面隐藏 |
 | `mutation.enabled` | false | 写入总开关，还需其它四层配置条件 |
 | `mutation.allowed_connections` | [] | 精确连接准入，空名单不授权；还需连接 Skill 名单 |
+| `mutation.managed_plan_parser` | sqlglot | 受管计划分类器：sqlglot 或临时显式选择的 sqlparse 模式；修改需重启，不自动切换、不绕过读取策略 |
 | `mutation.preview.ttl_seconds` | 300 | 1～86400 秒；非法值启动报错，不静默回落 |
 | `mutation.preview.max_entries` | 10000 | 1～100000 条；满时拒绝签发，不驱逐有效提案 |
 | `mutation.mrtr.enabled` | false | 可选托管单语句审批工具；要求 Skills 和写入均开启 |
@@ -872,6 +876,20 @@ SQLite 初始化拒绝覆盖已有文件；MySQL 初始化遇到现存 orders �
 ## 更新日志
 
 ### v3.8.2 方言语义与执行检查（2026 年 10 月 16 日）
+
+10 月 20 日受管写入默认迁移 SQLGlot，发现、预览和确认按目标方言／会话复验。原 SQL、命名绑定、批准及事务证据保持独立；按维护者决定，观察期保留显式 sqlparse 回退及依赖，见[对照、回退限制与验收](docs/validation/v3.8/V3_8_2_MANAGED_PARSER_2026_10_20_ZH.md)。
+
+受管分类现按原 SQL、完整目标上下文、解析器和声明绑定名集合，在每个服务实例中复用最多 128 项不可变结果；schema readiness 不再重复运行执行策略。实际目标语义、授权、参数值及一次性令牌仍逐次核验，见[范围与成本](docs/validation/v3.8/V3_8_2_MANAGED_CLASSIFICATION_REUSE_2026_10_20_ZH.md)。
+
+现支持 SQLite 注释语义、MySQL 执行计划 hint 子集，以及按实际 HIGH_NOT_PRECEDENCE 解释 NOT／!；保留原 SQL、会话约定、授权与批准。SET_VAR、资源／超时提示和未知 hint 形式仍不支持，见[范围与验证](docs/validation/v3.8/V3_8_2_DIALECT_COMMENTS_NOT_2026_10_20_ZH.md)。
+
+单句读取现保留终止分号后的普通注释；受管计划共享执行侧的字面量感知绑定识别，并复验实际目标。Query Skill 启动首个候选通过即停止，MySQL 全库 schema 仅批读已授权并返回的表的列。无新增 Agent 步骤或开关，见[补修、成本及分析复用研究](docs/validation/v3.8/V3_8_2_READ_PLAN_REPAIR_2026_10_20_ZH.md)。
+
+10 月 20 日 FTS 补修在执行前检查可达内容视图的受限函数，并恢复已显式授权的限定 FTS 调用。完整视图定义检查会保守拒绝未使用的受限表达式；见[范围及验收](docs/validation/v3.8/V3_8_2_FTS_FOLLOWUPS_2026_10_20_ZH.md)。
+
+10 月 20 日元数据优化仅为授权、截断后实际返回的表补行数估算，批量读取 SQLite 统计，并跳过无冒号 SQL 的传输分词。缺少统计时仍走受控限量读取，不改变 grant、Agent 必需步骤或默认行数契约；决定、成本及验收状态见[优化记录](docs/validation/v3.8/V3_8_2_METADATA_OPTIMIZATION_2026_10_20_ZH.md)。
+
+10 月 19 日补修派生表视图、已知 JSON 表函数及受控 FTS5 读取，统一默认对象身份和 all 范围，拒绝执行型锁读并改善诊断／元数据复用。SQLite authorizer 保持启用，不提供 TOML 绕过开关。最终安装、重启和完整 Agent 状态单列于[补修记录](docs/validation/v3.8/V3_8_2_READ_CAPABILITIES_2026_10_19_ZH.md)，下方旧计数保留各自源码归属。
 
 共享 SQLGlot 分析保留 schema/name、引用、作用域及原 SQL；新增 `read.relations` 与 Skill `relations`，可声明单个含点名称。MySQL 每个物理连接初始化完整 SQL 模式约定；SQLite 在连接独占、关闭语句缓存的条件下检查实际编译操作和视图来源。readiness 仍只核验默认 schema，视图授权不授予直接底表访问。见[设计与限制](docs/architecture/V3_8_2_SQL_SEMANTICS_ZH.md)和[本版本验收](docs/validation/v3.8/V3_8_2_VALIDATION_2026_10_16_ZH.md)。10 月 17 日补齐视图采样／计数／估算读取边界，恢复 SQLite 非执行型 DML／REPLACE 计划。后续触发器／WITH REPLACE／UPDATE OR 补修回归 **2067 passed／4 skipped**，类型／提示契约通过；最终安装包及重启后原生 42/42 核验见[计划后续报告](docs/validation/v3.8/V3_8_2_EXPLAIN_FOLLOWUP_2026_10_17_ZH.md)。前批安装包两协议、MySQL 及原生 28/28 保留[当时源码范围](docs/validation/v3.8/V3_8_2_READ_BOUNDARIES_2026_10_17_ZH.md)。前批 Host／Luna 失败、评分限制和成本测量保留各自源码归属。
 
@@ -1446,6 +1464,25 @@ check_connection(scope="all")                   # 全部已配置连接
 ### 4. `describe_table`
 用途：获取表结构 - 列信息、索引、估计行数和查询建议
 
+SQLite 按数据库列序返回普通列及 VIRTUAL／STORED 生成列；生成列以
+`generation_type: "virtual"`／`"stored"` 标记，不能直接写入。虚表隐藏列
+（`table_xinfo.hidden=1`）不混入默认列和计数；FTS `rank` 等字段仍可在相同授权下
+显式查询。元数据不返回或求值生成表达式。full schema 保留 `generation_type`，
+compact 以 `generated_columns` 标明生成列，分组时区分其元数据。
+详见[补修契约与验收](docs/validation/v3.8/V3_8_2_RELATION_CALLS_COLUMNS_2026_10_20_ZH.md)。
+
+SQLite 的 `data_type`（full schema 的 `type`、compact 列对的第二项）保留原生
+PRAGMA 类型字符串，包括 `""`。空字符串表示 SQLite 未提供非空类型信息，
+不代表 `TEXT`，也不能据此确定亲和性或实际值的存储类。compact 分组比较可见
+元数据，不保证 SQLite 完整语义相同。见[声明类型补修](docs/validation/v3.8/V3_8_2_SQLITE_DECLARED_TYPES_REPAIR_2026_10_21_ZH.md)。
+
+实际 PRIMARY 成员在 describe／summary 列及 full schema 中携带可选的
+`primary_key_position`（从 1 开始）；非成员省略该字段。原生 `key_type`
+（full 中为 `key`）保留展示标记：MySQL 无 PRIMARY 时，非空唯一索引也可能显示
+`PRI`。compact 的 `primary_key` 按真实键序列出成员，无 PRIMARY 时为 `[]`。
+这是成员摘要，SQLite 重复物理键项、方向和 collation 应查看 describe 的索引部分，
+不能将摘要当作完整物理键。见[共享主键契约](docs/validation/v3.8/V3_8_2_PRIMARY_KEY_METADATA_REPAIR_2026_10_21_ZH.md)。
+
 返回 adapter 可见的完整列元数据、索引，以及来自适配器元数据/统计信息的估计行数
 （MySQL 使用 INFORMATION_SCHEMA；SQLite 使用 PRAGMA 与 sqlite_stat1 或有界采样）。自
 v3.8.1 起，每个索引返回 `name`、`primary`、`unique` 和按序排列的键列 `columns`
@@ -1454,6 +1491,10 @@ v3.8.1 起，每个索引返回 `name`、`primary`、`unique` 和按序排列的
 `name: null` 返回。不返回索引注释、表达式、部分索引条件和基数。这不等于完整
 DDL：外键、check 和其它 backend-specific 属性不在结果中。
 包含 `is_large` 标志用于查询规划，并避免自动执行 COUNT(*) 全表扫描。
+
+SQLite 优先整表或已核验非部分索引统计（含 WITHOUT ROWID 主树），不可用时
+回退到最多 10,000 行的受控读取。统计可能过期，有界结果可能只是下界；
+需要当前精确基数时应明确选择精确计数。
 
 若 adapter 元数据无法读取，本工具返回 `success=false` 和
 `error_code="metadata_query_failed"`，不会伪装为缺表或 0 行结果。
@@ -1535,9 +1576,9 @@ SQLite 的采样和精确计数明确读取 `main`，避免同名 `temp` 对象�
 ### 6. `get_full_schema`
 用途：在一次调用中获取 compact 或 full 的可见数据库 Schema 概览
 
-`detail_level="compact"` 是机器可见的默认值，适用于全局表说明和多表规划；省略该参数等同于显式传入 `compact`。它返回 `[字段名, 类型]` 二元组、主键、字段数和每张表的近似行数。默认 `group_identical=true`，只有当前 adapter 可见的全部列元数据和字段顺序均相等的表才会共享一个分组。对 MySQL 而言，判等范围包括字段名、基础数据类型、可空性、key 标记和默认值；它**不能**证明完整 DDL、索引、外键、check、长度/精度、unsigned、collation 或生成表达式等价。响应以 `grouping_basis` 明示这一边界；compact 需要每张表独立保留时传 `group_identical=false`，full 模式会忽略该参数。
+`detail_level="compact"` 是机器可见的默认值，适用于全局表说明和多表规划；省略该参数等同于显式传入 `compact`。它返回 `[字段名, 类型]` 二元组、按真实键序排列的 PRIMARY 成员、字段数和每张表的近似行数。默认 `group_identical=true`，只有当前 adapter 可见的全部列元数据和字段顺序均相等的表才会共享一个分组。对 MySQL 而言，判等范围包括字段名、基础数据类型、可空性、key 标记、默认值及实际 PRIMARY 位置；它**不能**证明完整 DDL、索引、外键、check、长度/精度、unsigned、collation 或生成表达式等价。响应以 `grouping_basis` 明示这一边界；compact 需要每张表独立保留时传 `group_identical=false`，full 模式会忽略该参数。
 
-需要跨多张表查看 `nullable`、`default` 和 key 元数据时，应显式传入 `detail_level="full"`。数据库/元数据读取失败会返回 `success=false` 和 `error_code="metadata_query_failed"`，不会再伪装成空数据库、空 schema、表不存在或 0 行估计。无法取得行数估计时，`row_count` 可以为 `null`，不表示空表。若 table discovery 返回超出 schema 工具保守 identifier 语法的数据库对象名，投影会明确返回 `error_code="unsupported_metadata_identifier"`，不会把它误报为查询失败或输出空表。可见表可能受 allowlist 过滤并被 `limits.schema_tables` 截断；单表深入查看使用 `describe_table()`。
+需要跨多张表查看 `nullable`、`default` 和 key 元数据时，应显式传入 `detail_level="full"`。数据库/元数据读取失败会返回 `success=false` 和 `error_code="metadata_query_failed"`，不会再伪装成空数据库、空 schema、表不存在或 0 行估计。无法取得行数估计时，`row_count` 可以为 `null`，不表示空表。若 table discovery 返回超出 schema 工具方言名称支持包络的数据库对象名，投影会明确返回 `error_code="unsupported_metadata_identifier"`，不会把它误报为查询失败或输出空表。可见表可能受 allowlist 过滤并被 `limits.schema_tables` 截断；单表深入查看使用 `describe_table()`。
 
 Compact 输出：
 ```json
@@ -1978,6 +2019,8 @@ Bearer confidentiality 在 token 消费或过期前仍然重要；短 TTL、精�
 - **失败 preview 处理**：preview 结果含 `error` 或报告 `success=false` 时不签发 token
 - **乐观锁**：执行时使用 `WHERE status = :expected_status`，并在 COMMIT 前强制 `expected_rowcount=1`；零行或多行都会回滚
 - **事务结论**：只有确认 rollback 的提交前失败才报告 `rolled_back`；COMMIT 回执失败报告 `unknown`；MySQL 保证仅限事务性 InnoDB DML
+- **读取分析绑定**：MySQL 同步核验分析对应的原 SQL；合法匹配调用和原参数保持正常，错配在执行器前拒绝。
+- **SQLite 写入**：DML 前建立真实事务，完成并关闭 RETURNING 后核对直接受影响行数，按物理事务证据确认回滚；`unknown` 仍不得自行重试。触发器／级联修改和返回行不加入直接计数。见[契约与验证](docs/validation/v3.8/V3_8_2_SQLITE_WRITE_TRANSACTIONS_2026_10_22_ZH.md)。
 - **审计日志**：mutation preview/execute 路径尝试 best-effort 写入 JSONL 审计文件；审计写入失败不会回滚数据变更
 
 #### 示例 3：`sample-reset-order-to-pending`（跨数据库 Demo Reset）
@@ -2230,12 +2273,16 @@ execute_query_skill("sample-monthly-sales-report", {"year": 2026, "month": 1})
 ## 依赖要求
 
 - Python 3.12+，MySQL 或 SQLite 数据库。
-- FastMCP 4.0.10 / MCP SDK 2.2.0；SQLAlchemy、SQLGlot、sqlparse（受管写入计划）、PyMySQL、Pydantic 和 PyYAML 等依赖由 `pyproject.toml` 管理、`uv.lock` 锁定。
+- FastMCP 4.0.10 / MCP SDK 2.2.0；SQLAlchemy、SQLGlot、sqlparse（受管计划临时显式选择模式）、PyMySQL、Pydantic 和 PyYAML 等依赖由 `pyproject.toml` 管理、`uv.lock` 锁定。
 - AutoGen 示例采用独立环境，不进入核心运行依赖。间接依赖中可能存在 python-dotenv，不代表项目继续支持旧配置。
 
 ## 测试
 
 默认 pytest 通过 `pyproject.toml` 只收集 `tests/`，使用隔离的临时配置和 SQLite fixture，不加载本地 `.env`。可选 MySQL 集成检查需显式设置 `RUN_MYSQL_INTEGRATION_TESTS=1` 并导出测试凭据；这只是测试夹具接口，不是服务端环境配置回退。
+
+当前验收使用[统一契约验证入口](scripts/validation/README.md)。确定性 `fast` 通过仍将实库标为未验；`release` 显式运行隔离 SQLite／MySQL 矩阵。验收安装包时须使用正常安装 wheel 的解释器且省略 `--source`。缺少环境或发布出现意外跳过时不能算通过。依赖／运行环境升级后，即使产品源码未变也须相关复验；baseline 比较不自动复用旧结果。
+
+**10 月 22 日本机验证：** 正常安装 wheel **3541 项通过／初始四项可选跳过**，随后 **860 次应用调用**和**四项实际 MySQL 测试零跳过通过**。GitHub Hosted 发布工作流尚未运行。这些检查不新增模型 token 或性能收益结论，见[证据与限制](docs/validation/v3.8/V3_8_2_PORTABLE_RELEASE_GATES_2026_10_22_ZH.md)。以下早期记录保留各自时点与范围。
 
 ```bash
 uv run pytest -q -rs

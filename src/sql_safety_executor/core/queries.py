@@ -15,9 +15,9 @@ from sql_safety_executor.core.connections import _resolve_connection_context
 from sql_safety_executor.core.policy import _prepare_sql_read
 from sql_safety_executor.database.errors import DatabaseQueryError
 from sql_safety_executor.core.results import (
-    _serialize_result,
+    _prepare_read_result,
+    ReadResultError,
     _tool_result,
-    _truncate_result,
 )
 
 
@@ -82,7 +82,8 @@ async def query(
 
     try:
         result = connection.adapter.execute_read(sql, connection.config.query_timeout_seconds, policy=connection.policy, analysis=plan.analysis)
-    except DatabaseQueryError as error:
+        prepared = _prepare_read_result(runtime, result)
+    except (DatabaseQueryError, ReadResultError) as error:
         await ctx.error(f"Query failed: {error.error_code}")
         return _tool_result(
             runtime,
@@ -98,36 +99,14 @@ async def query(
             success=False,
         )
 
-    # Success - Apply token optimization with truncation
-    # Best practice: Limit response size to prevent context overflow
-    # Reference: Google Gemini - "Token limits: function descriptions and parameters count toward input token limits"
-    data = _serialize_result(result)
-    total_rows = len(result) if isinstance(result, list) else 0
-
-    # Apply truncation to prevent token explosion (root cause of 454K token issue)
-    truncation_result = _truncate_result(runtime, data, total_rows)
-
-    if truncation_result["truncated"]:
-        await ctx.warning(
-            f"Truncated returned payload: {truncation_result['returned_rows']}/{total_rows} rows shown. "
-            f"Add WHERE/LIMIT/ORDER BY to limit database work and stabilize ordering."
-        )
+    if prepared["truncated"]:
+        await ctx.warning(prepared["truncation_note"])
     else:
-        await ctx.info(f"Query returned {total_rows} rows")
+        await ctx.info(f"Query returned {prepared['total_rows']} rows")
 
     payload = {
         "success": True,
-        "data": truncation_result["data"],
-        "row_count": truncation_result["returned_rows"],
-        "total_rows": total_rows,
-        "truncated": truncation_result["truncated"],
-        "truncation_note": (
-            f"Showing {truncation_result['returned_rows']}/{total_rows} fetched rows. "
-            f"Truncation limits the returned payload only; add WHERE/LIMIT/ORDER BY "
-            f"to limit database work and stabilize ordering."
-        )
-        if truncation_result["truncated"]
-        else None,
+        **prepared,
         "query": sql,
         "connection_id": connection.connection_id,
         "db_type": connection.db_type,
@@ -139,7 +118,7 @@ async def query(
         start_time=start_time,
         connection=connection,
         success=True,
-        row_count=truncation_result["returned_rows"],
-        total_rows=total_rows,
-        truncated=truncation_result["truncated"],
+        row_count=prepared["row_count"],
+        total_rows=prepared["total_rows"],
+        truncated=prepared["truncated"],
     )

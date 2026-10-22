@@ -1,0 +1,32 @@
+{
+  "files": {
+    "README.md": {
+      "bytes": 621,
+      "sha256": "4dedb4ffa02500a47c48b54a52a6cdb95506d01626f264b96fb4139440e062c9"
+    },
+    "adjacent_reads.py.gz": {
+      "bytes": 2362,
+      "sha256": "76ce7e40a8403c4677b3be93f82c0ed8eaf9ebb90db1fcb7e00e0db9b21ac811"
+    },
+    "client_adjacencies.py.gz": {
+      "bytes": 1413,
+      "sha256": "7126fc06873a5a13350a446100c18f5ffe152ea5d348c98feae83d2769f5a23a"
+    },
+    "evidence.json.gz": {
+      "bytes": 27427,
+      "sha256": "e0e8a59167f92aa1ccfbb33d7a56a5053bc73dcec236461486a91b10e9e520e8"
+    },
+    "mysql_metadata_cost.py.gz": {
+      "bytes": 1924,
+      "sha256": "43d72ca167771afc71d7f11f5bf0badfe73417561ddd01b159afd3c8cb4ec160"
+    },
+    "seal_audit.py.gz": {
+      "bytes": 2208,
+      "sha256": "203475520feb66d95f63b60310d3249e4f05202ec34b51cb3f540a49e245c658"
+    },
+    "verification.json": {
+      "bytes": 9444,
+      "sha256": "687df6b1b016335db0d8043eebdae364e76d2c26a0806d824566f0f873596cc3"
+    }
+  }
+}

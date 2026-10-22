@@ -379,7 +379,7 @@ def test_query_skill_union_policy_follows_selected_connection(
         skill.tables = ["items"]
         skill.params = {}
         skill._sql_template = union_sql
-        skill._inferred_tables.clear()
+        skill._inferred_analysis.clear()
 
         for connection_id, is_allowed in (
             ("default", default_allow_union),

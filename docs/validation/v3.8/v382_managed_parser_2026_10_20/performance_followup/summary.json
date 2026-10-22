@@ -1,0 +1,63 @@
+{
+  "date": "2026-10-20",
+  "scope": "Fixed warm SQLite child-stdio six-call workflow; independent untimed counts and non-executing SQLite/MySQL controls. Assessment only, no production implementation change.",
+  "environment": {
+    "python": "3.12.3",
+    "os": "Linux",
+    "machine": "x86_64",
+    "versions": {
+      "sqlglot": "30.22.0",
+      "sqlparse": "0.6.0",
+      "fastmcp": "4.0.10",
+      "mcp": "2.2.0",
+      "sqlalchemy": "2.1.1"
+    }
+  },
+  "comparisons": [
+    {
+      "mode": "auto",
+      "pooled_baseline_cycle_median_ms": 49.4900655,
+      "current_cycle_median_ms": 54.8854215,
+      "delta_ms": 5.395356,
+      "relative_percent": 10.901897068614709,
+      "baseline_phase_medians_ms": [
+        48.9551345,
+        49.920423
+      ]
+    },
+    {
+      "mode": "legacy",
+      "pooled_baseline_cycle_median_ms": 90.666935,
+      "current_cycle_median_ms": 95.1829965,
+      "delta_ms": 4.516061500000006,
+      "relative_percent": 4.980935442452106,
+      "baseline_phase_medians_ms": [
+        90.92902699999999,
+        90.38699650000001
+      ]
+    }
+  ],
+  "measured_calls": 1440,
+  "warmup_calls": 288,
+  "complete_cycles": 288,
+  "classifications_in_one_six_call_cycle": 11,
+  "database_valid_intentional_refusal_examples": 6,
+  "native_explain_controls": 18,
+  "unchanged_source_resources": 77,
+  "prior_sealed_files_verified": 459,
+  "prior_manifests_verified": 19,
+  "local_links_verified": 757,
+  "broken_links": [],
+  "diff_check_passed": true,
+  "findings": [
+    "Warm startup validator is faster but the full successful tool workflow is modestly slower in this measurement.",
+    "Existing built-in paths complete; HNP whole-session and hint-shaped-comment restrictions can refuse engine-valid managed SQL.",
+    "187/980 newly refused corpus combinations are not a business refusal rate; 78 are HNP controls.",
+    "Pure classification reuse and finer HNP/hint support are recommendations, not implemented or approved follow-up changes."
+  ],
+  "limits": [
+    "Sum of six call_tool round trips, excluding connection startup, model inference, local assertions/orchestration gaps and independent truth.",
+    "Serial A/B/A with retained phase drift, not randomized causal identification, arbitrary-load/MySQL-write performance or provider token evidence.",
+    "Metric/outcome records are not full application responses or protocol frames. All DML writes use disposable SQLite only."
+  ]
+}

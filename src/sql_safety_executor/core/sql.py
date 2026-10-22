@@ -21,7 +21,7 @@ def classify_sql_statement(sql_query: str, *, context: DialectContext | None = N
 
 
 def has_unsafe_mysql_comment_semantics(sql_query: str) -> bool:
-    return analyze_sql(sql_query, DialectContext("sqlite")).statement_kind == "unsafe_comment"
+    return analyze_sql(sql_query, DialectContext("mysql")).statement_kind == "unsafe_comment"
 
 
 def is_sql_safe(sql_query: str) -> bool:

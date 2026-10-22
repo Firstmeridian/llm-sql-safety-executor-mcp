@@ -108,6 +108,7 @@ def test_expected_rowcount_rejects_invalid_values_before_connect(invalid) -> Non
 class _FakeRawSQLite:
     def __init__(self) -> None:
         self.handlers: list[object | None] = []
+        self.in_transaction = False
 
     def set_progress_handler(self, handler, _interval: int) -> None:
         self.handlers.append(handler)
@@ -120,16 +121,21 @@ class _FakeTransaction:
         self.rollback_error = rollback_error
         self.commit_calls = 0
         self.rollback_calls = 0
+        self.raw: _FakeRawSQLite | None = None
 
     def commit(self) -> None:
         self.commit_calls += 1
         if self.commit_error:
             raise self.commit_error
+        if self.raw is not None:
+            self.raw.in_transaction = False
 
     def rollback(self) -> None:
         self.rollback_calls += 1
         if self.rollback_error:
             raise self.rollback_error
+        if self.raw is not None:
+            self.raw.in_transaction = False
 
 
 class _FakeConnection:
@@ -148,6 +154,7 @@ class _FakeConnection:
             commit_error=commit_error,
             rollback_error=rollback_error,
         )
+        self.transaction.raw = self.raw
         self.execute_error = execute_error
         self.close_error = close_error
         self.rowcount = rowcount
@@ -157,10 +164,16 @@ class _FakeConnection:
     def begin(self):
         return self.transaction
 
+    def exec_driver_sql(self, statement):
+        assert statement == "BEGIN"
+        self.raw.in_transaction = True
+        return SimpleNamespace(close=lambda: None)
+
     def execute(self, _statement, _params):
         if self.execute_error:
             raise self.execute_error
-        return SimpleNamespace(rowcount=self.rowcount)
+        return SimpleNamespace(rowcount=self.rowcount, cursor=None,
+                               returns_rows=False, close=lambda: None)
 
     def close(self) -> None:
         self.closed = True

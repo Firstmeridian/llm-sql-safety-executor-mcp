@@ -1,0 +1,33 @@
+{
+  "documents": {
+    "README.md": "54ac4a4ba5d9258caf5d4790704e23cad61f4a42acdbe95981c19f2929b0df86",
+    "README_ZH.md": "1509d2d258752c9a7979cefa6ac9904ca780d8053a783c801e8a208b57ab0c03",
+    "REFACTORING_LOG.md": "b501e3410e3244d16de4e74741278455dac43316fd4a9ada805063514e925640",
+    "REFACTORING_LOG_ZH.md": "4ea543aa1ad1d7c7b638410c942f99b905d1539719c1a0c4c7793e5ae8a18544",
+    "docs/README.md": "6a988410c64461650739f123c1a4978e2fc4674644596e0969fe0aa7afae5dbf",
+    "docs/README_ZH.md": "32a7a0d442aeae5a304cc212bee236cff11f7729a503ca7194567b868e2e29ac",
+    "docs/releases/RELEASE_NOTES_v3_8.md": "4fec6adee1bb3704783647a4f3896ab311747a1f469c2156293f56deb3fc1673",
+    "docs/architecture/V3_8_2_SQL_SEMANTICS_ZH.md": "c7ab5989d3a32117fac460ac49de98a3a13c994617c7510e17ba290eddf755b6",
+    "docs/guides/TEST_MCP_CLIENT_GUIDE.md": "75b84887c9d21d65409489c3470f1a824e2da3bb70ed56faea3d1e97a5aa3217",
+    "docs/security/DESIGN_RISK_REGISTER.md": "56d1c6ede169ab84b924e2d2f6233b2a2b079279628465a4145b705478d1628f",
+    "docs/security/DESIGN_RISK_REGISTER_ZH.md": "0c7e6273617ff7536e445c549e5c01515d4aaf619e3ce054e537053088d6a5a5",
+    "docs/validation/v3.8/V3_8_2_SQLITE_DECLARED_TYPES_REPAIR_2026_10_21_ZH.md": "51060d63e32bcb1af1a265d069c3f78394ae01e020cf1aec75a95bd206d79f49",
+    "docs/validation/v3.8/v382_sqlite_declared_types_repair_2026_10_21/README.md": "06d961850b527f7449f5ba135abfaf6666697823f23554f484bf3a3a823601bc",
+    "local_archive/v382_review/README.md": "cdac1b66b9f9bbf8df557dd5cd3eacf474a341cd93ea70d667d489725a8371c1",
+    "local_archive/v382_review/handoff/session-handoff-v381-v382-20261019-ZH.md": "3e37869a6df6076de8b18df7bd7598fc6385823f8419cffeee82397bf1a8b7b8",
+    "local_archive/v382_review/20261021_sqlite_declared_type_repair/reports/README_ZH.md": "d6e5ed5a341c9cd886d62d329f85585fdeaa32bdc61c70f36cd9fc0cd198208d"
+  },
+  "local_links_checked": 977,
+  "broken_links": [],
+  "git_diff_check": "passed",
+  "current_source": "DRR140 implemented; owner restart/native pending",
+  "prior_seals_verified": {
+    "manifests": 63,
+    "file_records": 2047
+  },
+  "private_new_records": 27,
+  "public_new_records": 23,
+  "cumulative_manifests": 65,
+  "cumulative_file_records": 2097,
+  "notes": "Old normalized-type assessment/repair evidence remains immutable; current docs record narrow raw-type fix and cost limits."
+}

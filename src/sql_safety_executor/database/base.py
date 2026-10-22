@@ -5,7 +5,7 @@ from typing import Any
 
 from .outcomes import MetadataQueryError
 from .errors import DatabaseQueryError
-from .relations import ReadRelation, RelationReference, render_relation
+from .relations import ReadRelation, RelationReference, SQLiteJSONNameObservation, render_relation
 from .semantics import DialectContext, mysql_modes
 from .execution import operation_scope
 
@@ -72,6 +72,10 @@ class DatabaseAdapter(ABC):
         """Unknown backends retain exact matching; never infer a table grant."""
         return self.cte_case_sensitive is not False
 
+    def get_json_name_observation(self) -> SQLiteJSONNameObservation | None:
+        """Ordered SQLite JSON-name bindings; None means unobserved scope."""
+        return None
+
     @abstractmethod
     def connect(self) -> bool:
         """
@@ -134,19 +138,37 @@ class DatabaseAdapter(ABC):
         """
         pass
 
-    @abstractmethod
     def get_tables(self) -> list[dict[str, Any]]:
-        """
-        Get list of all tables with metadata.
+        """Get the full directory with row estimates, for adapter callers.
 
-        Returns:
-            List of dicts with 'table_name' and 'row_count' keys. row_count is
-            None when the backend cannot provide a safe estimate.
-
-        Raises:
-            MetadataQueryError: If the metadata query cannot be completed
+        Public overview tools use get_table_directory, project their allowed
+        output, then enrich_row_estimates only for that projection.
         """
-        pass
+        return self.enrich_row_estimates(self.get_table_directory())
+
+    @abstractmethod
+    def get_table_directory(self) -> list[dict[str, Any]]:
+        """List ordered table names and cheap catalog estimates; no data scans.
+
+        Each entry has table_name and row_count (possibly None). This table-only
+        directory is distinct from readiness's table/view get_read_relations.
+        MetadataQueryError means unavailable, rather than an empty directory.
+        """
+        raise NotImplementedError
+
+    def enrich_row_estimates(self, tables: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Supplement only supplied tables; catalog-only backends need no work."""
+        return tables
+
+    def get_columns_batch(self, table_names: list[str]) -> dict[str, list[dict[str, Any]]]:
+        """Describe only supplied identities, retaining each column's order.
+
+        The caller authorizes and truncates first. Backends may implement
+        bounded bulk catalog reads; this composition retains per-table reads
+        where they are appropriate. Missing columns remain an empty list;
+        unavailable metadata raises MetadataQueryError, never partial success.
+        """
+        return {name: self.get_columns(name) for name in dict.fromkeys(table_names)}
 
     @abstractmethod
     def get_read_relations(self) -> list[ReadRelation]:
@@ -168,6 +190,13 @@ class DatabaseAdapter(ABC):
 
         Returns:
             List of dicts with column metadata (name, type, nullable, key, default)
+            and optional primary_key_position: a positive, one-based position
+            for actual PRIMARY constraint members; absent for non-members.
+            key_type remains a native display flag, never proof of a PRIMARY
+            constraint. Column order remains table order. Positions order
+            members, not all physical index parts (SQLite may repeat a part).
+            Built-in adapters obtain this in the same column query; metadata
+            failures must not become guessed positions or an empty key.
 
         Raises:
             MetadataQueryError: If the metadata query cannot be completed

@@ -5,7 +5,7 @@ from dataclasses import dataclass, replace
 
 from .analysis import SQLAnalysis, analyze_sql
 from .decisions import PolicyDecision
-from .read_rules import _ACCOUNT_FUNCTIONS, _LOCK_FUNCTIONS, _EXPENSIVE_FUNCTIONS, _SQLITE_PRAGMA_OBJECTS
+from .read_rules import restricted_function_code, _ACCOUNT_FUNCTIONS, _SQLITE_PRAGMA_OBJECTS
 from sql_safety_executor.database.base import DatabaseAdapter
 from sql_safety_executor.database.errors import DatabaseQueryError
 from sql_safety_executor.database.identifiers import ascii_identifier_lower
@@ -27,14 +27,18 @@ def _effective_policy(runtime, policy=None) -> ConnectionPolicy:
 def classify_analysis(analysis: SQLAnalysis) -> PolicyDecision:
     codes = {
         "empty": ("empty_sql", "SQL query is empty."),
-        "unsafe_comment": ("unsafe_comment", "Ambiguous or executable MySQL comment syntax is not allowed"),
+        "unsafe_comment": ("unsafe_comment", "Unsupported, ambiguous or executable comment syntax is not allowed"),
         "executing_explain": ("executing_explain_denied", "EXPLAIN ANALYZE is not allowed."),
         "session_inspection": ("session_inspection_denied", "Inspecting another database session is not allowed."),
         "pragma": ("pragma_statement_denied", "Raw PRAGMA statements are not allowed; use metadata tools."),
+        "unsupported_binding": ("parameter_binding_unsupported", "Positional parameter markers are not supported by this read interface."),
     }
     if analysis.statement_kind in codes:
         code, message = codes[analysis.statement_kind]
-        hint = "Use list_tables() or describe_table(); describe_table() also returns indexes." if code == "pragma_statement_denied" else "Use EXPLAIN without ANALYZE." if code == "executing_explain_denied" else None
+        hint = ("Use list_tables() or describe_table(); describe_table() also returns indexes." if code == "pragma_statement_denied"
+                else "Use EXPLAIN without ANALYZE." if code == "executing_explain_denied"
+                else "Use a reviewed Query Skill with named parameters; query() has no positional binding argument." if code == "parameter_binding_unsupported"
+                else None)
         return PolicyDecision.deny(code, message, hint)
     if analysis.status == "failed" or analysis.statement_kind == "unknown" or "cte_body" in analysis.unsupported:
         code = "multiple_statements" if "multiple_statements" in analysis.unsupported else "sql_parse_failed"
@@ -59,20 +63,34 @@ def _analysis_decision(analysis: SQLAnalysis, policy: ConnectionPolicy, *, requi
         return shape
     if analysis.statement_kind == "show":
         return PolicyDecision.deny("show_statement_denied", "SHOW statements are not allowed in raw queries.", "Use list_tables() or describe_table(); describe_table() also returns indexes.")
-    if "load_file" in analysis.functions or analysis.has_file_output:
+    function_code = restricted_function_code(analysis.functions)
+    if function_code == "file_operation_denied" or analysis.has_file_output:
         return PolicyDecision.deny("file_operation_denied", "MySQL server-side file operations are not allowed")
-    if analysis.functions & _LOCK_FUNCTIONS:
+    if analysis.has_session_assignment:
+        return PolicyDecision.deny("session_assignment_denied", "Assigning session variables is not allowed in read queries.", "Keep the same connection; return values as query columns instead of assigning session variables.")
+    if analysis.has_locking_read and analysis.statement_kind != "explain":
+        return PolicyDecision.deny("locking_read_denied", "Locking reads are not allowed through the ordinary read interface.", "Keep the same connection and use an ordinary SELECT. Transaction lock coordination requires a reviewed operation owning acquisition and release.")
+    if function_code == "lock_function_denied":
         return PolicyDecision.deny("lock_function_denied", "Lock functions are not allowed in read queries.", "Keep the same connection and use ordinary reads. Lock coordination requires a trusted operation managing acquisition and release on one connection.")
-    if analysis.functions & _EXPENSIVE_FUNCTIONS:
+    if function_code == "expensive_function_denied":
         return PolicyDecision.deny("expensive_function_denied", "Delay or benchmark functions are not allowed in read queries.", "Keep the same connection and use ordinary SQL expressions, filters and aggregates; remove deliberate sleeps and benchmarking calls.")
-    if analysis.has_system_variable or analysis.functions & (_ACCOUNT_FUNCTIONS | _SQLITE_PRAGMA_OBJECTS) or any(ascii_identifier_lower(ref.name) in _SQLITE_PRAGMA_OBJECTS for ref in analysis.relations):
-        return PolicyDecision.deny("server_state_denied", "System variables, Account and role functions, and SQLite PRAGMA objects are not allowed in queries.", "Use list_tables() or describe_table(); describe_table() also returns indexes.")
+    if analysis.has_system_variable:
+        return PolicyDecision.deny("server_state_denied", "System variable access is not allowed in read queries.", "Keep the same connection; remove the system-variable expression and query authorized business data.")
+    if function_code == "server_state_denied" and analysis.functions & _ACCOUNT_FUNCTIONS:
+        return PolicyDecision.deny("server_state_denied", "Account and role functions are not allowed in read queries.", "Keep the same connection; use authorized business data without account or role inspection.")
+    if function_code == "server_state_denied" or any(ascii_identifier_lower(ref.name) in _SQLITE_PRAGMA_OBJECTS for ref in analysis.relations):
+        return PolicyDecision.deny("server_state_denied", "SQLite PRAGMA state access is not allowed through query SQL.", "Use list_tables() or describe_table() for supported metadata on the same connection.")
     if analysis.has_derived_relation:
         return PolicyDecision.deny("relation_group_unsupported", "Parenthesized FROM/JOIN targets and subqueries in FROM are not allowed; use a CTE instead.")
     if "relation_quoting_unsupported" in analysis.unsupported:
         return PolicyDecision.deny("relation_quoting_unsupported", "Use standard identifier quoting for the selected connection's SQL mode.")
     if any(ref.schema is not None and ascii_identifier_lower(ref.schema) in {"mysql", "performance_schema", "information_schema", "sys"} for ref in analysis.relations):
         return PolicyDecision.deny("system_schema_denied", "Access to system databases not allowed.", "Use list_tables() or describe_table(); describe_table() also returns indexes.")
+    default_schema = analysis.context_key[3] if len(analysis.context_key) > 3 else None
+    if any(use.kind == "builtin" and use.schema is not None and default_schema is not None
+           and policy.table_key(use.schema) != policy.table_key(default_schema)
+           for use in analysis.virtual_relations):
+        return PolicyDecision.deny("relation_scope_unresolved", "Builtin table functions are supported only in the default schema.", "Keep the same connection and use an unqualified builtin table function.")
     if not analysis.complete:
         if "table_query_expression" in analysis.unsupported:
             return PolicyDecision.deny("relation_scope_unresolved", "TABLE query expressions are not supported; use SELECT with an explicit FROM target.")
@@ -92,7 +110,7 @@ def _prepare_sql_read(runtime, sql: str, policy=None, *, adapter: DatabaseAdapte
     effective = _effective_policy(runtime, policy)
     if effective.read_mode == "deny" or effective.read_mode == "allowlist" and not effective.allowed_tables:
         return ReadPlan(PolicyDecision.deny("read_disabled", "Reading is disabled by the target connection read policy."), SQLAnalysis("failed", "unknown"))
-    context = adapter.analysis_context if adapter is not None else DialectContext("mysql" if effective.case_sensitive_tables else "sqlite", cte_case_sensitive=effective.case_sensitive_tables)
+    context = adapter.analysis_context if adapter is not None else DialectContext("mysql" if effective.case_sensitive_tables else "sqlite", cte_case_sensitive=effective.case_sensitive_tables, default_schema=effective.default_schema or (None if effective.case_sensitive_tables else "main"))
     if not isinstance(context, DialectContext):
         return ReadPlan(PolicyDecision.deny("session_semantics_unavailable", "The adapter did not provide a valid SQL interpretation context."), SQLAnalysis("failed", "unknown"))
     analysis = analyze_sql(sql, context)
@@ -106,7 +124,7 @@ def _prepare_sql_read(runtime, sql: str, policy=None, *, adapter: DatabaseAdapte
         # of exact/folded dependencies; never treat later/self CTEs as visible.
         possible = analyze_sql(sql, replace(context, cte_case_sensitive=False)) if analysis.ctes and adapter is not None and adapter.cte_case_sensitive is None else analysis
         if possible.complete:
-            definite = [ref for ref in analysis.relations if ref in possible.relations and not effective.allows_relation(ref)]
+            definite = [ref for ref in analysis.relations if ref in possible.relations and not effective.allows_relation(ref, default_schema=context.default_schema)]
             if definite:
                 return ReadPlan(_blocked_relations_decision(definite, effective), analysis)
     if adapter is not None:
@@ -122,10 +140,10 @@ def _prepare_sql_read(runtime, sql: str, policy=None, *, adapter: DatabaseAdapte
         return ReadPlan(decision, analysis)
     if analysis.ctes and effective.case_sensitive_tables and adapter is not None and adapter.cte_case_sensitive is None:
         folded = analyze_sql(sql, replace(context, cte_case_sensitive=False))
-        if folded.complete and analysis.relations != folded.relations and (effective.read_mode == "all" or all(effective.allows_relation(ref) for ref in folded.relations)):
+        if folded.complete and analysis.relations != folded.relations and all(effective.allows_relation(ref, default_schema=context.default_schema) for ref in folded.relations):
             if not adapter.resolve_cte_case_sensitive():
                 analysis = folded
-    blocked = [ref for ref in analysis.relations if not effective.allows_relation(ref)]
+    blocked = [ref for ref in analysis.relations if not effective.allows_relation(ref, default_schema=context.default_schema)]
     if blocked:
         decision = _blocked_relations_decision(blocked, effective)
     return ReadPlan(decision, analysis)
@@ -140,8 +158,14 @@ def _validate_sql_template_startup_policy(runtime, sql: str) -> PolicyDecision:
     # interpretation contexts, never execution fallbacks or additional grants.
     contexts = [DialectContext("sqlite"), *[DialectContext("mysql", frozenset(modes)) for modes in [(), ("ANSI_QUOTES",), ("NO_BACKSLASH_ESCAPES",), ("ANSI_QUOTES", "NO_BACKSLASH_ESCAPES")]]]
     policy = _effective_policy(runtime)
-    decisions = [_analysis_decision(analyze_sql(sql, context), policy, require_union=False) for context in contexts]
-    return next((decision for decision in decisions if decision.allowed), decisions[0])
+    first = _analysis_decision(analyze_sql(sql, contexts[0]), policy, require_union=False)
+    if first.allowed:
+        return first
+    for context in contexts[1:]:
+        decision = _analysis_decision(analyze_sql(sql, context), policy, require_union=False)
+        if decision.allowed:
+            return decision
+    return first
 
 
 def _resolve_query_tables(sql, policy, *, adapter=None, strict=True, probe=False):
@@ -149,7 +173,7 @@ def _resolve_query_tables(sql, policy, *, adapter=None, strict=True, probe=False
     analysis = analyze_sql(sql, context)
     if analysis.ctes and policy.case_sensitive_tables and adapter is not None and adapter.cte_case_sensitive is None:
         folded = analyze_sql(sql, replace(context, cte_case_sensitive=False))
-        if folded.complete and folded.relations != analysis.relations and probe and all(policy.allows_relation(ref) for ref in folded.relations):
+        if folded.complete and folded.relations != analysis.relations and probe and all(policy.allows_relation(ref, default_schema=context.default_schema) for ref in folded.relations):
             if not adapter.resolve_cte_case_sensitive():
                 analysis = folded
     if not analysis.complete:

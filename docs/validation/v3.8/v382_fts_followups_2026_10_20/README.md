@@ -1,0 +1,7 @@
+# FTS follow-up evidence — 2026-10-20
+
+DRR-116/117 source/package checkpoint: 2737 passes/four optional skips, clean type/prompt, 76 matching runtime resources, 240 source and 240 installed child-stdio calls. The matched 24-input replay removes two guarded function evaluations and twelve qualified-call false refusals. The eight native checks remain pending the maintainer restart.
+
+Application content and structured results are preserved. Tool inventories are stored once by canonical SHA-256 in catalogs.json.gz; records reference them in original order. This is a lossless rearrangement of collected inventories, not full protocol capture or model usage. Full original local records, red tests, logs, before/after runtime archives, independent wheel and build provenance remain in the ignored local batch. Public before.json carries baseline resource identities, not a claim that HEAD equals the actual uncommitted baseline.
+
+Cost A1/B/A2 runs after tests/builds, uses only direct adapters and generated one-row fixtures, and retains all samples and drift. Separate SQL traces match; this is not a Host performance guarantee. Current configured FTS smoke does not replay the private trusted-warm view/aux fixtures. Root documentation updated later is outside the 76-resource wheel equality claim. Read summary.json and provenance.json for scope and hashes; manifest.json seals only this checkpoint. Later resident evidence belongs in a separate supplement.

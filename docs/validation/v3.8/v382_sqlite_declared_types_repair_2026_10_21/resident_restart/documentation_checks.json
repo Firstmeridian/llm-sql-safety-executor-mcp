@@ -1,0 +1,34 @@
+{
+  "documents": {
+    "README.md": "54ac4a4ba5d9258caf5d4790704e23cad61f4a42acdbe95981c19f2929b0df86",
+    "README_ZH.md": "1509d2d258752c9a7979cefa6ac9904ca780d8053a783c801e8a208b57ab0c03",
+    "REFACTORING_LOG.md": "65c2b39f25578c62baa4efda8ac70e5c6ddcbc493f07f5f27e34c5bbb5d41917",
+    "REFACTORING_LOG_ZH.md": "b9ebbbcac5d2b78c95201595638d6b6527799d9bbb1dae7e1134ba8a2e431190",
+    "docs/README.md": "d4d43275af56aa5d152769d3074d1c5f321505ec5d020de0e43ab7e814960bfa",
+    "docs/README_ZH.md": "dd94a69e83fa583ac33c7291a8f88ecd3bf9d7c23856b5a012749315676dea59",
+    "docs/releases/RELEASE_NOTES_v3_8.md": "64946d1e7e6fd67ddb57391c7d82fb1247b7a7db7fd4614d710518b171ec59e4",
+    "docs/architecture/V3_8_2_SQL_SEMANTICS_ZH.md": "6fb7892bd9c8753326357cfcbf534aacd9b9f664575ec0f372867c3fb7dbf093",
+    "docs/architecture/SQLITE_ADAPTER_DESIGN.md": "44960a4374678625f587496d5104386feaf4313d96f23858e82893a114bd5932",
+    "docs/guides/TEST_MCP_CLIENT_GUIDE.md": "75b84887c9d21d65409489c3470f1a824e2da3bb70ed56faea3d1e97a5aa3217",
+    "docs/security/DESIGN_RISK_REGISTER.md": "12a0e056218f1802177ce8522c04b9dea3891a257ff5e378cf2cfed5b4dee468",
+    "docs/security/DESIGN_RISK_REGISTER_ZH.md": "f65e12d7d7bd55c3e77c4e61ec5e474f2742a03e6257d073c0d826fb953971af",
+    "docs/validation/v3.8/V3_8_2_SQLITE_DECLARED_TYPES_REPAIR_2026_10_21_ZH.md": "3cf0406be5cb8bec305da6dd01db8593125becb660172d549886d96c5487e90e",
+    "docs/validation/v3.8/v382_sqlite_declared_types_repair_2026_10_21/resident_restart/README.md": "818717f7ba7a85e396915ab42dd3021300be5cc2eb94c658e222dd7b0b494014",
+    "local_archive/v382_review/README.md": "1a9fad26e2926b131a2951026b6afdac83ffc4caecb357abb1610d1f1a6032c4",
+    "local_archive/v382_review/handoff/session-handoff-v381-v382-20261019-ZH.md": "7dcf17d27f04568d228ffd16c53e2cc8fcbbb5185dd6a52f152e66f911709f51",
+    "local_archive/v382_review/20261021_sqlite_declared_type_repair/resident_restart/reports/README_ZH.md": "f73eb2b56372b947ffee5cd09ed68a1aea2f20cec3c7ea78cd0f67b958bcda12"
+  },
+  "local_links_checked": 988,
+  "broken_links": [],
+  "git_diff_check": "passed",
+  "current_status": "DRR140 complete within9 native and288 additional disposable Client calls; no further restart needed",
+  "prior_seals": {
+    "manifests": 65,
+    "file_records": 2097
+  },
+  "private_records": 19,
+  "public_records": 17,
+  "cumulative_manifests": 67,
+  "cumulative_file_records": 2133,
+  "prior_report_bytes_match_parent_documentation_sha256": true
+}

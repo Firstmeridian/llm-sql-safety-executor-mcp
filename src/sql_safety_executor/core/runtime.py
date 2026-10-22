@@ -1,6 +1,7 @@
 """Explicit service-instance lifecycle, with no ambient deployment configuration."""
 
 from pathlib import Path
+from functools import lru_cache
 import logging
 
 logger = logging.getLogger(__name__)
@@ -12,11 +13,21 @@ from sql_safety_executor.observability.audit import AuditLogger
 from sql_safety_executor.skills.catalog import SkillCatalog
 from .preview_tokens import InMemoryPreviewTokenStore
 from .policy import _validate_sql_template_startup_policy
+from .managed_sql import check_managed_sql
+
+_MANAGED_PLAN_CLASSIFICATION_CACHE_SIZE = 128
 
 
 class GatewayRuntime:
     def __init__(self, config: AppConfig):
         self.config = config
+        # Only immutable, pure classification decisions are retained. The key
+        # contains verbatim SQL, the complete frozen DialectContext, parser
+        # and (for full managed checks) the immutable declared bind-name set.
+        # Context resolution, authorization, readiness and tokens stay uncached.
+        self.classify_managed_plan = lru_cache(
+            maxsize=_MANAGED_PLAN_CLASSIFICATION_CACHE_SIZE
+        )(check_managed_sql)
         self.registry = ConnectionRegistry(
             config.connections, config.server.server.default_connection
         )
@@ -35,6 +46,7 @@ class GatewayRuntime:
                         self, sql
                     ),
                     load_mutations=config.skills.mutation.enabled,
+                    managed_plan_parser=config.skills.mutation.managed_plan_parser,
                 )
                 for meta in self.catalog.get_skills_cache().values():
                     for alias in meta.connection_ids or ():
@@ -70,5 +82,8 @@ class GatewayRuntime:
         try:
             self.diagnostics.close()
         finally:
-            self.registry.close()
-            self.tokens.clear()
+            try:
+                self.registry.close()
+            finally:
+                self.tokens.clear()
+                self.classify_managed_plan.cache_clear()

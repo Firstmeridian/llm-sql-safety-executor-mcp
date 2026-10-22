@@ -1,0 +1,102 @@
+{
+  "date": "2026-10-21",
+  "checkpoint": "DRR140 owner-restart verification9/9 plus adjacent source/wheel144 calls each",
+  "scope": "77 resources/config/database unchanged;65 prior seals2097 records preserved; no new production defect in selected metadata scope; no model/build/full-suite/performance claim",
+  "append_rule": "Keep parent pending and historical evidence unchanged; retain scopes of this native and disposable validation",
+  "files": {
+    "README.md": {
+      "bytes": 1771,
+      "sha256": "818717f7ba7a85e396915ab42dd3021300be5cc2eb94c658e222dd7b0b494014"
+    },
+    "adjacent-installed.json.gz": {
+      "bytes": 15505,
+      "sha256": "78b8cbea61acbd50d61f9a52b7a011a2478eb4df9a5ac16529b270dc00181534",
+      "decoded_bytes": 279492,
+      "decoded_sha256": "594162a00b42f86b60e0a85085266ba5f0a24371c15ebb68c8d405d724fb7146"
+    },
+    "adjacent-installed.log.gz": {
+      "bytes": 3200,
+      "sha256": "522e7e383361479571c66b91643144af74f517fb0710b18bc4b93bc37a067da7",
+      "decoded_bytes": 82499,
+      "decoded_sha256": "5a1c871debb67760971c53783a3dd19fbfa76d0b79bb91c5c5636cd8dcccc7ab"
+    },
+    "adjacent-source.json.gz": {
+      "bytes": 15486,
+      "sha256": "14a3ab315405d64540c66e2c8e586d25a73a9650d3dae3baed062bd8d38dca0d",
+      "decoded_bytes": 279473,
+      "decoded_sha256": "648ceded9094c854eef7967ffeed490d06401f4fa4b2b05eb169c846648ff5fd"
+    },
+    "adjacent-source.log.gz": {
+      "bytes": 3191,
+      "sha256": "586ce24a0e69b0a0eb9abc763e075033f2eba4b598544a4092bbd4f09c062174",
+      "decoded_bytes": 82499,
+      "decoded_sha256": "efaeb573434d8d3f8da2e92dc93a048db885bc15de41b7e1e686a6e23b57d818"
+    },
+    "adjacent.py.gz": {
+      "bytes": 2927,
+      "sha256": "de502b4af68740cb278bc99761f7ed0aa121d862fd8ef91766bb62c961ff6213",
+      "decoded_bytes": 8657,
+      "decoded_sha256": "0c6a7eda07621cd6b618b0d38a415fd6de8d84a32e7657324e7543b9fc00421d"
+    },
+    "before.json.gz": {
+      "bytes": 7645,
+      "sha256": "263198ed211bb15ad8f7bda3ad34c665780051c95efb13e9eaddf925044a6679",
+      "decoded_bytes": 23876,
+      "decoded_sha256": "c5c23f5570d6ffe9928fcb4d7f3c6b589d298b4f4143eb54151c3b43be0316e1"
+    },
+    "documentation_checks.json": {
+      "bytes": 2468,
+      "sha256": "8f70960d9c4965ab1258e16c7b4675024108af10d28b92f82dabe7f2b23adc5e"
+    },
+    "historical_sqlite_design_before.md.gz": {
+      "bytes": 9741,
+      "sha256": "39a123ba23304838d75dcb39358a432bdb715c9518803fb1e3148388eedcd565",
+      "decoded_bytes": 28088,
+      "decoded_sha256": "1d5fdaffd0d8aaf7a79810d3b6c943d7c4c8a729ce33387d334ff8d1e1879389"
+    },
+    "metadata_truth.json.gz": {
+      "bytes": 612,
+      "sha256": "6eb2c922d4319b75d0411a792fd1b8ce654a8eda83f82db5e442658f5ef57745",
+      "decoded_bytes": 4693,
+      "decoded_sha256": "131783a97e778627a4992b7f2156d8e0923f7b90c214f7d3771059cf01c18b48"
+    },
+    "native_results.json.gz": {
+      "bytes": 3741,
+      "sha256": "8a43e06b1ce2ffb52535adc3785c5a93323b71d6882f1942e77d11b02dc4e4d2",
+      "decoded_bytes": 36424,
+      "decoded_sha256": "bf0b2061a5f1fb1c71588ed6b8e29e3ba8e2bf2e88adcd74f55fa53c77a57d1e"
+    },
+    "notes.json": {
+      "bytes": 819,
+      "sha256": "22415bad7961509abd77f33961d304024ce470c62eae09621049d7024904de8a"
+    },
+    "public_report_before.md.gz": {
+      "bytes": 3303,
+      "sha256": "21b07ac4f2d84738cf0b712b4d8d8c125bc41323e51e5f74d43c48746949279c",
+      "decoded_bytes": 5862,
+      "decoded_sha256": "51060d63e32bcb1af1a265d069c3f78394ae01e020cf1aec75a95bd206d79f49"
+    },
+    "tool_metadata.json.gz": {
+      "bytes": 4166,
+      "sha256": "ee4f3f06f7236cee29d896cd3765ab2f6c91dbe89e108df06b10da65f4a1b5cb",
+      "decoded_bytes": 22050,
+      "decoded_sha256": "3d46c3fc03952197bdd6bf52e79c09bdbecae74e0e67b98b21817e3689a89703"
+    },
+    "verification.json": {
+      "bytes": 1122,
+      "sha256": "51696991dafbb8facc13f203c74c673b1a44bff40528d30296a48b977a52ecfc"
+    },
+    "verification.log.gz": {
+      "bytes": 588,
+      "sha256": "b51f3485d355a7bb8c5b37834b7bc6dcdf284235a4c25b0db268019580714220",
+      "decoded_bytes": 1038,
+      "decoded_sha256": "d23c8c6d32ea95b00899608d8e41ce13fe6eeaf905f520b030232d9f833a594a"
+    },
+    "verify.py.gz": {
+      "bytes": 3919,
+      "sha256": "67e8b46c3d809cfcbb7ce8ec408fb1ebf9958a9550481538fa0c6348bbbac1ef",
+      "decoded_bytes": 12195,
+      "decoded_sha256": "17ccbc7effcc071303a0677adf6a2f6aff84bf32cf24e26898cf54ba5d8c1a45"
+    }
+  }
+}

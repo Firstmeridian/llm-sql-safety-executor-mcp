@@ -1,0 +1,22 @@
+{
+  "date": "2026-10-20",
+  "files": {
+    "boundary_counts.json.gz": {
+      "sha256": "f1e40865a4e8841a55b160bac6e55d03086113396f796676aac003da04cfa3a3",
+      "bytes": 203
+    },
+    "profile.json.gz": {
+      "sha256": "e546ac10f76b1b50c24921bb0f5d1b747912c5cdea6db3f31e302c758dafc326",
+      "bytes": 1515
+    },
+    "provenance.json": {
+      "sha256": "f1aeaced492b79b57fdbca46bdd1cd656e2ac700dfe4b6a754ac790c92031e23",
+      "bytes": 11215
+    },
+    "summary.json": {
+      "sha256": "564749115b4961d1a426cf0fae95445d5855150c59a65e3ae6941b3c009652fa",
+      "bytes": 18324
+    }
+  },
+  "scope": "New independent SQLite metadata audit; prior seals not rewritten."
+}

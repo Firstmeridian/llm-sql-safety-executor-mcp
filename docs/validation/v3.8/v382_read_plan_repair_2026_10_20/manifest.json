@@ -1,0 +1,207 @@
+{
+  "date": "2026-10-20",
+  "checkpoint": "source_package_passed_resident_pending",
+  "files": {
+    "README.md": {
+      "bytes": 3063,
+      "sha256": "1fdaadeebc2063e7cd267a9b57066f4d46d8ae76e5823d3313eecda915422ad9"
+    },
+    "after_resources.json.gz": {
+      "bytes": 3706,
+      "sha256": "94e2725ddc4d205622dd032ba118ebe1a94f6c2fc4aa7b844eda1b7a0dd0ad46"
+    },
+    "after_runtime.tar.gz": {
+      "bytes": 129044,
+      "sha256": "c258cedeb061c615e2e89f7461741acd4236a5606597de25d421519fc18edabe"
+    },
+    "before.json.gz": {
+      "bytes": 9431,
+      "sha256": "e4bb033a07ff2f5b2f000ae42ccc02b999e645079e289263f04a78a1d6d0e664"
+    },
+    "before_runtime.tar.gz": {
+      "bytes": 127658,
+      "sha256": "0062b01f77885333ba10bf6e5f0cde0bdefb6cc86bbc0c6aaaef6b6d570be9e4"
+    },
+    "build_install.log.gz": {
+      "bytes": 318,
+      "sha256": "c1f92fbd17757fe4621ade1bd99d7a7379d2050a66f4dc79b559084ba7da25a3"
+    },
+    "build_install.py.gz": {
+      "bytes": 2354,
+      "sha256": "fe230a6497b27fd0a56432be51a29d85d01de2bd879d79a4e89248bb999facc0"
+    },
+    "comment_matrix.json.gz": {
+      "bytes": 37305,
+      "sha256": "34e8789ec55cf94f011f74a34cc6e6c3547c75744ec5bb3d18786897f72dc885"
+    },
+    "comment_matrix.log.gz": {
+      "bytes": 71,
+      "sha256": "5d1b94c69f349035457f83f40b39897d6265c1f114aca7eaa706f49f0484ddbd"
+    },
+    "comment_matrix.py.gz": {
+      "bytes": 2181,
+      "sha256": "09ae6b546acc90d7d183e26c53d9eb0ca7df993a91324cb5efa6c4e15e5833e6"
+    },
+    "full_pytest.log.gz": {
+      "bytes": 906,
+      "sha256": "047cc6d762692f4149c0afcc9e13c1f71372a20ac15b2a3412d95cb733f07d5d"
+    },
+    "full_pytest_sandbox_interrupted.log.gz": {
+      "bytes": 39,
+      "sha256": "7af61086d796c5887bdbbbea8057134722bc4d6a9203a1fe63ba1b6f6a02338a"
+    },
+    "installed_mysql_stdio.json.gz": {
+      "bytes": 8194,
+      "sha256": "6234c9a3db1aae82dc088fd34f609b18f5c9f46602846a3eae5b8dd9d3831d40"
+    },
+    "installed_mysql_stdio.log.gz": {
+      "bytes": 1115,
+      "sha256": "f6f275892a3ef6956fe0938e9b517d362d94ecb87b45972c44d1c884b9570504"
+    },
+    "installed_mysql_stdio.py.gz": {
+      "bytes": 1246,
+      "sha256": "bf82830da2e4b804d5e143eae551c780f7413487e7da8f33f34f9a0b6c35cbb7"
+    },
+    "installed_prompt.log.gz": {
+      "bytes": 74,
+      "sha256": "090e5d838501a835953ba08eeacb177cf0ecef59e67add02b2bcb919113e87ea"
+    },
+    "installed_resources.json.gz": {
+      "bytes": 4491,
+      "sha256": "09821dd29beec313f8a52c35c3732b15cedfac25bcc5335ba1f89131c0b8f49a"
+    },
+    "installed_stdio.json.gz": {
+      "bytes": 56920,
+      "sha256": "203c4193d226e1d3085a8e78bb2e99809ad48a73be99f7616585264a5206d883"
+    },
+    "installed_stdio.log.gz": {
+      "bytes": 3143,
+      "sha256": "47b34e34767c40172477131d1fe98386ca3cb4f5270136c859aaf7f5b9cddd33"
+    },
+    "managed_cost.log.gz": {
+      "bytes": 4849,
+      "sha256": "128b148b995a5334b478f53d3be8543e8f50110097884a709c157b49f1ec26db"
+    },
+    "managed_cost.py.gz": {
+      "bytes": 3309,
+      "sha256": "e9085ad99bce64b6ceaf4957d25ce3cc9cf2983dd933a8f85bc81f5cb7f6f806"
+    },
+    "metadata_cost.json.gz": {
+      "bytes": 13695,
+      "sha256": "749595b34adacaa46830848e420c745c83c953f65ee3bba5fbb921a20058a4a6"
+    },
+    "metadata_cost.log.gz": {
+      "bytes": 3830,
+      "sha256": "833a29721bfe6de5dd3c59423faeba3fc93751b58737eae754f8e4ca7cac0c6d"
+    },
+    "metadata_cost.py.gz": {
+      "bytes": 2231,
+      "sha256": "9952cfe4af908b33ec48a58ed6d8a33a0f2101d82a4441f15ab6c7099be0cf34"
+    },
+    "mysql_functional.json.gz": {
+      "bytes": 1647,
+      "sha256": "8a58ef086d7c9d1a27d285a17c0affd4e743517d6206cb6e29d25ce43a3de712"
+    },
+    "mysql_functional.log.gz": {
+      "bytes": 121,
+      "sha256": "ed626997d35c6fc2786edfd6fe724c2eca908e220cbdda9908f4b2806f1b6e2a"
+    },
+    "mysql_functional.py.gz": {
+      "bytes": 2298,
+      "sha256": "53e9cd7a9445f6008b5f909eb5bda701c5c9d7790272f22198ca7a52ac612a78"
+    },
+    "new_regression_final.log.gz": {
+      "bytes": 502,
+      "sha256": "493a29221bee8d44a64985b4a7cf31c0894866e8e8f6ec340eda73c41fec136b"
+    },
+    "new_regression_initial.log.gz": {
+      "bytes": 1331,
+      "sha256": "8ad5c2898d562a9386bb1463fb497593fcde46cac1567f3801a351a8fc51728b"
+    },
+    "paired_cost.json.gz": {
+      "bytes": 16547,
+      "sha256": "2f1b5bd976462ca757ee81bc8e5845491a2769d44318e6fd91c473c1bcf3787b"
+    },
+    "prompt_contract.log.gz": {
+      "bytes": 74,
+      "sha256": "090e5d838501a835953ba08eeacb177cf0ecef59e67add02b2bcb919113e87ea"
+    },
+    "read_analysis_complex.json.gz": {
+      "bytes": 5283,
+      "sha256": "5f8a8b3d5556b2356c365d6b878f7c6e0c7c91b31e37bae50dcaed3e1a40a031"
+    },
+    "read_analysis_complex.log.gz": {
+      "bytes": 314,
+      "sha256": "66d381ca8d5df9f68387fc085cebde47f8b802618b802ab71427485ba746adaa"
+    },
+    "read_analysis_complex.py.gz": {
+      "bytes": 3272,
+      "sha256": "9d0645754db2933993637198bad79c0d84c62b5b0fd444b6d71ce79d79832acb"
+    },
+    "read_analysis_study.json.gz": {
+      "bytes": 10169,
+      "sha256": "d12dadbf66102ffaf0ebc6970c4a1375edc9c10f402ea41011e74bc1fa36c797"
+    },
+    "read_analysis_study.log.gz": {
+      "bytes": 780,
+      "sha256": "c7a718dc3cd5dc1c5a947634b36142269aa8ee4ccf8c90c6204eafc478ebe444"
+    },
+    "read_analysis_study.py.gz": {
+      "bytes": 3083,
+      "sha256": "51c6abbd0d532b5cd36f40ee858e3c1cd45bb303d14e714d8bb7244a22638a4c"
+    },
+    "read_plan_followups.py.gz": {
+      "bytes": 3670,
+      "sha256": "bbc2f02e3943c4bc772851c27ca73cf6db39cf60411c01b37af732faa7ece3f7"
+    },
+    "session_binding_extra.log.gz": {
+      "bytes": 65,
+      "sha256": "b3ae928ec2b08394e80e5e20dc0a6b5d95dfc21c7b4c0f84fbfb823238d7093b"
+    },
+    "source_stdio.json.gz": {
+      "bytes": 56904,
+      "sha256": "d333636ae5f278090286f122d935b5a632d579e9447cb96929c9263fb2e1af15"
+    },
+    "source_stdio.log.gz": {
+      "bytes": 3128,
+      "sha256": "041feb8e62d4d5104718240da28e21959f1668b1a9350a8c3e90b5fb4b1a4506"
+    },
+    "source_stdio_relative_path_failure.log.gz": {
+      "bytes": 381,
+      "sha256": "ac594bd2d784f17559ab027a21b8c049e6f2fc6102b9379591f61b7f911fdda8"
+    },
+    "source_stdio_sandbox_interrupted.log.gz": {
+      "bytes": 349,
+      "sha256": "300c9bc8eea71d4a438a1163e71f99807314d186687345704309c2178ba8198b"
+    },
+    "startup_cost.json.gz": {
+      "bytes": 6351,
+      "sha256": "841fc794677e32f01ea16a7de1ead3d67e812a9fbebd68828cf72e5954c76399"
+    },
+    "startup_cost.log.gz": {
+      "bytes": 144,
+      "sha256": "0183dd273957f690310fd8013457d7dce943d5d9ff505f9ae96d3b7efeec600e"
+    },
+    "startup_cost.py.gz": {
+      "bytes": 2071,
+      "sha256": "59d58fd261b6d826d820e9be24be55f10b518e275596a3dafba7f8d781842da1"
+    },
+    "summary.json": {
+      "bytes": 9265,
+      "sha256": "7e0203277e5786ba4cce2e08c428725e06431344c474fb4e1a4f826555e49570"
+    },
+    "targeted_initial.log.gz": {
+      "bytes": 431,
+      "sha256": "c10e62b40129da25236a4d72539b2cda7c5487bc0f5453800752f2181bb45918"
+    },
+    "typecheck_initial.log.gz": {
+      "bytes": 53,
+      "sha256": "c8f40ac3b3f577d99ca528dc797ac395a63bdcedd0b425151e1b76ffc54e42f5"
+    },
+    "verify_export.py.gz": {
+      "bytes": 4126,
+      "sha256": "66c6abccf60ce4058a3642793adb48b18e4f9ba8268bc5520a5fb7ef62a187c4"
+    }
+  },
+  "append_rule": "Keep this pending checkpoint immutable; add resident_restart after owner restart."
+}

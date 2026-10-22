@@ -125,7 +125,7 @@ async def test_discovery_reuses_parsed_table_policy_not_only_union(policy_server
     # execution still independently checks the target connection policy.
     meta = server.gateway_runtime.catalog.get_skills_cache()[SKILL]
     assert meta.tables == []  # No declared dependencies; inference is separate.
-    assert meta._inferred_tables == {}  # Target-specific inference is lazy.
+    assert meta._inferred_analysis == {}  # Only target-specific pure analysis is cached lazily.
     await assert_policy_contract(
         server, "auto", "Access denied to table(s): items", [{"value": 7}], monkeypatch
     )

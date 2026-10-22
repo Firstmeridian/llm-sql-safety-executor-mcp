@@ -1,0 +1,19 @@
+# v3.8.2 dialect comments, bounded MySQL hints and NOT semantics
+
+2026-10-20. **Source/package passed; new current-Host acceptance requires the owner's manual restart.** Three separate decisions: DRR-121 SQLite comments, DRR-122 bounded MySQL plan hints, DRR-123 actual-session NOT/! grouping. Version remains 3.8.2; no dependency/private-config/grant change or configured business write. Explicit temporary sqlparse rollback retains its old classifier, not newly equivalent comment checks.
+
+SQLite follows native ordinary block/dash comments, including hint/directive-shaped text. MySQL checks every original trivia/hint span and accepts only known plan-hint names with flat name arguments. SET_VAR, resource/timeout overrides, executable/MariaDB comments, unknown/incomplete hints and nested expressions remain unsupported. Validated HINT tokens are omitted only from analysis, preventing hint-relative AST offsets from corrupting actual relation/function identity; original SQL/binds execute. Hints grant no data access; native use is not guaranteed.
+
+Existing NOT unary dispatch distinguishes original ! and actual HIGH_NOT_PRECEDENCE while preserving infix grammar. No new parser method override; the private dispatch/_prev/parser-method dependency remains pinned and requires upgrade checks. Physical-session initialization, target rechecks after token consumption, live authorization, transaction evidence and 128-entry pure classification cache remain.
+
+Full suite: 2920 passed/four optional skips. Two subsequently added Query Skill/readiness tests pass separately; not claimed as one 2922-test full run. Type and source/installed prompt checks pass. 77 resources match the independent wheel; 64 source/64 installed child-stdio calls cover two parsers/protocol modes, Query Skill discovery/detail/readiness/execution, original commented SQL/binds, commit/restoration/replay/rollback and function/table/raw-write refusals. Twelve fixture preview handles per run set are consistently redacted before export.
+
+Frozen matrix: 89 inputs × 17 contexts = 1513 groups. No allow→deny changes in this boundary corpus; read-shape recoveries 370, default managed recoveries 341; all original sqlparse verdicts unchanged. The matrix's read field is analysis/shape policy, not full grants; scoped authorization has separate tests. Boundary proportions are not business refusal rates. Original SQLite truth/dumps remain identical.
+
+Actual MySQL test adapters verify 16 physical mode sets, 272 scalar comparisons against hand-parenthesized references and 128 non-executing DML plans; order rows unchanged. Preserve warnings; EXPLAIN acceptance is not proof a hint applies or a future write satisfies constraints. No MySQL DML/global SET or new aliases/private configuration edits.
+
+Startup candidates 9→17 stop at the first acceptance. Two ordinary plans initialize/close at median 8.952→8.852ms, smaller than staged drift; no cold CLI/FastMCP/DB/model or worst-case rejected-template claim. Alternating warm six-call pairs: modern paired median -0.23%, legacy -1.28%, only 21/40 pairs faster in each. Keep all 960 timed/192 warmup calls/192 restored cycles; fixed small SQLite workload shows no clear regression, not a speedup guarantee or provider-token measurement.
+
+Records are application observations and selected diagnostics, not complete protocol frames/notifications or original field-omission proof. Preserve fixture/context/assertion corrections and actual frozen source imports. summary.json references lossless compressed results and immutable inventories; earlier 25 manifests/600 files remain untouched. New resident evidence must append separately, retaining this pending checkpoint and prior native/model attribution.
+
+[Detailed scope, costs and official references](../V3_8_2_DIALECT_COMMENTS_NOT_2026_10_20_ZH.md).

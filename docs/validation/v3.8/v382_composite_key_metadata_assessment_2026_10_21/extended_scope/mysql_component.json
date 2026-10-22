@@ -1,0 +1,54 @@
+{
+  "scope": "Component catalog fixture only; not a live MySQL reproduction",
+  "input_columns": [
+    [
+      "n",
+      "int",
+      "NO",
+      "PRI",
+      null
+    ]
+  ],
+  "columns": [
+    {
+      "column_name": "n",
+      "data_type": "int",
+      "nullable": "NO",
+      "key_type": "PRI",
+      "default_value": null
+    }
+  ],
+  "batch": {
+    "unique_only": [
+      {
+        "column_name": "n",
+        "data_type": "int",
+        "nullable": "NO",
+        "key_type": "PRI",
+        "default_value": null
+      }
+    ]
+  },
+  "indexes": [
+    {
+      "name": "unique_n",
+      "primary": false,
+      "unique": true,
+      "columns": [
+        "n"
+      ],
+      "key_parts": [
+        {
+          "column": "n",
+          "prefix_length": null,
+          "sort_order": "asc"
+        }
+      ],
+      "visible": true
+    }
+  ],
+  "compact_inference_from_flags": [
+    "n"
+  ],
+  "actual_primary_indexes": []
+}

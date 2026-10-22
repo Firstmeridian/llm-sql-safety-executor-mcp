@@ -1,0 +1,134 @@
+{
+  "date": "2026-10-21",
+  "checkpoint": "DRR140 native SQLite declared types: source/package complete, owner restart pending",
+  "scope": "3353 passes/4 skips; source/wheel184 application calls each; native9-check plan unexecuted;63 prior manifests/2047 records intact; no model/latency/token claim",
+  "append_rule": "Append resident_restart separately; preserve historical assessment and this pending checkpoint",
+  "files": {
+    "README.md": {
+      "bytes": 1798,
+      "sha256": "06d961850b527f7449f5ba135abfaf6666697823f23554f484bf3a3a823601bc"
+    },
+    "build-final.log.gz": {
+      "bytes": 317,
+      "sha256": "6b5949a67600469ec2f4830820a6f0598b85278292fdcd88532d5786754bbecd",
+      "decoded_bytes": 532,
+      "decoded_sha256": "559c2a0077e3abfaa689b65c1a46e2f09c371be1b556dab96e338b701a3e2395"
+    },
+    "build_install.py.gz": {
+      "bytes": 2354,
+      "sha256": "fe230a6497b27fd0a56432be51a29d85d01de2bd879d79a4e89248bb999facc0",
+      "decoded_bytes": 6097,
+      "decoded_sha256": "5df253c4261b875b9834586f07c42f82fa6a1a5087b3e2503b3e263211a591f1"
+    },
+    "clients.py.gz": {
+      "bytes": 2974,
+      "sha256": "95bd44c676ed05062a75637f6f7e56b72205cb568881547336b581e8c9ee621a",
+      "decoded_bytes": 9240,
+      "decoded_sha256": "915d49b1affcc549e0e695b2698dc5ddd85459ace66aa0143d31f5410d834796"
+    },
+    "documentation_checks.json": {
+      "bytes": 2355,
+      "sha256": "99f9f77c947779336b39370bc495189149ec86ae0f9898260687bd6d036a30a9"
+    },
+    "final-checks.json": {
+      "bytes": 1524,
+      "sha256": "2b66c0846f54a54a7b0fa0e30c32eeae73ba5e7f8f7f326e158c9666fc3a3695"
+    },
+    "git-diff-check.log.gz": {
+      "bytes": 20,
+      "sha256": "f61f27bd17de546264aa58f40f3aafaac7021e0ef69c17f6b1b4cd7664a037ec",
+      "decoded_bytes": 0,
+      "decoded_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "installed-final.json.gz": {
+      "bytes": 17353,
+      "sha256": "5ef747d28433624d005b9cd7449ed01f568456a7df11d3b25fdea45eb5de42c0",
+      "decoded_bytes": 354293,
+      "decoded_sha256": "cfd5510f029463718e119515914086b7fe00b2a24ff11b2ac59cd0c0abcb4074"
+    },
+    "installed-final.log.gz": {
+      "bytes": 3819,
+      "sha256": "52f35d4c888aaa5c439a99f219fb30884a88085e59f63e15515ac5a68e9227b6",
+      "decoded_bytes": 104855,
+      "decoded_sha256": "62cee7e0985d7fd56176b94334f9e0f8c5543f4b34f4c193ea7799bdc0d5611a"
+    },
+    "installed_resources-final.json.gz": {
+      "bytes": 4487,
+      "sha256": "8866d27afd059f7a51f90e0910a2f7cde621cefcddf767d63e8af243278ca61c",
+      "decoded_bytes": 9065,
+      "decoded_sha256": "47991226fd51c3597e63fc07ad17314506f89ed9cf9bde526dddb973e6b4b2d8"
+    },
+    "native_plan.json.gz": {
+      "bytes": 4831,
+      "sha256": "2c6cb2a406beafc3d4bd4032693a4cc768d82021ad21e6d6d8d2863748e55d92",
+      "decoded_bytes": 12907,
+      "decoded_sha256": "cdcfba9575a8f3cfb52826e844e854fefc7c18f6090693862cfa14bc7a8f0a37"
+    },
+    "preparation_notes.json": {
+      "bytes": 895,
+      "sha256": "d161aa6d2e268eb9a830404f716ce53ffe11a1bf4c9f8488d48639b8dbaa0607"
+    },
+    "prompt-final.log.gz": {
+      "bytes": 74,
+      "sha256": "090e5d838501a835953ba08eeacb177cf0ecef59e67add02b2bcb919113e87ea",
+      "decoded_bytes": 55,
+      "decoded_sha256": "f0e0a884c0914987015a830aea57daf3a52000e3ea17c4899a6df1db394a16f2"
+    },
+    "pyright-final.log.gz": {
+      "bytes": 53,
+      "sha256": "c8f40ac3b3f577d99ca528dc797ac395a63bdcedd0b425151e1b76ffc54e42f5",
+      "decoded_bytes": 37,
+      "decoded_sha256": "6d88a1b220adb7a3d62092b6e38431f0b3fe8babe9864fab90e5849766260332"
+    },
+    "pytest-final.log.gz": {
+      "bytes": 999,
+      "sha256": "45975b53dd333f098d5c8e6b629aef719228a73b77dc2181d9ec74a12562b1fd",
+      "decoded_bytes": 6129,
+      "decoded_sha256": "3500bff35afb5037c05c7bda510e318b1a17380f2585d3cafa6e4dd5dbebd5e3"
+    },
+    "runtime_patch.diff": {
+      "bytes": 912,
+      "sha256": "0f8fbc887e8bed58293e8d1000ca6d3580bde416646ee7c84904177f851fbb76"
+    },
+    "source-final.json.gz": {
+      "bytes": 17332,
+      "sha256": "432688e61a227a3f9e4408d7252d91deed965da042f97882ec929ab44f46f10f",
+      "decoded_bytes": 354274,
+      "decoded_sha256": "742e40dfb4a8be94fa5d048111ad04bdde67cdd3b3b9f7b013d86d955dfac449"
+    },
+    "source-final.log.gz": {
+      "bytes": 3826,
+      "sha256": "691af1dc7a3217fc0985850bc0825ccfb90a38d5444c94eaa1ee1766386228d4",
+      "decoded_bytes": 104855,
+      "decoded_sha256": "66c41f0aafb1f5addc678d870d030ac07dde4fda6baddc688d1e72c226248e11"
+    },
+    "targeted.log.gz": {
+      "bytes": 402,
+      "sha256": "d3b4cdbdfcdafbb429239d7c28d7dbf75c3710025a23fecd5deb67e2e416a1fb",
+      "decoded_bytes": 775,
+      "decoded_sha256": "4c09afd7428e9548829c00f8f9d0900e3ca6cf1f2b0ff7e9ab4ebf5f1d39d2ec"
+    },
+    "test_sqlite_declared_types_v382.py.gz": {
+      "bytes": 2311,
+      "sha256": "65c89fbf4b4074952ad26dbb69da0b2a33eadb0b4aa290e9bdd6566396c957bb",
+      "decoded_bytes": 7478,
+      "decoded_sha256": "523d2c218420cd5e605aa7f9ed6be13fc74e73639a6fbba0aad2eccbe4e6dc9d"
+    },
+    "validation-summary.json": {
+      "bytes": 507,
+      "sha256": "bf523b1b79c5cf06e9413e26f8900eb1109350e20986cb0b7206c393baa2d16d"
+    },
+    "verification-final.log.gz": {
+      "bytes": 733,
+      "sha256": "5d75be789afa90a6d20d82f26d4d32748fe12d743d3eb5ae9a9c7ecb16f13484",
+      "decoded_bytes": 1396,
+      "decoded_sha256": "bea94b4ca18fe294b2b582adeaa7d456d20b80e1009933c1a184f8562e4a2b14"
+    },
+    "verify.py.gz": {
+      "bytes": 2831,
+      "sha256": "bd802db143637ba2ba5effa1f44d3900cff53dfcd5e86121660ac33f49eee204",
+      "decoded_bytes": 8529,
+      "decoded_sha256": "e02640a6f64c67e2680611acdcc64ce33987f0d94ece1ebd35e7eb21f1a8d794"
+    }
+  }
+}

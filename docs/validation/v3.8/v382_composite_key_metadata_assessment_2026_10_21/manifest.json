@@ -1,0 +1,54 @@
+{
+  "date": "2026-10-21",
+  "checkpoint": "DRR141 composite primary-key metadata information limitation: assessment only",
+  "scope": "Source/wheel44 calls each;67 old manifests2133 records unchanged; no production/configured-database/native/model/build/full-suite/performance change",
+  "append_rule": "Preserve all previous evidence; do not claim recommended repair implemented",
+  "files": {
+    "README.md": {
+      "bytes": 1114,
+      "sha256": "0bff9864cb7f563c8f6fb4e986c9d41efe1cae69c12341c47b484ff6a5f45204"
+    },
+    "assessment.json": {
+      "bytes": 1379,
+      "sha256": "daa70cc8d8b362f8a8c309de343b3a92bc4302c7aca2f96efb6555ebae0b9051"
+    },
+    "documentation_checks.json": {
+      "bytes": 1471,
+      "sha256": "9f1bc7ef3266a8e0502046c4f20e76ccc18f10872fb3c7280ceb7db6039d5648"
+    },
+    "historical_code.json": {
+      "bytes": 538,
+      "sha256": "6abb952dcc7948c41834cb9e53e8e8e40abf70cd96801246fb163ebc3514d6ab"
+    },
+    "installed.json.gz": {
+      "bytes": 3201,
+      "sha256": "9eb2f7be5ea824c8f8be154cc07fcfc0f36368fcaebb71c2fae342a50dbd6bb5",
+      "decoded_bytes": 106100,
+      "decoded_sha256": "bd4780149c9626399fda190ec47986d6ec857adcf4f90f0982f68aceab849dda"
+    },
+    "probe.py.gz": {
+      "bytes": 1955,
+      "sha256": "7586801748660beb70ddbd61fe6b6898f9ef1e732100701f4261511a8c02be27",
+      "decoded_bytes": 5122,
+      "decoded_sha256": "af693242086d1d48f4cc765e09a7e7ec442ddc1eb13e1bc0251b820d35fd69b4"
+    },
+    "source.json.gz": {
+      "bytes": 3181,
+      "sha256": "1e3da580fa82ebd416d91c42eb9c1e203a50aa4daf9527005f6eebb6f70325f2",
+      "decoded_bytes": 106081,
+      "decoded_sha256": "95c91dd77335456a8b30a81163d9e890340c8fd8eff3a9bc8fa5f08a76c28ad5"
+    },
+    "verification.log.gz": {
+      "bytes": 624,
+      "sha256": "54c1dd5bb05a0162309be25440909e25a6a2451d00bb923b32a839a19740d06e",
+      "decoded_bytes": 1205,
+      "decoded_sha256": "19126a2ecb64f46783efd6810a5b7c8d9813a9ef47f8148422fad33db08a91db"
+    },
+    "verify.py.gz": {
+      "bytes": 2080,
+      "sha256": "e8ab32332958bd7f0bbc07b657683c42870177b9b4a2c110f6afecee00b667bb",
+      "decoded_bytes": 5292,
+      "decoded_sha256": "9f1f2b8b4a25d00a616765adab8658a178192ae282f20e7af36936a989468779"
+    }
+  }
+}

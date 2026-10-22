@@ -15,7 +15,24 @@ jobs:
           python-version: '3.12'
           enable-cache: true
       - run: uv sync --frozen --group dev
-      - run: uv run --frozen pytest -q
+      - name: Deterministic contracts (live MySQL remains unverified)
+        run: uv run --frozen python scripts/validation/release_gate.py --profile fast --source src --output /tmp/contracts-fast
+      - name: Contract status and skipped cases
+        if: always()
+        shell: bash
+        run: |
+          if test -f /tmp/contracts-fast/summary.md; then
+            cat /tmp/contracts-fast/summary.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo 'Contract gate UNVERIFIED: no report was produced.' >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Retain deterministic contract report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: contracts-fast
+          path: /tmp/contracts-fast/
+          if-no-files-found: warn
       - run: uv run --frozen pyright
       - run: uv build
       - name: Verify installed wheel outside repository

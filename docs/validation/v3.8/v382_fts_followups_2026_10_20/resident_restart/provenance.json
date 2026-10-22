@@ -1,0 +1,18 @@
+{
+  "date": "2026-10-20",
+  "owner_restart_confirmed": true,
+  "raw_local_calls_sha256": "a685069fec7abbc29a179f8d2dfbbbcacb29b15fdeba7226152aa83c0b8b1c1a",
+  "frozen_native_plan_sha256": "f8f819113713e003706248132c605fbba71ac2a70f414cf7fb88614fd2be4111",
+  "parent_local_manifest_sha256": "5de0562872a1c4da479e6bc25cd910f037aa249ebb1511217a667cce52714c7e",
+  "parent_public_manifest_sha256": "a0eda76ee228dc511cb412bd94e378298be4a8ca986146192a8366598f212e01",
+  "runtime_checkpoint_sha256": "8d6dfd0071434c5c083cc41c70f0e26e8e08a8bb9fc3202d1df9dc88a5036e55",
+  "summary_sha256": "ac7fc8c18ab4cb69c1a854913af7d1ac587c23b03c2d6383cb4b738b2f19348f",
+  "collection": "Actual native application responses plus Host-provided directory metadata; no full tools/list/JSON-RPC frames, hidden reasoning, credentials or provider usage.",
+  "public_omission": "Only catalog description text is omitted publicly by SHA-256 reference; full descriptions remain local. All eight application content/structured responses retained.",
+  "scope": [
+    "Existing configured FTS functionality after owner-confirmed restart, not resident source-hash attestation.",
+    "Exact trusted-precompiled content-view/aux FTS fixtures remain source/installed-wheel coverage, not these native inputs.",
+    "Canary first, then independent read/refusal groups; elapsed times are not a serial performance benchmark.",
+    "No new complete Luna task/model usage. Application responses/Host directory metadata are not full protocol frames."
+  ]
+}

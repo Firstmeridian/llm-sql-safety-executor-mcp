@@ -1,0 +1,15 @@
+{
+  "owner_messages": [
+    "Reported MCP restarted; continue. MySQL is the server acceptance target; MariaDB need not be required.",
+    "Deferred current-channel reconnect; complete the report first."
+  ],
+  "connectivity_preflight": {
+    "separate_from_frozen_checks": true,
+    "calls": 1,
+    "observed": "SQLite constant7 and7 equals text7 false; application success"
+  },
+  "actual_scope": "12 native checks and12 fresh CLI checks, plus independent native metadata; not a full model task or new source regression run.",
+  "root_cause_limit": "Multiple same-entry processes exist, but neither exact native binding nor stale cache root cause is proven.",
+  "mutations": "No runtime/configuration/grant/database change; no existing service restart or termination performed.",
+  "permission_scope": "Scoped read-only process/loopback access approved; no automatic-review rejection and no Full Access required."
+}

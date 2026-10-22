@@ -1,0 +1,47 @@
+{
+  "date": "2026-10-20",
+  "checkpoint": "scoped_resident_acceptance_passed",
+  "scope": "22/22 actual current-Host calls after owner-confirmed restart. No confirmation, new model trial or parent seal rewrite. Native outputs do not attest LRU hits or in-memory source hashes.",
+  "files": {
+    "README.md": {
+      "sha256": "daeff5462064e5fb094b590257eab599ab5ac4cae29dd47e3d5e2c24fa60da3f",
+      "bytes": 1958
+    },
+    "doc_verification.json": {
+      "sha256": "869d2b217c122acc6378007af40b1b7ad10741cd2f29014fa04e3f7e96097e76",
+      "bytes": 224
+    },
+    "export_evidence.py.gz": {
+      "sha256": "98fa5bd1f311133206a49295fa616501a4f646d36582d4cfe21bb501deec6234",
+      "bytes": 1752
+    },
+    "freeze_native.py.gz": {
+      "sha256": "35270de97f51e2f22884b38dd3350b8975aee61c98226412f6685df8301cf16c",
+      "bytes": 2545
+    },
+    "native_application.json.gz": {
+      "sha256": "7073fa48c7f9a8d67e167a38b29ac191828b1ccce98baf9b19fb4a4d34650587",
+      "bytes": 7752
+    },
+    "native_catalog.json.gz": {
+      "sha256": "71cab8c6515441ba125bf932c0ba6ec0917e96739219a9190ab37edad89f335e",
+      "bytes": 6383
+    },
+    "native_plan.json.gz": {
+      "sha256": "458a1a1f616cca863087180848d367c32fd1f8a6932d0cb5723419a0afca7478",
+      "bytes": 3200
+    },
+    "summary.json": {
+      "sha256": "c7d62723ea14d65849515a02d0a7173d0a2deaa3aab347f8ef4f17f91ff34fe3",
+      "bytes": 6129
+    },
+    "verification.log.gz": {
+      "sha256": "0fa47cf2546d7eb65b87fd91ec44067dd78c23e211d85d620f8c8a3d733309b4",
+      "bytes": 137
+    },
+    "verify_native.py.gz": {
+      "sha256": "ab3d2fa737848e5534854f7f723c9ef00f27662da7f1acfa450a87cabfb108c9",
+      "bytes": 3326
+    }
+  }
+}

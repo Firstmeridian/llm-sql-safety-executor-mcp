@@ -230,7 +230,7 @@ def test_connection_read_policy_guidance_matches_config(bundle, tmp_path):
     guidance = render.read_policy(cfg)
     assert "- demo (sqlite): reads disabled" in guidance
     assert "- sales (sqlite): reads allowlist of 2 table(s); UNION allowed" in guidance
-    assert "- warehouse (sqlite): reads all tables; UNION disabled" in guidance
+    assert "- warehouse (sqlite): reads all relations in default schema; UNION disabled" in guidance
     assert "use a CTE (WITH ...) instead" in guidance
     assert "not proof of connectivity or table existence" in guidance
     # Table names and file paths stay out of the always-loaded text.

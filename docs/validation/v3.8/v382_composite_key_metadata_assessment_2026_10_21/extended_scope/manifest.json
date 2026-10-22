@@ -1,0 +1,54 @@
+{
+  "date": "2026-10-21",
+  "checkpoint": "Expanded metadata assessment; no new confirmed independent production defect; DRR141 remains open",
+  "scope": "Source/wheel92 calls each,16 isolated SQLite objects and read-only8-table272-column MySQL catalog; component-only MySQL PRI boundary is not live reproduction",
+  "append_rule": "Preserve parent evidence and pending states; no implemented primary-key repair claim",
+  "files": {
+    "README.md": {
+      "bytes": 4767,
+      "sha256": "4aad0798aefeaa96d17e43adfee33af507fdb85a81d624cd4d893888e3b17b3c"
+    },
+    "assessment.json": {
+      "bytes": 1516,
+      "sha256": "a0b7ae3331daaf0c54e8c0886eb2efae84785a274fbe67f7db06f4752b0b8147"
+    },
+    "documentation_checks.json": {
+      "bytes": 2085,
+      "sha256": "2a7fc359121b822f333f29827efc5f099b84473c1be5af52ba102726a4d1e0dc"
+    },
+    "installed.json.gz": {
+      "bytes": 15732,
+      "sha256": "717fa66cb4538df639acc8cd4df1718c8dcd16ed88e32f0a4ea4d70b23773ffc",
+      "decoded_bytes": 266875,
+      "decoded_sha256": "fc5ce3939478721711c521ea2a19e4c729af220ffeee9171dd19bcc4e0dd9c36"
+    },
+    "mysql_component.json": {
+      "bytes": 923,
+      "sha256": "bda5571a3d077818950c5ba6c28b6102f96e53d89ee2bdb90183cc3b09566d2c"
+    },
+    "probe.py.gz": {
+      "bytes": 3666,
+      "sha256": "7b7f3cdce5f175f16d0f9a6f91a9d25058dc31bbdac4f217ef03e452554fbfb8",
+      "decoded_bytes": 10731,
+      "decoded_sha256": "ac7cbbe0e5374d2fe4f9b7bd03710f0261bc451c12ea03e931bec6e3aee4728e"
+    },
+    "source.json.gz": {
+      "bytes": 15714,
+      "sha256": "d6c8162103c4654cacc27591f0c09271008b1f5c666152e4e91aca718c339581",
+      "decoded_bytes": 266856,
+      "decoded_sha256": "29a8c016cfb22e05ba84592004cf0735cbd4b84266136acd1b93c0b7da401a9f"
+    },
+    "verification.log.gz": {
+      "bytes": 764,
+      "sha256": "fdbb3b3f335acb5eb8ccb2d3cb146225273eaab68bb3a10485b0f6874cdb4106",
+      "decoded_bytes": 1436,
+      "decoded_sha256": "fcf9534ef7da4b44a03c2b622af1831f75427f7d33cdb724c2b03a6523ca6ded"
+    },
+    "verify.py.gz": {
+      "bytes": 3138,
+      "sha256": "b91d3ad781779fd5301bd262d678e18573a06cac3084aded4b1524ed8a9fa33a",
+      "decoded_bytes": 8900,
+      "decoded_sha256": "26ec519bae52bcfb8f9906cac1643d381cfaaaf2dd311653f712318bdaecb876"
+    }
+  }
+}
