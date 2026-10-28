@@ -1,5 +1,52 @@
 # v3.8.2 — Dialect/session semantics and execution authorization (October 16, 2026)
 
+## Agent interpretation, exploration and latency (October 23–28, 2026)
+
+This update addresses four objectives: natural result interpretation, useful exploration, weak-prompt state interpretation and end-to-end latency attribution. The [refactoring log](../../REFACTORING_LOG.md) records decisions and costs; dated evidence preserves trials and historical pending states.
+
+| Objective | Current result |
+| --- | --- |
+| Natural result interpretation | Latest natural expiry/state tasks reach5/6 complete interpretation; one unsupported expiry inference remains. |
+| Less repeated exploration | Exact repeated display has a bounded character-cost opportunity; no measured product token/speed gain. |
+| Weak-prompt state interpretation | Targeted result completeness improves; latest state/actions6/6, without universal reliability claims. |
+| End-to-end latency | One Host review deadline is identified; its internal cause and older long waits remain unresolved. |
+
+### 1. Natural result interpretation
+
+- Give query, Query Skill and sample independent fetched/returned/truncated guidance. Distinguish true empty results from an oversized first row, and limited/fetched rows from all matches. Require sourced units while retaining known units and justified derived percentages. [Initial design/A/A](../validation/v3.8/V3_8_2_AGENT_INTERPRETATION_2026_10_23_ZH.md), [native reading tasks](../validation/v3.8/V3_8_2_AGENT_INTERPRETATION_RESTART_2026_10_25_ZH.md), [unit/expiry screen](../validation/v3.8/V3_8_2_UNITS_EXPIRY_2026_10_27_ZH.md), [native follow-up](../validation/v3.8/V3_8_2_UNITS_EXPIRY_RESTART_2026_10_28_ZH.md).
+- Clarify deadline/timezone or missing-expiry reporting in the ordinary-write guide and existing expiry-field description; only execution checks validity. Preserve no automatic re-preview. An independent payment-scope matrix covers temporal boundaries, participation, multiplicity and refunds; its [engineering checkpoint](../validation/v3.8/V3_8_2_EXPIRY_SCOPE_2026_10_28_ZH.md) and [native supplement](../validation/v3.8/V3_8_2_EXPIRY_SCOPE_RESTART_2026_10_28_ZH.md) retain a missing preview and repeated definitions.
+- The latest [six native tasks](../validation/v3.8/V3_8_2_EXPIRY_TRANSITION_RESTART_2026_10_28_ZH.md) report all three deadlines and complete5/6, versus external2/6 with three omitted deadlines; the batches are not a strictly paired A/B. P1 still infers expiry from dates despite visible guidance. The [date review](../validation/v3.8/V3_8_2_EXPIRY_DATE_REVIEW_2026_10_28_ZH.md) leaves internal cause unproven. A [bounded field-description screen](../validation/v3.8/V3_8_2_EXPIRY_FIELD_SCREEN_2026_10_28_ZH.md) yields A/B both8/12: reject the candidate, retain the180-character field and do not trigger conditional rollout/restart. The [erratum](../validation/v3.8/V3_8_2_EXPIRY_FIELD_SCREEN_ERRATA_2026_10_28_ZH.md) clarifies waves and reporting denominators without changing scores or seals.
+
+### 2. Tool discovery and useful exploration
+
+- Clarify the path from Skill discovery to an actual same-connection `confirm=false` proposal; explanation-only requests need no preview, and execution remains separately approved. The [three matched baselines](../validation/v3.8/V3_8_2_PREVIEW_ROUTING_2026_10_28_ZH.md) already route correctly; [post-restart candidates](../validation/v3.8/V3_8_2_PREVIEW_ROUTING_RESTART_2026_10_28_ZH.md) route3/3 but complete business2/3 because one Host review times out.
+- Verify175 exact definition reconstructions in the [lossless discovery study](../validation/v3.8/V3_8_2_DISCOVERY_AB_2026_10_28_ZH.md). Preserve the first pair's actual-child readiness failures and costs. After owner reconnection, [eight remaining tasks](../validation/v3.8/V3_8_2_DISCOVERY_AB_RESTART_2026_10_28_ZH.md) pass business/actions8/8 but complete interpretation4/8; reconnection does not prove a cache cause or efficiency gain.
+- In a [nine-trajectory audit](../validation/v3.8/V3_8_2_HOST_DISCOVERY_FOLLOWUP_2026_10_28_ZH.md), removing two exact repeated definitions counterfactually saves15,554 JSON characters (5.37%), with all32 business requests preserved. This is not measured token/time or actual call savings. Keep useful schema/parameter exploration and recovery; add no product cache or forced discovery path.
+
+### 3. Weak-prompt state and write-result interpretation
+
+- Both write tools independently carry the same rules: distinguish preview cancellation, past observation, current verification, valid `success=false + committed`, rollback, server `unknown` and response loss. Simple cancellation needs no extra read or fixed disclaimer and does not revoke a token. Preserve important payload claims when the requested target/Skill or field types are invalid.
+- A [supplied-record comparison](../validation/v3.8/V3_8_2_AGENT_EVIDENCE_FOLLOWUP_2026_10_27_ZH.md) improves matched completeness8/12→12/12 and held-out2/4→4/4, adding209 resource characters per write tool and219 provider tokens across the comparison. This is not natural-task superiority or billing evidence. The [two-task native supplement](../validation/v3.8/V3_8_2_AGENT_EVIDENCE_RESTART_2026_10_27_ZH.md) retains unsupported currency/full interpretation1/2.
+- Clarify demo terminal sources: cancelled from pending/confirmed, returned from shipped/delivered; normal progress is one step and terminals have no outgoing edge. Descriptions change, not runtime transitions, SQL or parameters. Both Client modes pass36 transitions each; [engineering evidence](../validation/v3.8/V3_8_2_EXPIRY_TRANSITION_GUIDANCE_2026_10_28_ZH.md) separates72 preview requests from72 focused tests. Latest natural state/actions6/6 and cancellation zero-calls coexist with the remaining P1 validity error.
+
+### 4. End-to-end latency attribution
+
+- Add opt-in paired middleware start/finish events with opaque call keys, request/session digests and monotonic duration. Preserve business results and cancellation; record loss remains an observation gap. Later metadata links the99.768-second failure to a specific interrupted reviewer, while the internal cause and older hour-scale waits remain open. See [request correlation, costs and stopping criteria](../validation/v3.8/V3_8_2_HOST_REQUEST_CORRELATION_2026_10_28_ZH.md).
+
+- Record the actual `execution_ms` boundary: it excludes result-object construction/serialization checks, and mutation timing starts after initial validation/logging. Client differences are outside-window time, not pure Host/network costs. Keep per-process monotonic durations, concurrent unions and batch elapsed time separate.
+- The99.768-second failure is a Host approval-review deadline, distinct from SQL denial or an application `unknown` outcome. [Bounded diagnostics](../validation/v3.8/V3_8_2_HOST_DISCOVERY_FOLLOWUP_2026_10_28_ZH.md) retain their original pre-association scope; dispatch/server linkage and the historical hour-scale wait cause remain unresolved. Reopen only on stable recurrence or new same-request phase evidence; no timeout, permission, annotation or cache change.
+
+### 5. Acceptance, costs and contract boundaries
+
+| Aspect | Decision and evidence |
+| --- | --- |
+| Independent acceptance | Freeze actual Luna/medium tasks, held-outs and stop limits; verify each actual child's canary. Score facts and supported statements separately. Preserve failures, recovery costs, temporal/payment counterexamples and exec/wait observation integrity. Independent native drivers/oracles do not reuse project analysis or authorization. |
+| Engineering | Current request-correlation checkpoint3,577 passes (183 focused and11 installed lifecycle tests separately), four optional MySQL skips, clean types and prompt contracts;78 normal-wheel runtime resources plus outside-repository CLI and dual stdio agree. Transition preview requests and pytest counts are separate; unchanged gates are inherited, not counted again or called a new live-write release pass. |
+| Costs and timing | Same-version A/A token variation12.16% is not a product effect or collection overhead. A separate1,926-call on/off study does not isolate net overhead. Latest six natural tasks:25 business calls/1,191,028 provider tokens, canaries360,842 separately. Differing paths/caches, incomplete answers and historical timestamp inversion prevent general token, billing or speed claims. |
+| Contract and open issues | Guidance/metadata, verification and optional request telemetry change; execution rules, result shape, grants, transactions, token behavior, dependencies and private configuration stay unchanged. No confirmed write, new required Agent step, automatic retry/revocation or observability platform. Frozen model tasks finish; resident correlation logging remains inactive until a maintainer enables/restarts it for a future diagnostic window. Interpretation gaps and Host causes remain open. |
+
+## Earlier v3.8.2 changes (through October 22, 2026)
+
 ### October 22 portable contracts and dependency-aware release gates
 
 - Add ordinary pytest sentinels with native truth, target branch hits and positive controls; no archive or historical checkout required.

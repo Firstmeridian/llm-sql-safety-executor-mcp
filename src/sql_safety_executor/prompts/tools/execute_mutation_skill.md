@@ -21,5 +21,6 @@ path that fits the user's goal, and preview and approve every write separately.
 
 Returns:
     Preview result (confirm=false) or execution result (confirm=true).
-    Report preview_token_expires_at as returned; only execute decides
-    whether a token is still valid.
+    For a valid preview, show returned preview_token_expires_at and timezone,
+    or report expiry missing. Do not infer "valid"/"expired" from timestamps
+    or today's date. Only execute checks validity; no automatic new preview.

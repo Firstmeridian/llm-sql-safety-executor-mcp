@@ -771,7 +771,7 @@ sample_rate = 1.0
 
 `tools.schema` retains its historical sample-only registration meaning; basic metadata tools remain registered. `table_summary` enables optional counts, whose exact COUNT(*) may be expensive. Limits accept 0 for unlimited; tool timeout accepts 0 for disabled, while database query/connect timeouts must be positive integers. Truncation does not bound database work or all peak memory. MySQL mutation query timeout bounds row-lock waits, not all DML CPU/IO work.
 
-Service logs go to stderr, with an optional additional file; stdout is reserved for MCP. Telemetry contains sanitized call metadata; sample_rate is in [0,1]. Configuration, resolved secrets and Skill definitions are snapshots; changes require restart.
+Service logs go to stderr, with an optional additional file; stdout is reserved for MCP. Telemetry contains sanitized call metadata; sample_rate is in [0,1]. Sample once per invocation and emit `tool_call_started` / `tool_call_finished`; count outcomes on finished events. Pair by `(server_instance_id, call_id)`; request/session IDs are recorded only as optional digests. Missing events do not prove non-arrival. See the [timing and correlation contract](docs/validation/v3.8/V3_8_2_HOST_REQUEST_CORRELATION_2026_10_28_ZH.md). Configuration, resolved secrets and Skill definitions are snapshots; changes require restart.
 
 **Skills configuration**:
 
@@ -895,6 +895,15 @@ See [mcp_config.json](mcp_config.json) for the portable template. Private `confi
 ## Changelog
 
 ### v3.8.2 Dialect semantics and execution checks (October 16, 2026)
+
+Agent-guidance updates focus on four objectives:
+
+- [Interpretation] Clarify fetched/returned/truncated rows, sourced units and preview deadlines. Latest natural expiry/state tasks complete5/6; one unsupported date-based validity claim remains.
+- [Exploration] Connect requested proposals to actual previews and preserve useful schema discovery. Repeated-definition analysis shows a bounded character-cost opportunity, without measured token or speed gains.
+- [State] Preserve reported write outcomes and distinguish preview cancellation from current verification; clarify demo terminal-state sources. Latest state/actions6/6 do not establish universal weak-prompt reliability.
+- [Latency] Identify one Host approval-review timeout; internal causes and older long waits remain unresolved.
+
+See the [objective-led change log](REFACTORING_LOG.md), [release summary](docs/releases/RELEASE_NOTES_v3_8.md) and [dated evidence index](docs/README.md). These bounded results do not establish overall model, token or latency improvement.
 
 October 20 managed-write migration defaults to SQLGlot with target dialect/session checks at discovery, preview and confirmation. Original SQL, named-bind checks, approval and transaction evidence remain separate. An explicit temporary sqlparse selector and dependency remain during observation; see [comparison, rollback limits and validation](docs/validation/v3.8/V3_8_2_MANAGED_PARSER_2026_10_20_ZH.md).
 
@@ -1394,6 +1403,12 @@ false. For example, `unknown_column` directs you to `describe_table()` on
 the same connection. MySQL/SQLite driver exceptions are mapped to fixed safe
 messages rather than echoed. Policy errors may identify the configured table
 scope. A hint does not grant access or approval.
+
+For successful query, Query Skill and sample results, `row_count` counts returned
+rows and `total_rows` counts fetched rows for that SQL, including its LIMIT or
+sampling. Neither proves the database's total matching population. An empty
+`data` with character truncation can mean the first fetched row did not fit;
+`truncated=false` only means no output truncation.
 
 Input:
 ```json

@@ -1,0 +1,15 @@
+{
+  "checkpoint": "Owner-restarted native business scope verified; model superiority and reliable end-to-end timing unproven",
+  "created_utc": "2026-10-25T05:56:55.359436+00:00",
+  "baseline": "7c8edfbd0ea418659450377b2bbd46cd9e9dd476",
+  "files": {
+    "README.md": "8ffb9c5e0a3d521621904c03385d426f164669b53b558d47e635c2b8458ba3ba",
+    "summary.json.gz": "f82b8099c18d91a509c2ff5a1f51fcc10957212b1f4175e6ea7c44f82d885884"
+  },
+  "report": {
+    "path": "../../V3_8_2_AGENT_INTERPRETATION_RESTART_2026_10_25_ZH.md",
+    "sha256": "8d99ef700318450ce317650da143827c3c1734096bf6e0d457e84dc96a9d7f9a"
+  },
+  "parent_manifest_sha256": "a5eb936e20a629248c5bbf09679c8698616d28c4a70d8da5456561b78a1f0b15",
+  "limits": "Independent supplement, no overwrite of original pending/failed records. Application summaries, not full provider input or protocol frames. No hidden reasoning. Negative timestamp sign and prior replay omissions retained."
+}

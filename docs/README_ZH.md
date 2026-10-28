@@ -13,8 +13,28 @@
 
 ## 设计与可复用指南
 
+- [Host请求关联与有界排查：10月28日](validation/v3.8/V3_8_2_HOST_REQUEST_CORRELATION_2026_10_28_ZH.md)：可选遥测增加成对事件、调用关联及单调计时；审核关联已缩小范围，Host根因与常驻启用另列。
+- [本轮Agent指导四目标总览](../REFACTORING_LOG_ZH.md)：自然结果解释、有效探索、弱提示状态解释及耗时归因，分别说明已实现内容、实测效果、代价和开放项；[发布摘要](releases/RELEASE_NOTES_v3_8.md)采用同一结构，逐批证据保留在下方。
+- [期限字段报告措辞勘误：10月28日](validation/v3.8/V3_8_2_EXPIRY_FIELD_SCREEN_ERRATA_2026_10_28_ZH.md)：按冻结编排分三波、波内并发；每组六条输入包含期限，其中五个回答要求报告。1/5、2/5及不采用决议不变，原封存保留。
+- [期限字段有限筛选与停止决议：10月28日](validation/v3.8/V3_8_2_EXPIRY_FIELD_SCREEN_2026_10_28_ZH.md)：六构造记录会话／24回答，A／B均8/12、保留各4/4；候选不完整而停止采用，原生5/6及独立成本保留。无产品改动、条件性重启或新的Host根因结论。
+- [P1期限日期误判的公开证据核对：10月28日](validation/v3.8/V3_8_2_EXPIRY_DATE_REVIEW_2026_10_28_ZH.md)：统一时区后确认过期陈述缺乏依据；日期混用为线索，非已证明内部原因。保留5/6及规则暴露差异，无新增模型试验或产品修改。
+- [期限／状态来源重启自然复验：10月28日](validation/v3.8/V3_8_2_EXPIRY_TRANSITION_RESTART_2026_10_28_ZH.md)：六fresh双轮已关闭，状态／动作6/6、期限呈现3/3、完整解释5/6；指导已公开展示仍有一次有效性误判，猜错列后的恢复保留。不宣称因果提效或Host耗时已解决。
+- [期限字段／演示状态来源：10月28日](validation/v3.8/V3_8_2_EXPIRY_TRANSITION_GUIDANCE_2026_10_28_ZH.md)：两项元数据修订独立核对，两Client模式72预览用例通过，执行规则保持；原工程待重启状态保留，原生结果见上列独立补充，仍有一次解释失败；外部批遗漏保持，不宣称模型或性能改善。
+- [Host审核／重复发现有限复核：10月28日](validation/v3.8/V3_8_2_HOST_DISCOVERY_FOLLOWUP_2026_10_28_ZH.md)：审核内部原因仍未定位；九旧任务的相同定义展示反事实少15554字符，保留有用结构／参数探索。无新模型试验、产品改动或token／速度收益声明。
+- [预览衔接重启原生补充：10月28日](validation/v3.8/V3_8_2_PREVIEW_ROUTING_RESTART_2026_10_28_ZH.md)：工具选择3/3、业务完成2/3、动作／取消3/3；一项Host审批审核超时，完整完成门槛未通过。三读取独立重放一致，保留混合成本，不宣称普遍改善。
+- [Skill发现到实际预览：10月28日](validation/v3.8/V3_8_2_PREVIEW_ROUTING_2026_10_28_ZH.md)：单处说明澄清，三个冻结原生基线工具选择均正确；70定点回归及新安装／元数据核验通过，原待重启检查点保留；候选结果见上列独立原生补充，不宣称遗漏率已降低。
+- [期限／付款范围重启原生任务：10月28日](validation/v3.8/V3_8_2_EXPIRY_SCOPE_RESTART_2026_10_28_ZH.md)：三项双轮任务已结束并关闭，业务／解释2/3、完整冻结流程1/3、动作边界3/3。一次实际预览期限解释正确；漏预览、重复定义及非因果成本保留，刷新已闭环。
+- [期限判定澄清与付款范围矩阵：10月28日](validation/v3.8/V3_8_2_EXPIRY_SCOPE_2026_10_28_ZH.md)：六个构造记录会话，新旧各16/16；可移植付款真值及八种错误变体。保留原待验检查点，原生结果另见上列，不宣称普遍改善。
+- [重连后无损发现A/B：10月28日](validation/v3.8/V3_8_2_DISCOVERY_AB_RESTART_2026_10_28_ZH.md)：八个完整任务、24条独立SQL重放；当前数据业务／动作8/8、完整解释4/8，保留期限误判、事后付款口径缺口及混合成本；不改产品默认。
+- [原发现A/B与子会话就绪检查点](validation/v3.8/V3_8_2_DISCOVERY_AB_2026_10_28_ZH.md)：175组重建与两个子会话canary失败保留，其八项待验由上列独立续验补充。
+- [单位／期限原生核验：10月28日](validation/v3.8/V3_8_2_UNITS_EXPIRY_RESTART_2026_10_28_ZH.md)：两个完整业务任务及独立显示探针；财务／CNY／70%通过，预览期限及状态证据缺口保留，严格业务1/2及实际成本分列。
+- [单位依据与预览期限呈现：10月27日](validation/v3.8/V3_8_2_UNITS_EXPIRY_2026_10_27_ZH.md)：两处局部文本澄清、独立限定回放及明确上下文成本；保留当时待原生检查点。
 - [可移植哨兵与依赖感知发布门槛](validation/v3.8/V3_8_2_PORTABLE_RELEASE_GATES_2026_10_22_ZH.md)：普通pytest、显式实库验收与环境身份；[可复用命令](../scripts/validation/README.md)。
 
+- [Agent证据：10月27日重启原生补充](validation/v3.8/V3_8_2_AGENT_EVIDENCE_RESTART_2026_10_27_ZH.md)：C及预览取消通过；财务数值／时间口径通过，无来源币种符号保留；实际调用／token与限制分别记录。
+- [Agent证据补充：10月27日](validation/v3.8/V3_8_2_AGENT_EVIDENCE_FOLLOWUP_2026_10_27_ZH.md)：结果声明完整性、可移植时间／采集检查、限定回放及发现／Host诊断；原重启前检查点保留。
+- [Agent结果指导：10月25日重启及完整任务](validation/v3.8/V3_8_2_AGENT_INTERPRETATION_RESTART_2026_10_25_ZH.md)：匹配6／保留2项业务检查通过；调用／token代价不一致、时间戳倒置与回放遗漏保留。
+- [Agent结果解释、同版本A/A及采集边界](validation/v3.8/V3_8_2_AGENT_INTERPRETATION_2026_10_23_ZH.md)：原源码／安装及待重启检查点；后续原生证据另存。
 - [v3.8.2 有限范围稳定性验收](validation/v3.8/V3_8_2_STABILIZATION_2026_10_22_ZH.md)：16类冻结契约及三门槛范围内通过，254项定点回归、源码／wheel各332调用，独立真值与故障哨兵；[执行表与停止条件](validation/v3.8/V3_8_2_STABILIZATION_PLAN_2026_10_22_ZH.md)。
 - [v3.8.2 MySQL 原 SQL 绑定与真实 InnoDB 写入门槛](validation/v3.8/V3_8_2_MYSQL_WRITE_CONTRACTS_2026_10_22_ZH.md)：绑定修复、真实故障／独立真值及unknown／令牌；源码／安装通过，[维护者重启后原生6/6](validation/v3.8/v382_mysql_write_contracts_2026_10_22/resident_restart/README.md)另行封存。
 - [v3.8.2 SQLite 真实写入事务与完成态行数](validation/v3.8/V3_8_2_SQLITE_WRITE_TRANSACTIONS_2026_10_22_ZH.md)：WITH／分号回滚、RETURNING及私有源码／安装完整流程；[重启后12/12及稳定性复评](validation/v3.8/V3_8_2_WRITE_RESTART_AND_STABILIZATION_2026_10_22_ZH.md)独立保留范围与后续建议。

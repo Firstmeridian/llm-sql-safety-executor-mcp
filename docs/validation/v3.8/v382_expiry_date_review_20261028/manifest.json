@@ -1,0 +1,10 @@
+{
+  "report": {
+    "path": "docs/validation/v3.8/V3_8_2_EXPIRY_DATE_REVIEW_2026_10_28_ZH.md",
+    "sha256": "f1eeaf8a51217ab6f63e03d742f37b79df1ec679d31f25ef7853e13779c0fdcd"
+  },
+  "files": {
+    "summary.json.gz": "a5ef0167545e576d733c13be472759626aa2da88f547dd9dfd0785d1c591a318"
+  },
+  "scope": "Derived public facts from an existing sealed batch. No new model trials or complete provider input. Original5/6 and unresolved causal limits remain."
+}

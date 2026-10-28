@@ -1,0 +1,68 @@
+{
+  "checkpoint": "Discovery-to-preview wording clarified; three native baselines route correctly,70 focused tests and normal installation pass. Three candidate native tasks await owner restart; no improvement claim.",
+  "report": {
+    "path": "docs/validation/v3.8/V3_8_2_PREVIEW_ROUTING_2026_10_28_ZH.md",
+    "sha256": "3684fbb03b05769d69fb7a9543aeba35f7a3b1a782587be983489f294721ec07"
+  },
+  "historical_verification": [
+    {
+      "batch": "20261023_agent_interpretation",
+      "manifest_sha256": "51a9605077674066971c3a3e4e7d1ed8dbe2e68456eae7d3e4b97c08422ec510",
+      "members": 70
+    },
+    {
+      "batch": "20261025_agent_interpretation_restart",
+      "manifest_sha256": "20bd6067454da266bc779beffdbef834ff1190a8ecfb4f81e5eab278586a2be8",
+      "members": 53
+    },
+    {
+      "batch": "20261027_luna_native_review",
+      "manifest_sha256": "7da361c3390e10cd3ffcb49ac18929f050387e61c404e3196128dbfcaa986d5d",
+      "members": 58
+    },
+    {
+      "batch": "20261027_interpretation_followup",
+      "manifest_sha256": "e29434a1c4b68bffe20e715c2ef7056f6c76b4db19be4c3b60a0ad03e6540f5b",
+      "members": 49
+    },
+    {
+      "batch": "20261027_interpretation_native_restart",
+      "manifest_sha256": "a22f2795b31d28207df8278b147621e125f7fc101397911272f37d003d4890b4",
+      "members": 29
+    },
+    {
+      "batch": "20261027_units_expiry",
+      "manifest_sha256": "a273d61ab652854fb53532a96ab29add4acd39559e44d3cca028fb3fcf6b8e42",
+      "members": 48
+    },
+    {
+      "batch": "20261028_units_expiry_native_restart",
+      "manifest_sha256": "fc318ce3d10c5ad9f5d6bce3e0d11b1ae4c3abb7ce6044609ba8c5f919326058",
+      "members": 26
+    },
+    {
+      "batch": "20261028_discovery_native_ab",
+      "manifest_sha256": "447a60a94ee4357bfc988d60281489719068450b6979f9f8d45ccc0a619c0800",
+      "members": 26
+    },
+    {
+      "batch": "20261028_discovery_native_restart",
+      "manifest_sha256": "f30052e6c9b91c13c823dcd6c806c0cca6598216b584a2d2847e17031c725bec",
+      "members": 41
+    },
+    {
+      "batch": "20261028_expiry_scope",
+      "manifest_sha256": "eca1689c3ca3589e91d44c46b9869c4c11e2ae7112e95e9cd60cadf319ff039c",
+      "members": 52
+    },
+    {
+      "batch": "20261028_expiry_scope_native_restart",
+      "manifest_sha256": "c842571aedb2cd2b069772e7a84fd9b0b4a0dc11bcafe3d44d48e124c921132b",
+      "members": 29
+    }
+  ],
+  "files": {
+    "summary.json.gz": "c46476df016e285539d492365ed2eb3b22eb6a420307a8c62ac74b04d8d6fbca"
+  },
+  "limits": "Current baseline/candidate-engineering checkpoint only. Three candidate native tasks remain pending owner restart; preserve parent and all historical failures. No universal improvement, causal cost or complete provider-input claim."
+}

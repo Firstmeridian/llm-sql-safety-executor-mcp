@@ -1,12 +1,14 @@
 """Opt-in metadata-only telemetry; an input request is not business success."""
 
 import json
+import hashlib
 import logging
 import random as _random
 import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
 from fastmcp.server.middleware import Middleware, MiddlewareContext
 from fastmcp.tools import InputRequiredToolResult
 from fastmcp.exceptions import ToolError
@@ -18,9 +20,9 @@ logger = logging.getLogger(__name__)
 
 
 class ToolTelemetryMiddleware(Middleware):
-    """Append a sanitized JSONL record for each tools/call invocation.
+    """Append paired, sanitized lifecycle events for sampled tool invocations.
 
-    Records reflect both transport-level outcome (no exception escaped
+    Finished events reflect both transport-level outcome (no exception escaped
     ``call_next``) and business-level outcome (``ToolResult.meta.success``
     when present). ``call_completed`` captures the former, ``success``
     captures the latter so operators can tell e.g. a safety rejection
@@ -34,6 +36,7 @@ class ToolTelemetryMiddleware(Middleware):
         log_path, sample_rate = settings.path, settings.sample_rate
         self._log_path: Path | None = Path(log_path)
         self._sample_rate = sample_rate
+        self._instance_id = uuid4().hex
         try:
             assert self._log_path is not None
             self._log_path.parent.mkdir(parents=True, exist_ok=True)
@@ -41,10 +44,60 @@ class ToolTelemetryMiddleware(Middleware):
             logger.warning(f"Tool telemetry disabled (mkdir failed): {exc}")
             self._log_path = None
 
+    def _context_digest(self, context: MiddlewareContext[Any], name: str) -> str | None:
+        # Host-supplied request/session IDs may contain arbitrary text. Persist
+        # only a digest scoped to this middleware instance, never raw IDs.
+        try:
+            fastmcp_context = context.fastmcp_context
+            if fastmcp_context is None:
+                return None
+            if name == "request_id":
+                request = fastmcp_context.request_context
+                if request is None:
+                    return None
+                value = request.request_id
+            else:
+                value = getattr(fastmcp_context, name)
+        except (AttributeError, RuntimeError):
+            return None  # Direct/internal calls may have no MCP context.
+        if type(value) not in (str, int):
+            return None
+        encoded = json.dumps(
+            [self._instance_id, name, value], ensure_ascii=True, separators=(",", ":")
+        ).encode("ascii")
+        return hashlib.sha256(encoded).hexdigest()
+
+    def _write_event(self, record: dict[str, Any]) -> None:
+        if self._log_path is None:
+            return
+        try:
+            with self._log_path.open("a", encoding="utf-8") as fh:
+                fh.write(json.dumps(record, ensure_ascii=True) + "\n")
+        except OSError as exc:  # Logging failure must not change the tool outcome.
+            logger.warning("Tool telemetry write failed (%s)", type(exc).__name__)
+
     async def on_call_tool(self, context: MiddlewareContext[Any], call_next):  # type: ignore[override]
+        # Decide once, before execution: both events have the same selection.
+        sampled = self._log_path is not None and self._sample_rate > 0 and (
+            self._sample_rate >= 1.0 or _random.random() < self._sample_rate
+        )
+        if not sampled:
+            return await call_next(context)
         runtime = self.runtime
         tool_name = getattr(context.message, "name", None) or "unknown"
         started = time.perf_counter()
+        correlation = {
+            "server_instance_id": self._instance_id,
+            "call_id": uuid4().hex,
+            "request_id_hash": self._context_digest(context, "request_id"),
+            "session_id_hash": self._context_digest(context, "session_id"),
+            "tool_name": tool_name,
+        }
+        self._write_event({
+            **correlation,
+            "event": "tool_call_started",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        })
         call_completed = True
         error_class: str | None = None
         success: bool | None = True
@@ -55,23 +108,24 @@ class ToolTelemetryMiddleware(Middleware):
         result_db_type = None
         result_connection_id = None
         diagnostic_scope: ConnectionScope | None = None
-        if diagnostic:
-            arguments = getattr(context.message, "arguments", None) or {}
-            if isinstance(arguments, dict):
-                try:
-                    configs = _select_diagnostic_configs(runtime, **arguments)
-                    diagnostic_scope = arguments.get("scope", "single")
-                    if diagnostic_scope == "single":
-                        result_db_type = configs[0].db_type
-                        result_connection_id = configs[0].connection_id
-                except (OperationError, ToolError, TypeError, ValueError):
-                    # Observability must not change validation or fabricate
-                    # a default identity for an invalid request.
-                    pass
-        aggregate = diagnostic_scope == "all"
+        aggregate = False
         aggregate_counts: dict[str, int] = {}
-        cleanup_failed = diagnostic and runtime.diagnostics.cleanup_failed
+        cleanup_failed = False
         try:
+            if diagnostic:
+                arguments = getattr(context.message, "arguments", None) or {}
+                if isinstance(arguments, dict):
+                    try:
+                        configs = _select_diagnostic_configs(runtime, **arguments)
+                        diagnostic_scope = arguments.get("scope", "single")
+                        if diagnostic_scope == "single":
+                            result_db_type = configs[0].db_type
+                            result_connection_id = configs[0].connection_id
+                    except (OperationError, ToolError, TypeError, ValueError):
+                        # A rejected request must not inherit default identity.
+                        pass
+                cleanup_failed = runtime.diagnostics.cleanup_failed
+            aggregate = diagnostic_scope == "all"
             result = await call_next(context)
             waiting = isinstance(result, InputRequiredToolResult)
             if waiting:
@@ -107,12 +161,11 @@ class ToolTelemetryMiddleware(Middleware):
             error_class = type(exc).__name__
             raise
         finally:
-            if self._log_path is not None and (
-                self._sample_rate >= 1.0 or _random.random() < self._sample_rate
-            ):
+            if sampled:
                 record = {
+                    **correlation,
+                    "event": "tool_call_finished",
                     "timestamp": datetime.now(timezone.utc).isoformat(),
-                    "tool_name": tool_name,
                     "execution_ms": round((time.perf_counter() - started) * 1000, 3),
                     "call_completed": call_completed,
                     "phase": phase,
@@ -131,8 +184,4 @@ class ToolTelemetryMiddleware(Middleware):
                         record["connection_scope"] = "all"
                     record["cleanup_failed"] = cleanup_failed
                     record.update(aggregate_counts)
-                try:
-                    with self._log_path.open("a", encoding="utf-8") as fh:
-                        fh.write(json.dumps(record, ensure_ascii=False) + "\n")
-                except OSError as exc:  # pragma: no cover - filesystem edge case
-                    logger.warning(f"Tool telemetry write failed: {exc}")
+                self._write_event(record)

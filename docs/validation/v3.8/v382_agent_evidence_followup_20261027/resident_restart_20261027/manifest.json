@@ -1,0 +1,13 @@
+{
+  "checkpoint": "Owner-restarted C verified; frozen native tasks completed; currency evidence remains failed.",
+  "files": {
+    "README.md": "ab24a4f1f26fe92875391fe732f0af955a3c6aa4037818b3c76ce2816b3282b5",
+    "additional_observations.json": "1138c93b228b55c3fd294244d7f890fe7b6784ea2f395e58e6bc0ef252fecb65",
+    "summary.json.gz": "04e5c54cef1c8922a8025d953642ed4142fe342c615f5a78e1a89dbbe615286c"
+  },
+  "report": {
+    "path": "docs/validation/v3.8/V3_8_2_AGENT_EVIDENCE_RESTART_2026_10_27_ZH.md",
+    "sha256": "476e210c4b07969c4f976bc4d4b266ee8593d47b27c99a4b8d5c48ac79d16ee5"
+  },
+  "limits": "Separate application evidence, not provider/protocol capture or general model superiority. Full frozen semantic completion1/2, not all tool instructions. No confirmed writes."
+}

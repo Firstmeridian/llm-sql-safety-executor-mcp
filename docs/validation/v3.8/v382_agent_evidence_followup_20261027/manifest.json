@@ -1,0 +1,12 @@
+{
+  "checkpoint": "October27 scoped supplied-record follow-up; C native pending",
+  "files": {
+    "README.md": "3108411a3f3ad12eb84022b30663059537e9d9ea28ae66cbf3ad569329b830a0",
+    "summary.json.gz": "e454966b2d6cdb17c201a507a4f7d3ad6763310d395a41059e723608cbe68ab7"
+  },
+  "report": {
+    "path": "docs/validation/v3.8/V3_8_2_AGENT_EVIDENCE_FOLLOWUP_2026_10_27_ZH.md",
+    "sha256": "412b4200d8811f8244b49ce6f82b7aec6a6785f227d7fb14f7deed1a56e4a730"
+  },
+  "limits": "Application evidence only; historical failures retained; no full protocol/provider trace or native C acceptance."
+}

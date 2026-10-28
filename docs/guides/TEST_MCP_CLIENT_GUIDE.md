@@ -9,6 +9,219 @@ the [v3.7 historical guide](TEST_MCP_CLIENT_GUIDE_v3_7.md).
 
 ## Offline checks
 
+### Correlated middleware events (October 28)
+
+Use `tests/test_telemetry_lifecycle.py` for pending-call entry, cancellation, paired sampling, duplicate IDs/concurrency, clock jumps, log failures and both stdio protocols across process restarts. Filter `tool_call_finished` when counting outcomes; old mixed-log records may use `row.get("event", "tool_call_finished")`. Pair by `(server_instance_id, call_id)`, not by framework session/request digests alone. Wall timestamps align records; monotonic `execution_ms` excludes Host review and final-event writing. A missing entry/finish is an observation gap, not a business outcome. Installed tests and maintainer-restarted resident validation are distinct. The [acceptance and stopping criteria](../validation/v3.8/V3_8_2_HOST_REQUEST_CORRELATION_2026_10_28_ZH.md) retain the unresolved reviewer cause and avoid new model trials without incremental evidence.
+
+### Strict expiry-field candidate screening (October 28)
+
+The [bounded screen](../validation/v3.8/V3_8_2_EXPIRY_FIELD_SCREEN_2026_10_28_ZH.md) freezes one field-description factor and exactly six supplied-record sessions/24 answers. Match the observed declaration-only exposure without claiming it is every Host's complete input. Both conditions complete8/12; fewer unsupported expiry claims do not offset omitted deadlines, so the candidate is not adopted. This strict gate rejects a tie, unlike earlier explicit-contract clarification screens. Keep required facts and semantic alternatives, true server expiry rejection, valid committed outcomes and response-loss uncertainty; do not require a fixed disclaimer. A failed screen cancels its conditional engineering/native stages rather than creating a pending restart. Zero tool calls mean native routing, recovery and Host timeout behavior were not tested; report usage/cache and public windows without a speed or token-saving claim.
+
+### Retrospective expiry-date checks (October 28)
+
+The [P1 public-trace review](../validation/v3.8/V3_8_2_EXPIRY_DATE_REVIEW_2026_10_28_ZH.md) normalizes the returned deadline and logged answer to the explicitly supplied environment zone. Do not compare a UTC calendar date directly with a local current_date. This exposes an unsupported claim, not the model's internal cause, synchronized clocks or runtime token validity. P2/P3 have the same cross-day condition but different longer-rule exposure; they are contextual contrasts, not a causal experiment. Keep the original5/6 score. The review makes no new MCP/model calls, and any future equivalent-time representation replay must retain its constructed-record identity.
+
+### Owner-restarted natural expiry/transition replication (October 28)
+
+The [native supplement](../validation/v3.8/V3_8_2_EXPIRY_TRANSITION_RESTART_2026_10_28_ZH.md) closes freshness and all six frozen two-turn attempts, with18 actual Luna-medium contexts. State/action checks6/6 and deadline reporting3/3 do not hide full interpretation5/6: one task publicly displayed the new field guidance yet inferred expiry from dates. Visible text is evidence of exposure, not complete provider input or guaranteed compliance; do not explain that failure solely by missing disclosure. Preserve its failed conclusion and the independently reproduced/recovered bad-column query. Business25 requests/1191028 tokens include all paths, not an efficiency claim. No new runtime change or restart is required; Host latency remains open without a new causal phase observation.
+
+### Expiry-field and demo-lifecycle visibility (October 28)
+
+The [metadata checkpoint](../validation/v3.8/V3_8_2_EXPIRY_TRANSITION_GUIDANCE_2026_10_28_ZH.md) compares the actual registered output field independently from the demo Skill description. Where a Host exposes output-schema descriptions, the existing expiry field offers an additional reporting surface; this is not a guarantee that a model receives every rule. Preserve the independently loaded write descriptions for Hosts that omit that schema. Report returned time and zone or missing expiry; a timestamp never establishes current token validity.
+
+Check compact/summary/full catalogs and full Skill detail against all36 transitions through real previews and an independent database observer. The minimal execution detail intentionally omits the description; keep its existing shape. The generated static overview is only a100-character excerpt. Source, wheel and metadata checks do not prove natural-task improvement: after one owner restart, run the six frozen fresh natural-discovery tasks without forcing full definitions, coaching or replacing failures. Retain the external natural batch's omissions and costs; combined model validation does not isolate each edit's effect. Host diagnosis resumes only with new correlated phase evidence or stable recurrence, not a new timeout setting.
+
+### Agent result interpretation and timing boundaries (October 23–27)
+
+Freeze the actual model/effort, installed resources, data/configuration hashes,
+observable Host definitions, task wording, graders and held-out tasks before A/B.
+Capture the chain from packaged text through generated definitions and Host
+exposure to actual returns. Missing full model-received definitions remain an
+observation gap; a model quoting a rule does not prove complete delivery.
+
+Grade factual truth and evidence-supported statements separately. Preview-only
+cancellation requires neither a fixed disclaimer nor an extra read. Pair true
+empty results with first-row character truncation, complete output with bounded
+SQL, and valid write outcomes with missing/malformed/wrong-target records.
+total_rows counts fetched rows for that SQL, not all matching database records.
+Supplied-record replays supplement native tasks and must not be reported as
+real protocol outcomes or database writes. Preserve failures and valid alternative
+paths; evaluate each exploration call by information gained.
+
+Same-configuration A/A estimates repeat variability, not collection overhead.
+Use a separate small collection-on/off fixture for overhead; mark components
+unquantified when they cannot be separated. execution_ms ends before result-object
+construction/serialization validation, and some tools start it after initial
+checks/logging. Client time minus execution_ms is only time outside that window,
+not network time. Use each process's own monotonic clock for durations, associate
+requests by ID, and report concurrent unions separately from task sums/batch wall
+time. Keep unobservable Host stages unattributed. The [current report](../validation/v3.8/V3_8_2_AGENT_INTERPRETATION_2026_10_23_ZH.md)
+retains A/A variation and incomplete candidate replay. The [owner-restarted follow-up](../validation/v3.8/V3_8_2_AGENT_INTERPRETATION_RESTART_2026_10_25_ZH.md)
+checks six matched/two held-out native tasks; this does not close the distinct
+replay omissions or prove model superiority. Preserve negative/out-of-order public
+timestamp deltas and withhold elapsed comparisons; never repair them with zero or
+absolute values. Reconstructed application counts must recognize metadata printed
+as bare JSON text as well as structured results. Keep the original collection and
+a reviewed correction, and recheck the baseline instead of silently changing its
+denominator.
+
+The [October 27 follow-up](../validation/v3.8/V3_8_2_AGENT_EVIDENCE_FOLLOWUP_2026_10_27_ZH.md)
+adds a bounded replay screen for preserving payload claims alongside invalid or
+mismatched requested-operation conclusions. This does not rewrite historical
+grades or constitute native tool outcomes. Keep temporal and unit-source checks
+separate from SQL replay: current data can hide equality-boundary mistakes, and a
+numeric amount alone does not establish currency. For the declared rental task,
+use the explicit interval [start, return); other tasks must declare their own
+convention. Run the portable checks without a private database:
+
+```bash
+uv run --frozen python scripts/validation/agent_task_boundaries.py
+uv run --frozen pytest -q tests/test_agent_evidence.py
+```
+
+`agent_evidence.application_observations()` links yielded exec/wait returns and
+preserves identical result slots. Its output is observations, **not request
+counts**; use a separate invocation ledger or expanded call-code audit. Prefer
+structured content to its text duplicate, but never deduplicate distinct calls by
+payload. The helper neither reads raw session logs nor redacts secrets; use only
+reviewed public events. Actual model/effort still needs per-turn verification.
+
+Discovery grouping can reduce repeated display text while retaining complete
+rules, but full text can also exceed a previously sliced display. Character
+comparisons do not establish token, success or latency gains. Host-local handler
+timings confirm some historical long waits; code-mode duration and audit-end
+timestamps do not identify approval, dispatch, server entry or database time.
+Never subtract nested windows as disjoint phases. New wording requires owner
+restart/native verification independently of replay and installed checks. The
+[October 27 native supplement](../validation/v3.8/V3_8_2_AGENT_EVIDENCE_RESTART_2026_10_27_ZH.md)
+closes that wording's refresh check: preview/cancellation passes; finance numbers
+and declared time predicates pass, while unsupported currency symbols remain.
+Report full semantic completion as1/2, separately from successful calls and SQL
+fidelity. Public discovery in one child does not prove another child received the
+same complete definitions. No malformed native payload or confirmed write was
+tested; the supplied-record screen retains its distinct scope.
+
+### Bounded Host timing and repeated-discovery diagnostics (October 28)
+
+The [retrospective follow-up](../validation/v3.8/V3_8_2_HOST_DISCOVERY_FOLLOWUP_2026_10_28_ZH.md)
+queries only exact original threads/call IDs and a bounded read-only log window.
+Export whitelisted numeric fields, not raw review transcripts or hidden reasoning.
+An exec may yield and multiple waits may observe one request: those outer timing
+windows are not separate review/SQL phases and must not be added as such. Missing
+best-effort audit records do not prove a request never reached the server.
+An approval deadline does not establish that MCP tool_timeout_sec is its remedy.
+
+For definition reuse, compare identical visible tool descriptions within one
+thread, keeping every first full and changed definition. Restart this reasoning
+for another session or uncertain context retention; this is not a general cache
+of all protocol metadata. In nine existing tasks,27 displays contain two exact
+repeats; omitting them changes only15554 JSON characters, not the32 actual
+business requests/results or observed provider usage. Five renderer controls are
+not product regressions or new Agent trials. Grade database exploration by new
+information; useful schema recovery and compact-to-parameter detail remain valid.
+
+### Discovery to actual preview (October 28)
+
+The [single-factor routing checkpoint](../validation/v3.8/V3_8_2_PREVIEW_ROUTING_2026_10_28_ZH.md)
+clarifies list_skills: a directory entry or verbal next step is not a server
+preview. For a requested mutation proposal, use an executable matching Skill,
+schema-valid params and the same connection with confirm=false, then report the
+actual result. An explanation-only request must not silently become a proposal;
+actual execution remains separately approved. Full params do not need a detail
+call; compact discovery may still need one. Do not impose a single exploration
+path or add execution approval before an already requested preview.
+
+Three new native baselines choose correctly; this does not erase the earlier
+missing preview or establish its sole cause. Candidate source/normal-wheel
+metadata changes only the list description, with70 focused regressions and dual
+stdio checks passing. The [separate native supplement](../validation/v3.8/V3_8_2_PREVIEW_ROUTING_RESTART_2026_10_28_ZH.md)
+closes all three candidate two-turn tasks after verifying actual-child canaries
+and current definitions: routing3/3, business completion2/3. One correctly
+requested preview hits the Host automatic approval-review deadline, without an
+application result; the other actual preview and explanation-only control pass.
+The full completion gate remains unmet. Preserve this failure without retrying
+the frozen trial; do not invent a server unknown outcome or infer an unsafe
+action from the Host timeout. Keep routing, expiry
+wording, definition reuse and costs separately scored; fewer calls from an
+incomplete task are not an efficiency benefit. Historical full-suite/type gates
+retain their original scope and were not rerun for this text-only factor.
+
+### Explicit expiry interpretation and payment scope (October 28)
+
+The [separate clarification and matrix](../validation/v3.8/V3_8_2_EXPIRY_SCOPE_2026_10_28_ZH.md)
+screens the ordinary-write wording with six supplied-record sessions: A/B each
+16/16, not native improvement evidence. A returned timestamp is not an execution
+validity decision. Preserve an explicit server expiry rejection and allow a new
+preview the user explicitly requested; do not start one automatically. Keep
+historical natural failures rather than rewriting them as fixed.
+
+Run the portable payment oracle via
+`python scripts/validation/agent_task_boundaries.py`. Verify payment participation
+separately from active-rental time, count rentals separately from payments, and
+include zero/refunds and both month boundaries. Multiple valid joins are allowed;
+known-bad business SQL should still execute faithfully. The inline constant CTE
+requires existing UNION permission: initial rich_mutation_sqlite denials were
+correct, and later checks used permitted analytics_rich_sqlite/sakila_mysql
+without changing grants. Independent DBAPI and real source/wheel dual-protocol
+checks do not certify native Agent behavior. Three prospective native two-turn
+tasks were pending owner restart at that checkpoint, with actual-child canaries,
+complete first-use disclosure, independent truth, fixed stops and separate usage.
+
+The [post-restart native supplement](../validation/v3.8/V3_8_2_EXPIRY_SCOPE_RESTART_2026_10_28_ZH.md)
+completes those three tasks: business/interpretation2/3, full frozen protocol1/3,
+action boundaries3/3. Actual preview expiry interpretation is1/1, but requested
+preview completion is1/2; never count a missing tool call as successful expiry
+guidance. Correct payment results do not erase two repeated definition displays.
+Separate business truth, result fidelity and protocol adherence; retain failures
+without coaching or replacing trials. Four successful reads independently replay
+identically; no paired native baseline supports speed/token improvement. Current
+refresh is closed, without further runtime edits or repeat engineering gates.
+
+### Lossless discovery and child readiness (October 28)
+
+The subsequent [lossless discovery experiment](../validation/v3.8/V3_8_2_DISCOVERY_AB_2026_10_28_ZH.md)
+compares full per-tool versus shared-prefix displays under the same first-use
+complete-disclosure protocol. Exact reconstruction and visible rules do not
+prove a callable client: both first-pair canaries fail at the Host boundary.
+Retain these availability failures and their costs; eight frozen trials remain
+unstarted until owner reconnection. Do not replace failed sessions, convert
+175 renderer self-checks into product test counts, or claim task-token savings
+from character differences. This is a Host-side experiment, not a production
+tool-loading API, new cache or removal of independent tool instructions.
+
+The separate [owner-reconnected continuation](../validation/v3.8/V3_8_2_DISCOVERY_AB_RESTART_2026_10_28_ZH.md)
+finishes those eight full tasks with actual-child canaries and24 independent read
+replays. Current-data/actions8/8 does not imply complete interpretation: all four
+previews show expiry but incorrectly claim it has passed, even with full rules
+visible. Preserve this failure and a separate post-hoc LEFT JOIN payment-scope
+counterexample. Do not derive correct SQL semantics solely from current numbers.
+Shared-prefix-once means once per display batch; single-tool batches add wrapping
+characters. Observed token/call differences include different SQL and recoveries,
+not a causal format gain or evidence for a new product default. No forced extra
+product call, automatic re-preview, token revocation or clock-based validity claim.
+
+### Unit sources and preview expiry (October 27)
+
+The [local clarification](../validation/v3.8/V3_8_2_UNITS_EXPIRY_2026_10_27_ZH.md)
+adds sourced-unit guidance to each read tool and explicit expiry presentation to
+ordinary-write previews. Keep known currencies, physical units and justified
+derived percentages; an unsupported unit is omitted, not discovered through an
+extra mandatory query. For a valid preview, report the returned expiry with its
+timezone, or state it was not reported. Do not infer current token validity or
+expose the bearer handle. Cancellation does not require repeating a proposal.
+
+Freeze positive/negative cases before testing. Explicit supplied-record screens
+can pass even while natural native tasks still omit a rule: units tie in this
+batch. Preserve both results, the expiry false-validity assertion and exact costs.
+The [October 28 native supplement](../validation/v3.8/V3_8_2_UNITS_EXPIRY_RESTART_2026_10_28_ZH.md)
+verifies refreshed definitions and all three actual-child canaries. Two full
+business tasks and a separate display probe complete: finance units/CNY/70% pass,
+but preview expiry is omitted and cancellation leaves its old state observation
+unqualified. Strict business1/2 and display1/1; do not grade unchanged database
+truth as contemporaneous evidence for a model claim. Parent-rule presence does
+not prove child visibility: discovery output was clipped and tail excerpts miss
+the expiry paragraph. No causal, stable improvement, timing or billing claim.
+
 ### Portable contracts and explicit release gate (October 22)
 
 Use the [portable validation entry points](../../scripts/validation/README.md)

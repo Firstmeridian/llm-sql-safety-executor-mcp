@@ -1,9 +1,9 @@
 """Smoke tests for the opt-in tool telemetry middleware (v3.4.2).
 
-The middleware only activates when ENABLE_TOOL_TELEMETRY=1 at import time, so
-we reload the module under that env var. We then invoke the middleware's
-``on_call_tool`` hook directly with a stub ``call_next`` and verify a sanitized
-JSONL record is appended.
+The fixture enables telemetry in an explicit gateway configuration built from
+SCENARIO. We invoke the middleware's ``on_call_tool`` hook directly with a stub
+``call_next`` and verify sanitized start/finish JSONL events are appended for
+each sampled call.
 
 Logged fields MUST remain non-sensitive: no SQL, params, rows, or credentials.
 """
@@ -27,7 +27,7 @@ def telemetry_module(tmp_path, monkeypatch):
     log_path = tmp_path / "tool_calls.jsonl"
     monkeypatch.setitem(SCENARIO, "ENABLE_TOOL_TELEMETRY", "1")
     monkeypatch.setitem(SCENARIO, "TOOL_TELEMETRY_LOG_PATH", str(log_path))
-    # Force a clean reimport so the env vars are honored.
+    # Build a fresh gateway from the scenario's explicit telemetry settings.
     module = make_gateway()
     yield module, log_path
 
@@ -47,12 +47,30 @@ async def test_telemetry_logs_successful_call(telemetry_module):
             }
         )
 
-    ctx = SimpleNamespace(message=SimpleNamespace(name="query"))
+    ctx = SimpleNamespace(
+        message=SimpleNamespace(name="query"),
+        fastmcp_context=SimpleNamespace(
+            request_context=SimpleNamespace(request_id="private-request-id"),
+            session_id="private-session-id",
+        ),
+    )
     await middleware.on_call_tool(ctx, fake_call_next)
 
     lines = log_path.read_text(encoding="utf-8").strip().splitlines()
-    assert len(lines) == 1
-    record = json.loads(lines[0])
+    records = [json.loads(line) for line in lines]
+    assert [record["event"] for record in records] == [
+        "tool_call_started", "tool_call_finished"
+    ]
+    started = records[0]
+    record = next(record for record in records if record["event"] == "tool_call_finished")
+    for key in ("server_instance_id", "call_id", "request_id_hash", "session_id_hash"):
+        assert isinstance(started[key], str) and started[key]
+        assert started[key] == record[key]
+    assert started["tool_name"] == "query"
+    assert "timestamp" in started
+    assert not {"success", "call_completed", "connection_id", "db_type", "connection_scope"} & started.keys()
+    assert ctx.fastmcp_context.request_context.request_id not in "\n".join(lines)
+    assert ctx.fastmcp_context.session_id not in "\n".join(lines)
     assert record["tool_name"] == "query"
     assert record["call_completed"] is True
     assert record["success"] is True
@@ -60,16 +78,17 @@ async def test_telemetry_logs_successful_call(telemetry_module):
     assert "timestamp" in record
     assert "execution_ms" in record
     # Sanitization invariants
-    for forbidden in (
-        "sql",
-        "params",
-        "data",
-        "rows",
-        "password",
-        "credentials",
-        "preview_token_id",
-    ):
-        assert forbidden not in record
+    for event in records:
+        for forbidden in (
+            "sql",
+            "params",
+            "data",
+            "rows",
+            "password",
+            "credentials",
+            "preview_token_id",
+        ):
+            assert forbidden not in event
 
 
 @pytest.mark.asyncio
@@ -84,7 +103,9 @@ async def test_telemetry_logs_failure(telemetry_module):
     with pytest.raises(RuntimeError):
         await middleware.on_call_tool(ctx, fake_call_next)
 
-    record = json.loads(log_path.read_text(encoding="utf-8").strip().splitlines()[-1])
+    records = [json.loads(line) for line in log_path.read_text(encoding="utf-8").splitlines()]
+    records = [record for record in records if record["event"] == "tool_call_finished"]
+    record = records[-1]
     assert record["call_completed"] is False
     assert record["success"] is False
     assert record["error_class"] == "RuntimeError"
@@ -106,7 +127,9 @@ async def test_telemetry_honors_meta_success_false(telemetry_module):
     ctx = SimpleNamespace(message=SimpleNamespace(name="query"))
     await middleware.on_call_tool(ctx, fake_call_next)
 
-    record = json.loads(log_path.read_text(encoding="utf-8").strip().splitlines()[-1])
+    records = [json.loads(line) for line in log_path.read_text(encoding="utf-8").splitlines()]
+    records = [record for record in records if record["event"] == "tool_call_finished"]
+    record = records[-1]
     assert record["call_completed"] is True
     assert record["success"] is False
     assert record["error_class"] is None

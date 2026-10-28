@@ -872,7 +872,7 @@ def test_fastmcp_tool_schema_exposes_skill_parameters(monkeypatch):
     assert "do not bypass the rule or change targets" in mutation_description
     assert "list_skills on the same connection" in mutation_description
     assert "preview and approve every write separately" in mutation_description
-    assert "only execute decides whether a token is still valid" in (
+    assert "Only execute checks validity; no automatic new preview" in (
         mutation_description
     )
     for rule in (
@@ -895,7 +895,13 @@ def test_fastmcp_tool_schema_exposes_skill_parameters(monkeypatch):
     # normal-approved continuation and sensitive state, shared with MRTR.
     # Independently visible result rules include malformed fields and forbid
     # borrowing rowcounts from earlier requests; keep a small explicit budget.
-    assert len(mutation_description) < 3600
+    # Preserve both reported claims and validity conclusions. The bounded replay
+    # candidate adds 209 resource characters; do not shorten its tested wording
+    # merely to hide that small, explicit context cost.
+    # Preview-expiry presentation adds 107 resource characters and the explicit
+    # validity boundary adds 19 more, within the unchanged budget. A timestamp
+    # alone does not prove validity; execute is the authority.
+    assert len(mutation_description) < 3800
 
     mutation_schema = schemas["execute_mutation_skill"]
     assert "params" in mutation_schema["properties"]

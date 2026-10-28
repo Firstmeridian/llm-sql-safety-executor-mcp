@@ -99,9 +99,27 @@ async def check(directory):
                 description = tools[name].description or ""
                 assert shared in description
                 assert "committed: written, even when success=false" in description
-                assert "first check validity, then interpret the outcome" in description
+                assert "distinguish what the payload reports from what it confirms" in description
+                assert "report both the material payload claim" in description
+                assert "other target/Skill reports committed" in description
                 assert "payload claims committed; execution is unconfirmed" in description
                 assert "affected row count not reported" in description
+                assert "Abandoning a proposal does not revoke its server token" in description
+                if name == "execute_mutation_skill":
+                    expiry = tools[name].output_schema["properties"]["preview_token_expires_at"]
+                    assert expiry["type"] == "string"
+                    assert "timestamp and timezone" in expiry["description"]
+                    assert "if absent" in expiry["description"]
+                    assert "Do not infer current token validity" in expiry["description"]
+                    assert "preview_token_expires_at" not in tools[name].output_schema.get("required", [])
+                    assert "show returned preview_token_expires_at and timezone" in description
+                    assert "or report expiry missing" in description
+                    assert 'Do not infer "valid"/"expired" from timestamps' in description
+                    assert "Only execute checks validity; no automatic new preview" in description
+            for name in ("query", "sample", "execute_query_skill"):
+                # Shared source, independently visible descriptions.
+                assert text("read_results.md") in (tools[name].description or "")
+                assert "without guessing a unit" in (tools[name].description or "")
             assert "execute_mutation_skill result rules" not in (
                 tools["request_mutation_approval"].description or ""
             )
@@ -114,6 +132,7 @@ async def check(directory):
                 "protocols": ["2026-07-28", "2025-11-25"],
                 "packaged_prompts": True,
                 "independent_mutation_descriptions": True,
+                "expiry_output_field_guidance": True,
             }
         )
     )

@@ -1,0 +1,16 @@
+{
+  "checkpoint": "Pre-restart candidate, native B/held-out pending",
+  "created_utc": "2026-10-23T09:11:39.165963+00:00",
+  "baseline": "7c8edfbd0ea418659450377b2bbd46cd9e9dd476",
+  "files": {
+    "README.md": "1d2349f7e8f3ec2fb94855f038ede4e81a7789d8b2430e9cd6eb2719396abfa2",
+    "collection_cost.json.gz": "c0b9466331f63dee20538eac4a0425b412fba6057aa60b53f4c96806ebbbcc3f",
+    "summary.json.gz": "441f5a95e5fc99cd1d9b5bdfe8cbc404f6092d7b258498234b33d9959c798a38"
+  },
+  "report": {
+    "path": "../V3_8_2_AGENT_INTERPRETATION_2026_10_23_ZH.md",
+    "sha256": "14678485ae828d8f5d96d3fc3ec7ef9f18c19fae623d9236c419aa371d46aef3"
+  },
+  "product_resources": "Snapshot hashes inside summary.json.gz; not a promise that later source files remain unchanged.",
+  "scope": "Hash inventory of these application-level summaries and local on/off samples. Not complete frames/model input; no hidden reasoning. Later owner-restart results append separately without rewriting this checkpoint."
+}

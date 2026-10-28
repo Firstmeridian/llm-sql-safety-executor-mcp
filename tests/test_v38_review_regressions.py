@@ -220,6 +220,7 @@ async def test_real_mrtr_telemetry_tracks_nondefault_target(reviewed_server, tmp
         )
         assert replay.is_error
     records = [json.loads(line) for line in (tmp_path / "events.jsonl").read_text().splitlines()]
+    records = [row for row in records if row["event"] == "tool_call_finished"]
     assert len(records) == 4
     assert records[-1]["connection_id"] is None and records[-1]["db_type"] is None
     assert records[-1]["success"] is False
@@ -241,6 +242,7 @@ async def test_invalid_mrtr_target_does_not_fabricate_default_identity(reviewed_
         }, raise_on_error=False)
         assert result.is_error
     records = [json.loads(line) for line in (tmp_path / "events.jsonl").read_text().splitlines()]
+    records = [row for row in records if row["event"] == "tool_call_finished"]
     assert records and all(r.get("connection_id") is None and r.get("db_type") is None for r in records)
     assert _status(server) == "pending"
 
@@ -277,6 +279,7 @@ async def test_invalid_mrtr_continuation_has_no_fallback_identity(reviewed_serve
         else:
             assert (await resume()).is_error
     records = [json.loads(line) for line in (tmp_path / "events.jsonl").read_text().splitlines()]
+    records = [row for row in records if row["event"] == "tool_call_finished"]
     assert records[0]["connection_id"] == "demo"
     if failure in ("params", "state"):
         assert len(records) == 1

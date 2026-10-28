@@ -15,10 +15,12 @@ def text(name: str) -> str:
 
 
 def tool_description(name: str) -> str:
-    """Each write tool carries its own copy of the same result-reading rules."""
+    """Each independently usable tool carries its relevant result-reading rules."""
     description = text(f"tools/{name}.md")
     if name in {"execute_mutation_skill", "request_mutation_approval"}:
         description = description.rstrip() + "\n\n" + text("mutation_results.md")
+    elif name in {"query", "execute_query_skill", "sample"}:
+        description = description.rstrip() + "\n\n" + text("read_results.md")
     return description
 
 

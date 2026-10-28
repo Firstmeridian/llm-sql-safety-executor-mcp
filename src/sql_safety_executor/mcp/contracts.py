@@ -243,7 +243,14 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
                     "for "
                     "execute.",
                 },
-                "preview_token_expires_at": {"type": "string"},
+                "preview_token_expires_at": {
+                    "type": "string",
+                    "description": (
+                        "Preview expiry reported by the server. For a valid preview, "
+                        "report this timestamp and timezone; if absent, say expiry "
+                        "was not reported. Do not infer current token validity from it."
+                    ),
+                },
                 "result": {
                     "type": "object",
                     "additionalProperties": True,

@@ -1,0 +1,12 @@
+{
+  "report": {
+    "path": "docs/validation/v3.8/V3_8_2_EXPIRY_FIELD_SCREEN_2026_10_28_ZH.md",
+    "sha256": "6968403689973475c0b63914874baabd57c694469fba6de6361faf0ee35b6351"
+  },
+  "files": {
+    "summary.json.gz": "0ff40dd2a1ea2082c1ce523a11bf2b34cfdab640681843db4eed8b1ff2350a86"
+  },
+  "prior_seals_verified": 17,
+  "prior_members": 645,
+  "external_members": 33
+}

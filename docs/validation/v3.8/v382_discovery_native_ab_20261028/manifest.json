@@ -1,0 +1,12 @@
+{
+  "checkpoint": "First pair retained as Host availability failures; eight frozen trials unstarted; business A/B unverified.",
+  "report": {
+    "path": "docs/validation/v3.8/V3_8_2_DISCOVERY_AB_2026_10_28_ZH.md",
+    "sha256": "c7b5ae5cd49a87496db35973eb0906edb6be522eafd6b57ce3f34ce518dd1030"
+  },
+  "files": {
+    "README.md": "b303de14d29b5d3178fe4270dc07c9d74b48fe955014821a4f95816d80442d44",
+    "summary.json.gz": "83b573335a7bc464b4abb354882925def7cdd5ae5948d0f3d88dd5ccb80aafd7"
+  },
+  "limits": "175 renderer checks are not product pytest or business trials. Complete provider input and root cause remain unobserved; no causal token, billing, speed or completion gain."
+}

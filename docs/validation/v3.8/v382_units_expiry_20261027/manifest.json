@@ -1,0 +1,12 @@
+{
+  "checkpoint": "Sourced units and preview expiry; engineering and supplied-record screen complete, native pending.",
+  "files": {
+    "README.md": "6dec38c63b681dd62ca587c035b15b423891af542469f01d5b1dde2e093278f8",
+    "summary.json.gz": "2c11425a64dd00427277ecf660d65f1fa754335b01cb417edfa770627e686dc5"
+  },
+  "report": {
+    "path": "docs/validation/v3.8/V3_8_2_UNITS_EXPIRY_2026_10_27_ZH.md",
+    "sha256": "562e7d1ecac92f94f8d55d70280201f31671e583e42748a9ac5d558277a27d0e"
+  },
+  "limits": "No native improvement or general reliability claim; unit screen ties, expiry difference is one finite case. Existing native failures remain. Later restart must be a separate supplement."
+}

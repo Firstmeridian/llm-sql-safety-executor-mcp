@@ -1,0 +1,12 @@
+{
+  "checkpoint": "Refreshed unit/expiry definitions and native tasks verified; business1/2, separate display1/1; preview omissions retained.",
+  "files": {
+    "README.md": "19dae76eb125204995cd96638b17b1567793aea0aa39f8fea607eb673b9cb6fd",
+    "summary.json.gz": "af35f1c862ec94649ea014bfd7612988cc723a352b850d32fd4e819082ae5037"
+  },
+  "report": {
+    "path": "docs/validation/v3.8/V3_8_2_UNITS_EXPIRY_RESTART_2026_10_28_ZH.md",
+    "sha256": "9e0a09d657a8f7423b00f7024548fdd713dd164fb0e400c3724a0b1136ae9614"
+  },
+  "limits": "Two full two-turn business tasks and a separate display probe, not three complex tasks or general reliability. No matched A/B causal token/speed estimate; historical seals/failures remain."
+}

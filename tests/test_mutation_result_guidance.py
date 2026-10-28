@@ -40,7 +40,20 @@ async def test_independent_write_rules_follow_registration(
             # Each description must survive a Host hiding every other tool.
             assert render.text("mutation_results.md") in tools[name].description
             assert 'success="false" instead of a boolean' in tools[name].description
+            assert "report both the material payload claim" in tools[name].description
+            assert "other target/Skill reports committed" in tools[name].description
             assert 'affected row count not reported' in tools[name].description
+            if name == "execute_mutation_skill":
+                expiry = tools[name].output_schema["properties"]["preview_token_expires_at"]
+                assert expiry["type"] == "string"
+                assert "timestamp and timezone" in expiry["description"]
+                assert "if absent" in expiry["description"]
+                assert "Do not infer current token validity" in expiry["description"]
+                assert "preview_token_expires_at" not in tools[name].output_schema.get("required", [])
+                assert "show returned preview_token_expires_at and timezone" in tools[name].description
+                assert "or report expiry missing" in tools[name].description
+                assert 'Do not infer "valid"/"expired" from timestamps' in tools[name].description
+                assert "Only execute checks validity; no automatic new preview" in tools[name].description
     assert not (tmp_path / "db.sqlite").exists()
 
 

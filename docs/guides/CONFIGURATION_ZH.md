@@ -22,6 +22,8 @@ sql-safety-executor config explain --config /path/server.toml
 
 ## 默认值与限制
 
+可选 telemetry 按调用成对抽样，写入 `tool_call_started`／`tool_call_finished`；只有结束事件携带业务结果。消费者按 `(server_instance_id, call_id)` 配对并筛选结束事件统计，request/session 摘要只是辅助关联，框架 session 不保证跨请求稳定。诊断窗口用 `sample_rate=1.0`，修改配置由维护者重启生效；不因本次补强自动启用。日志失败、强杀或中间件之前拒绝仍可缺记录。详见[字段、成本和计时边界](../validation/v3.8/V3_8_2_HOST_REQUEST_CORRELATION_2026_10_28_ZH.md)。
+
 | 节/字段 | 默认值 / 约束 |
 | --- | --- |
 | `server.tool_timeout_seconds` | 120，非负有限数；0 禁用工具超时 |

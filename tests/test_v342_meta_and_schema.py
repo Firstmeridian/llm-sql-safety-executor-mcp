@@ -5,8 +5,9 @@
   plus tool-specific counters where applicable).
 * **E2** — assert ``execute_query_skill`` and ``execute_mutation_skill`` expose
   a populated MCP ``outputSchema`` via ``list_tools``.
-* **E3** — assert the opt-in tool telemetry middleware records one JSONL line
-  per ``tools/call`` when invoked through the real FastMCP ``Client`` path.
+* **E3** — assert the opt-in tool telemetry middleware records start/finish JSONL
+  events per sampled ``tools/call`` via the real FastMCP ``Client`` path, with
+  business outcomes checked on finished events.
 """
 
 from __future__ import annotations
@@ -1031,7 +1032,10 @@ def test_telemetry_end_to_end_via_client(monkeypatch, tmp_path):
             if line.strip()
         ]
         assert len(lines) >= 2, lines
-        query_records = [r for r in lines if r["tool_name"] == "query"]
+        query_records = [
+            r for r in lines
+            if r["event"] == "tool_call_finished" and r["tool_name"] == "query"
+        ]
         assert len(query_records) >= 2, lines
 
         # First call succeeded at both transport and business layers.
@@ -1091,7 +1095,8 @@ def test_skill_telemetry_end_to_end_honors_business_failure(monkeypatch, tmp_pat
             if line.strip()
         ]
         mutation_records = [
-            r for r in records if r["tool_name"] == "execute_mutation_skill"
+            r for r in records
+            if r["event"] == "tool_call_finished" and r["tool_name"] == "execute_mutation_skill"
         ]
         assert len(mutation_records) == 1, records
         record = mutation_records[0]

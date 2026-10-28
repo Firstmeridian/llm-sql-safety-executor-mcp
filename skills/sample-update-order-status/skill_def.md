@@ -5,8 +5,10 @@ name: sample-update-order-status
 version: "1.0"
 # Short catalog description shown to Agents and operators.
 description: >
-  Update order status through the forward lifecycle pending to confirmed to
-  shipped to delivered; cancelled and returned are terminal branches.
+  Update order status one step along pending to confirmed to shipped to delivered.
+  The target cancelled is allowed only from pending or confirmed; returned only from
+  shipped or delivered. Cancelled and returned are terminal states with no outgoing
+  transitions.
   Backward transitions such as delivered to shipped are rejected.
 # Natural-language discovery hints; they do not grant execution permission.
 triggers:

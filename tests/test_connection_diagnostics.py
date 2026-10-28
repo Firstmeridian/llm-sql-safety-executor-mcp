@@ -399,7 +399,7 @@ async def test_mcp_schema_partial_results_routing_and_telemetry(server, monkeypa
         invalid = await client.call_tool("check_connection", {"scope": "all", "connection_ids": ["ok"]}, raise_on_error=False)
         assert invalid.is_error
     records = [json.loads(line) for line in (tmp_path / "telemetry.jsonl").read_text().splitlines()]
-    record = next(row for row in records if row["call_completed"])
+    record = next(row for row in records if row["event"] == "tool_call_finished" and row["call_completed"])
     assert record["connection_scope"] == "all" and record["success"] is False
     assert record["connected_count"] == 1
     assert "connection_id" not in record and "db_type" not in record
@@ -478,7 +478,7 @@ async def test_mcp_short_timeout_returns_partial_report_and_busy_telemetry(serve
             assert isinstance(recovered.structured_content, dict)
             assert recovered.structured_content["all_connected"]
         records = [json.loads(line) for line in (tmp_path / "telemetry.jsonl").read_text().splitlines()]
-        failure = next(row for row in records if not row["call_completed"])
+        failure = next(row for row in records if row["event"] == "tool_call_finished" and not row["call_completed"])
         if first_scope == "single":
             assert failure["connection_scope"] == "all"
             assert "connection_id" not in failure and "db_type" not in failure
@@ -672,7 +672,7 @@ async def test_mcp_cleanup_failure_report_and_telemetry(server, monkeypatch, tmp
         assert disabled.is_error
         assert not (await client.call_tool("list_connections", {})).is_error
     records = [json.loads(line) for line in (tmp_path / "telemetry.jsonl").read_text().splitlines()]
-    checks = [row for row in records if row["tool_name"] == "check_connection"]
+    checks = [row for row in records if row["event"] == "tool_call_finished" and row["tool_name"] == "check_connection"]
     assert len(checks) == 2
     assert all(row["cleanup_failed"] and not row["success"] for row in checks)
     assert checks[0]["call_completed"] and not checks[1]["call_completed"]
@@ -716,7 +716,7 @@ async def test_invalid_diagnostic_requests_never_probe_or_claim_default_identity
         assert valid.structured_content["all_connected"]
         assert seen == ["main"]
     records = [json.loads(line) for line in (tmp_path / "telemetry.jsonl").read_text().splitlines()]
-    failures = [row for row in records if not row["call_completed"]]
+    failures = [row for row in records if row["event"] == "tool_call_finished" and not row["call_completed"]]
     # The MCP SDK rejects schema-invalid wire calls before FastMCP middleware;
     # these have no telemetry record. Cross-field/alias errors reach middleware.
     assert len(failures) == 1
@@ -786,6 +786,7 @@ async def test_single_cleanup_failure_disables_both_scopes_and_stopped_has_safe_
         stopped = await client.call_tool("check_connection", {"connection_id": "main"}, raise_on_error=False)
         assert stopped.is_error
     records = [json.loads(line) for line in (tmp_path / "telemetry.jsonl").read_text().splitlines()]
+    records = [row for row in records if row["event"] == "tool_call_finished"]
     assert records[0]["connection_id"] == "other" and records[0]["call_completed"]
     assert records[1]["connection_scope"] == followup_scope
     if followup_scope == "single":

@@ -81,6 +81,28 @@ the maintainer's responsibility.
 
 ## Portable sentinels
 
+Agent-evidence checks are independent of model trials and configured databases:
+
+```bash
+uv run --frozen python scripts/validation/agent_task_boundaries.py
+uv run --frozen pytest -q tests/test_agent_evidence.py
+```
+
+The native in-memory fixture uses an explicitly declared half-open rental
+interval and catches mistakes on both equality boundaries. Public-evidence
+helpers associate exec/wait and preserve equal result slots; observations are not
+request counts. They do not collect/redact logs or grade natural-language answers.
+Use an invocation ledger and separate semantic review. These checks do not certify
+Agent performance, native Host readiness or live MySQL behavior.
+
+The payment fixture independently compares a Python row-loop oracle with native
+SQLite. It includes missing/other-month/multiple payments, zero/refunds, repeated
+amounts, two stores and exact rental/month boundaries. Inner joins, EXISTS and
+null-rejecting left joins are valid alternatives. Eight known-wrong scope/count/
+sum variants must differ from truth; these are business-evaluation sentinels,
+not new gateway restrictions. The helper can emit a read-only constant CTE for
+SQLite/MySQL; UNION still requires the selected connection's existing permission.
+
 ```bash
 uv run --frozen pytest -q tests/test_contract_sentinels.py tests/test_release_gate.py
 ```

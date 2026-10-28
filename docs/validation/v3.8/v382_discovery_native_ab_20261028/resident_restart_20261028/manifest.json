@@ -1,0 +1,12 @@
+{
+  "checkpoint": "Eight continued native tasks complete, current-data/actions8/8, full interpretation4/8; prior two failures and mixed costs retained.",
+  "report": {
+    "path": "docs/validation/v3.8/V3_8_2_DISCOVERY_AB_RESTART_2026_10_28_ZH.md",
+    "sha256": "a653b25952ead63da3bd4cc1b6b18cbb58b2a143ba4bc5f4adcb77ece2086f17"
+  },
+  "files": {
+    "README.md": "bc8eeedeed20ed9a1aa9d60de505469ed2247f3359a2f94bf2f8e7eabe20e778",
+    "summary.json.gz": "53f90879aee2d9c2402212ffe6936e6d612609cd424b837497561aa1ec9b59d7"
+  },
+  "limits": "175 renderer checks are not product pytest or business trials. Complete provider input and root cause remain unobserved; no causal token, billing, speed or completion gain."
+}

@@ -1,0 +1,9 @@
+{
+  "scope": "Supplementary observation outside the frozen task grade; no retrospective pass/fail criterion change.",
+  "preview_deadline": {
+    "returned_expiry": "2026-10-27T13:52:35+00:00",
+    "reported_in_user_summary": false,
+    "interpretation": "The tool description requests reporting the returned expiry. The preview summary omitted it; retain as instruction-following omission. Subsequent cancellation makes no execution attempt and does not claim token revocation or validity.",
+    "followup": "Include expiry-reporting in a separately frozen future interpretation check. Do not rewrite this trial or treat it as all-instruction compliance."
+  }
+}

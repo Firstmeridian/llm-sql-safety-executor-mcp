@@ -752,7 +752,7 @@ sample_rate = 1.0
 
 `tools.schema` 保留历史语义，只控制 `sample`；基础 metadata 工具仍注册。`table_summary` 控制可选计数工具，精确 COUNT(*) 可能扫描大表。限额中 0 表示不限额；工具超时中 0 表示禁用；数据库 query/connect 超时必须为正整数。结果截断不限制数据库扫描量或所有瞬时内存。MySQL Mutation 的 query timeout 限制行锁等待，不保证覆盖全部 DML CPU/IO 工作。
 
-服务日志始终到 stderr，设置 `logging.path` 后同时写文件；stdout 专用于 MCP。遥测只记录脱敏调用元数据，`sample_rate` 范围为 0～1。配置、已解析密钥和 Skill 定义使用启动快照，修改后需重启。
+服务日志始终到 stderr，设置 `logging.path` 后同时写文件；stdout 专用于 MCP。遥测只记录脱敏调用元数据，`sample_rate` 范围为 0～1。每次调用只抽样一次，记录 `tool_call_started`／`tool_call_finished`，结果统计仅筛选结束事件。按 `(server_instance_id, call_id)` 配对；请求／会话 ID 仅保存可缺失的摘要，缺记录不证明未到达。详见[计时与关联契约](docs/validation/v3.8/V3_8_2_HOST_REQUEST_CORRELATION_2026_10_28_ZH.md)。配置、已解析密钥和 Skill 定义使用启动快照，修改后需重启。
 
 **Skills 配置说明**：
 
@@ -876,6 +876,15 @@ SQLite 初始化拒绝覆盖已有文件；MySQL 初始化遇到现存 orders �
 ## 更新日志
 
 ### v3.8.2 方言语义与执行检查（2026 年 10 月 16 日）
+
+本轮Agent指导围绕四项目标更新：
+
+- [结果解释] 明确取回／返回／截断行数、单位来源及预览期限。最新自然期限／状态任务完整5/6，仍保留一次无依据的日期有效性判断。
+- [探索效率] 衔接请求提案与实际预览，保留有效结构探索。重复定义研究仅给出有界展示字符空间，尚无实测token或速度收益。
+- [状态解释] 保留写入结果声明，区分预览取消与当前核验，明确演示终态来源。最新状态／动作6/6，不代表普遍弱提示可靠性。
+- [耗时定位] 识别一项Host审批审核超时，内部根因及旧长等待仍开放。
+
+详见[按目标组织的重构日志](REFACTORING_LOG_ZH.md)、[发布摘要](docs/releases/RELEASE_NOTES_v3_8.md)及[逐批证据索引](docs/README_ZH.md)。上述有界结果不能推导整体模型、token或耗时改善。
 
 10 月 20 日受管写入默认迁移 SQLGlot，发现、预览和确认按目标方言／会话复验。原 SQL、命名绑定、批准及事务证据保持独立；按维护者决定，观察期保留显式 sqlparse 回退及依赖，见[对照、回退限制与验收](docs/validation/v3.8/V3_8_2_MANAGED_PARSER_2026_10_20_ZH.md)。
 
@@ -1324,6 +1333,10 @@ SQL／策略失败返回普通结构化结果：`success=false`、`error_code`�
 及可选恢复 `hint`，MCP 的 `isError` 可以仍为 false。例如 `unknown_column`
 提示在同一连接使用 `describe_table()`。数据库异常映射为固定安全文本，不回传
 驱动异常原文；策略拒绝可说明配置的表范围。提示不授予访问权限或写入批准。
+
+query、Query Skill 和 sample 成功结果中，`row_count` 是返回行数，`total_rows`
+是该 SQL 已取回行数，可能已受 LIMIT 或采样限制；均不当然代表全库匹配总数。
+字符截断时空 `data` 可能表示首个取回行放不下；`truncated=false` 仅表示未作输出截断。
 
 输入：
 ```json
