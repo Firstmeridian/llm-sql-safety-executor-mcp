@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hmac
+import json
 import threading
 from dataclasses import dataclass
 from typing import Literal
@@ -98,6 +99,26 @@ class InMemoryPreviewTokenStore:
         """Invalidate pending proposals when the owning service shuts down."""
         with self._lock:
             self._entries.clear()
+
+    def discard_skills(self, skill_names: set[str], *, now: int) -> int:
+        """Free pending proposals affected by an atomic Mutation publication.
+
+        The runtime publication lock must enclose this call and the catalog swap.
+        Consumed tokens are already absent, so admitted executions are untouched.
+        """
+        with self._lock:
+            self._purge_expired_locked(now)
+            discarded = []
+            for digest, record in self._entries.items():
+                try:
+                    binding = json.loads(record.request_binding_json)
+                except (TypeError, ValueError):
+                    continue
+                if isinstance(binding, dict) and binding.get("skill_name") in skill_names:
+                    discarded.append(digest)
+            for digest in discarded:
+                self._entries.pop(digest)
+            return len(discarded)
 
     def __len__(self) -> int:
         with self._lock:

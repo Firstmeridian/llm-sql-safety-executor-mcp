@@ -24,7 +24,7 @@ dependencies = [
 sql-safety-executor = "sql_safety_executor.cli:main"
 
 [dependency-groups]
-dev = ["pytest>=9,<10", "pytest-asyncio>=1,<2", "pyright[nodejs]>=1.1", "build>=1.2"]
+dev = ["pytest>=9,<10", "pytest-asyncio>=1,<2", "pyright[nodejs]>=1.1", "build>=1.2", "websockets>=15,<18"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/sql_safety_executor"]

@@ -110,3 +110,14 @@ def test_memory_store_reports_expiry_at_redemption_boundary() -> None:
     assert status == "expired"
     assert record is None
     assert len(store) == 0
+
+
+def test_publication_discards_only_live_affected_proposals_and_frees_capacity():
+    store = InMemoryPreviewTokenStore(max_entries=3)
+    assert store.issue("old", 2000, '{"skill_name":"changed","skill_generation":"old"}', "{}", now=1000)
+    assert store.issue("other", 2000, '{"skill_name":"unchanged"}', "{}", now=1000)
+    assert store.issue("expired", 1001, '{"skill_name":"changed"}', "{}", now=1000)
+    assert store.discard_skills({"changed"}, now=1001) == 1
+    assert len(store) == 1
+    assert store.issue("new", 2000, '{"skill_name":"changed","skill_generation":"new"}', "{}", now=1001)
+    assert store.consume_if_matches("other", '{"skill_name":"unchanged"}', now=1002)[0] == "consumed"

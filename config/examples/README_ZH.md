@@ -23,7 +23,7 @@ SQLite 读取白名单为 `orders`、`users`、`products`，MySQL 仅为 `orders
 - `connections.toml`：每个连接独立声明后端、数据库身份、凭据、读取范围和连接级写入权限。
 - `skills.toml`：可信定义目录、发现/就绪检查、全局写入准入、预览令牌、可选 MRTR 和审计。省略主文件对它的引用即可关闭 Skills；明确引用但文件缺失会报错。
 
-启动必须传 `--config`，不会搜索 `.env`，也没有隐式 `DB_*` / `SKILLS_*` 配置覆盖。未知字段和非法类型会校验失败。配置内路径相对于声明它的 TOML 文件解析。配置、密钥和加载后的 Skill 定义均保持快照，修改后需要重启。
+启动必须传 `--config`，不会搜索 `.env`，也没有隐式 `DB_*` / `SKILLS_*` 配置覆盖。未知字段和非法类型会校验失败。配置内路径相对于声明它的 TOML 文件解析。配置、密钥及共享依赖保持快照，修改后需重启；`reload_skills()` 默认发布 Query，显式 `skill_type="mutation"` 发布可信 Mutation 入口，各实例独立。见 [Query](../../docs/guides/QUERY_SKILL_RELOAD_ZH.md) 和 [Mutation 契约](../../docs/guides/MUTATION_SKILL_RELOAD_ZH.md)。
 
 `skills.policy.exclude_profiles` 接受字符串数组，去首尾空白、转小写并去重：`["DEMO", " demo "]` 会排除 `demo`。空/纯空白项报错；`[]` 不排除任何 profile。发现和执行均遵守此策略。禁止读取或读取白名单为空时，无表 Query Skill 也不可用。`config check/explain` 输出安全语义错误码，不泄露配置值；详见[配置契约](../../docs/guides/CONFIGURATION_ZH.md)。
 

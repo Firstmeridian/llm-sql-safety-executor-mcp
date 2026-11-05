@@ -16,6 +16,7 @@ from typing import Annotated, get_type_hints
 from fastmcp import Context, FastMCP
 from fastmcp.exceptions import ToolError
 from fastmcp.tools import ToolResult
+from fastmcp.server.middleware import Middleware
 from mcp.server.request_state import RequestStateSecurity
 from mcp.types import ToolAnnotations
 from pydantic import Field
@@ -27,6 +28,16 @@ from sql_safety_executor.core.types import OperationError
 from sql_safety_executor.database.diagnostics import ConnectionReport
 from sql_safety_executor.prompts import render
 from sql_safety_executor.skills import tools as skill_tools
+from sql_safety_executor.skills.reload import reload_skills
+
+
+class _CatalogSnapshotMiddleware(Middleware):
+    def __init__(self, runtime):
+        self.runtime = runtime
+
+    async def on_call_tool(self, context, call_next):
+        with self.runtime.catalog_snapshot():
+            return await call_next(context)
 
 
 def _handler(function, runtime):
@@ -108,11 +119,13 @@ def create_server(config: AppConfig) -> FastMCP:
         if config.server.tools.schema_enabled:
             functions.append(schema.sample)
         if config.skills.enabled:
+            server.add_middleware(_CatalogSnapshotMiddleware(runtime))
             functions.extend(
                 [
                     skill_tools.list_skills,
                     skill_tools.get_skill_detail,
                     skill_tools.execute_query_skill,
+                    reload_skills,
                 ]
             )
             if config.skills.mutation.enabled:

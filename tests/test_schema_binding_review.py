@@ -185,7 +185,8 @@ class Mutation(MutationBase):
             assert not failed.is_error
             payload = failed.structured_content
             assert payload["success"] is False and payload["error_code"] == "validation_failed"
-            assert payload["execution_outcome"] == "not_executed" and payload["mode"] == stage
+            assert payload["execution_outcome"] == ("unknown" if stage == "execute" else "not_executed")
+            assert payload["mode"] == stage
             assert payload["validation"] == {"valid": False, "errors": ["Mutation validation returned an invalid result."]}
             assert "private" not in to_json(payload).decode()
             assert len(server.gateway_runtime.tokens) == cls.executions == 0

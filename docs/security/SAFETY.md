@@ -106,8 +106,12 @@ conflict; multiple rows mean unsafe target cardinality; both are rolled back
 when rollback succeeds. Omitting `expected_rowcount` deliberately preserves the
 old legal batch-write behavior for custom Skills.
 
-Imperative Skills retain the existing dict result/call interface, but once their
-callback runs, both success and failure are always whole-operation `unknown`.
+Imperative Skills retain the existing dict result/call interface. Confirmation
+first matches and consumes the one-time token, before constructing the Skill.
+A token refusal runs no request-time Skill Python. After trusted construction
+or validation runs, validation refusal reports `validation_failed, unknown`;
+construction errors do not restore the token or promise non-execution. Once the
+execution callback runs, both success and failure are whole-operation `unknown`.
 An ordinary custom return therefore becomes `success=true,
 execution_outcome=unknown`; it is not upgraded merely because Python returned
 normally or one `execute_write()` call committed. A false, missing, or malformed
@@ -430,6 +434,25 @@ or multi-user callers. For future remote designs, enforce limits at ingress
 and/or add per-principal, per-skill, and global quotas.
 
 ## 14. ALLOWED_TABLES Interaction
+
+In v3.8.2, explicit `reload_skills()` defaults to Query-only publication,
+preserving Mutation code/plans/tokens. Selecting `skill_type="mutation"` stages
+trusted Python entries; changed/removed definitions invalidate their unconsumed
+proposals while unchanged definitions retain them. Issuance/consumption is ordered
+against publication; admitted execution keeps the original version. Each MCP
+request remains pinned to one catalog. An abnormal active directory or observed
+scan-time identity change rejects the candidate, retaining the catalog, revision
+and pending previews; intentional deletion remains supported. Preserved Skill
+kinds are skipped before filesystem probes. Neither scope reloads grants, connections
+or shared Python dependencies, and neither grants authorization. Candidate Python
+top-level side effects are outside catalog rollback. See [Query publication](../guides/QUERY_SKILL_RELOAD.md)
+and the [Mutation contract](../guides/MUTATION_SKILL_RELOAD.md).
+
+The separate [Codex restart helper](../guides/CODEX_MCP_RESTART.md) replaces only
+a uniquely bound local stdio child, then verifies Host reconnection. Restart
+loses process-local previews, unlike Query publication. Host-wide refresh needs
+explicit authorization; process ambiguity or unsupported launch settings fail
+without signaling other processes. No database/grant configuration is changed.
 
 Query skill SQL templates are startup-validated as read-only templates and then
 checked at runtime against the resolved target connection's `ALLOWED_TABLES`

@@ -18,7 +18,7 @@ sql-safety-executor config explain --config /path/server.toml
 
 `server.toml` 必须引用 `files.connections`。可省略 `files.skills`，此时 Skills 关闭；显式引用文件缺失或无效始终报错。`server.default_connection` 必填且必须存在。请求中的未知目标不回退；省略 `connection_id` 才使用默认连接。
 
-每个配置内路径相对于它的声明文件解析，包括子文件、SQLite、Skill、日志、审计和密钥文件。CLI 主文件路径先解析为绝对路径。SQLite `:memory:` 保持特殊语义。模板复制到其他位置后，应同步调整路径。配置和密钥在 `load_config()` 时形成快照；启用的 Skill 定义、SQL 模板及允许加载的 Python 类在 `create_server()` 初始化时加载。服务运行期间修改这些文件需重启才能生效；可信 Python 代码自身仍可修改进程状态，不构成沙箱或代码不可变保证。
+每个配置内路径相对于它的声明文件解析，包括子文件、SQLite、Skill、日志、审计和密钥文件。CLI 主文件路径先解析为绝对路径。SQLite `:memory:` 保持特殊语义。模板复制到其他位置后，应同步调整路径。配置和密钥在 `load_config()` 时形成快照；启用的 Skill 定义、SQL 模板及允许加载的 Python 类在 `create_server()` 初始化时加载。配置、密钥及共享依赖修改仍需重启；`reload_skills()` 默认发布 Query 定义／SQL，显式 `skill_type="mutation"` 发布可信 Mutation 入口并使受影响的待确认预览失效。多个实例分别发布，普通调用不重新读文件。详见 [Query](QUERY_SKILL_RELOAD_ZH.md) 与 [Mutation 契约](MUTATION_SKILL_RELOAD_ZH.md)。可信 Python 代码自身仍可修改进程状态，不构成沙箱或代码不可变保证。
 
 ## 默认值与限制
 

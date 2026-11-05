@@ -180,10 +180,14 @@ Skills Scenario: unknown Skill → list_skills(search=..., detail_level="compact
   | Level | Configuration | `skills.enabled` | `skills.mutation.enabled` | Available Tools | Permission |
   |:---:|------|:---:|:---:|------|------|
   | L0 | Default | `false` | — | Base tools (query, list_tables, etc.) | Reads require explicit authorization |
-  | L1 | Skills enabled | `true` | `false` | + list_skills, get_skill_detail, execute_query_skill | + Pre-defined read-only skills |
+  | L1 | Skills enabled | `true` | `false` | + list_skills, get_skill_detail, execute_query_skill, reload_skills | + Pre-defined read-only skills and explicit Query reload |
   | L2 | Mutations enabled | `true` | `true` | + execute_mutation_skill | + Controlled writes after target authorization (two-phase preview/execute gate) |
 
-- **MRTR (optional)**: The full configuration exposes up to 13 tools. Approval waiting returns `InputRequiredResult`; telemetry records `phase=awaiting_approval`, `success=null`. Continuations share the same proposal/execution service; waiting is not business success.
+- **MRTR (optional)**: The full configuration exposes up to 14 tools. Approval waiting returns `InputRequiredResult`; telemetry records `phase=awaiting_approval`, `success=null`. Continuations share the same proposal/execution service; waiting is not business success.
+- **Mutation Skill reload**: Explicit `reload_skills(skill_type="mutation")` publishes trusted entry updates. Changed/removed definitions invalidate pending previews; admitted executions keep their original version. Shared dependencies and deployment settings still require restart. See [contract and caller confirmation](docs/guides/MUTATION_SKILL_RELOAD.md).
+
+- **Query Skill reload**: After deploying Query definitions, call `reload_skills()` to publish a validated snapshot without restarting. Mutation code, grants and connections remain unchanged. The calling Agent checks the change receipt and affected definitions in its actual session; business verification follows the task. See [contract and confirmation](docs/guides/QUERY_SKILL_RELOAD.md).
+- **Codex restart helper**: Restart verified local instances, or explicitly recreate a missing-PID/failed client through Host-managed disable/restore. Verify actual consumers; config toggling and Host-wide refresh require explicit consent. See [usage and scope](docs/guides/CODEX_MCP_RESTART.md).
 - **Default approval workflow**: Keep preview/execute as the default and `skills.mutation.mrtr.enabled=false`. October 1 tests verified the main native Codex IDE interactions, while the tested Copilot session failed the protocol gate; this is evidence of uneven support among tested clients, not a survey of all Hosts. Enable MRTR per deployment after verifying its actual Host. Neither flow independently authenticates a human, and enabling MRTR leaves the legacy write entry point available. See [acceptance and remaining gaps](docs/validation/v3.8/V3_8_MRTR_NATIVE_2026_10_01_ZH.md) and [approval boundaries](docs/security/V3_8_SECURITY.md#where-approval-is-enforced).
 - **Skills Two-Phase Preview/Execute Gate**: Write operations require a matching server-issued preview token; this prevents replay and drift but is not proof of human approval without a trusted client workflow
 - **Skills Audit Logging**: Mutation preview/execute paths attempt best-effort JSONL audit logging; normal tool results report `audit_logged`
@@ -242,7 +246,6 @@ Early on, the goal was to build a simple SQL safety checker that could inspect a
 Through these iterations, this project evolved from an initial concept of an LLM/Agent-based user interface to an MCP-supported comprehensive SQL query service. It is worth acknowledging that although the starting point was different, the current project actually shares similarities with current Text2SQL solutions.  
 In the early conception of this project (March-April 2025), such systems were relatively rare. At that time, similar Text2SQL practices were mainly stuck in the context of receiving prompts from relevant personnel and the LLM generating SQL statements once to assist their queries. The core motivation of this project is **to enable LLMs (Agents) to replace traditional frontends and become the new "frontend", capable of dynamic interaction with users regarding both the data in the interface and the interface itself.** Making the entire system fully flexible and dynamic.  
 For now, **the core idea of this project is to empower LLMs (Agents) with the ability to enter the database.** Combined with different Agents, different work scenarios can be developed and extended.
-
 
 - [In v3.8](docs/releases/RELEASE_NOTES_v3_8.md), FastMCP 4 and the installed package separate runtime state, explicit TOML and prompt resources. Optional managed MRTR extends the retained preview/execute workflow.
 
@@ -732,7 +735,6 @@ checks, the permitted target is unresolved, or the restrictions remain
 inconsistent, ask and wait. This does not authorize writes or arbitrary target
 selection and does not turn a single-connection result into an all-connection report.
 
-
 v3.8 connection conventions and trade-offs:
 
 - Resolve the target before policy, readiness, execution, metadata, audit and telemetry; tools cannot supply arbitrary DSNs.
@@ -771,7 +773,7 @@ sample_rate = 1.0
 
 `tools.schema` retains its historical sample-only registration meaning; basic metadata tools remain registered. `table_summary` enables optional counts, whose exact COUNT(*) may be expensive. Limits accept 0 for unlimited; tool timeout accepts 0 for disabled, while database query/connect timeouts must be positive integers. Truncation does not bound database work or all peak memory. MySQL mutation query timeout bounds row-lock waits, not all DML CPU/IO work.
 
-Service logs go to stderr, with an optional additional file; stdout is reserved for MCP. Telemetry contains sanitized call metadata; sample_rate is in [0,1]. Sample once per invocation and emit `tool_call_started` / `tool_call_finished`; count outcomes on finished events. Pair by `(server_instance_id, call_id)`; request/session IDs are recorded only as optional digests. Missing events do not prove non-arrival. See the [timing and correlation contract](docs/validation/v3.8/V3_8_2_HOST_REQUEST_CORRELATION_2026_10_28_ZH.md). Configuration, resolved secrets and Skill definitions are snapshots; changes require restart.
+Service logs go to stderr, with an optional additional file; stdout is reserved for MCP. Telemetry contains sanitized call metadata; sample_rate is in [0,1]. Sample once per invocation and emit `tool_call_started` / `tool_call_finished`; count outcomes on finished events. Pair by `(server_instance_id, call_id)`; request/session IDs are recorded only as optional digests. Missing events do not prove non-arrival. See the [timing and correlation contract](docs/validation/v3.8/V3_8_2_HOST_REQUEST_CORRELATION_2026_10_28_ZH.md). Configuration, resolved secrets and shared dependencies remain snapshots requiring restart. `reload_skills()` defaults to Query-only publication; explicit `skill_type="mutation"` publishes trusted Mutation entries and invalidates affected pending previews. Publication is per receiving instance; ordinary calls keep using the loaded snapshot.
 
 **Skills configuration**:
 
@@ -848,7 +850,6 @@ Legacy preview/execute does not itself open an approval form: a Host must collec
 - The process-local preview-token store supports the stdio deployment. Custom transport embedding remains within a trusted single-process boundary. Multi-user authenticated HTTP mutation, cross-worker execution, and cross-replica execution are outside the current design; the server never falls back to stateless token acceptance.
 - `skills.audit.path`, `observability.telemetry.path`, and `observability.logging.path` are local files. In production, place them on trusted storage with restricted permissions and external rotation/retention, such as `logrotate`, platform logging, cron cleanup, or a managed log sink. A typical starting point is daily or size-based rotation, compression, and 14-90 days retention depending on compliance needs.
 
-
 **Typical configuration scenarios**:
 
 These are edits to the named fields, not fragments to append repeatedly to the same table.
@@ -890,7 +891,6 @@ Additional protections include `strict_input_validation=True`, `mask_error_detai
 ### MCP Client Integration
 
 See [mcp_config.json](mcp_config.json) for the portable template. Private `config/*.toml`, `config/secrets/` and `mcp_config.local.json` are ignored by Git; do not commit real credentials. The [configuration guide](docs/guides/CONFIGURATION_ZH.md) covers field mappings, defaults, SDK imports and cutover/rollback. Check TOML, stop the old process, and start with matching new dependencies and entry points; rollback also requires matching code, dependencies and configuration.
-
 
 ## Changelog
 
@@ -943,13 +943,12 @@ SQLite completed ISNULL/NOTNULL/NOT NULL and IN/NOT IN predicates now retain pos
 - The response keeps only the absolute `preview_token_expires_at`; a trial reintroduction of `preview_token_expires_in_seconds` was withdrawn. Subagents asked whether a token remained usable still misjudged it from their own date (conservative, since execute enforces expiry).
 - The mutation tool description now explains how to read results: `execution_outcome`, not `success`, states the write; `success=false` with `committed` must not be redone; `unknown` may or may not be written; an error without `execution_outcome` proves nothing; never retry or switch entry points on your own. Replay trials improved from 12/18 to 16/18 (MRTR protocol error 0/3 → 3/3) for about 159 extra input tokens per request; guidance does not replace server-side controls.
 - Server instructions now list each connection's configured read policy (reads disabled or scope type, UNION allowed/disabled), add that FROM subqueries are rejected everywhere (use a CTE), and the UNION rejection no longer suggests merging results in the reply. A UNION-disabled MySQL task dropped from 11–15 calls (58k–78k tokens) to 2 calls (~44k); a UNION-allowed SQLite task from a rejected first query to 1 call (~28k), all answers correct. Fixed cost is about 184 input tokens per request.
-- A real tool-channel check on a richer local SQLite database confirmed correct reports for `committed` and `rolled_back` (3/3 each). Preview-token rejections at the framework write boundary now say the request wrote nothing and ask to check state and let the user decide on a new preview, instead of "run preview again"; clear reports rose from 0/3 to 3/3. Trusted imperative Skill construction/readiness can precede token validation. Reporting preview-time status as current after a declined preview (0/3) remains a recorded residual risk.
+- A real tool-channel check on a richer local SQLite database confirmed correct reports for `committed` and `rolled_back` (3/3 each). Preview-token rejections at the framework write boundary now say the request wrote nothing and ask to check state and let the user decide on a new preview, instead of "run preview again"; clear reports rose from 0/3 to 3/3. At that historical checkpoint, trusted imperative construction could precede token validation. The October31 repair now matches/consumes confirmation tokens before Skill construction; readiness remains earlier. Imperative re-validation failure after trusted Python reports `unknown`, without claiming the request wrote nothing. Reporting preview-time status as current after a declined preview (0/3) remains a recorded residual risk.
 - `describe_table()` now returns structured indexes (name, primary, unique, ordered key columns; SQLite `partial`; MySQL non-BTREE `type`) and `indexes_status`. Raw SHOW stays rejected. Listing a table's indexes went from 0/3 to 3/3 on MySQL and SQLite, from 2–5 calls (43.6k–93.5k tokens) to 1–3 calls (about 28.4k–43.4k tokens); fixed cost about +68 input tokens per request.
 - Read policy now rejects SELECT-shaped reads of server, account and file-path state (`@@` system variables, `CURRENT_USER()` and related functions, SQLite `pragma_*` functions), and MySQL allowlists match table-name case exactly because `Orders` and `orders` can be different tables on Linux. On case-insensitive MySQL servers, configure allowlist entries with stored names; differently cased references are now rejected (DRR-2026-075/076).
 - Full suite 796 → 797 → 799 → 820 passed, 4 skipped across the updates; Pyright 0 errors. Subagent checks wrote only to dedicated local test data after per-write approval. See [release notes](docs/releases/RELEASE_NOTES_v3_8.md#v381--skill-rejection-recovery-clue-october-1-2026).
 
 **October 12 review:** quoted PRAGMA and CTE/table-scope omissions are fixed; SQLite metadata is pinned to main, and structured indexes preserve direction, collation, prefix length and visibility under fixed collection budgets. Both write tools independently include validity-first result guidance and missing-rowcount handling. Final validation: **941 passed, 4 skipped**, Pyright clean, live MySQL/SQLite comparisons and installed-wheel checks on both protocols. GPT-6 Luna native tasks and simulated-result failures are recorded separately with actual usage; the historical token figures above do not measure these final descriptions. After the maintainer restart, the resident Host description matched final source; interpretation checks passed 3/3 each and native indexes/previews passed 3/3. Recovery routes were correct 2/3: one omitted confirmed, was corrected on review, and the actual preview rejected that jump; no write executed. See the [review and evidence](docs/validation/v3.8/V3_8_1_REVIEW_2026_10_12_ZH.md).
-
 
 **October 14 matrix/function/AST follow-up:** current SQLite/MySQL CTE truth and matched cost baselines are recorded; raw reads and Query Skills reject real GET_LOCK/RELEASE_LOCK/RELEASE_ALL_LOCKS/SLEEP/BENCHMARK calls before I/O. Literal text, ordinary columns and CTE declarations remain supported. Unsafe templates are skipped offline at startup. SQLGlot 30.22.0 was evaluated in isolation; production AST/authorizer adoption is deferred. **1089 passed, 4 skipped**, Pyright/prompt contracts and 12 installed-wheel stdio calls passed. After the maintainer restart, 13 primary Host native checks passed; initial tool-visibility failures are retained, and required native CLI A/B passed 3/3 per stage. See [decisions and evidence](docs/validation/v3.8/V3_8_1_PHASE123_2026_10_14_ZH.md).
 
@@ -971,7 +970,6 @@ October 13 supplemental checks passed all four opt-in MySQL tests and verified r
 - Earlier local automation recorded 744 passed, 4 skipped. The submitted `1be44b4` later failed CI on a stale description assertion; see [review fixes and current validation](docs/validation/v3.8/V3_8_REVIEW_FIXES_2026_09_27_ZH.md). Live checks verified MySQL connectivity/basic reads, native Codex SQLite preview/execute with fixture restoration, and three isolated Luna six-turn routing trials. The subsequent [October 1 MRTR update](REFACTORING_LOG.md#v380-mrtr-approval-form-default-october-1-2026) records native Codex IDE approval, cancellation and unchecked refusal; [later native testing](docs/validation/v3.8/V3_8_MRTR_NATIVE_2026_10_01_ZH.md) verified framework rejection after delayed approval with no database change. Separate real-process restart acceptance passed with a fresh-approval control; business-TTL checks have simulated-clock coverage. Native business-TTL/restart UI cases and MySQL writes remain unverified. A user-supplied Copilot trial hit the protocol gate before a form appeared; its MRTR UI remains unverified. The earlier MRTR dispatch refusal is preserved.
 
 See [release notes](docs/releases/RELEASE_NOTES_v3_8.md) and [validation](docs/validation/v3.8/V3_8_VALIDATION_ZH.md). Historical entries below retain their original configuration, paths and conclusions; they are not v3.8 deployment instructions.
-
 
 Historical version entries retain their original Skill names. Current names
 are listed in the [v3.7.2 migration table](docs/releases/RELEASE_NOTES_v3_7.md#sample-skill-names-and-local-files).
@@ -1198,8 +1196,6 @@ Generalized the v3.4.1 metadata pattern across the full tool surface and added t
 - New pytest annotation-consistency test (`tests/test_annotations_consistency.py`) keeps `ToolAnnotations` (`readOnlyHint`/`destructiveHint`/`idempotentHint`/`openWorldHint`) aligned with the documented intent for every registered tool
 - Per MCP spec the `_meta` field is OPTIONAL — clients MAY ignore it. The VS Code MCP UI for example only renders `structuredContent`; treat `meta` as server-side observability
 - Direct in-process callers should unwrap with `getattr(result, "structured_content", result)` (see `tests/test_skills_disclosure.py::run_tool`)
-
-
 
 ### v3.4.1 ToolResult Runtime Metadata and Closed-World Annotations (May 2026)
 
@@ -1531,7 +1527,6 @@ input syntax but must read `results[alias].connected` instead of top-level
 `connected`; old `message`, `database_name` and `config` fields are removed.
 Single checks now share diagnostic isolation, budget, busy and cleanup-disable
 behavior. See the [design and migration record](docs/guides/V3_7_CONNECTION_DIAGNOSTICS_DESIGN.md).
-
 
 ### 3. `list_tables`
 Usage: Visible Database Overview - List returned/allowed tables and their estimated row counts.
@@ -2434,7 +2429,6 @@ This follows Google's [Function Calling Best Practices](https://ai.google.dev/ge
 | Parameterized queries | [OWASP — SQL Injection Prevention](https://cheatsheetseries.owasp.org/cheatsheets/SQL_Injection_Prevention_Cheat_Sheet.html) | SQLAlchemy `text()` + parameter binding, zero string concatenation |
 
 For complete design details, execution flow diagrams, and industry best practices alignment analysis, see [MCP_AGENTS_SKILLS_DESIGN.md](docs/architecture/MCP_AGENTS_SKILLS_DESIGN.md).
-
 
 ## Requirements
 

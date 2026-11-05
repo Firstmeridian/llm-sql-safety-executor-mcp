@@ -2,7 +2,126 @@
 
 English | [中文](REFACTORING_LOG_ZH.md)
 
-**Date:** December 2, 2025 (Updated: October 28, 2026)
+**Date:** December 2, 2025 (Updated: November 5, 2026)
+
+## Overview
+
+This log records refactoring, design decisions, trade-offs and validation from the original script to the installed `sql_safety_executor` package. Entries are grouped by the change's core objectives, newest first; dated interfaces, test counts and failures retain their historical meaning. Use the [documentation index](docs/README.md) and current guides for deployment.
+
+Current v3.8.2 work centers on controlled Skill publication and a separate Codex maintenance helper: Query/Mutation reload handles definition updates; restart/recovery handles changes requiring a fresh process. The next section presents current conclusions, implementation, verification by evidence layer and the child-session startup investigation. Each model score, cost and unverified boundary retains its original attribution.
+
+The project is not formally released. Prefer a simpler supported design over hypothetical historical callers, and propose material compatibility changes for the maintainer's decision. The present Legacy protocol path is a measured workaround for the actual Host, not an old-package/SDK compatibility promise. Both language editions should track current decisions without overwriting sealed evidence.
+
+## v3.8.2 Controlled Skill publication and verified Codex restart (2026-10-28)
+
+Core objectives: publish deployed Query and trusted Mutation definitions without restarting, and provide separate existing-Host restart/recovery for changes requiring a new process. Version remains v3.8.2. Entries below follow functionality, evidence layers and startup-diagnosis stages; dated reports retain the original records.
+
+### 1. Current conclusions and verification scope
+
+| Work | Current conclusion | Retained limit |
+| --- | --- | --- |
+| Query/Mutation reload | Functional, installed-package and declared native workflows have evidence; latest directory repair and guard regressions pass | Publication affects only the receiving instance; October31 admission and November5 directory changes remain unverified in the resident service |
+| Codex maintenance helper | Separate restart and old-service-independent recreate paths are implemented; historical single-chat restart/recovery passed live, latest scope fixes passed isolated regression | Existing Hosts only; VS Code reconnection is manual. Checks/sends are non-atomic; restored configuration is not restored runtime state |
+| Complete Agent workflows | Three Query two-round workflows complete, strict tasks2/3; all three Mutation tasks and six business answers pass | Preserve the Query rounding error, earlier startup failures and each cohort's costs; no general speed/token claim |
+
+### 2. Controlled Skill publication
+
+#### Query definitions and request snapshots
+
+- [Feature] Add explicit `reload_skills()` when Skills are enabled. Validate a candidate using existing definition/SQL checks, then atomically publish; safe failures retain the catalog. Support additions, SQL/parameter/scope updates, disable and removal, with process-local revisions and semantic change lists.
+- [Consistency] Bind every MCP request to one catalog across awaits. Reuse unchanged metadata caches; ordinary business calls do not scan files or add database probes. Loading never grants execution: current connection/readiness/policy/authorizer checks remain.
+- [Caller Confirmation] The caller verifies the receipt and affected details in the actual consumer, then reuses authorized business execution when needed. No extra ordinary-read step or new confirmation framework.
+- [Scope and Cost] Preserve existing Mutation objects/plans and pending tokens; report new Mutation definitions without importing them. No Python/shared-module/configuration/authorization reload, watcher or automatic revoke/retry. In-flight calls may complete on old definitions; one management tool and context binding add limited metadata/CPU cost, without a speed/token claim.
+
+#### Mutation publication, proposal generations and admitted execution
+
+- [Feature] Extend the same management tool with explicit `skill_type="mutation"`; Query remains the default and preserves Mutation code/previews. Preserve the other Skill kind and reuse unchanged objects without reimport.
+- [Execution Contract] Bind proposals to activation generations derived from accepted definition changes, not the hand-authored version. Atomically order publication with issuance/consumption; discard affected pending previews while admitted execution keeps its original code, plan and values. A→B→A does not revive old proposals. Apply the same checks to MRTR.
+- [Refusal Guidance] Known framework confirmation refusals before trusted Skill construction retain their cause and explicitly state this request wrote nothing; missing-token checks use the same guidance. Constructors/callbacks and earlier unknown outcomes are excluded. October31 follow-up now matches and consumes confirmation tokens before construction; post-admission constructor errors consume the token, imperative re-validation failure is `validation_failed, unknown`, and post-preview generation rejection makes no no-write claim. See [contract and evidence](docs/validation/v3.8/V3_8_2_MUTATION_ADMISSION_HOST_BINDING_2026_10_31_ZH.md).
+- [Scope and Cost] Compile captured entry bytes in independent candidate namespaces, bypassing stale pyc. Shared dependencies/settings still require restart; top-level Python side effects are outside catalog rollback. Change tool annotations to destructive/non-idempotent and require actual-consumer confirmation. No ordinary-read file scan or universal speed/token claim.
+
+#### Shared candidate validation and failure preservation
+
+- [Correctness] An active entry that becomes a file, dangling/cyclic link, unavailable directory, or changes directory identity during scanning rejects the entire candidate. Keep the published catalog, revision and pending previews; genuine deletion remains supported.
+- [Independent Scope] Skip preserved Skill kinds before resolving their paths. An unavailable preserved directory does not block a reload of the other kind. Valid contained directory symlinks remain supported.
+- [Cost] Centralize these checks in strict catalog discovery and remove the duplicate runtime precheck. Checks run only during explicit reload, with no new ordinary-call scan, tool step or dependency.
+- [Regression Completion] Add Query/Mutation cases that swap only the outer directory after source reads, preserving file bytes and identities. Directory module26 passes; removing only the final directory guard yields two intended assertion failures. Product source is unchanged; the earlier3922/four-skip full result retains its original scope.
+
+### 3. Codex restart and recovery
+
+#### Existing-Host access and ordinary restart
+
+- [Development Tool] Add `scripts/dev/restart_codex_mcp.py`, with bounded owned-socket discovery, exact current-thread/service binding and read-only probe/verify modes. Direct Unix WebSocket access verifies the actual 0.165 Host; PATH CLI0.164 and historical proxy timeouts remain separate observations.
+- [Restart Contract] Config refresh alone reused the healthy process. Actual restart uniquely binds a local stdio child by listener owner, UID, parent, complete argv/cwd and process identity; pidfd SIGTERM stops only that child, followed by one authorized Host-wide refresh, catalog/read verification and new process identity. No config/grant changes, Host termination, SIGKILL or automatic retry. The default requires one loaded thread and rejects ambiguous/unsupported launchers.
+- [Caller Confirmation] Script acceptance, process replacement, actual Agent channel and intended new behavior are distinct evidence. Native checks are required for the deployment goal; a constant/PID alone cannot prove a changed contract.
+
+#### Old-service-independent recreate and bounded verification
+
+Recovery still requires unique current-thread binding, supported launch configuration and permissions, and approval for configuration toggling/Host-wide scope. Endpoint reachability alone is insufficient. A working new consumer does not prove every old process has exited.
+
+- [Bootstrap and Recovery] Add explicit Host-managed `recreate` for missing old PID, failed tools or startup failure. Version-check a temporary target enabled-key toggle, verify disabled consumers, restore the original flag and refresh again; verify fresh actual-consumer PIDs. Separate config-toggle consent/journal, no automatic fallback or direct signal. 78 helper tests and five complete isolated Host flows pass; actual approved toggling restored the exact config and refreshed twice; final verification timed out, followed by successful read-only binding/native checks without another refresh. Final diagnostic-only additions retain child identities and verification substeps;78 tests pass again. Old process exit remains separately unverified without its identity. [Contract and evidence](docs/validation/v3.8/V3_8_2_CODEX_MCP_HOST_RECREATE_2026_10_29_ZH.md).
+- [Bounded Verification] After refresh, share up to30s across catalog/single-canary reads within the original60s budget; observe only schema-supported publication/startup states, retain terminal failures and recheck scope/identity. Check the deadline before sending any RPC; never reissue edits, refreshes or timed-out reads.97 helper tests and five isolated Host comparisons pass, including two old-source failure sentinels. The separately approved actual recovery now completes in one command, with restored config, fresh consumer identity and reads; caller-native confirmation passes. The one-time approval is consumed. [Evidence](docs/validation/v3.8/V3_8_2_CODEX_MCP_READINESS_2026_10_29_ZH.md).
+
+#### Binding, scope and failure-cleanup repairs
+
+- [Runtime Binding Fix] Disk settings identify a candidate only. Both modes require PID metadata from the existing actual-consumer canary to match the pinned process set; single mode now also rejects launch aliases and rechecks configuration before stop. Pure probes leave process binding unverified. Successful query adds one optional metadata integer, no new SQL/round trip; old residents need bootstrap via the explicit recovery path below or maintainer action.110 focused and16 normal-wheel stdio calls pass; no real restart or new model trial in this repair.
+- [Binding Diagnostics] Preserve bounded sanitized phases, input provenance and exact membership; distinguish handshake, membership and catalog failures without guessing the consumer Host. The existing156-check helper checkpoint predates the bridge; extension experiment details stay in private archives. [Contract repair](docs/validation/v3.8/V3_8_2_MUTATION_ADMISSION_HOST_BINDING_2026_10_31_ZH.md).
+- [Final Review] Count matching loaded-thread membership independently of catalog health; refuse ambiguity even when one catalog fails. Require one loaded chat for refresh and recheck membership before sending. Reserve one restoration RPC window within the original total deadline; journal failure before restore no longer suppresses the one version-checked cleanup attempt. Preserve uncertain-response refusal and manual recovery. No new Host, bridge, live operation or business step. [Evidence and cost](docs/validation/v3.8/V3_8_2_FINAL_REVIEW_2026_11_01_ZH.md).
+- [Scope Repair] After durable journal writes, recheck the pinned scope immediately before first disable and each refresh; observe membership again after group metadata reads. A changed scope stops sending. Preserve one exact-version restoration attempt without an extra refresh or renewed budget. Checks remain non-atomic, and shared configuration has no cross-Host isolation. [November5 evidence](docs/validation/v3.8/V3_8_2_SCOPE_CATALOG_REPAIR_2026_11_05_ZH.md).
+
+#### Current-chat scope and the VS Code decision
+
+- [Scope Decision] Defer VS Code Codex automatic restart support: Host-wide refresh does not satisfy the maintainer's current-chat-only requirement. Cancel extension group acceptance and further bridge/thread-migration work. Restore original startup-setting bytes; keep experimental code/evidence for reference. No Host is stopped or refreshed; subsequent read-only inspection confirms the bridge has exited. Future VS Code reconnection remains manual. This development tool does not gate core database functionality.
+
+The following group mode is retained capability and historical evidence, not a default workaround for a current single-chat refusal. Reuse requires an explicit maintainer change to the current scope decision.
+
+- [Multi-thread Scope] Add explicit `--all-loaded-targets` for the bound Host’s exact matching direct-child set, including other idle consumers. Default single-thread behavior stays unchanged. Limit to eight same-workspace threads, connected target catalogs, count/member/configuration checks and pidfds; verify all original consumers and a wholly replaced set. Do not claim thread-to-PID mapping or historical configuration identity. Partial stop/uncertain refresh is reported without retry.49 focused tests pass, including two owned targets and an identical launcher under another parent; the approved live group restart replaces both fixed targets and verifies both original consumers, with one global refresh in4.241s. This is a local observation, not a general latency or thread/PID-mapping claim. [Scope and evidence](docs/validation/v3.8/V3_8_2_CODEX_MCP_GROUP_RESTART_2026_10_29_ZH.md).
+
+### 4. Completed verification by evidence layer
+
+Count each run separately: complete suites, selected tests, tool calls and model tasks cannot be added together. The later two directory-identity tests are test-only additions; the earlier complete3922/four-skip result retains its scope and is not relabeled3924 complete passes.
+
+#### Latest source and installed-package checks (November5)
+
+- [Current Isolated Verification, November5] Final suite3922 passes/four optional MySQL skips; helper203 passes within that suite. Installed-wheel72 recorded calls and24 new directory tests pass;80 product resources match. Type/prompt checks pass. No new live Host, MySQL or model acceptance. [Evidence](docs/validation/v3.8/V3_8_2_SCOPE_CATALOG_REPAIR_2026_11_05_ZH.md).
+
+#### Approved live Host restart
+
+- [Evidence and Cost] The earlier single-thread acceptance passes41 focused checks, including actual pytest-owned child termination. After separately approved refresh-only and real-restart phases, the current target is replaced, two unrelated SQL MCP processes remain unchanged, native SQLite/MySQL constant reads pass and Query revision resets5→0. One restart takes about9.96s; no general latency/token claim. Isolated-Host startup/fixture failures and model-tool visibility limits remain explicit. See [usage](docs/guides/CODEX_MCP_RESTART.md) and [acceptance](docs/validation/v3.8/V3_8_2_CODEX_MCP_RESTART_2026_10_28_ZH.md). Existing websockets17.1 is made an explicit development dependency without runtime upgrades.
+
+#### Mutation engineering, native business and restoration cleanup
+
+- [Acceptance] Final regression: 3,688 pass, four optional skips; focused96 pass. Source and normally installed wheel each pass72 stdio calls across SQLite/MySQL and auto/legacy, with independent row/trigger truth and cleanup. Two targeted fault variants trigger three intended assertion failures. A scan-time missing-definition race is fixed for both kinds. This sealed engineering checkpoint preceded native acceptance; the later three-consumer result and restoration gate are recorded below. See the [separate report](docs/validation/v3.8/V3_8_2_MUTATION_RELOAD_2026_10_29_ZH.md); earlier Query scores are not Mutation acceptance.
+- [Native Acceptance] The maintainer approved a dedicated QA alias and three exact Mutation grants. v1 is staged after24 isolated candidate detail/preview calls; business rows are unchanged. A separately approved group restart verifies replacement and both consumers; parent-native checks pass4/4. Three fresh Luna-medium Mutation workflows pass3/3 with independent11/18/31 rows and one trigger effect each.26 native requests/1,330,412 tokens include preflight and administration; business alone is8 requests/563,240 tokens. Exact config bytes and owned definitions are restored/removed. A separately approved restoration replaces both targets, verifies both original consumers and the caller, then deletes only the owned QA file; snapshot and audit remain. Configured audit has8 matching records; its pre-run prefix hash was not frozen, unlike the guarded historical audit path. No Host configuration edit; deployment and restoration each use one separately approved global refresh. The broad FD-check stop and scoped cleanup visibility limit remain recorded. [Native evidence](docs/validation/v3.8/V3_8_2_MUTATION_RELOAD_NATIVE_2026_10_29_ZH.md).
+
+#### Plan completion and Query engineering evidence
+
+- [Completion Scope] Original work items 1–3 are complete within declared functional acceptance. The subsequently approved Mutation extension is covered in its own subsection above. First-runtime addition already has source/package and parent-native discovery/execution evidence; no extra model batch is needed. The remaining 2/3 strict model score is retained, so not every model-answer criterion passed.
+- [Validation] Separate source, installed-wheel, resident Host and model evidence. New positive/negative/concurrent tests preserve old requests, reject invalid candidates and retain Mutation previews. See the [current report](docs/validation/v3.8/V3_8_2_QUERY_RELOAD_2026_10_28_ZH.md) and [usage contract](docs/guides/QUERY_SKILL_RELOAD.md) for actual counts and native status. DRR-146/147 record the accepted lifecycle limits. Historical acceptance and unresolved latency causes remain unchanged.
+
+### 5. Query child-session startup diagnosis and acceptance progression
+
+The following stages retain the evidence and stop conditions at each checkpoint. Phrases such as pending approval/not yet applied describe that dated stage; subsequent deployment and complete-task results are listed separately and do not create current work items. Original failures, costs and reports remain unchanged.
+
+#### Initial native calls, consumer gates and startup readiness
+
+- [Native and Model Evidence] After the earlier maintainer restart,14/14 parent-channel checks pass. Three actual Luna-medium sessions have readiness1/3; one completes the revised reconciliation round, while its first round misses a separately loaded catalog. Keep full two-round completion0/3 and the failed setup publication. Reload is per receiving instance, without broadcast. All three Agents and temporary definitions are cleaned up;24 protected files remain unchanged. See the [separate supplement](docs/validation/v3.8/V3_8_2_QUERY_RELOAD_RESTART_2026_10_28_ZH.md). The later helper acceptance above adds no full model trial and does not resolve historical availability/latency causes.
+- [Consumer Gate] In a separately frozen follow-up, validate both versions of three fixtures against independent SQLite/MySQL raw-row oracles before deployment. Require publication and parameter confirmation in each actual consumer. All three fresh Luna-medium sessions fail their first native canary; no publication or business round starts, and no replacement/restart is attempted. Keep232,565 preflight tokens,20 protected files unchanged and all Agents closed. Exact old/current failure-thread logs show cached catalog display followed by no exact ready client; underlying initialization/binding cause remains open. [Results and stop decision](docs/validation/v3.8/V3_8_2_QUERY_RELOAD_CONSUMER_2026_10_28_ZH.md). This does not reopen the verified restart helper or certify full Agent acceptance.
+- [Startup-Gated Tasks] New exact-thread starting/ready/failed observations justify a separately frozen batch: actual Luna-medium readiness 2/3, consumer preflight1/3 and full two-round completion 1/3. The invoice task validates old/new parameters, reconciliation, original SQL and per-instance removal. Preserve one Host initialized-response ID mismatch (expected1/got0) and one model omission of connection_id; no proven transport root cause, replacement, retry or restart. Five raw queries and two Skill results match independent truth;20 files remain unchanged and all Agents close. Business uses4 MCP requests/237647 provider tokens, with setup/cleanup separate and no A/B efficiency claim. [Evidence and limits](docs/validation/v3.8/V3_8_2_QUERY_RELOAD_READY_2026_10_29_ZH.md). No new runtime changes or broad availability guarantee.
+
+#### Handshake response-conflict evidence and protocol mitigation analysis
+
+- [Handshake Evidence] After35 isolated recorder checks, separately approved deployment captures server/discover ID0, initialize ID1, result ID0 and error ID1 on one pipe, with the same Host's expected1/got0 warning. This locates a late discovery response during initialization; Host fallback policy and startup costs remain unconfirmed. Deployment preflight fails, so restore immediately, verify original config bytes/process cleanup/native read and run no new model trials. Two owned protocol controls confirm the modern/legacy era conflict. Keep full business completion 1/3; no ID rewriting, timeout tuning or additional refresh. [Capture, restoration and limits](docs/validation/v3.8/V3_8_2_HANDSHAKE_CAPTURE_2026_10_29_ZH.md); [historical preparation](docs/validation/v3.8/V3_8_2_HANDSHAKE_CAPTURE_PREP_2026_10_29_ZH.md).
+- [Fallback Analysis] Match actual Host0.165.0 to its official tag and pinned rmcp dependency: modern Auto waits10s, then initializes on the same transport, where late discovery ID0 conflicts with ID1. Nine frozen owned-process startups and a separate legacy-protocol2025-06-18 startup control pass; imports are the main measured lead, not a proven Skill-count bottleneck. Prepare a one-key per-server Legacy mitigation with explicit new configuration/global-refresh approval; it is not yet applied. No new model trial or change to historical1/3 completion. [Source, measurements and pending decision](docs/validation/v3.8/V3_8_2_STARTUP_FALLBACK_2026_10_29_ZH.md).
+
+#### Mitigation deployment stops, restoration and scoped verification
+
+- [Deployment Correction] The approved one-key attempt fails closed before signaling because publishing user config invalidates the old process binding. Restore original config bytes and verify a unique target plus SQLite/MySQL reads independently; keep the failed journal, zero model trials and historical1/3. Account for two writes requesting runtime publication separately from one explicit restoration refresh. Prepare reloadUserConfig=false staging, with four fake checks; a new attempt remains unapproved. [Attempt, restoration and revision](docs/validation/v3.8/V3_8_2_LEGACY_MITIGATION_ATTEMPT_2026_10_29_ZH.md).
+- [Scoped Acceptance] Newly approved false staging succeeds: replace the unique target, refresh once and verify parent native SQLite/MySQL reads; retain the absent protocol marker with other settings unchanged. Six fixed fixtures match independent truth. Three actual Luna-medium waiting sessions then fail the exact-child startup gate with expected1/got0; no consumer publication or business turn starts. Keep planned completion0/3 separate from historical1/3, close all children and remove fixtures. Same-version captured-turn config inheritance is a concrete lead, not confirmed child-env evidence. [Current outcome and costs](docs/validation/v3.8/V3_8_2_LEGACY_RESTART_ACCEPTANCE_2026_10_29_ZH.md).
+
+#### Complete two-round tasks in a new parent turn and final scores
+
+- [Full Task Evidence] A separately frozen new-parent-turn probe passes, followed by three fresh Luna-medium two-round workflows. All six core business queries and consumer-specific v2 publication/removal match independent SQLite/MySQL truth. Strict answers5/6 and whole tasks2/3 retain one model percentage-rounding error (64.43% versus64.44%); do not replace trials. Preserve13 business requests/693,155 tokens and one useful compact-schema read, without a speed/token claim. No config edit, refresh or product change;20 protected files and360 old sealed members remain intact. Earlier failures and the unobserved effective child protocol/unique cause remain separate. [Current outcome](docs/validation/v3.8/V3_8_2_NEW_TURN_BUSINESS_ACCEPTANCE_2026_10_29_REVISED_ZH.md), [single probe](docs/validation/v3.8/V3_8_2_NEW_TURN_CHILD_PROBE_2026_10_29_ZH.md).
 
 ## v3.8.2 Agent interpretation, exploration and latency (October 23–28, 2026)
 
@@ -56,7 +175,6 @@ This commit improves how Agents explain results under natural prompts, examines 
 - [Validation] Final normal-wheel release entry passes3541 regular tests/four initial optional skips, then860 application calls and actual live4/4/no skips.36 new tests also pass in a minimal checkout without archives/history/project conftest. Real MySQL8.0.25 matrices and cleanup pass; Hosted workflow execution remains unverified. Preserve550 warnings, the earlier3539 source checkpoint, sandbox interruption and pip-free offline installation scope. [Results and evidence](docs/validation/v3.8/V3_8_2_PORTABLE_RELEASE_GATES_2026_10_22_ZH.md).
 - [Documentation Audit] Align bilingual README testing entries with the reusable gates; distinguish current handoff state from dated checkpoints. Use opt-in sqlparse mode and bound returned data in the grouped English commit draft. Historical seals and failures remain intact; documentation-only follow-up needs no runtime restart or full-suite rerun.
 
-
 ## v3.8.2 Bounded stabilization gates and independent evidence audit (October 22, 2026)
 
 - [Validation] Complete S1–S4 within16 frozen contract families and four declared gaps.254 selected regressions pass/no skips; source/existing normal wheel each332 application calls (SQLite204, real MySQL128) agree. Preserve93 framework deprecation warnings. No new confirmed P1/P2 in this scope.
@@ -81,7 +199,6 @@ This commit improves how Agents explain results under natural prompts, examines 
 - [Validation and Docs] Private-file source/normal-wheel each432 application calls cover136 preview-confirm-replay flows across both classifiers, Client modes and transports, with independent truth after cleanup. Final full regression, types/prompts and serial A/B/A costs remain in the [pre-restart repair record](docs/validation/v3.8/V3_8_2_SQLITE_WRITE_TRANSACTIONS_2026_10_22_ZH.md). No configured database writes; preserve prior model/guidance failures and assessment evidence.
 - [Restart Verification] Owner-restarted native12/12 passes. Additional source/existing-wheel each254 private adapter write attempts cover120 combinations, six two-writer races and two real COMMIT failures; independent post-cleanup truth agrees. Known-bad-source sentinels detect both original defects and pass current source. No runtime edits this turn; retain3493 regression passes/four optional skips without unnecessary reruns. All79 prior seals/2625 records stay intact. [Current evidence and assessment](docs/validation/v3.8/V3_8_2_WRITE_RESTART_AND_STABILIZATION_2026_10_22_ZH.md).
 - [Assessment and Follow-up] Repeated failures expose cross-layer contract and coverage gaps; earlier real SQLite tests missed physical transactions for WITH/semicolon and cursor completion. No claim that the project is now defect-free or needs wholesale replacement. DRR-144 records MySQL's missing analysis.source_sql binding check as internal hardening only: current MCP callers bind the same SQL, no production failure reproduced, no repair this turn. Contract-based stabilization gates are proposed, not an approved new implementation plan.
-
 
 ## v3.8.2 Restart closure and complete Agent cost audit (October 21, 2026)
 
@@ -243,7 +360,6 @@ This commit improves how Agents explain results under natural prompts, examines 
 - Source/package checkpoint: **2667 passed/four skipped**, clean type/prompt; **108 source and 108 installed stdio calls**, 76 matching resources. Read-only Oracle MySQL event checks pass. Serial matched A/B/A retains measured drift and limits; after the owner restart, 30/30 native checks and 9/9 complete two-turn Luna outcomes pass. Retain one corrected analytical draft, nine oversized catalog outputs, repeated calls and actual provider usage; not a model-cost A/B.
 - October 20 follow-up audit measures B33 with 312 real MySQL stdio calls and finds two additional FTS boundaries: trusted-precompiled content-view functions and qualified named calls. Record open DRR-116/117 without changing source/configuration or relabeling earlier scoped acceptance; [status, measurements and proposed fixes](docs/validation/v3.8/V3_8_2_POSTREPAIR_AUDIT_2026_10_20_ZH.md).
 - Separate SQLite metadata audit confirms a different regression with 1,080 real stdio calls and four instrumented Client calls: bounded per-table analysis/catalog preparation, estimates before truncation, and repeated statistics/transport work. Retain controlled reads; propose projecting visible returned tables before estimates, batching statistics, then measuring bounded analysis reuse. No performance implementation, DB maintenance, dependency/config change or new model-cost claim; [measurements and trade-offs](docs/validation/v3.8/V3_8_2_SQLITE_METADATA_COST_2026_10_20_ZH.md).
-
 
 ## v3.8.2 Repair SQLite collation and predicate continuations (October 18, 2026)
 
@@ -514,12 +630,6 @@ Maintainer approved phases 2 → 4 → 3. Each task is recorded separately below
 - Legacy execution requires confirm=true, a valid matching one-time token and policy checks. The token proves preview binding and consumable state, not human approval. A dedicated Host can enforce interaction in code; an Agent's conversational confirmation is a behavior rule.
 - MRTR enforces a valid continuation and accept/strict true on its own path, but still trusts the Host to collect a human decision. Its registration switch does not disable the legacy mutation tool or enforce approval globally.
 - Extend existing DRR-2026-050 in both languages and synchronize README, security, configuration/client guides and implementation decisions. Independently authenticated approval outside the Agent's control, enforced on every write path, remains a future design. This clarification changes documentation only.
-
-## Overview
-
-This actively maintained log records the project’s refactoring, design decisions, compatibility changes, trade-offs and validation. It began with `mcp_sql_server.py` and now also covers the installed `sql_safety_executor` package.
-
-Dated entries preserve the interfaces, configuration and evidence from their own version. Old filenames, environment variables, test counts and failures remain historical; use the newest entry and linked current guides for deployment. Future implementation changes should update both language editions without rewriting earlier outcomes.
 
 ## v3.8.0 Copilot session and SDK evidence (October 1, 2026)
 

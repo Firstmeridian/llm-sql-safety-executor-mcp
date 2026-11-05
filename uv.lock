@@ -627,6 +627,7 @@ dev = [
     { name = "pyright", extra = ["nodejs"] },
     { name = "pytest" },
     { name = "pytest-asyncio" },
+    { name = "websockets" },
 ]
 
 [package.metadata]
@@ -647,6 +648,7 @@ dev = [
     { name = "pyright", extras = ["nodejs"], specifier = ">=1.1" },
     { name = "pytest", specifier = ">=9,<10" },
     { name = "pytest-asyncio", specifier = ">=1,<2" },
+    { name = "websockets", specifier = ">=15,<18" },
 ]
 
 [[package]]

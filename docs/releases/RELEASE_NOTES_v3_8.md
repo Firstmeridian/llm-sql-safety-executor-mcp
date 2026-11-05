@@ -1,5 +1,58 @@
 # v3.8.2 — Dialect/session semantics and execution authorization (October 16, 2026)
 
+## Controlled Skill publication and verified Codex restart (October 28, 2026)
+
+Publish deployed Query and trusted Mutation definitions without restarting, and use a separate existing-Host helper when a fresh service process is required. Version remains v3.8.2. The summary below separates delivered behavior, repairs, verification and retained limits; dated reports preserve individual trials.
+
+### Delivered capabilities
+
+| Capability | Behavior and use |
+| --- | --- |
+| Query publication | Explicit `reload_skills()` validates a complete candidate, publishes once and reports additions/changes/removals. Each request keeps its original snapshot; default Query scope preserves Mutation code, plans and previews. See the [Query contract](../guides/QUERY_SKILL_RELOAD.md). |
+| Mutation publication | Explicit `skill_type="mutation"` loads exact entry bytes into independent candidates. Unchanged definitions keep their object/generation without reimport. Changed/removed definitions invalidate affected pending proposals; admitted execution keeps its original code, plan and values. Issuance/consumption and publication have a defined order, including MRTR; A→B→A cannot revive old proposals. |
+| Codex maintenance helper | Separate probe, verify, refresh and PID-bound restart modes. Explicit Host-managed `recreate` is independent of old-service calls/catalogs/PIDs, with versioned and budgeted restoration. Actual-consumer checks confirm reconnection and process identity; callers separately verify the intended change. See the [restart/recovery guide](../guides/CODEX_MCP_RESTART.md). |
+
+Ordinary business calls add no file scan or mandatory refresh/discovery step. Publication does not reload connections, grants, settings or shared Python dependencies. Mutation entry code remains trusted Python; top-level effects are outside catalog rollback. Reload annotations are destructive/non-idempotent, with caller-side confirmation.
+
+### Key correctness repairs
+
+- [Candidate Preservation] Reject abnormal surviving active Skill paths and detected directory-identity changes instead of treating them as deletion. Keep the published catalog, revision and previews on failure; real deletion and valid contained directory symlinks remain supported. Skip preserved kinds before filesystem probes. [Repair and guard-regression evidence](../validation/v3.8/V3_8_2_SCOPE_CATALOG_REPAIR_2026_11_05_ZH.md).
+- [Mutation Admission] Match and consume confirmation tokens before imperative construction. Rejected tokens run no request-time Skill Python; admitted constructor errors retain token consumption. Imperative re-validation failure is `validation_failed, unknown`; post-preview generation rejection makes no no-write claim. Preserve earlier unknown outcomes. [Admission and bounded Host diagnostics](../validation/v3.8/V3_8_2_MUTATION_ADMISSION_HOST_BINDING_2026_10_31_ZH.md).
+- [Restart Binding] Disk launch settings identify candidates only. Before signals, bind actual-consumer PIDs to the pinned process set, recheck aliases/configuration and refuse ambiguous ownership. Successful query adds one optional PID metadata integer without another SQL/network call. [Identity repair](../validation/v3.8/V3_8_2_RESTART_IDENTITY_REFUSAL_REPAIR_2026_10_29_ZH.md).
+- [Scope and Cleanup] Check scope after journal persistence before first disable and each refresh; retain exact-version cleanup after an acknowledged disable without an extra refresh. Separate Host membership from catalog health and reserve one restore RPC window inside the original total budget, including journal-failure handling. [November 1 boundary repair](../validation/v3.8/V3_8_2_FINAL_REVIEW_2026_11_01_ZH.md), [November 5 scope repair](../validation/v3.8/V3_8_2_SCOPE_CATALOG_REPAIR_2026_11_05_ZH.md).
+
+### Verification by evidence layer
+
+These are separate cohorts, not additive counts or a single universal acceptance result.
+
+| Layer and checkpoint | Result and limit |
+| --- | --- |
+| Latest isolated source/package checks, November 5 | Full suite: 3,922 passes/four optional MySQL skips, including 203 helper tests; installed SQLite auto/legacy: 72 recorded tool calls, 24 new directory tests and 80 matching product resources. Types/prompt checks pass. The test-only follow-up brings the directory module to 26 passes and exposes two intended guard-removal failures; the full-suite result remains 3,922. No new live Host/MySQL/model gate. [Evidence](../validation/v3.8/V3_8_2_SCOPE_CATALOG_REPAIR_2026_11_05_ZH.md). |
+| Mutation engineering, October 29 | 3,688 full passes/four optional skips; source and installed stdio each record 72 SQLite/MySQL calls across both Client modes, independent row/trigger truth and cleanup. A missing-definition scan race is rejected for both kinds. [Sealed engineering checkpoint](../validation/v3.8/V3_8_2_MUTATION_RELOAD_2026_10_29_ZH.md). |
+| Live single-chat restart, October 28 | 41 focused checks and approved replacement/native SQLite/MySQL reads pass; config-only refresh had reused a healthy process. The later isolated binding/scope repairs are not new live-restart evidence. [Acceptance](../validation/v3.8/V3_8_2_CODEX_MCP_RESTART_2026_10_28_ZH.md). |
+| Live recovery, October 29 | Preserve the first command's final-verification timeout despite restored configuration and later read-only/native success. Revised bounded verification subsequently completes in one approved command with caller-native confirmation. [Initial result](../validation/v3.8/V3_8_2_CODEX_MCP_HOST_RECREATE_2026_10_29_ZH.md), [bounded-verification acceptance](../validation/v3.8/V3_8_2_CODEX_MCP_READINESS_2026_10_29_ZH.md). |
+| Complete Query Agent tasks, October 29 | Three two-round workflows and all six core business queries complete against independent SQLite/MySQL truth; parameter updates/removal pass. Strict whole-task 2/3 and answers 5/6 retain one rounding error. The 13 business calls/693,155 tokens include useful schema exploration, with no A/B efficiency claim. [Final cohort](../validation/v3.8/V3_8_2_NEW_TURN_BUSINESS_ACCEPTANCE_2026_10_29_REVISED_ZH.md). |
+| Complete Mutation Agent tasks, October 29 | Three fresh actual Luna-medium workflows pass 3/3 and answers 6/6, with independent row values 11/18/31 and one trigger effect each. Keep the failed publication and all 26 requests/1,330,412 tokens; business alone: eight requests/563,240 tokens. Exact configs/owned definitions are restored/removed; approved restoration verifies both original consumers and the caller before owned-DB deletion. Snapshot/audit remain; the missing configured-audit pre-run hash is disclosed. [Native tasks and cleanup](../validation/v3.8/V3_8_2_MUTATION_RELOAD_NATIVE_2026_10_29_ZH.md). |
+
+### Retained boundaries and historical investigations
+
+#### Current use and unverified behavior
+
+- The helper manages existing Hosts only. VS Code Codex automatic restart is deferred: restore original startup settings, archive bridge-only experiments privately and keep reconnection manual. Current automatic maintenance may affect only the current chat; [historical group capability and acceptance](../validation/v3.8/V3_8_2_CODEX_MCP_GROUP_RESTART_2026_10_29_ZH.md) do not authorize current group use. Reuse requires an explicit maintainer change to that scope decision.
+- Host-wide refresh is asynchronous. Scope checks/sends are non-atomic, versioned edits are not cross-Host isolation, a new working consumer does not prove every old process exited, and restored configuration does not prove restored runtime state. Recovery requires unique binding, supported configuration/permissions and approved scope; no automatic restart-to-recreate fallback or retry.
+- Resident verification of the October 31 admission and November 5 directory repairs, and a live helper run for the latest scope repair, remain unverified. Historical native success, isolated passes and optional MySQL skips cannot substitute for those checks. No general speed, token saving or unique startup-root-cause claim.
+
+#### Child-session startup evidence and mitigation progression
+
+The following reports retain their dated failures, costs and stop conditions. Pending approval/application at an earlier checkpoint does not create a current task; subsequent deployment and the completed cohorts are listed above.
+
+| Investigation stage | Evidence and relationship to later results |
+| --- | --- |
+| Query engineering and first native consumers | [Source/package checks](../validation/v3.8/V3_8_2_QUERY_RELOAD_2026_10_28_ZH.md) and [parent-native/model supplement](../validation/v3.8/V3_8_2_QUERY_RELOAD_RESTART_2026_10_28_ZH.md) retain parent 14/14, child readiness 1/3 and full two-round 0/3, including the per-consumer publication setup failure. Reload is per instance, without broadcast. |
+| Consumer preflight and startup-gated tasks | [Consumer gate](../validation/v3.8/V3_8_2_QUERY_RELOAD_CONSUMER_2026_10_28_ZH.md) stops all three first-canary failures before business. [Startup-gated tasks](../validation/v3.8/V3_8_2_QUERY_RELOAD_READY_2026_10_29_ZH.md) later reach readiness 2/3 and full completion 1/3; preserve the response-ID conflict and omitted connection argument. |
+| Handshake and version-pinned fallback analysis | [Capture](../validation/v3.8/V3_8_2_HANDSHAKE_CAPTURE_2026_10_29_ZH.md), [capture preparation](../validation/v3.8/V3_8_2_HANDSHAKE_CAPTURE_PREP_2026_10_29_ZH.md) and [fallback analysis](../validation/v3.8/V3_8_2_STARTUP_FALLBACK_2026_10_29_ZH.md) locate a late discovery response during initialization; nine owned startup probes plus a separate Legacy control pass. They do not prove every historical readiness failure has the same cause. |
+| Guarded mitigation and staged deployment | [Initial attempt/restoration](../validation/v3.8/V3_8_2_LEGACY_MITIGATION_ATTEMPT_2026_10_29_ZH.md) stops before signals when runtime config publication invalidates binding. The separately approved [staged deployment](../validation/v3.8/V3_8_2_LEGACY_RESTART_ACCEPTANCE_2026_10_29_ZH.md) verifies the parent but all three same-turn children fail startup. The later new-parent-turn cohort succeeds without rewriting those failures or asserting a cache cause. |
+
 ## Agent interpretation, exploration and latency (October 23–28, 2026)
 
 This update addresses four objectives: natural result interpretation, useful exploration, weak-prompt state interpretation and end-to-end latency attribution. The [refactoring log](../../REFACTORING_LOG.md) records decisions and costs; dated evidence preserves trials and historical pending states.
@@ -52,7 +105,6 @@ This update addresses four objectives: natural result interpretation, useful exp
 - Add ordinary pytest sentinels with native truth, target branch hits and positive controls; no archive or historical checkout required.
 - Separate deterministic CI from explicit normally installed-wheel/MySQL release acceptance. Missing environment stays unverified/nonzero; require actual JUnit passes, matrix sizes, cleanup and matching product resources.
 - Capture actual Python/SQLite/dependency and validation identities; dependency/validation changes trigger the live workflow. Baseline comparison never automatically reuses results; Hosted first execution remains separately unverified. No production, prompt, private configuration or grant change. [Commands](../../scripts/validation/README.md), [evidence and limits](../validation/v3.8/V3_8_2_PORTABLE_RELEASE_GATES_2026_10_22_ZH.md).
-
 
 ### October 22 bounded stabilization acceptance
 
@@ -739,7 +791,6 @@ the UNION-disabled MySQL task 2/2 correct with 2 calls (~44.4k, previously
 ~44.0k). No writes were made. See DRR-2026-077 and the
 [acceptance record](../validation/v3.8/V3_8_MRTR_NATIVE_2026_10_01_ZH.md).
 
-
 ### Five-commit review completion (October 12, 2026)
 
 **Why.** Review of `f50b010` through `09c3b9a`, four external reports and the earlier uncommitted fixes found incomplete standalone MRTR result guidance, relation/CTE scope omissions, metadata identity mismatches and missing index attributes/budgets. GPT-6 Luna replays also found invented rowcounts and malformed-field misinterpretation.
@@ -785,7 +836,6 @@ After the maintainer restart, the resident Host description matched final source
 ## v3.8.1 complete pre-commit review (October 14, 2026)
 
 Whole-string whitespace normalization and repeated identifier quote decoding could confuse physical objects with CTEs/grants or create false dependencies. Policy now formats whitespace tokens and decodes original name components once, preserving exact grants and qualified identity. Native SQLite truth, 25 new regressions, 1114 full passes/four skips and 22 outside-repository installed stdio calls support this last repair. Historical adapter/Skill API snippets and collaboration guidance are clarified. Version/dependencies are unchanged; final resident acceptance passed 11/11 native checks after the maintainer restart, and earlier Luna/cost results remain dated. See [the final evidence and complete change table](../validation/v3.8/V3_8_1_PHASE123_2026_10_14_ZH.md#提交前完整复核与补修2026-10-14).
-
 
 ## v3.8.1 relation identity and mutation revalidation follow-up (October 15, 2026)
 
@@ -888,7 +938,6 @@ DRR-2026-098; [findings, remaining support gap and evidence](../validation/v3.8/
 | Native scope | After the maintainer restart, 20/20 native checks pass with matching text/structured results: ten exact baseline inputs and ten adjacent/refusal/MySQL/ordinary-Skill controls. Keep the old refusal checkpoint and prior diagnostic/model evidence separate; full CTE Skill readiness remains private Client/installed evidence. |
 
 DRR-2026-099 repairs the reproduced functional gap in 098; [implementation, costs and evidence](../validation/v3.8/V3_8_1_CTE_ANALYSIS_2026_10_15_ZH.md). Version remains 3.8.1.
-
 
 ### October 21 follow-up: FTS catalogs, table cardinality and rowid identity
 

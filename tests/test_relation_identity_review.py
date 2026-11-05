@@ -241,7 +241,7 @@ class Mutation(MutationBase):
             assert not result.is_error
             payload = result.structured_content
             assert payload["success"] is False and payload["error_code"] == "validation_failed"
-            assert payload["execution_outcome"] == "not_executed"
+            assert payload["execution_outcome"] == "unknown"
             expected = "Database query failed." if failure == "generic" else "Table not found."
             assert payload["validation"] == {"valid": False, "errors": [expected]}
             assert result.meta["preview_token_validated"] and result.meta["preview_token_consumed"]

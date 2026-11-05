@@ -29,6 +29,7 @@ from sql_safety_executor.core.constants import (
 )
 
 from sql_safety_executor.core.proposals import (
+    _TOKEN_REJECTED,
     _consume_mutation_preview_token,
     _create_mutation_preview_token,
     _execution_binding_json,
@@ -121,15 +122,6 @@ async def execute_mutation_skill(
         _ensure_skill_schema_ready(runtime, meta, connection)
 
         adapter = connection.adapter
-        # Managed confirmation consumes only the immutable plan cached at
-        # discovery. Do not even instantiate application Skill Python on
-        # that path; preview and imperative execution still need an
-        # instance for their documented callbacks.
-        mutation = (
-            runtime.catalog.load_mutation(skill_name, adapter, runtime.audit)
-            if not resolved_confirm or meta._managed_mutation_plan is None
-            else None
-        )
         client_id = _context_client_id(ctx)
 
     except (
@@ -142,6 +134,43 @@ async def execute_mutation_skill(
         ToolError,
     ) as e:
         await ctx.warning(f"Mutation skill setup error: {e}")
+        if resolved_confirm and isinstance(
+            e, (ValueError, TypeError, FileNotFoundError, ToolError)
+        ):
+            raise ToolError(f"{e}; mutation request {_TOKEN_REJECTED}") from e
+        if isinstance(e, ToolError):
+            raise
+        raise ToolError(str(e)) from e
+
+    if resolved_confirm:
+        # Admission must precede all request-time Skill Python, including a
+        # constructor that returns normally after producing side effects.
+        # Consumption also orders admission against catalog publication;
+        # an admitted request retains its pinned catalog and one-time token.
+        execution_binding = _consume_mutation_preview_token(
+            runtime,
+            preview_token,
+            skill_name=skill_name,
+            skill_version=meta.version,
+            skill_generation=meta._mutation_generation,
+            params=validated_params,
+            connection=connection,
+        )
+        token_id = _preview_token_id(preview_token or "")
+
+    try:
+        # Managed confirmation uses only the cached immutable plan. Preview
+        # and admitted imperative confirmation need an application instance.
+        mutation = (
+            runtime.catalog.load_mutation(skill_name, adapter, runtime.audit)
+            if not resolved_confirm or meta._managed_mutation_plan is None
+            else None
+        )
+    except (ValueError, TypeError, FileNotFoundError, AttributeError,
+            ImportError, SyntaxError, ToolError) as e:
+        # Trusted Python has run: neither normal return nor an exception
+        # establishes that this request produced no external side effects.
+        await ctx.warning(f"Mutation skill construction error: {e}")
         if isinstance(e, ToolError):
             raise
         raise ToolError(str(e)) from e
@@ -288,6 +317,7 @@ async def execute_mutation_skill(
                     runtime,
                     skill_name=skill_name,
                     skill_version=meta.version,
+                    skill_generation=meta._mutation_generation,
                     params=validated_params,
                     connection=connection,
                 )
@@ -355,23 +385,8 @@ async def execute_mutation_skill(
             sanitized = str(adapter._handle_error(e))
             raise ToolError(sanitized) from e
     else:
-        # Phase 2: consume, then use the managed plan or imperative callback
-        try:
-            execution_binding = _consume_mutation_preview_token(
-                runtime,
-                preview_token,
-                skill_name=skill_name,
-                skill_version=meta.version,
-                params=validated_params,
-                connection=connection,
-            )
-            token_id = _preview_token_id(preview_token or "")
-        except ToolError:
-            # Parameter/setup checks happened earlier; token rejection
-            # remains an MCP ToolError and never becomes a business
-            # execution result.
-            raise
-
+        # Phase 2: admission preceded construction; use the managed plan or
+        # re-validate the admitted imperative instance before its callback.
         # Imperative callbacks retain their legacy execute-time
         # re-validation. A managed Skill does not run any Skill Python
         # after token consumption; its SQL predicate and expected row
@@ -397,6 +412,13 @@ async def execute_mutation_skill(
 
         if not validation.get("valid", False):
             errors = validation.get("errors", ["Validation failed"])
+            # Only imperative confirmation runs this validation. Its trusted
+            # constructor/validate callback may already have written, even
+            # though the execution callback will not be invoked.
+            validation_error_message = (
+                "Validation failed for mutation after trusted Skill setup or "
+                "validation ran; the write outcome is unknown."
+            )
             try:
                 await ctx.warning(f"Validation failed: {errors}")
             except Exception as notification_error:
@@ -410,8 +432,8 @@ async def execute_mutation_skill(
                 mode="execute",
                 result={
                     "success": False,
-                    "error": "Validation failed for mutation.",
-                    "execution_outcome": "not_executed",
+                    "error": validation_error_message,
+                    "execution_outcome": "unknown",
                     "error_code": "validation_failed",
                 },
                 client_id=client_id,
@@ -424,9 +446,9 @@ async def execute_mutation_skill(
                 "mode": "execute",
                 "connection_id": connection.connection_id,
                 "db_type": connection.db_type,
-                "execution_outcome": "not_executed",
+                "execution_outcome": "unknown",
                 "error_code": "validation_failed",
-                "error": "Validation failed for mutation.",
+                "error": validation_error_message,
                 "validation": validation,
             }
             _add_related_available_skills(runtime, meta, connection, payload)

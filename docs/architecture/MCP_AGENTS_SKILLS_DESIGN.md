@@ -93,9 +93,12 @@ Agent → execute_mutation_skill(confirm=true, preview_token, connection_id?)
 
 These confirmation branches show execution after the relevant checks succeed.
 Managed confirmation does not instantiate or call Skill Python. Imperative
-confirmation uses a Skill instance; rejection before its execution callback
-can still return `not_executed`, while an invoked callback has whole-operation
-outcome `unknown`.
+confirmation consumes the token before constructing its Skill instance. Token
+refusal therefore runs no request-time Skill Python. Once construction or
+re-validation runs, a validation refusal has whole-operation outcome `unknown`,
+even when the execution callback is skipped. The token stays consumed after
+construction or validation failure. Preview-time generation rejection also
+avoids claiming that trusted Python produced no side effects.
 
 v3.5 adds a strict connection invariant: the server resolves `ConnectionContext`
 from the optional `connection_id` before running SQL policy, schema-readiness
@@ -231,7 +234,14 @@ sequenceDiagram
 
 This runtime view shows an important distinction from standard Agent Skills:
 
-- Skill files are loaded eagerly at startup, not lazily at first use.
+- Skill files are loaded eagerly at startup, not lazily at first use. Explicit
+  `reload_skills(skill_type="query"|"mutation")` publishes one selected kind;
+  each MCP request retains its original snapshot. Mutation publication loads
+  exact entry bytes into independent candidate namespaces and binds proposals
+  to activation generations. Strict discovery rejects abnormal active entries and
+  observed directory-identity changes, preserving the catalog and previews; genuine
+  deletion remains supported. Preserved kinds are skipped before filesystem probes.
+  These checks run only during explicit reload. Shared dependencies still require restart.
 - Runtime tool calls operate on cached SQL templates and cached Mutation
   classes.
 - Progressive disclosure exists at the MCP interaction layer

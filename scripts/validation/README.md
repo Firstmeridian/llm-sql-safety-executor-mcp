@@ -5,7 +5,46 @@ portable tests below do not need `local_archive`, historical commits or a
 developer's absolute directory.
 Historical reports remain evidence for their original inputs, not current runs.
 
+## Current Codex Host maintenance
+
+Use the separate [development helper](../../docs/guides/CODEX_MCP_RESTART.md)
+for an existing Linux Codex Host. Default probing is read-only; actual restart
+requires unique process binding and explicit authorization for Host-wide refresh.
+This is not part of automated release/CI runs and does not replace product gates.
+[Native restart evidence](../../docs/validation/v3.8/V3_8_2_CODEX_MCP_RESTART_2026_10_28_ZH.md).
+
 ## Deterministic regression
+
+Query Skill publication also has a separate, isolated stdio workflow:
+
+```bash
+python scripts/validation/query_reload.py --python /absolute/validated/python --package-root /absolute/checkout/src --output /tmp/query-reload-source-new.json
+```
+
+Run again with the normally installed wheel's site-packages as `--package-root`.
+Each run creates/cleans its own SQLite/configuration, checks the child import
+origin and both Client modes, and refuses existing output or optimized Python.
+This is not a model trial, current-Host restart proof, or real-MySQL release gate.
+The current Query and Mutation workflows also reject active paths replaced by
+regular files or dangling links while retaining the live catalog and pending
+previews; intentional removal still succeeds. See the [directory repair](../../docs/validation/v3.8/V3_8_2_SCOPE_CATALOG_REPAIR_2026_11_05_ZH.md)
+and [earlier reload acceptance](../../docs/validation/v3.8/V3_8_2_QUERY_RELOAD_2026_10_28_ZH.md).
+
+Mutation publication has an independent owned-fixture workflow:
+
+```bash
+python scripts/validation/mutation_reload.py --python /absolute/validated/python --package-root /absolute/checkout/src --output /tmp/mutation-reload-source-new.json
+```
+
+Repeat against a normally installed wheel. Both Client modes retain the same
+server process across definition changes, failed candidates, removal and re-add;
+independent native connections check business rows and trigger effects. Optional
+`--mysql-config config/server.toml --mysql-alias YOUR_TEST_MYSQL_ALIAS` adds the
+same workflows on uniquely owned, automatically removed MySQL schemas; it never
+uses existing business tables or changes private configuration/grants. The test
+account needs disposable-schema/trigger privileges. SQLite always runs. These
+are application-level records, not full protocol frames, model trials or proof
+that the current Host reloaded. See the [Mutation contract](../../docs/guides/MUTATION_SKILL_RELOAD.md).
 
 ```bash
 uv run --frozen python scripts/validation/release_gate.py --profile fast --source src --output /tmp/contracts-fast-new

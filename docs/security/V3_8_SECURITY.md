@@ -108,11 +108,22 @@ Database least privilege remains necessary. SQL parsing is a conservative safety
 
 ## Configuration and trusted code
 
+Current-status clarification (November 1): the earlier October 22 paragraph's
+DRR-144 recommendation was implemented and verified in the subsequent
+DRR-144/145 follow-up below. Its original "no implementation" statement describes
+that earlier checkpoint, not the current MySQL adapter.
+
 Secrets use exactly one explicit source, have no fallback, and preserve whitespace/newlines. Offline errors and explanation redact secrets. File-based secret size is bounded at 64 KiB. Existing `.env` files and unrelated DB environment variables have no configuration effect through supported entry points. Embedders that import FastMCP beforehand own that import's settings.
 
-Only trusted operators should edit TOML or Skill directories. Source and definition containment prevents accidental directory escapes, including symlinks; Python code can still import files, open connections, or mutate process state. Loading a class is not a sandbox. Definition snapshots mean file edits require restart, not that arbitrary trusted Python becomes immutable or harmless.
+Only trusted operators should edit TOML or Skill directories. Source and definition containment prevents accidental directory escapes, including symlinks; Python code can still import files, open connections, or mutate process state. Loading a class is not a sandbox. Ordinary calls use the published definition snapshot. Explicit per-kind [Query](../guides/QUERY_SKILL_RELOAD.md) or [Mutation](../guides/MUTATION_SKILL_RELOAD.md) publication can replace supported definitions; core code, shared dependencies, connections, authorization and deployment configuration still require restart. Neither snapshots nor failed publication make arbitrary trusted Python immutable or undo its external side effects.
 
 Configuration check does not load business code. Service initialization discovers Skills and can reject individual invalid definitions while leaving valid Skills available. Readiness is an availability observation, never an authorization grant. `agent_id` / Host-provided client labels are not authenticated identities.
+
+### November 5 scope and catalog repair contract (v3.8.2)
+
+The [recreate contract](../guides/CODEX_MCP_RESTART.md#explicit-host-managed-recreation-for-bootstrap-or-failed-calls) rechecks the pinned loaded-thread scope after the corresponding journal flush/`fsync`, before the first disable and each global refresh, including after restore. A scope change stops that send; an acknowledged disable may still be restored at most once at its exact returned version, without an extra reload. Version checks prevent concurrent overwrites, not cross-Host isolation: other Hosts may observe the shared user-config toggle. Checks and sends are not atomic; VS Code reconnection remains manual.
+
+Strict catalog scanning owns reload directory validation, without a separate runtime precheck. Active selected paths replaced by regular files, dangling/loop symlinks or unverifiable directories, and detected disappearance or directory identity change of an active entry during scanning reject the whole candidate, even if the name returns; catalog, revision and previews remain unchanged. Preserved names of the other type are skipped before filesystem target probes. Real deletion and valid directory symlinks within the configured root remain supported. See [Query](../guides/QUERY_SKILL_RELOAD.md#publication-contract), [Mutation](../guides/MUTATION_SKILL_RELOAD.md#publication-proposals-and-execution) and the [November 5 repair report (forthcoming)](../validation/v3.8/V3_8_2_SCOPE_CATALOG_REPAIR_2026_11_05_ZH.md).
 
 ## Accepted limits / 暂缓项
 
@@ -234,6 +245,8 @@ MySQL SUB_PART and the underlying data type.
 The later approved design accepts automatic index collection without a switch. It adds metadata work and disclosure within already-authorized table scope. MySQL first probes visibility capability; a missing column means unknown visibility, while a probe error is not silently downgraded. SQLite performs two bounded queries. Neither the byte limit nor query deadline is a whole-tool memory or hard termination guarantee (DRR-2026-077/079).
 
 Each write description independently renders the common result rules. Validity of target, Skill, phase and required fields comes before interpreting outcome; malformed success types do not confirm a write. A missing rowcount is unreported, never filled from an estimate or another request. Legal boolean false+committed and true+unknown remain valid. Server-confirmed token rejection covers this request at the framework write boundary; imperative Skill construction, Adapter acquisition or readiness can precede validation, and trusted Python is not sandboxed.
+
+Current-contract clarification (November 5, 2026): confirmation matches and consumes the token before constructing an imperative Skill. Preview may run trusted Python before token issuance; trusted external effects are not sandboxed. See the [current Mutation admission contract](../guides/MUTATION_SKILL_RELOAD.md#publication-proposals-and-execution). The preceding paragraph retains the October 12 historical checkpoint.
 
 Final independent malformed-field replays passed 3/3 for ordinary writes and 3/3 with a simulated MRTR-only description; earlier batch misstatements remain in the evidence. Descriptions now occupy 3,546/2,642 characters and duplicate the common text when both are loaded. This is behavioral guidance with explicit context cost, not a new authorization or durable completion control. After maintainer restart, the resident Host description matched source and malformed-field/missing-rowcount replays using current metadata passed 3/3 each. Native index/preview tasks passed 3/3 without executes. Complete recovery routes were correct 2/3: one omitted confirmed and was corrected later; the actual preview rejected that jump. This remains an advisory limitation (DRR-2026-071/073), not a new execution grant or native MRTR UI pass.
 

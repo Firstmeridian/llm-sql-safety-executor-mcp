@@ -161,7 +161,7 @@ async def test_imperative_revalidation_failure_keeps_clue_and_consumes_token(
         assert payload["success"] is False
         assert payload["mode"] == "execute"
         assert payload["error_code"] == "validation_failed"
-        assert payload["execution_outcome"] == "not_executed"
+        assert payload["execution_outcome"] == "unknown"
         assert payload["related_available_skills"] == ["sample-reset-order-to-pending"]
         assert result.meta["preview_token_consumed"] is True
         assert len(runtime.tokens) == 0

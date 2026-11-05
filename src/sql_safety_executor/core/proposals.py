@@ -14,7 +14,9 @@ logger = logging.getLogger(__name__)
 
 from sql_safety_executor.core.constants import MUTATION_PREVIEW_BINDING_MAX_BYTES
 
-# Token checks run before any database write in the execute path.
+# Confirmation token checks precede request-time Skill construction and
+# callbacks. This describes the current request, never an earlier request or
+# deployment-time effects of trusted Python imports.
 _TOKEN_REJECTED = (
     "rejected before execution, so this request wrote nothing. Check the "
     "current state and let the user decide whether to preview again."
@@ -60,14 +62,16 @@ def _mutation_preview_request_binding_json(
     *,
     skill_name: str,
     skill_version: str,
+    skill_generation: str | None,
     params: dict[str, Any],
     connection: ConnectionContext,
 ) -> str:
     return _canonical_json(
         {
-            "v": 1,
+            "v": 2,
             "skill_name": skill_name,
             "skill_version": skill_version,
+            "skill_generation": skill_generation,
             "params_hash": _mutation_params_hash(params),
             "connection_id": connection.connection_id,
             "db_type": connection.db_type,
@@ -80,12 +84,14 @@ def _create_mutation_preview_token(
     *,
     skill_name: str,
     skill_version: str,
+    skill_generation: str | None,
     params: dict[str, Any],
     connection: ConnectionContext,
 ) -> tuple[str, int, str]:
     request_binding_json = _mutation_preview_request_binding_json(
         skill_name=skill_name,
         skill_version=skill_version,
+        skill_generation=skill_generation,
         params=params,
         connection=connection,
     )
@@ -109,13 +115,15 @@ def _register_mutation_preview_token(
     execution_binding_json: str,
 ) -> None:
     now = int(time.time())
-    issued = runtime.tokens.issue(
-        _preview_token_digest(preview_token),
-        expires_at,
-        request_binding_json,
-        execution_binding_json,
-        now=now,
-    )
+    binding = json.loads(request_binding_json)
+    with runtime.mutation_generation_guard(binding["skill_name"], binding["skill_generation"]):
+        issued = runtime.tokens.issue(
+            _preview_token_digest(preview_token),
+            expires_at,
+            request_binding_json,
+            execution_binding_json,
+            now=now,
+        )
     if not issued:
         raise ToolError(
             "Mutation preview token could not be registered; retry preview later."
@@ -128,26 +136,35 @@ def _consume_mutation_preview_token(
     *,
     skill_name: str,
     skill_version: str,
+    skill_generation: str | None,
     params: dict[str, Any],
     connection: ConnectionContext,
 ) -> dict[str, Any]:
     if not preview_token:
         raise ToolError(
             "preview_token is required for mutation execute; run "
-            "execute_mutation_skill with confirm=false first."
+            "execute_mutation_skill with confirm=false first. "
+            f"Mutation request {_TOKEN_REJECTED}"
         )
 
     request_binding_json = _mutation_preview_request_binding_json(
         skill_name=skill_name,
         skill_version=skill_version,
+        skill_generation=skill_generation,
         params=params,
         connection=connection,
     )
-    status, record = runtime.tokens.consume_if_matches(
-        _preview_token_digest(preview_token),
-        request_binding_json,
-        now=int(time.time()),
-    )
+    try:
+        with runtime.mutation_generation_guard(skill_name, skill_generation):
+            status, record = runtime.tokens.consume_if_matches(
+                _preview_token_digest(preview_token),
+                request_binding_json,
+                now=int(time.time()),
+            )
+    except ToolError as exc:
+        # The shared generation guard also runs after trusted preview Python;
+        # only confirmation admission can make this request's no-write claim.
+        raise ToolError(f"{exc} Mutation request {_TOKEN_REJECTED}") from exc
     if status == "expired":
         raise ToolError(f"Expired preview_token; {_TOKEN_REJECTED}")
     if status == "mismatch":

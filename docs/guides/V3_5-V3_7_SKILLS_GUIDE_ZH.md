@@ -1,5 +1,10 @@
 # v3.5-v3.7 命名连接、Skills 与批准流程易懂说明
 
+> **v3.8.2 更新入口：** `reload_skills()` 默认只发布 Query；选择 `skill_type="mutation"`
+> 可发布可信 Mutation 入口并使受影响的待确认预览失效。共享依赖及连接授权不热更。
+> 首次安装工具参数／实现须先重启／重建服务进程，再更新Host目录并核验实际消费者；仅配置刷新可能复用旧进程。详见 [Mutation 契约](MUTATION_SKILL_RELOAD_ZH.md)。
+> 见[当前契约与限制](QUERY_SKILL_RELOAD_ZH.md)；本文历史批准机制不因此改变。
+
 > **v3.8 对照入口（2026-09-26）：** 本文保留 v3.5–v3.7 的设计解释和迁移背景。旧环境变量、default-only 授权、根目录脚本及 SDK 导入不再适用于 v3.8；当前配置、权限和导入见[迁移指南](CONFIGURATION_ZH.md)，新增 MRTR 边界见[安全说明](../security/V3_8_SECURITY.md)。
 
 > 本文是面向使用者、Skill 作者和代码审查者的说明，不替代

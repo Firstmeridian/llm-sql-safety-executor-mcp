@@ -109,6 +109,7 @@ async def request_approval(runtime, skill_name, params, ctx, connection_id=None)
     binding = _mutation_preview_request_binding_json(
         skill_name=skill_name,
         skill_version=meta.version,
+        skill_generation=meta._mutation_generation,
         params=normalized,
         connection=connection,
     )
@@ -142,12 +143,13 @@ async def request_approval(runtime, skill_name, params, ctx, connection_id=None)
                     "guarantee": "One framework-managed SQL statement; approval is collected by the trusted Host.",
                 }
             )
-            if not runtime.tokens.attach_review(
-                digest, binding, review, now=int(time.time())
-            ):
-                raise OperationError(
-                    "MRTR review exceeds 64 KiB or proposal is unavailable; no write was attempted. Use manual preview/execute."
-                )
+            with runtime.mutation_generation_guard(skill_name, meta._mutation_generation):
+                if not runtime.tokens.attach_review(
+                    digest, binding, review, now=int(time.time())
+                ):
+                    raise OperationError(
+                        "MRTR review exceeds 64 KiB or proposal is unavailable; no write was attempted. Use manual preview/execute."
+                    )
         except BaseException:
             runtime.tokens.consume_if_matches(digest, binding, now=int(time.time()))
             raise
@@ -168,9 +170,10 @@ async def request_approval(runtime, skill_name, params, ctx, connection_id=None)
             digest = _preview_token_digest(token)
         except (ValueError, TypeError, KeyError):
             raise OperationError("Invalid mutation approval state") from None
-    status, record = runtime.tokens.inspect_if_matches(
-        digest, binding, now=int(time.time())
-    )
+    with runtime.mutation_generation_guard(skill_name, meta._mutation_generation):
+        status, record = runtime.tokens.inspect_if_matches(
+            digest, binding, now=int(time.time())
+        )
     if status != "pending" or record is None or record.review_json is None:
         raise OperationError(
             "Mutation proposal unavailable, expired, consumed, or mismatched. Do not infer a previous write outcome or automatically retry."
@@ -185,9 +188,10 @@ async def request_approval(runtime, skill_name, params, ctx, connection_id=None)
         and isinstance(answer.content, dict)
         and answer.content.get("approve") is False
     ):
-        consumed, _ = runtime.tokens.consume_if_matches(
-            digest, binding, now=int(time.time())
-        )
+        with runtime.mutation_generation_guard(skill_name, meta._mutation_generation):
+            consumed, _ = runtime.tokens.consume_if_matches(
+                digest, binding, now=int(time.time())
+            )
         if consumed != "consumed":
             raise OperationError(
                 "Proposal is no longer pending; its previous execution outcome must be reconciled."

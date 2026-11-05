@@ -1,5 +1,6 @@
 from __future__ import annotations
 import logging
+import os
 import time
 from typing import Annotated
 from sql_safety_executor.core.types import (
@@ -118,6 +119,7 @@ async def query(
         start_time=start_time,
         connection=connection,
         success=True,
+        server_pid=os.getpid(),
         row_count=prepared["row_count"],
         total_rows=prepared["total_rows"],
         truncated=prepared["truncated"],

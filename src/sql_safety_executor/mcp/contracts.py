@@ -6,6 +6,15 @@ These are code-owned declarations, never deployment configuration.
 from typing import Any
 
 TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
+    "reload_skills": {
+        "annotations": {
+            "title": "Reload Skill Definitions",
+            "read_only_hint": False,
+            "destructive_hint": True,
+            "idempotent_hint": False,
+            "open_world_hint": False,
+        },
+    },
     "list_connections": {
         "annotations": {
             "title": "List Configured Database Connections",

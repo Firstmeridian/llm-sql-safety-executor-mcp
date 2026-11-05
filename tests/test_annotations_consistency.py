@@ -42,6 +42,7 @@ _EXPECTED_ANNOTATIONS: dict[str, tuple[bool, bool, bool, bool]] = {
     "list_skills":            (True,  False, True,  False),
     "get_skill_detail":       (True,  False, True,  False),
     "execute_query_skill":    (True,  False, True,  False),
+    "reload_skills":          (False, True,  False, False),
     "execute_mutation_skill": (False, True,  False, False),
 }
 

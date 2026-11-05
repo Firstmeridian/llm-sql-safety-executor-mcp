@@ -31,12 +31,12 @@ Security:
 - Frontmatter skill names must match their directory names (identity integrity)
 - Source filenames validated via _validate_source_filename() (traversal, suffix, charset)
 - Resolved path containment: symlinks cannot escape skill directory (_is_path_within)
-- Query SQL templates pre-validated with structured query_validator at startup
+- Query SQL templates pre-validated at startup and explicit Query reload
 - Mutation source modules must export a concrete MutationBase subclass
 - Mutation classes cannot replace the framework-owned run_execute() wrapper
 - Managed mutation plans are validated and cached before execution is enabled
 - Mutation source modules are not imported when mutation execution is disabled
-- SQL and mutation classes cached in memory — runtime never touches disk
+- Execution uses cached SQL/classes; only explicit discovery reads Skill files
 - validate_params() rejects extra parameters not defined in schema
 - validate_params() fails closed on unsupported schema types
 - Optional connection_ids are syntax-validated and cached as a restrictive
@@ -51,9 +51,13 @@ import re
 import logging
 import importlib.util
 import inspect
-from dataclasses import dataclass, field
+import hashlib
+import json
+import stat
+from dataclasses import asdict, dataclass, field, fields, is_dataclass
 from pathlib import Path
 from typing import Any, Callable, Literal, TYPE_CHECKING
+from uuid import uuid4
 
 import yaml
 
@@ -202,10 +206,35 @@ class SkillMetadata:
         default=None,
         repr=False,
     )
+    _mutation_source_digest: str | None = field(default=None, repr=False)
+    _mutation_generation: str | None = field(default=None, repr=False)
 
     @property
     def declared_relations(self) -> list[RelationReference]:
         return list(dict.fromkeys([*(RelationReference.from_declaration(name) for name in self.tables), *self.relations]))
+
+
+def skill_signature(meta: SkillMetadata) -> str:
+    """Hash declared metadata and cached source, excluding execution/cache state.
+
+    Both Query and Mutation candidates use this comparison. A generation marks
+    an activation rather than content, so it deliberately does not participate.
+    """
+    payload = {
+        item.name: getattr(meta, item.name)
+        for item in fields(meta)
+        if not item.name.startswith("_")
+    }
+    payload["_sql_template"] = meta._sql_template
+    payload["_mutation_source_digest"] = meta._mutation_source_digest
+
+    def encode(value: Any) -> Any:
+        if is_dataclass(value) and not isinstance(value, type):
+            return asdict(value)
+        raise TypeError("Unsupported Skill metadata")
+
+    serialized = json.dumps(payload, sort_keys=True, separators=(",", ":"), default=encode)
+    return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
 
 
 # =============================================================================
@@ -751,7 +780,11 @@ def _parse_skill_md(path: Path, dir_name: str) -> SkillMetadata:
     )
 
 
-def _load_mutation_class(skill_name: str, mutation_path: Path) -> type:
+def _load_mutation_class(
+    skill_name: str,
+    mutation_path: Path,
+    source_bytes: bytes | None = None,
+) -> type:
     """
     Dynamically import a mutation source module and return the Mutation class.
 
@@ -761,6 +794,7 @@ def _load_mutation_class(skill_name: str, mutation_path: Path) -> type:
     Args:
         skill_name: Name of the mutation skill (for error messages)
         mutation_path: Path to the mutation source file
+        source_bytes: Exact bytes already read and hashed by discover(), if any.
 
     Returns:
         The Mutation class (subclass of MutationBase)
@@ -773,7 +807,7 @@ def _load_mutation_class(skill_name: str, mutation_path: Path) -> type:
             exact_transaction_outcome declaration
     """
     spec = importlib.util.spec_from_file_location(
-        f"skills.{skill_name}.mutation",
+        f"skills.{skill_name}.mutation_{uuid4().hex}",
         mutation_path,
     )
     if spec is None or spec.loader is None:
@@ -781,7 +815,13 @@ def _load_mutation_class(skill_name: str, mutation_path: Path) -> type:
             f"Skill '{skill_name}': cannot load module spec from {mutation_path}"
         )
     module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
+    # Compile the snapshot directly: timestamp-based .pyc validation misses
+    # same-length edits with a preserved mtime. Each candidate has its own
+    # globals; neither reload() nor an active module namespace is used here.
+    if source_bytes is None:
+        source_bytes = mutation_path.read_bytes()
+    code = compile(source_bytes, str(mutation_path), "exec", dont_inherit=True)
+    exec(code, module.__dict__)
 
     mutation_class = getattr(module, "Mutation", None)
     if mutation_class is None:
@@ -1075,12 +1115,23 @@ def _coerce_type(param_name: str, value, expected_type: str):
         ) from e
 
 
+class SkillReloadError(ValueError):
+    """A candidate failed; its diagnostics never include SQL or filesystem paths."""
+
+    def __init__(self, name: str, reason: str):
+        self.skill_name = name if _SKILL_NAME_PATTERN.fullmatch(name) and len(name) <= 64 else None
+        self.reason = reason
+        super().__init__(reason)
+
+
 class SkillCatalog:
-    """One server's startup snapshot; definitions are never re-read on execution."""
+    """One published catalog snapshot; execution never re-reads definitions."""
 
     def __init__(self):
         self._skills_cache: dict[str, SkillMetadata] = {}
         self._skills_dir: Path | None = None
+        self.ignored_mutations: set[str] = set()
+        self.ignored_queries: set[str] = set()
 
     def discover(
         self,
@@ -1089,6 +1140,12 @@ class SkillCatalog:
         *,
         load_mutations: bool = True,
         managed_plan_parser: ManagedPlanParser = "sqlglot",
+        query_only: bool = False,
+        mutation_only: bool = False,
+        strict: bool = False,
+        skip_names: frozenset[str] = frozenset(),
+        required_definitions: frozenset[str] = frozenset(),
+        reuse_mutations: dict[str, SkillMetadata] | None = None,
     ) -> dict[str, SkillMetadata]:
         """
         Scan skills/ directory, parse all skill_def.md frontmatter, and return
@@ -1099,7 +1156,7 @@ class SkillCatalog:
         security (no path traversal, suffix must match type).
 
         For type: query skills, reads the source SQL file and runs query_validator
-        at startup (defense-in-depth). MCP passes the same policy used by query(sql);
+        at discovery (defense-in-depth). MCP passes the same policy used by query(sql);
         direct catalog callers fall back to classify_sql_statement(). Unsafe SQL causes
         the skill to be skipped with an error log.
 
@@ -1116,27 +1173,75 @@ class SkillCatalog:
                 not imported merely to list its metadata.
             managed_plan_parser: Explicit temporary managed-plan classifier;
                 failures never select the other implementation automatically.
+            query_only: Skip Mutation sources entirely; used for staged reload.
+            mutation_only: Skip Query sources entirely; used for staged reload.
+            strict: Reject the whole candidate on invalid or changing files.
+            skip_names: Skip callers' preserved names without reading definitions.
+            required_definitions: Active selected names. A surviving entry must
+                be a stable directory containing a definition; only absence
+                from the scan is a removal, not an abnormal or disappearing entry.
+            reuse_mutations: Prior Mutation snapshot. Identical metadata and entry
+                bytes reuse the exact object without importing Python again.
+                Changed/new candidates get a fresh random activation generation.
+                Imported Python dependencies are not reloaded.
 
         Returns:
             Dict mapping skill_name -> SkillMetadata for enabled skills
         """
         if managed_plan_parser not in {"sqlglot", "sqlparse"}:
             raise ValueError("Unsupported managed mutation plan parser")
+        if query_only and mutation_only:
+            raise ValueError("query_only and mutation_only are mutually exclusive")
         self._skills_dir = skills_dir
+        self.ignored_mutations = set()
+        self.ignored_queries = set()
         discovered: dict[str, SkillMetadata] = {}
         validate_query = query_validator or _default_query_validator
+        observed: dict[Path, tuple[int, int, int, int, int]] = {}
+        active_directories: dict[Path, tuple[int, int]] = {}
+        mutation_sources: dict[Path, str] = {}
+
+        def reject(name: str, reason: str) -> None:
+            if strict:
+                raise SkillReloadError(name, reason)
+
+        def identity(path: Path) -> tuple[int, int, int, int, int]:
+            info = path.stat()
+            return info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns, info.st_ctime_ns
+
+        def observe(path: Path) -> None:
+            if strict:
+                observed[path] = identity(path)
 
         if not skills_dir.is_dir():
+            reject("", "skills_directory_unavailable")
             logger.warning(f"Skills directory not found: {skills_dir}")
             self._skills_cache = discovered
             return discovered
 
-        for entry in sorted(skills_dir.iterdir()):
-            # Skip non-directories and internal dirs (e.g., _lib)
-            if not entry.is_dir() or entry.name.startswith("_"):
+        try:
+            entries = sorted(skills_dir.iterdir())
+        except OSError:
+            reject("", "skills_directory_unavailable")
+            raise
+        for entry in entries:
+            # Preserved kinds and internal directories are outside this scan,
+            # including symlinks whose targets currently cannot be inspected.
+            if entry.name in skip_names or entry.name.startswith("_"):
+                continue
+            if strict and entry.name in required_definitions:
+                try:
+                    info = entry.stat()
+                except OSError:
+                    raise SkillReloadError(entry.name, "skill_directory_unavailable") from None
+                if not stat.S_ISDIR(info.st_mode):
+                    raise SkillReloadError(entry.name, "skill_directory_unavailable")
+                active_directories[entry] = info.st_dev, info.st_ino
+            elif not entry.is_dir():
                 continue
 
             if not _is_path_within(entry, skills_dir):
+                reject(entry.name, "skill_directory_outside_root")
                 logger.warning(
                     "Skipping Skill directory outside configured trust root: %s",
                     entry.name,
@@ -1144,17 +1249,31 @@ class SkillCatalog:
                 continue
             skill_md_path = entry / "skill_def.md"
             if not _is_path_within(skill_md_path, entry):
+                reject(entry.name, "definition_outside_skill")
                 logger.warning(
                     "Skipping Skill definition outside its directory: %s", entry.name
                 )
                 continue
             if not skill_md_path.is_file():
+                if entry.name in required_definitions:
+                    kind = "mutation" if mutation_only else "query"
+                    reject(entry.name, f"{kind}_definition_unavailable")
                 continue
 
             try:
+                observe(skill_md_path)
                 metadata = _parse_skill_md(skill_md_path, entry.name)
             except Exception as e:
+                reject(entry.name, "invalid_skill_definition")
                 logger.error(f"Failed to parse {skill_md_path}: {e}")
+                continue
+
+            # Never import or replace Python mutations during Query-only reload.
+            if query_only and metadata.type == "mutation":
+                self.ignored_mutations.add(metadata.name)
+                continue
+            if mutation_only and metadata.type == "query":
+                self.ignored_queries.add(metadata.name)
                 continue
 
             # Skip disabled skills
@@ -1166,6 +1285,7 @@ class SkillCatalog:
             if metadata.type == "query":
                 query_sql_path = entry / metadata.source
                 if not query_sql_path.is_file():
+                    reject(metadata.name, "query_source_unavailable")
                     logger.error(
                         f"Skill '{metadata.name}': source file '{metadata.source}' not found"
                     )
@@ -1173,14 +1293,17 @@ class SkillCatalog:
 
                 # Symlink escape prevention: resolved path must stay within skill dir
                 if not _is_path_within(query_sql_path, entry):
+                    reject(metadata.name, "query_source_outside_skill")
                     logger.error(
                         f"Skill '{metadata.name}': source file '{metadata.source}' "
                         "resolves outside skill directory (symlink escape blocked)"
                     )
                     continue
 
+                observe(query_sql_path)
                 sql_template = query_sql_path.read_text(encoding="utf-8").strip()
                 if not sql_template:
+                    reject(metadata.name, "empty_query_source")
                     logger.error(
                         f"Skill '{metadata.name}': source file '{metadata.source}' is empty"
                     )
@@ -1189,6 +1312,7 @@ class SkillCatalog:
                 # Defense-in-depth: validate SQL safety at startup (fail-fast)
                 decision = validate_query(sql_template)
                 if not decision.allowed:
+                    reject(metadata.name, decision.error_code or "query_policy_failed")
                     logger.error(
                         f"Skill '{metadata.name}': '{metadata.source}' failed SQL safety policy, "
                         f"skipping ({decision.error_code}: {decision.message})"
@@ -1202,18 +1326,41 @@ class SkillCatalog:
 
             elif metadata.type == "mutation":
                 mutation_py_path = entry / metadata.source
-                if not mutation_py_path.is_file():
-                    logger.error(
-                        f"Skill '{metadata.name}': source file '{metadata.source}' not found"
-                    )
-                    continue
+                try:
+                    if not mutation_py_path.is_file():
+                        reject(metadata.name, "mutation_source_unavailable")
+                        logger.error(
+                            f"Skill '{metadata.name}': source file '{metadata.source}' not found"
+                        )
+                        continue
 
-                # Symlink escape prevention: resolved path must stay within skill dir
-                if not _is_path_within(mutation_py_path, entry):
-                    logger.error(
-                        f"Skill '{metadata.name}': source file '{metadata.source}' "
-                        "resolves outside skill directory (symlink escape blocked)"
-                    )
+                    # Resolved sources must stay within their Skill directory.
+                    if not _is_path_within(mutation_py_path, entry):
+                        reject(metadata.name, "mutation_source_outside_skill")
+                        logger.error(
+                            f"Skill '{metadata.name}': source file '{metadata.source}' "
+                            "resolves outside skill directory (symlink escape blocked)"
+                        )
+                        continue
+
+                    observe(mutation_py_path)
+                    source_bytes = mutation_py_path.read_bytes()
+                except (OSError, RuntimeError) as e:
+                    reject(metadata.name, "mutation_source_unavailable")
+                    logger.error("Skill '%s': cannot read mutation source: %s", metadata.name, e)
+                    continue
+                metadata._mutation_source_digest = hashlib.sha256(source_bytes).hexdigest()
+                if strict:
+                    mutation_sources[mutation_py_path] = metadata._mutation_source_digest
+
+                previous = (reuse_mutations or {}).get(metadata.name)
+                if (
+                    previous is not None
+                    and previous.type == "mutation"
+                    and (previous._mutation_class is not None) == load_mutations
+                    and skill_signature(metadata) == skill_signature(previous)
+                ):
+                    discovered[metadata.name] = previous
                     continue
 
                 if load_mutations:
@@ -1222,19 +1369,28 @@ class SkillCatalog:
                     # application Python from mutation.py.
                     try:
                         mutation_class = _load_mutation_class(
-                            metadata.name, mutation_py_path
+                            metadata.name, mutation_py_path, source_bytes
                         )
                         metadata._mutation_class = mutation_class
+                    except (Exception, SystemExit) as e:
+                        reject(metadata.name, "invalid_mutation_module")
+                        logger.error(
+                            f"Skill '{metadata.name}': failed to load '{metadata.source}': {e}"
+                        )
+                        continue
+                    try:
                         metadata._managed_mutation_plan = _managed_plan_for_class(
                             metadata,
                             mutation_class,
                             managed_plan_parser,
                         )
                     except Exception as e:
+                        reject(metadata.name, "invalid_managed_mutation_plan")
                         logger.error(
                             f"Skill '{metadata.name}': failed to load '{metadata.source}': {e}"
                         )
                         continue
+                metadata._mutation_generation = uuid4().hex
 
             discovered[metadata.name] = metadata
 
@@ -1247,6 +1403,33 @@ class SkillCatalog:
                         "which does not exist or is disabled"
                     )
 
+        if strict:
+            try:
+                directory_changed = sorted(skills_dir.iterdir()) != entries
+            except OSError:
+                directory_changed = True
+            if directory_changed:
+                raise SkillReloadError("", "directory_changed_during_reload")
+            for path, before in active_directories.items():
+                try:
+                    info = path.stat()
+                    changed = not stat.S_ISDIR(info.st_mode) or (info.st_dev, info.st_ino) != before
+                except OSError:
+                    changed = True
+                if changed:
+                    raise SkillReloadError(path.name, "files_changed_during_reload")
+            for path, before in observed.items():
+                try:
+                    changed = identity(path) != before
+                    if path in mutation_sources:
+                        changed = changed or (
+                            hashlib.sha256(path.read_bytes()).hexdigest()
+                            != mutation_sources[path]
+                        )
+                except OSError:
+                    changed = True
+                if changed:
+                    raise SkillReloadError(path.parent.name, "files_changed_during_reload")
         self._skills_cache = discovered
         logger.info(
             f"Discovered {len(discovered)} enabled skill(s): "
