@@ -2,6 +2,8 @@
 
 [English](CODEX_MCP_RESTART.md)
 
+使用约定更新：2026-11-06。
+
 使用 [`scripts/dev/restart_codex_mcp.py`](../../scripts/dev/restart_codex_mcp.py)
 连接已有 Codex Host；它不向 SQL MCP 新增管理工具。
 
@@ -13,13 +15,20 @@
 | 检查 Host／目录绑定或核验现有连接 | 使用只读 `probe` 或 `verify`。 |
 | 请求配置刷新 | 使用 `refresh`；配置未变时可能复用健康客户端。 |
 | 为核心代码、共享依赖或部署配置改动替换进程 | 旧实际消费者 PID 可核验时使用 `restart`。 |
+| 同一 Host 还有其他空闲聊天，只需替换当前消费者 | 显式使用 `--allow-shared-host`；先用 `verify --check-process` 只读预检；低风险固定授权适用时，提醒后运行 `restart`。 |
 | 旧目录、Query 调用或 PID 不可用时引导／恢复 | 按下述独立前置条件显式选择 `recreate`；不自动从 `restart` 转入。 |
 | VS Code Codex 重连，或无法确认作用范围 | 人工重连；扩展自动重启支持已搁置。 |
 
-**当前使用约定：** 自动维护只允许影响当前聊天。存在其他加载会话或不能确认
-作用范围时转人工，不因其他会话空闲而使用全局刷新，也不自动选择组模式。
-保留的多会话选项在文末作为历史能力单独说明，不是当前授权，也不能作为单聊天
-拒绝后的补救。重新使用须维护者明确改变此范围决定。
+**当前使用约定：** 默认保持严格单会话。2026-11-06 批准新增显式
+`--allow-shared-host` 受控共享 Host 模式：只主动停止当前聊天独占的 SQL MCP
+进程，并接受一次全局刷新可能影响其他空闲聊天。维护者随后授予固定低风险维护授权：
+其他聊天空闲、没有在途写入／等待写入结果，并接受可能重新预览时，提醒后执行，
+不逐次请求批准；按操作状态而非 CLI／其它界面判断。结合 Host 状态和已知请求
+记录核对条件，出现未决写入、具体不明状态或范围变化时暂停。idle 不证明没有
+待确认预览，但此条件下可能重新预览已获接受。固定授权不扩大到组停止、
+配置切换、额外刷新或不确定结果重试。
+历史 `--all-loaded-targets` 组模式保留在文末，不自动启用；它会停止整个目标集合，
+不能替代本模式，也不能作为拒绝后的自动补救。
 
 ## 前置条件
 
@@ -39,10 +48,12 @@ Host 唯一性按已加载线程归属判断，与 MCP 目录是否可读取分�
 普通 `probe`、`verify`、`refresh` 和 `restart` 路径还要求目标 Query 目录；
 **此目录要求不适用于 `recreate` 恢复入口。**
 
-Codex 0.165 的 `config/mcpServer/reload` 没有服务／线程选择参数，刷新范围是
+已核对的 Codex 0.165／0.166 `config/mcpServer/reload` 没有服务／线程选择参数，刷新范围是
 **该 Host 的全部已加载线程和 MCP 配置**。`--server` 只限定核验目标，不限定刷新范围。
-维护须获准影响范围内的全部服务／加载线程，且没有在途写入。按当前约定，
-`restart`、`refresh` 和 `recreate` 均要求仅加载当前线程；其他聊天即使空闲也拒绝。
+维护须获准影响范围内的全部服务／加载线程，且没有在途写入或等待写入结果。
+默认 `restart`、`refresh` 和 `recreate` 均要求仅加载当前线程。
+共享 Host 例外仅适用于下述显式 `restart` 和只读 `verify --check-process`，
+不扩展 `probe`、`refresh` 或 `recreate`。
 除 `probe` 外的调用须指定已有测试连接别名。加载清单和 PID 复查不是原子隔离，
 不能据此承诺并发环境绝对零影响。
 
@@ -60,6 +71,28 @@ Codex 0.165 的 `config/mcpServer/reload` 没有服务／线程选择参数，�
 成功 query 仅在已有可选 `_meta` 增加一个 PID 整数，不改业务数据，不增加 SQL 或
 网络往返；这是可信本地身份检查，不是远程认证或原子隔离。旧驻留没有此字段时，
 `restart` 拒绝。可在条件满足时独立选择 `recreate`；否则转维护者处理。
+
+### `--allow-shared-host`：当前消费者独占，刷新范围共享
+
+此模式与 `--all-loaded-targets` 互斥，最多支持八个同 cwd 已加载线程，其他线程
+须为 idle。逐线程检查目标目录 connected，并通过同一测试连接别名的常量读取
+取得实际 PID；该别名须可在每个消费者使用。每个 PID 都须与实际绑定 Host 的
+直接子进程及精确启动签名匹配，并形成逐线程唯一映射。当前消费者必须独占进程；
+配置匹配、进程数量相等或目录可见，都不能替代该证明。
+
+复核配置和全部固定进程身份后，紧邻发送停止信号前复查线程集合和空闲状态；
+实际刷新前再复查线程集合和空闲状态。其他聊天活动、状态不可观察、成员变化、
+共享进程或归属不明时停止。
+只向已固定的当前 PID 发送 SIGTERM，等待退出后至多一次 Host 全局刷新；
+不主动停止其他消费者，不追逐新 PID，不升级为 SIGKILL，也不重试或自动改用组模式／
+`recreate`。本模式不切换配置、不启动桥接、不迁移聊天或重启 Host。
+
+全局刷新可能复用或替换其他消费者及其他 MCP 服务。新目标进程身份须不属于操作前
+全体目标进程集合，不能将另一个原消费者误作新目标。脚本须核验新目标 PID 和
+全部原消费者的目录／只读调用，并分别报告其他消费者复用或替换的观察结果。
+这些观察不证明零影响，也不证明其他 Agent 已取得新定义；无法完成核验时保留失败。
+本模式的[正式验收记录](../validation/v3.8/V3_8_2_SHARED_HOST_RESTART_2026_11_06_ZH.md)
+区分隔离回归与现场验收；现场操作依上述固定授权或另行批准，历史组验收不代替本模式验收。
 
 ### `recreate`：独立的引导／恢复前置条件
 
@@ -94,6 +127,20 @@ python scripts/dev/restart_codex_mcp.py restart --allow-host-wide --connection Y
 完成前置绑定及常量读取后，通过 Linux pidfd 向固定目标发送 SIGTERM，等待最多
 10 秒，不升级为 SIGKILL；然后仅发送一次 Host 刷新，重新取得目标目录、运行常量
 读取并确认新进程身份。发送刷新前复查加载线程集合；这些检查仍不构成原子并发隔离。
+
+### 同 Host 其他聊天空闲时，只替换当前消费者
+
+```bash
+# 只读预检，不停止进程或刷新：
+python scripts/dev/restart_codex_mcp.py verify --check-process --allow-shared-host --connection YOUR_TEST_ALIAS
+# 复核低风险固定授权条件并提醒后；不符合时暂停：
+python scripts/dev/restart_codex_mcp.py restart --allow-shared-host --allow-host-wide --connection YOUR_TEST_ALIAS
+```
+
+`--allow-shared-host` 只接受 `restart` 或带 `--check-process` 的 `verify`。
+只读预检不需要 `--allow-host-wide`；实际 `restart` 仍必须显式给出此参数。
+预检成功不保留未来操作资格；`restart` 会重新核验。预检或停止后检查失败时，
+不要扩大范围或追加刷新；按失败阶段报告现状，必要时转人工恢复。
 
 ### 请求配置刷新
 
@@ -138,8 +185,18 @@ flush／`fsync` 后复查固定加载会话范围。范围改变或检查失败�
 | `binding_verified` | 仅证明目录绑定；`probe` 不证明工具可调用。 |
 | `connection_verified` | 实际常量 Query 返回成功；`reload_attempted`、`reload_accepted`、`read_probe_verified` 和目录摘要分别标明阶段。 |
 | `restart` 成功 | 还须有 `phase=complete`、`process_binding_verified`、`process_stop_attempted`、`process_restart_verified=true` 和 `read_probe_verified=true`。 |
+| 共享 Host `verify --check-process` 成功 | 还须核验全部原消费者的目录、常量读取和唯一 PID 映射；不证明已重启，不发送信号或刷新。 |
+| 共享 Host `restart` 成功 | 除上述 `restart` 条件外，须确认当前目标身份已替换、全部原消费者核验通过，并分别记录其他消费者复用／替换；不能把它解释为其他聊天零影响。 |
 | `recreate` 成功 | 须有 `phase=complete`、`target_disabled_verified`、`config_restored`、`process_restart_verified` 和 `read_probe_verified`；每个原消费者的常量读取须成功，返回 PID 匹配准确 Host／启动定义，且 PID／启动时刻不属于操作前子进程快照。 |
 | `recreate_plan_verified` | 仅为 dry-run 计划。 |
+
+共享模式回执应为 `shared_host_mode=true`、
+`process_scope=current_thread_exclusive_child` 和
+`thread_process_mapping=consumer_pid_verified`。`read_probe_verified_thread_count`
+须覆盖全部原消费者；`consumer_process_observations` 按 `thread_sha256`、
+`current_thread`、`before`、`after`、`process_replaced` 分别记录观察。
+成功重启的 `process_signals_sent=1`、`process_stops_confirmed=1` 只证明脚本主动
+停止了一个目标，不表示 Host 未影响其他进程；只读预检不发送停止信号。
 
 目录摘要不变不代表没有刷新，摘要或 `{}` 均不能单独证明进程替换；
 `refresh`／`verify` 仍将替换标为未验。`recreate` 的新实际消费者不证明所有旧进程
@@ -154,6 +211,28 @@ flush／`fsync` 后复查固定加载会话范围。范围改变或检查失败�
 及扣除恢复预留后适用的工作截止约束。每消费者仅发送一次刷新后常量请求。
 读取窗口不延长总预算；预算耗尽不发送新请求。线程清单／通知数量仍有界，连接建立
 和清理另有各自超时。
+
+### 维护互斥、建议与计时
+
+`restart`、`refresh` 和非 dry-run `recreate` 在唯一绑定 Host 后，按其控制端点
+取得非阻塞文件锁；锁覆盖不同服务名／聊天的辅助维护，直到核验和必要的配置清理结束。
+冲突返回 `host_maintenance_in_progress`，不等待、不停止进程或刷新。
+`probe`、`verify` 和 dry-run 不加锁。`maintenance_lock_acquired=true` 表示本次曾取得锁，
+不表示命令退出后仍占用。锁文件保留在当前用户私有的
+`/tmp/codex-mcp-maintenance-UID/`；进程退出释放系统锁，不靠删除文件判断是否占用。
+它只协调使用本脚本、连接同一控制端点的维护，不锁住人工操作或 Host 自身行为，
+也不替代范围／状态复查。
+
+JSON 回执的 `next_action` 给出 `action` 和简短说明。它不执行恢复，也不授予新权限；
+已发刷新但核验失败时建议只读核对，配置已恢复但运行状态未验时建议按日志人工协调，
+不自动补发刷新或扩大范围。
+
+`timings_ms` 使用脚本进程自己的单调时钟。`total` 从操作入口计到清理后的最终回执快照，
+不含 CLI 参数解析／端点发现、最后日志落盘、释放互斥锁和 stdout 序列化；端点发现失败的回执则
+记录 CLI 已经过的窗口。另按实际经过的阶段记录 `host_binding`、`process_stop`、
+`host_refresh`、`consumer_verification`，以及必要时的 `config_cleanup`。
+失败窗口也记录；`recreate` 的两次刷新 RPC 耗时累加。阶段不是完整分解，相加不等于
+`total`；RPC 等待不等同于 Host 内部处理时间，不能据此归因。原有 60／30 秒预算不变。
 
 ### 调用 Agent 的实际通道确认
 
@@ -224,16 +303,19 @@ Host。显式 socket／thread 覆盖须有可信对应；辅助直接加载磁�
 - Host 配置版本是并发校验用的不透明值，即使带 `sha256:` 前缀也不能用文件摘要替代。
   版本检查防止并发覆盖，不提供跨 Host 隔离；其他 Host 仍可能读到共享用户配置的
   暂时切换。范围复查与 RPC 发送也不原子。
-- 默认模式不编辑配置，显式 `recreate` 仅暂时切换目标启用键。不增加授权变更、
+- 默认及共享 Host `restart` 不编辑配置，显式 `recreate` 仅暂时切换目标启用键。不增加授权变更、
   Host／线程新建或终止、向其他服务发信号、业务表检查或 Mutation 执行。
   两次重建刷新均为 Host 全局操作；不新增运行依赖、SQL MCP 管理工具或普通查询步骤，
   不作通用 Host 保证。
 - 重启／重建会丢失进程内预览，与 Query 定义发布不同；这不证明此前写入未执行。
+  共享 Host 模式只主动停止当前消费者，但 Host 自身可能因全局刷新替换其他消费者，
+  使其预览失效；调用前须接受这一范围，不能承诺其他聊天完全不受影响。
   目录停用及新消费者成功不证明所有旧进程已退出。Host 清理可能异步进行并采用自身
   终止策略；`recreate` 辅助本身不向进程发送信号。
 - 应以实际 Host 二进制核对 [OpenAI 协议](https://learn.chatgpt.com/docs/app-server)
-  schema。本机 PATH CLI 0.164 与已验 Host 0.165 不同；这些观察不能证明此前 proxy
-  超时的根因，也不保证所有 Host 版本。
+  schema。历史 PATH CLI 0.164 与当时 Host 0.165 不同；2026-11-06 另核对了实际
+  Host 0.166 的全局 reload 定义。这不证明共享模式已完成现场验收，也不能解释此前
+  proxy 超时根因或保证所有 Host 版本。
 
 ## 历史验收和启动调查
 
@@ -268,9 +350,15 @@ Host。显式 socket／thread 覆盖须有可信对应；辅助直接加载磁�
 记录恢复日志 flush／`fsync` 后，首次停用及每次刷新前的范围复查。两者均不把范围
 拒绝变成跳过已确认停用的清理，也不让检查与发送成为原子操作。
 
+### 共享Host模式与固定低风险授权（2026-11-06）
+
+[本批记录](../validation/v3.8/V3_8_2_SHARED_HOST_RESTART_2026_11_06_ZH.md)：完整辅助230项通过；维护者随后授予固定低风险维护授权，提醒后一次真实操作仅停止当前消费者、刷新一次，新目标／原消费者2/2读取及调用Agent新行为均通过。另一原消费者本次复用，不承诺未来都不重连。固定授权以实际操作状态判定，包含同Host的CLI消费者；只读预检不能代替请求状态判断。此授权不适用下节组停止、recreate或失败追加刷新。
+
 ### 历史多会话能力与验收（2026-10-29；当前不建议）
 
-此节保留既有能力和历史验收，不作为当前自动维护建议；当前聊天隔离约定见页首。
+此节保留既有能力和历史验收，不作为当前自动维护建议；当前默认与显式共享范围见页首。
+组模式主动停止所有匹配目标，`--allow-shared-host` 只主动停止当前独占目标；两者互斥，
+均不能在拒绝后自动启用。历史组验收不证明新共享模式通过。
 
 本节说明PID绑定的`restart`组模式；`recreate`按上节由Host管理命名服务，不能混同为直接进程集合停止。
 
@@ -299,7 +387,7 @@ Host 全局刷新范围。脚本不主动停止其他服务，但全局刷新仍
 `verify` 自身不能恢复已断连实例。
 
 本范围的[新增验收记录](../validation/v3.8/V3_8_2_CODEX_MCP_GROUP_RESTART_2026_10_29_ZH.md)
-区分自有进程测试、现场只读预检和另获批准的真实重启。此前单会话验收不替代新增范围。
+区分自有进程测试、现场只读预检和另获批准的真实组重启；本轮固定授权不适用组停止。此前单会话验收不替代新增范围。
 
 最新另获准的组操作以一次全局刷新完成两固定目标替换及两原消费者读取，4.241秒；调用Agent另验Mutation新参数及四项原生夹具。随后另获准的恢复重启也完成两目标替换／两原消费者读取及QA别名卸载，含额外核验8.354秒；当前Agent另验卸载和QA Skill移除。两次单次授权均已使用，不自动推广，也不据此证明逐线程PID映射或通用耗时。
 
@@ -340,4 +428,4 @@ config/batchWrite的reloadUserConfig=true会发布运行配置，可能使旧绑
 私有归档，后续只读检查确认桥接进程退出。无需为撤下桥接再重载窗口。既有 CLI／daemon
 辅助及 Skill 发布保留声明范围。实验过程和撤回证据保存在
 `local_archive/v382_review/20261031_vscode_restart_deferred/`，不进入正常源码／测试或
-发布文档；此记录不改变当前聊天范围和 VS Code 人工重连要求。
+发布文档；此记录不改变当前默认／显式共享范围和 VS Code 人工重连要求。

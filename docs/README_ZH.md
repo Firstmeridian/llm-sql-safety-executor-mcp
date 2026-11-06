@@ -11,7 +11,7 @@
 - [MCP 客户端指南](guides/TEST_MCP_CLIENT_GUIDE.md)：离线检查、协议检查与 preview/MRTR 审批示例。
 - [Query Skill受控热加载](guides/QUERY_SKILL_RELOAD_ZH.md)：显式校验并发布实例内Query快照，保留Mutation计划／令牌，与Host重启分开。
 - [Mutation Skill 受控发布](guides/MUTATION_SKILL_RELOAD_ZH.md)：按定义代际失效旧预览、保留在途执行版本，明确可信入口范围和实际消费确认。
-- [Codex自动重启与重连辅助](guides/CODEX_MCP_RESTART_ZH.md)：绑定当前Host及唯一stdio进程，区分配置刷新与真正替换。当前自动维护只允许影响当前聊天；VS Code Codex继续人工重连。
+- [Codex自动重启与重连辅助](guides/CODEX_MCP_RESTART_ZH.md)：绑定当前Host及唯一stdio进程，区分配置刷新与真正替换。默认严格单聊天；显式共享模式只停止当前独占消费者，但接受全局刷新影响其它空闲聊天。VS Code Codex继续人工重连。
 - [AutoGen 示例](../examples/autogen/README.md)：独立依赖环境与验证范围。
 
 ## 设计与安全
@@ -43,7 +43,9 @@
 
 ### Codex 维护
 
+- 共享Host维护：[契约、检查及保留限制](validation/v3.8/V3_8_2_SHARED_HOST_RESTART_2026_11_06_ZH.md)。
 - Codex 重启：[真实重启验收](validation/v3.8/V3_8_2_CODEX_MCP_RESTART_2026_10_28_ZH.md)。
+- [11月5～6日范围与受控读取补修](validation/v3.8/V3_8_2_SCOPE_READ_PERFORMANCE_2026_11_05_ZH.md)：拒绝恢复、演示受控预览、SQLite估算分批及源码触发实库门槛；保留A/B/A测量边界。
 - [11月5日范围／目录补修](validation/v3.8/V3_8_2_SCOPE_CATALOG_REPAIR_2026_11_05_ZH.md)：recreate副作用前复查，活动目录异常拒绝整批；隔离回归和安装包验证，本批无现场重启。
 - [提交前最终审阅：11月1日](validation/v3.8/V3_8_2_FINAL_REVIEW_2026_11_01_ZH.md)：四处辅助边界完成隔离补修，本批辅助回归及安装wheel检查通过。完整回归仅作补修前基线；新现场重启及驻留准入更新仍未验。
 - [Mutation准入与Host绑定诊断：10月31日](validation/v3.8/V3_8_2_MUTATION_ADMISSION_HOST_BINDING_2026_10_31_ZH.md)：先验／消费令牌再构造Skill，复验结果保守表达；绑定失败分阶段报告。当前0.166只读核验通过，保留历史映射及驻留更新边界。

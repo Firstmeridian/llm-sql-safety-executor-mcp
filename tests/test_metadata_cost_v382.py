@@ -69,7 +69,9 @@ async def test_projection_precedes_estimates(bundle, tmp_path, monkeypatch, mode
             assert [entry["row_count"] for entry in payload["schema"].values()] == [3, 5]
         else:
             assert [t["name"] for group in payload["schema_groups"] for t in group["tables"]] == ["t02", "t04"]
-        assert len(reads) == (0 if analyzed else 2)
+        assert len(reads) == (0 if analyzed else 1)
+        if reads:
+            assert all(f'"main"."{name}"' in reads[0] for name in ("t02", "t04"))
         assert sum("name='sqlite_stat1'" in sql for sql in trace) == 1
         assert sum("FROM main.sqlite_stat1" in sql for sql in trace) == int(analyzed)
         assert adapter._active_guard is None and adapter._read_request is None

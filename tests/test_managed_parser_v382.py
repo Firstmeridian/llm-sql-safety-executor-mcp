@@ -167,12 +167,13 @@ async def test_preview_and_consumed_confirmation_recheck_actual_context(managed_
     sql = 'UPDATE OR IGNORE orders SET status=:new_status WHERE id=:order_id AND status=:expected_status'
     server = managed_server(sql=sql)
     adapter = server.gateway_runtime.registry.get_adapter('demo')
+    actual_context = adapter.resolve_analysis_context()
     async with Client(server) as client:
         monkeypatch.setattr(adapter, 'resolve_analysis_context', lambda: DialectContext('mysql'))
         refused = (await client.call_tool('execute_mutation_skill', {'skill_name': UPDATE, 'params': PARAMS})).structured_content
         assert not refused['success'] and refused['execution_outcome'] == 'not_executed'
         assert 'preview_token' not in refused
-        monkeypatch.setattr(adapter, 'resolve_analysis_context', lambda: DialectContext('sqlite'))
+        monkeypatch.setattr(adapter, 'resolve_analysis_context', lambda: actual_context)
         preview = (await client.call_tool('execute_mutation_skill', {'skill_name': UPDATE, 'params': PARAMS})).structured_content
         assert preview['success']
         monkeypatch.setattr(adapter, 'resolve_analysis_context', lambda: DialectContext('mysql'))

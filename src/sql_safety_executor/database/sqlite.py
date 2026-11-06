@@ -42,6 +42,14 @@ _JSON_NAME_SCHEMA_LIMIT = 32
 # SQLite index b-trees may include both keys and WITHOUT ROWID auxiliary
 # columns. Bound raw PRAGMA rows separately from the public key-part budget.
 _PRAGMA_ROW_LIMIT = 65536
+_ROW_ESTIMATE_BATCH_SIZE = 32
+_ROW_ESTIMATE_SAMPLE_LIMIT = 10000
+_ROW_ESTIMATE_UNAVAILABLE = frozenset({
+    "unknown_table", "table_access_denied", "server_state_denied",
+    "lock_function_denied", "expensive_function_denied",
+    "file_operation_denied", "view_scope_unresolved", "read_disabled",
+    "session_semantics_unavailable",
+})
 
 
 def _stat_row_count(stat: Any) -> int | None:
@@ -773,9 +781,46 @@ class SQLiteAdapter(DatabaseAdapter):
         if not eligible:
             return estimates
         statistics = self._row_statistics(eligible)
-        for name in eligible:
-            count = statistics.get(name)
-            estimates[name] = count if count is not None else self._bounded_row_estimate(name, policy)
+        missing = [name for name in eligible if name not in statistics]
+        estimates.update(statistics)
+        estimates.update(self._bounded_row_estimates(missing, policy))
+        return estimates
+
+    def _bounded_row_estimates(self, table_names: list[str], policy: ConnectionPolicy) -> dict[str, int | None]:
+        """Amortize read preparation without bypassing the normal authorizer.
+
+        Every scalar count has its own bounded source. A compile-time refusal
+        splits only that batch into the existing per-object reads, retaining
+        unavailable estimates without losing counts for its other objects.
+        Runtime/database failures are not retried.
+        """
+        estimates: dict[str, int | None] = {}
+        for start in range(0, len(table_names), _ROW_ESTIMATE_BATCH_SIZE):
+            selected = table_names[start:start + _ROW_ESTIMATE_BATCH_SIZE]
+            if len(selected) == 1:
+                estimates[selected[0]] = self._bounded_row_estimate(selected[0], policy)
+                continue
+            names = {ascii_identifier_lower(name) for name in selected}
+            prefix = "__mcp_row_estimate"
+            while any(f"{prefix}_{index}" in names for index in range(len(selected))):
+                prefix += "_"
+            ctes, counts = [], []
+            for index, name in enumerate(selected):
+                relation = self.render_metadata_relation(RelationReference(name, "main"))
+                cte = f'"{prefix}_{index}"'
+                ctes.append(f'{cte}(marker) AS (SELECT 1 FROM {relation} LIMIT {_ROW_ESTIMATE_SAMPLE_LIMIT})')
+                counts.append(f'(SELECT COUNT(marker) FROM {cte}) AS n{index}')
+            sql = "WITH " + ", ".join(ctes) + " SELECT " + ", ".join(counts)
+            try:
+                rows = self.execute_read(sql, policy=policy)
+            except DatabaseQueryError as error:
+                if error.error_code not in _ROW_ESTIMATE_UNAVAILABLE:
+                    raise MetadataQueryError("estimating table rows") from None
+                for name in selected:
+                    estimates[name] = self._bounded_row_estimate(name, policy)
+            else:
+                for index, name in enumerate(selected):
+                    estimates[name] = (rows[0][index] or 0) if rows else 0
         return estimates
 
     def _row_statistics(self, table_names: list[str]) -> dict[str, int]:
@@ -874,7 +919,7 @@ class SQLiteAdapter(DatabaseAdapter):
     def _bounded_row_estimate(self, table_name: str, policy: ConnectionPolicy) -> int | None:
         # Fallback: bounded sample-based estimation. This intentionally avoids
         # a full COUNT(*) on large tables; exact counts are opt-in elsewhere.
-        sample_limit = 10000
+        sample_limit = _ROW_ESTIMATE_SAMPLE_LIMIT
         quoted_table_name = self.render_metadata_relation(RelationReference(table_name, "main"))
         estimate_cte = "__mcp_row_estimate"
         if self.analysis_context.cte_key(table_name) == estimate_cte:
@@ -888,12 +933,7 @@ class SQLiteAdapter(DatabaseAdapter):
             # unlike catalog/statistics SQL, it needs the normal read guard.
             sample_result = self.execute_read(sample_sql, policy=policy)
         except DatabaseQueryError as error:
-            if error.error_code in {
-                "unknown_table", "table_access_denied", "server_state_denied",
-                "lock_function_denied", "expensive_function_denied",
-                "file_operation_denied", "view_scope_unresolved", "read_disabled",
-                "session_semantics_unavailable",
-            }:
+            if error.error_code in _ROW_ESTIMATE_UNAVAILABLE:
                 return None
             raise MetadataQueryError("estimating table rows") from None
         if not sample_result:

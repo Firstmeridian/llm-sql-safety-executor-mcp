@@ -1,0 +1,50 @@
+{
+  "format": 1,
+  "baseline_commit": "cf11c513fedd85029ed158af3053dcbc630160a2",
+  "candidate": "uncommitted; exact package/Skill hashes in records",
+  "version": "3.8.2",
+  "dates_local": "2026-11-05 through 2026-11-06 Asia/Taipei",
+  "release_ready": true,
+  "pytest": {
+    "status": "passed",
+    "log": "fast.log",
+    "returncode": 0,
+    "passed": 3991,
+    "failed": 0,
+    "skipped": 4,
+    "skipped_names": [
+      "test_mysql_connection",
+      "test_mysql_check_connection",
+      "test_mysql_db_type",
+      "test_mysql_stale_conditional_updates_allow_at_most_one_commit"
+    ]
+  },
+  "resources": 80,
+  "wheel_sha256": "fd43d75b3d68b22f2ffc93bae1d353c715031341b7bca4b2bdf651f899875ec8",
+  "records": {
+    "file": "records.json.gz",
+    "sha256": "8fe3790e88f2abe8d78197750b44a969f8085fe8e84b53ab4fbe525821338b4c",
+    "bytes": 107855
+  },
+  "layers": [
+    "installed full regression and explicit live release matrix",
+    "source/installed owned demo flows",
+    "serialized in-process A/B/A, not Host/model timing",
+    "child preflight only, not baseline A/B"
+  ],
+  "remaining": [
+    "owner-reconnected resident behavior",
+    "two frozen candidate read-only Agent tasks",
+    "GitHub Hosted workflow execution unverified"
+  ],
+  "omitted": [
+    "full protocol frames",
+    "credentials",
+    "hidden reasoning"
+  ],
+  "cleanup": {
+    "benchmark_sqlite_directory_removed": true,
+    "installed_environment_removed": true,
+    "live_owned_schemas_removed": true
+  }
+}

@@ -285,6 +285,44 @@ class MutationBase(ABC):
         self.adapter = adapter
         self.logger = audit_logger
 
+    def _execute_read(
+        self, sql: str, *, tables: tuple[str, ...], params: dict | None = None,
+    ) -> list:
+        """Guard a trusted Skill's explicitly reviewed reads in the target schema.
+
+        ``tables`` contains decoded object names, not SQL or query grants.
+        This scope belongs to the admitted Skill, so ordinary connection read
+        policy does not disable a write-only Skill's validation or preview.
+        Arbitrary adapter.execute() callbacks retain their trusted semantics.
+        """
+        # Policy imports stay local: the catalog imports this base during load.
+        from sql_safety_executor.core.policy import _prepare_sql_read
+        from sql_safety_executor.database.errors import DatabaseQueryError
+        from sql_safety_executor.database.models import ConnectionPolicy
+        from sql_safety_executor.database.relations import RelationReference
+
+        context = self.adapter.resolve_analysis_context()
+        if not isinstance(context, DialectContext) or not context.default_schema:
+            raise DatabaseQueryError("session_semantics_unavailable")
+        if not tables or any(
+            name == "*" or not context.valid_name(name, "relation")
+            for name in tables
+        ):
+            raise ValueError("Skill reads require explicit reviewed table names")
+        policy = ConnectionPolicy(
+            read_mode="allowlist",
+            allowed_tables=frozenset(tables),
+            allowed_relations=frozenset(
+                RelationReference(name, context.default_schema) for name in tables
+            ),
+            default_schema=context.default_schema,
+            case_sensitive_tables=context.dialect == "mysql",
+        )
+        plan = _prepare_sql_read(None, sql, policy, adapter=self.adapter)
+        if not plan.decision.allowed:
+            raise ToolError(plan.decision.message or "Skill read is not allowed.")
+        return self.adapter.execute_read(sql, params=params, policy=policy, analysis=plan.analysis)
+
     @abstractmethod
     def validate(self, params: dict) -> dict:
         """

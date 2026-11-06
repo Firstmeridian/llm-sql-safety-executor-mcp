@@ -68,8 +68,9 @@ class Mutation(ManagedMutationBase):
             return {"valid": False, "errors": errors}
 
         # Look up current order status
-        result = self.adapter.execute(
+        result = self._execute_read(
             "SELECT status FROM orders WHERE id = :order_id",
+            tables=("orders",),
             params={"order_id": order_id},
         )
 
@@ -114,8 +115,9 @@ class Mutation(ManagedMutationBase):
         new_status = params["new_status"]
 
         # Get current status for preview display
-        result = self.adapter.execute(
+        result = self._execute_read(
             "SELECT id, status FROM orders WHERE id = :order_id",
+            tables=("orders",),
             params={"order_id": order_id},
         )
 

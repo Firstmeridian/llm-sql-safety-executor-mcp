@@ -1,0 +1,52 @@
+{
+  "date": "2026-11-06",
+  "base_commit": "cf11c513fedd85029ed158af3053dcbc630160a2",
+  "scope": "isolated helper regression, live preflight and one standing-consent shared-Host restart",
+  "records_file": "records.json.gz",
+  "records_sha256": "c5ba519c18da31a2530b26e7f701a10a3643db3bca5202a13aa50872ae913966",
+  "records_bytes": 21499,
+  "helper_source_sha256": "bad73929156f43b6571f6460dd3a17eab00e90f997d3fc9181a415d09b601f79",
+  "test_source_sha256": "deddba6018a0be43949e50f5618b9282c0889958184bf6d011a293021804e3dc",
+  "isolated_results": {
+    "tests": 230,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "actual_restart": {
+    "status": "connection_verified",
+    "process_signals_sent": 1,
+    "process_stops_confirmed": 1,
+    "reload_attempted": true,
+    "reload_accepted": true,
+    "process_restart_verified": true,
+    "read_probe_verified_thread_count": 2,
+    "other_consumer_reused": true
+  },
+  "redaction": "No credentials, private launch specifications, business preview tokens, conversation history or hidden reasoning. Application evidence, not complete protocol frames.",
+  "standing_consent": {
+    "kind": "standing_low_risk_maintenance",
+    "announced_before_execution": true,
+    "conditions": [
+      "other chats idle",
+      "no in-flight writes or awaiting write results",
+      "possible re-preview accepted"
+    ],
+    "pause_on": [
+      "pending writes",
+      "concrete uncertainty",
+      "scope changes"
+    ],
+    "scope_excludes": [
+      "group stopping",
+      "configuration toggles",
+      "uncertain retries",
+      "bridge or thread migration"
+    ]
+  },
+  "link_checks": {
+    "count": 389,
+    "missing": [],
+    "excluded": "literal formatting example (path)"
+  }
+}

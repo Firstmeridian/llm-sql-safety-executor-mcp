@@ -1,5 +1,16 @@
 # v3.8 security boundary / 安全边界
 
+## Current behavior (November 5, 2026; v3.8.2)
+
+- **B34 / DRR-2026-156:** scope-denial messages distinguish default-schema all-mode from actual allowlist grants. Recovery preserves the intended data target and authorization: correct qualification/case only for that target; use another connection only when it is the correct target and already authorized. Unclear scope requires clarification or authorized access, never automatic alias/table substitution. Only messages change; grants, refusal conditions, error codes and result fields remain unchanged.
+- **DRR-2026-157:** an admitted write Skill can explicitly declare reviewed decoded table names through `MutationBase._execute_read`. Its scope is independent of raw-read grants and grants no ordinary query access. The helper resolves actual session/default-schema context and uses shared `_prepare_sql_read` plus adapter `execute_read`, preserving original SQL/bindings and execution guards. Both order demos use it for validation/preview reads. Arbitrary trusted callbacks and full MySQL writes still retire their sessions; Python Skills remain trusted code, without a sandbox.
+- **DRR-2026-158:** after authorization/projection and statistics lookup, SQLite batches missing estimates in groups of at most 32 objects, with an independent source `LIMIT 10000` per count and the actual authorizer active. Only known compilation refusals split that batch into guarded per-object reads; unavailable estimates stay null. Runtime/database failures remain metadata failures without retry. No cross-request cache or atomic snapshot guarantee is added.
+- **B37:** both `src/**` and `skills/**` changes on push/PR trigger the existing installed-wheel release-contracts workflow, including SQLite and live MySQL gates. This adds no runtime configuration or dependency.
+
+### Sealed evidence
+
+The [batch report](../validation/v3.8/V3_8_2_SCOPE_READ_PERFORMANCE_2026_11_05_ZH.md) separates controlled-read measurements and functional/installed/live checks from resident and model acceptance. Dated checkpoints below retain their original source and acceptance scope.
+
 MySQL is the server/dialect acceptance target; MariaDB is not required. Native SQLite and actual MySQL version/session scopes remain explicit. The [DRR-141 actual channel checkpoint](../validation/v3.8/v382_primary_key_metadata_repair_2026_10_21/resident_restart/README.md) retains the earlier native7/12 versus fresh CLI12/12 mismatch; latest owner restart passes all12 scoped native checks. The earlier runtime/client binding cause remains unconfirmed.
 
 DRR-141 separates actual PRIMARY identity/order from native display flags in metadata. SQLite reuses native positions; MySQL joins configured-schema PRIMARY facts in existing bounded column queries with exact component residuals. Compact grouping uses positions but does not prove full DDL/index equivalence. No grants, read analysis, authorizer rules, original SQL or configuration are relaxed. [Contract and current acceptance scope](../validation/v3.8/V3_8_2_PRIMARY_KEY_METADATA_REPAIR_2026_10_21_ZH.md).
@@ -120,6 +131,8 @@ Only trusted operators should edit TOML or Skill directories. Source and definit
 Configuration check does not load business code. Service initialization discovers Skills and can reject individual invalid definitions while leaving valid Skills available. Readiness is an availability observation, never an authorization grant. `agent_id` / Host-provided client labels are not authenticated identities.
 
 ### November 5 scope and catalog repair contract (v3.8.2)
+
+Explicit `--allow-shared-host` maintenance instead binds all observed same-workspace idle consumers one-to-one and stops only the current exclusive child. It still requests a global refresh, so other consumers may reconnect or lose previews. Recheck scope before the signal and reload; stop on observed changes, without group/recreate escalation. Standing maintainer consent permits announced low-risk operations when other chats are idle, no writes are in flight/awaiting results, and re-preview is accepted; pause on pending writes, concrete uncertainty or scope drift. This applies equally to CLI/UI consumers and does not authorize group stops, configuration toggles or uncertain retries. Idle and pre-send checks are observations, not atomic isolation. No bridge is restored. See [DRR-159 acceptance and limits](../validation/v3.8/V3_8_2_SHARED_HOST_RESTART_2026_11_06_ZH.md).
 
 The [recreate contract](../guides/CODEX_MCP_RESTART.md#explicit-host-managed-recreation-for-bootstrap-or-failed-calls) rechecks the pinned loaded-thread scope after the corresponding journal flush/`fsync`, before the first disable and each global refresh, including after restore. A scope change stops that send; an acknowledged disable may still be restored at most once at its exact returned version, without an extra reload. Version checks prevent concurrent overwrites, not cross-Host isolation: other Hosts may observe the shared user-config toggle. Checks and sends are not atomic; VS Code reconnection remains manual.
 

@@ -1,5 +1,8 @@
 """Regression tests for the shared MCP SQL safety policy."""
 
+from types import SimpleNamespace
+
+from sql_safety_executor.database.semantics import DialectContext
 from tests.support import SCENARIO, make_gateway
 
 
@@ -470,33 +473,63 @@ def test_table_allowlist_preserves_explained_dml_for_allowed_tables(
     assert error is None
 
 
+@pytest.mark.parametrize("dialect", ["sqlite", "mysql"])
+@pytest.mark.parametrize(
+    "sql,valid_template,sqlite_code,mysql_code",
+    [
+        pytest.param(
+            "EXPLAIN UPDATE (SELECT * FROM orders) SET status = 'cancelled'",
+            "EXPLAIN UPDATE {table} SET status = 'cancelled'",
+            "sql_parse_failed",
+            "relation_group_unsupported",
+            id="derived-update-target",
+        ),
+        pytest.param(
+            "EXPLAIN DELETE FROM orders USING (SELECT * FROM orders)",
+            "EXPLAIN DELETE FROM {table} WHERE id = 1",
+            "relation_group_unsupported",
+            "relation_group_unsupported",
+            id="derived-delete-source",
+        ),
+    ],
+)
 def test_table_allowlist_fails_closed_on_ambiguous_explained_dml_target(
-    monkeypatch,
+    monkeypatch, dialect, sql, valid_template, sqlite_code, mysql_code,
 ):
     module = _reload_server(monkeypatch)
+    context = DialectContext(
+        dialect, default_schema="main" if dialect == "sqlite" else "shop",
+    )
+    # Pin the interpretation contract without connecting to a fixture MySQL
+    # server or inferring its dialect from unrelated policy case settings.
+    adapter = SimpleNamespace(
+        analysis_context=context,
+        resolve_analysis_context=lambda: context,
+        cte_case_sensitive=False,
+    )
     policy = module.ConnectionPolicy(
         allow_union=False,
         allowed_tables=frozenset({"orders"}),
+        default_schema=context.default_schema,
     )
 
     decision = module._validate_sql_query_policy(
-        "EXPLAIN UPDATE (SELECT * FROM orders) SET status = 'cancelled'",
-        policy,
+        sql, policy, adapter=adapter,
     )
-    is_safe = decision.allowed
-    error = decision.message
+    assert decision.allowed is False
+    assert decision.error_code == (sqlite_code if dialect == "sqlite" else mysql_code)
 
-    assert is_safe is False
-    assert decision.error_code in {"sql_parse_failed", "relation_scope_unresolved", "relation_group_unsupported"}
-
-    decision = module._validate_sql_query_policy(
-        "EXPLAIN DELETE FROM orders USING (SELECT * FROM orders)",
-        policy,
+    allowed = module._validate_sql_query_policy(
+        valid_template.format(table="orders"), policy, adapter=adapter,
     )
-    is_safe = decision.allowed
-    error = decision.message
-    assert is_safe is False
-    assert decision.error_code in {"sql_parse_failed", "relation_scope_unresolved", "relation_group_unsupported"}
+    assert allowed.allowed is True
+    assert allowed.error_code is None
+
+    denied = module._validate_sql_query_policy(
+        valid_template.format(table="audit_log"), policy, adapter=adapter,
+    )
+    assert denied.allowed is False
+    assert denied.error_code == "table_access_denied"
 
 
 @pytest.mark.parametrize(

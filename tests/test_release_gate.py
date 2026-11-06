@@ -171,11 +171,12 @@ def test_mysql_env_config_is_temporary_and_loads_without_exporting_secret(tmp_pa
     assert not directory.exists()
 
 
-def test_dependency_changes_trigger_explicit_live_workflow():
+@pytest.mark.parametrize('event', ['push', 'pull_request'])
+def test_dependency_and_source_changes_trigger_explicit_live_workflow(event):
     import yaml
     workflow = yaml.load((gate.ROOT/'.github/workflows/release-contracts.yml').read_text(), Loader=yaml.BaseLoader)
     assert 'workflow_dispatch' in workflow['on']
-    for event in ('push', 'pull_request'):
-        assert {'pyproject.toml', 'uv.lock', '.python-version', '.github/workflows/ci.yml'} <= set(workflow['on'][event]['paths'])
+    assert {'pyproject.toml', 'uv.lock', '.python-version', '.github/workflows/ci.yml',
+            'src/**', 'skills/**'} <= set(workflow['on'][event]['paths'])
     steps = workflow['jobs']['release-contracts']['steps']
     assert any('--profile release --mysql-env' in step.get('run', '') for step in steps)

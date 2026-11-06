@@ -2,17 +2,61 @@
 
 English | [中文](REFACTORING_LOG_ZH.md)
 
-**Date:** December 2, 2025 (Updated: November 5, 2026)
+**Date:** December 2, 2025 (Updated: November 6, 2026)
 
 ## Overview
 
 This log records refactoring, design decisions, trade-offs and validation from the original script to the installed `sql_safety_executor` package. Entries are grouped by the change's core objectives, newest first; dated interfaces, test counts and failures retain their historical meaning. Use the [documentation index](docs/README.md) and current guides for deployment.
 
-Current v3.8.2 work centers on controlled Skill publication and a separate Codex maintenance helper: Query/Mutation reload handles definition updates; restart/recovery handles changes requiring a fresh process. The next section presents current conclusions, implementation, verification by evidence layer and the child-session startup investigation. Each model score, cost and unverified boundary retains its original attribution.
+Current v3.8.2 follow-up covers scope-denial recovery, controlled-read costs and an explicitly approved shared-Host maintenance mode. The next section groups guidance, release coverage, read optimizations and evidence. Committed Skill reload and Codex maintenance work remains a separate later entry; each model score, cost and unverified boundary retains its original attribution.
 
 The project is not formally released. Prefer a simpler supported design over hypothetical historical callers, and propose material compatibility changes for the maintainer's decision. The present Legacy protocol path is a measured workaround for the actual Host, not an old-package/SDK compatibility promise. Both language editions should track current decisions without overwriting sealed evidence.
 
+## v3.8.2 Controlled shared-Host maintenance (November 6, 2026)
+
+Core goal: let development restart the current chat's verified exclusive SQL MCP consumer when its existing Host also loads idle chats. This is an explicit maintainer-approved extension of maintenance scope; strict single-chat mode remains the default.
+
+### Current-consumer restart and truthful global scope
+
+- [Development Tool] Add opt-in `--allow-shared-host` to restart and read-only process verification. Bind up to eight same-workspace consumers one-to-one to exact Host children; signal only the current consumer, with scope/status checks before SIGTERM and before the one global refresh. Keep group restart separate and refuse shared/unknown ownership, launch drift, busy chats or changed membership.
+- [Decision] Accept possible refresh effects on other idle consumers; report reused/replaced identities instead of claiming cross-chat isolation. No config toggle, bridge, thread migration, new dependency or ordinary business step. Existing Host binding is still required; deferred VS Code support is not reinstated.
+
+### Maintenance coordination and receipts
+
+- [Development Tool] Serialize cooperating maintenance calls per bound Host endpoint with nonblocking `flock`; leave read-only checks unlocked. Add actionable receipt guidance and local monotonic total/phase windows, including failure and cleanup time. No retry, new dependency or larger timeout; manual actions remain outside the lock. Move developer restart instructions into the workflow's testing section and keep product Skill-publication instructions separate.
+- [Validation] This follow-up adds 28 focused contracts; all 258 helper tests pass without skips. Final-script read-only probe/verify pass against the current Host. These checks do not add a live restart; the 230-test shared-mode baseline and one actual restart below retain their earlier scope. The [same report](docs/validation/v3.8/V3_8_2_SHARED_HOST_RESTART_2026_11_06_ZH.md) keeps separate evidence bundles.
+
+### Evidence, costs and caller confirmation
+
+- [Validation] All 230 helper tests pass, including 27 new shared-Host cases. A live run under the subsequent standing consent sends one target signal and one global refresh; the current consumer is replaced, the other reused, and both reads pass. Caller-native checks confirm new behavior; evidence is tracked separately in the [report](docs/validation/v3.8/V3_8_2_SHARED_HOST_RESTART_2026_11_06_ZH.md). The maintainer subsequently granted standing consent: announce and proceed when other chats are idle, no writes are in flight/awaiting results, and possible re-preview is accepted. Assess operating state, including CLI consumers; pause on pending writes, concrete uncertainty or scope changes. No automatic group/recreate escalation.
+- [Cost and Limit] Maintenance performs per-consumer directory/read/PID checks. Checks and sends are non-atomic; idle status cannot prove no pending previews. Confirm no in-flight writes/waiting results before live maintenance. If scope changes after stopping, refuse refresh and report possible unavailability rather than extending consent. The caller checks the receipt and intended native behavior.
+- [Docs] Synchronize the bilingual restart guides, workflow playbook, collaboration agreement and handoff. Historical strict/group evidence retains its original scope. Version remains v3.8.2.
+
+## v3.8.2 Scope recovery and controlled-read costs (November 5–6, 2026)
+
+Core goal: correct misleading recovery after scope denial and reduce repeated read preparation without weakening authorization, preview binding or execution evidence. This is a follow-up to the historical `7c8edfb` review, implemented on `cf11c51`; version remains v3.8.2.
+
+### Scope guidance and release coverage
+
+- [Fix] B34 / DRR-156 distinguishes default-schema all-mode from concrete allowlists. Recovery preserves the user's intended target and authorization; another connection must be the correct, already authorized target. No automatic alias/table substitution; permission decisions, error codes and fields are unchanged.
+- [Validation] B37 adds `src/**` and `skills/**` push/PR triggers to the existing installed-wheel/live-MySQL workflow. Relevant source changes no longer depend on a dependency change to trigger that gate; a triggered job is not proof of passing Hosted CI.
+- [Validation] B30 replaces broad refusal assertions for two explained DML forms with exact SQLite/MySQL-context codes and paired permitted/unauthorized targets. All 236 tests in five related modules pass. This changes tests only; earlier installed-full-suite and live results retain their original scope. See the batch report addendum.
+
+### Controlled reads with less repeated work
+
+- [Performance] DRR-157 adds a small reviewed-read helper for trusted Mutation code and adopts it in both order demos. Resolve the actual session/schema and apply shared read analysis/guards. This Skill scope is independent of raw read grants, preserving write-only previews. Arbitrary trusted callbacks and complete MySQL writes retain connection retirement.
+- [Performance] DRR-158 batches SQLite objects lacking valid statistics, at most 32 per statement with independent per-source LIMIT 10000. Authorize and truncate first; keep the real authorizer, main-bound identities and normal failure cleanup. Known preparation refusals split only that batch; runtime failures are not retried. No general cache, dependency or TOML switch.
+
+### Evidence, costs and remaining checks
+
+- Serial A/B/A against frozen `cf11c51`: 100 ordinary SQLite tables without statistics require4 guarded preparations instead of 100. The six complete-tool scenarios observe 28%–64% lower medians relative to either baseline; A/A noise is substantial, and smaller/statistics-present cases do not establish stable improvement. Preserve all raw positive/negative changes.
+- On MySQL 8.0.25, both demo validate+preview flows create 0 instead of 2 new physical connections and fall from 169–187 ms to about 30 ms. Preview contents agree; this is not a write-commit, model-token or Host-latency claim.
+- Source and normally installed wheel each pass 8 two-backend/two-mode demo flows (32 calls), with independent business/trigger truth and owned-fixture cleanup. The installed full suite passes 3991 with 4 optional skips, followed by explicit live acceptance (all gates pass, four actual MySQL tests/zero skips). A later controlled restart passes 8 resident groups/14 native calls. Two actual Luna-medium task screens retain one recovery failure and one valid clarification, without A/B or token-benefit claims; results are recorded separately in the [batch report](docs/validation/v3.8/V3_8_2_SCOPE_READ_PERFORMANCE_2026_11_05_ZH.md). Reuse frozen local dependencies for offline installation; do not claim a from-scratch install.
+- Accept longer denial text/internal SQL, read-classification cost and extra splitting work for refused sources. No new Agent-required call, raw-read grant, ordinary-query confirmation or policy relaxation. MySQL remains primary; MariaDB is not a gate. Prior Host/reload evidence retains its original scope.
+
 ## v3.8.2 Controlled Skill publication and verified Codex restart (2026-10-28)
+
+**Recorded in:** `cf11c51` (November 5, 2026). Committing does not extend the evidence below or close unverified resident/live checks.
 
 Core objectives: publish deployed Query and trusted Mutation definitions without restarting, and provide separate existing-Host restart/recovery for changes requiring a new process. Version remains v3.8.2. Entries below follow functionality, evidence layers and startup-diagnosis stages; dated reports retain the original records.
 
@@ -73,6 +117,8 @@ Recovery still requires unique current-thread binding, supported launch configur
 
 - [Scope Decision] Defer VS Code Codex automatic restart support: Host-wide refresh does not satisfy the maintainer's current-chat-only requirement. Cancel extension group acceptance and further bridge/thread-migration work. Restore original startup-setting bytes; keep experimental code/evidence for reference. No Host is stopped or refreshed; subsequent read-only inspection confirms the bridge has exited. Future VS Code reconnection remains manual. This development tool does not gate core database functionality.
 
+November 6 follow-up: DRR-159 explicitly permits the separately implemented current-consumer shared-Host mode, with possible global refresh effects. It does not restore VS Code bridges or authorize group stopping; see the new maintenance entry above.
+
 The following group mode is retained capability and historical evidence, not a default workaround for a current single-chat refusal. Reuse requires an explicit maintainer change to the current scope decision.
 
 - [Multi-thread Scope] Add explicit `--all-loaded-targets` for the bound Host’s exact matching direct-child set, including other idle consumers. Default single-thread behavior stays unchanged. Limit to eight same-workspace threads, connected target catalogs, count/member/configuration checks and pidfds; verify all original consumers and a wholly replaced set. Do not claim thread-to-PID mapping or historical configuration identity. Partial stop/uncertain refresh is reported without retry.49 focused tests pass, including two owned targets and an identical launcher under another parent; the approved live group restart replaces both fixed targets and verifies both original consumers, with one global refresh in4.241s. This is a local observation, not a general latency or thread/PID-mapping claim. [Scope and evidence](docs/validation/v3.8/V3_8_2_CODEX_MCP_GROUP_RESTART_2026_10_29_ZH.md).
@@ -125,7 +171,7 @@ The following stages retain the evidence and stop conditions at each checkpoint.
 
 ## v3.8.2 Agent interpretation, exploration and latency (October 23–28, 2026)
 
-This commit improves how Agents explain results under natural prompts, examines repeated exploration, tests weak-prompt state interpretation, and investigates end-to-end waits. It combines the uncommitted work after `7c8edfb`; dated reports retain each trial, failure and historical pending checkpoint.
+Recorded in `c281a6b`, this stage improves how Agents explain results under natural prompts, examines repeated exploration, tests weak-prompt state interpretation, and investigates end-to-end waits. It combines changes for that topic after `7c8edfb`; dated reports retain each trial, failure and historical pending checkpoint.
 
 | Core objective | Current conclusion |
 | --- | --- |

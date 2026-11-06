@@ -11,7 +11,7 @@ Start with the project [README](../README.md) for the motivation, design, quick 
 - [MCP client guide](guides/TEST_MCP_CLIENT_GUIDE.md): offline checks, protocol inspection and preview/MRTR approval examples.
 - [Controlled Query Skill reload](guides/QUERY_SKILL_RELOAD.md): explicitly publish validated per-instance Query snapshots; preserve Mutation plans/tokens and distinguish this from a Host restart.
 - [Mutation Skill publication](guides/MUTATION_SKILL_RELOAD.md): per-definition generations, affected-preview invalidation, pinned admitted execution, trusted entry scope and actual-consumer confirmation.
-- [Codex restart and reconnect helper](guides/CODEX_MCP_RESTART.md): bind the current Host and unique local stdio process; separate config refresh from verified replacement. Current automatic maintenance may affect only the current chat; VS Code Codex reconnection remains manual.
+- [Codex restart and reconnect helper](guides/CODEX_MCP_RESTART.md): bind the current Host and unique local stdio process; separate config refresh from verified replacement. Strict single-chat mode is the default; explicit shared-Host mode stops only the current exclusive consumer but accepts global refresh effects on other idle chats. VS Code Codex reconnection remains manual.
 - [AutoGen examples](../examples/autogen/README.md): separate dependency environment and validation scope.
 
 ## Design and safety
@@ -43,7 +43,9 @@ Dated records retain their original acceptance scope, failures and then-pending 
 
 ### Codex maintenance
 
+- Shared-Host maintenance: [contract, checks and retained limits](validation/v3.8/V3_8_2_SHARED_HOST_RESTART_2026_11_06_ZH.md).
 - Codex restart: [Native acceptance](validation/v3.8/V3_8_2_CODEX_MCP_RESTART_2026_10_28_ZH.md).
+- [November5–6 scope/read follow-up](validation/v3.8/V3_8_2_SCOPE_READ_PERFORMANCE_2026_11_05_ZH.md): scope-aware recovery, guarded demo previews, bounded SQLite estimate batches and source-triggered live gates; measured A/B/A limits retained.
 - [November5 scope/catalog repair](validation/v3.8/V3_8_2_SCOPE_CATALOG_REPAIR_2026_11_05_ZH.md): pre-effect recreate scope checks and strict active-directory validation; isolated regression and installed-wheel evidence, no new live restart.
 - [Final pre-commit review: November 1](validation/v3.8/V3_8_2_FINAL_REVIEW_2026_11_01_ZH.md): four helper boundaries repaired and verified in isolation; this batch's helper and installed-wheel checks pass. Full regression remains a pre-repair baseline; new live restart and the resident admission update remain unverified.
 - [Mutation admission and Host binding diagnostics: October31](validation/v3.8/V3_8_2_MUTATION_ADMISSION_HOST_BINDING_2026_10_31_ZH.md): token checks precede trusted construction, re-validation outcomes remain conservative, and binding failures retain their exact stage. Current0.166 read-only checks pass; historical mapping and resident-update limits remain explicit.

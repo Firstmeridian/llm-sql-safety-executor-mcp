@@ -102,8 +102,32 @@ def _analysis_decision(analysis: SQLAnalysis, policy: ConnectionPolicy, *, requi
     return PolicyDecision.allow()
 
 
-def _blocked_relations_decision(blocked, policy):
-    return PolicyDecision.deny("table_access_denied", f"Access denied to table(s): {', '.join(ref.display_name for ref in blocked)}. Only allowed tables: {', '.join(sorted(policy.allowed_tables or ())) }", "Keep the same connection and use authorized tables; preserve the connection's CTE name rules and explicit schema scope.")
+def _blocked_relations_decision(
+    blocked: list[RelationReference], policy: ConnectionPolicy, *, default_schema: str | None = None,
+) -> PolicyDecision:
+    # Match allows_relation's schema precedence and wildcard compatibility.
+    schema = default_schema or policy.default_schema
+    if policy.allowed_tables is None or "*" in policy.allowed_tables:
+        schema_label = f" {schema!r}" if schema is not None else ""
+        scope = (
+            "This connection allows all tables only in its default schema"
+            f"{schema_label}; other schemas are outside its read scope."
+        )
+    else:
+        grants = (policy.allowed_relations if policy.allowed_relations is not None else
+                  (RelationReference.from_declaration(name) for name in policy.allowed_tables))
+        # Bare grants already bound to the policy schema stay there, even if
+        # the adapter supplies a different default. Render original case/data.
+        allowed = sorted({ref.in_schema(policy.default_schema).in_schema(schema).display_name for ref in grants})
+        scope = f"This connection's table allowlist permits: {', '.join(allowed) or '(none)'}."
+    return PolicyDecision.deny(
+        "table_access_denied",
+        f"Access denied to table(s): {', '.join(ref.display_name for ref in blocked)}. {scope}",
+        "Preserve the user's intended data target and authorization. Correct schema qualification or table/CTE case "
+        "only for that same target. Use another connection only if it is the correct target and already authorized. "
+        "If the target or authorization is unclear, explain the scope mismatch and ask the user. "
+        "If this is the correct target, request authorized access; do not automatically choose an alias or substitute tables to bypass the denial.",
+    )
 
 
 def _prepare_sql_read(runtime, sql: str, policy=None, *, adapter: DatabaseAdapter | None = None) -> ReadPlan:
@@ -126,7 +150,7 @@ def _prepare_sql_read(runtime, sql: str, policy=None, *, adapter: DatabaseAdapte
         if possible.complete:
             definite = [ref for ref in analysis.relations if ref in possible.relations and not effective.allows_relation(ref, default_schema=context.default_schema)]
             if definite:
-                return ReadPlan(_blocked_relations_decision(definite, effective), analysis)
+                return ReadPlan(_blocked_relations_decision(definite, effective, default_schema=context.default_schema), analysis)
     if adapter is not None:
         try:
             resolved = adapter.resolve_analysis_context()
@@ -145,7 +169,7 @@ def _prepare_sql_read(runtime, sql: str, policy=None, *, adapter: DatabaseAdapte
                 analysis = folded
     blocked = [ref for ref in analysis.relations if not effective.allows_relation(ref, default_schema=context.default_schema)]
     if blocked:
-        decision = _blocked_relations_decision(blocked, effective)
+        decision = _blocked_relations_decision(blocked, effective, default_schema=context.default_schema)
     return ReadPlan(decision, analysis)
 
 

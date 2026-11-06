@@ -212,7 +212,9 @@ async def test_consumed_confirmation_resolves_target_even_when_warm(managed_serv
     monkeypatch.setattr(adapter, 'resolve_analysis_context', resolve)
     async with Client(server, mode=mode) as client:
         preview = (await client.call_tool('execute_mutation_skill', {'skill_name': UPDATE, 'params': PARAMS})).structured_content
-        assert preview['success'] and len(resolutions) == 1
+        # Reviewed preview reads also resolve their current connection scope.
+        # The contract is fresh context, not exactly one resolver invocation.
+        assert preview['success'] and resolutions
         assert runtime.classify_managed_plan.cache_info().currsize == 1
         def unavailable():
             raise DatabaseQueryError('session_semantics_unavailable')

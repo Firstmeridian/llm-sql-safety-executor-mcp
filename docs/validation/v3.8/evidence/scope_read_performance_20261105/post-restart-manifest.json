@@ -1,0 +1,46 @@
+{
+  "date": "2026-11-06",
+  "base_commit": "cf11c513fedd85029ed158af3053dcbc630160a2",
+  "scope": "post-restart native and two frozen readonly model task screens; not an A/B comparison",
+  "records_file": "records-post-restart.json.gz",
+  "records_sha256": "a9a2ab4a31b8940084e1fe6defa4d506eef9e70d53fdac2e13bb20c970d6df3e",
+  "records_bytes": 7593,
+  "source_file_hashes": [
+    {
+      "path": "local_archive/v382_review/20261105_scope_read_performance/evidence/resident-post-restart.json",
+      "sha256": "89e76266f02967350741101c6ca610560fdf765975cecd7d7ac43c7c12a44dd1"
+    },
+    {
+      "path": "local_archive/v382_review/20261105_scope_read_performance/evidence/resident-independent-truth.json",
+      "sha256": "87ac11ac7d651a5bc6f3804f8009d1facfa17b65f0ace1df906c7873c7679fc5"
+    },
+    {
+      "path": "local_archive/v382_review/20261105_scope_read_performance/evidence/resident-independent-mysql-truth.json",
+      "sha256": "d4c388332eb20c4d882f711eb722224d98cfa745a122d2424f968b00fdc62726"
+    },
+    {
+      "path": "local_archive/v382_review/20261105_scope_read_performance/evidence/model-post-restart.json",
+      "sha256": "9f49d52beb64170652a3c9363bb1ebde1d7dfafa8cf5e46071f8d6f0b3fe224f"
+    },
+    {
+      "path": "local_archive/v382_review/20261105_scope_read_performance/evidence/model-acceptance-plan.json",
+      "sha256": "11596fa2fc246665e627459be9f682803e66a0632cf3a432443756c03b1be2d2"
+    }
+  ],
+  "native_case_groups_passed": 8,
+  "native_tool_calls": 14,
+  "actual_models": [
+    "gpt-6-luna/medium",
+    "gpt-6-luna/medium"
+  ],
+  "model_task_outcomes": {
+    "T1": "incomplete target-connection recovery; safe and no invented figures",
+    "T2": "valid scope clarification; no target substitution"
+  },
+  "model_business_calls": 4,
+  "model_metadata_discovery_calls": 3,
+  "model_total_tokens": 192046,
+  "model_cached_input_tokens": 156160,
+  "cost_limit": "No matched baseline; no claim of improved token use, task completion or end-to-end latency",
+  "privacy": "Only public tool/model/usage/task-final records. Discovery output retained by size/hash; no hidden reasoning, credentials, full conversations or preview tokens."
+}

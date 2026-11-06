@@ -896,6 +896,8 @@ See [mcp_config.json](mcp_config.json) for the portable template. Private `confi
 
 ### v3.8.2 Dialect semantics and execution checks (October 16, 2026)
 
+November5–6 follow-up: clarify scope-denial recovery, guard reviewed demo reads and batch SQLite estimates without statistics; source/Skill changes trigger the live release gate. See [behavior, measured costs and acceptance limits](docs/validation/v3.8/V3_8_2_SCOPE_READ_PERFORMANCE_2026_11_05_ZH.md).
+
 Agent-guidance updates focus on four objectives:
 
 - [Interpretation] Clarify fetched/returned/truncated rows, sourced units and preview deadlines. Latest natural expiry/state tasks complete5/6; one unsupported date-based validity claim remains.

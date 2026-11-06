@@ -1,6 +1,29 @@
 # v3.8.2 — Dialect/session semantics and execution authorization (October 16, 2026)
 
+## Opt-in shared-Host development restart (November 6, 2026)
+
+[Development Tool] Restart only the current chat's verified exclusive SQL MCP consumer while accepting one global refresh of other idle same-workspace chats. Strict mode remains the default; shared ownership, busy chats and observed scope drift are refused. Per-consumer checks report actual process effects; no configuration toggle, bridge or automatic group escalation. Standing maintenance consent permits announcement then execution for idle chats with no in-flight writes/waiting results, accepting possible re-preview; pause on pending writes, concrete uncertainty or scope changes. Isolated and live verification stay separate in the [report](../validation/v3.8/V3_8_2_SHARED_HOST_RESTART_2026_11_06_ZH.md) and [guide](../guides/CODEX_MCP_RESTART.md).
+
+Cooperating helper maintenance now uses a nonblocking lock per bound Host endpoint, with read-only checks remaining available. Receipts add next-action guidance and local elapsed windows, including failures and cleanup, without automatic retry, extra Host RPCs or longer budgets. The lock does not coordinate manual operations or make Host refresh atomic.
+
+## Scope recovery and controlled-read costs (November 5–6, 2026)
+
+Correct scope-denial recovery and reduce repeated preparation on existing read paths; version remains v3.8.2.
+
+### Delivered changes
+
+- [Fix] Distinguish default-schema all-mode from allowlists and preserve the intended data target during recovery; grants and error codes are unchanged (B34 / DRR-156).
+- [Performance] Guard explicitly reviewed demo Mutation reads without taking away write-only previews; arbitrary trusted callbacks keep session retirement (DRR-157).
+- [Performance] Batch missing SQLite estimates in groups of at most 32, each source independently capped at10000, with the real authorizer and targeted fallback (DRR-158).
+- [Validation] Source and Skill push/PR changes now trigger the existing installed-wheel/live-MySQL gate (B37).
+
+### Observed effects and limits
+
+MySQL8.0.25 demo previews use 0 instead of 2 new physical connections and measure about 30 ms versus 169–187 ms. Six 100-table SQLite scenarios without statistics observe 28%–64% lower medians against both A/B/A baselines, with substantial environment noise; no stable small-library, token or Host-latency improvement is claimed. Longer denial/internal SQL and failure-splitting costs are retained. Functional, installed, live and resident evidence remain separate in the [report](../validation/v3.8/V3_8_2_SCOPE_READ_PERFORMANCE_2026_11_05_ZH.md).
+
 ## Controlled Skill publication and verified Codex restart (October 28, 2026)
+
+**Recorded in:** `cf11c51` (November 5, 2026); this commit does not constitute a release or new acceptance evidence.
 
 Publish deployed Query and trusted Mutation definitions without restarting, and use a separate existing-Host helper when a fresh service process is required. Version remains v3.8.2. The summary below separates delivered behavior, repairs, verification and retained limits; dated reports preserve individual trials.
 

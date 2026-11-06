@@ -1,0 +1,31 @@
+{
+  "base_commit": "cf11c513fedd85029ed158af3053dcbc630160a2",
+  "date": "2026-11-06",
+  "limits": [
+    "Earlier live restart remains a separate batch.",
+    "Lock coordinates helper calls to one bound endpoint, not manual actions.",
+    "No timing A/B, model task, token or performance-improvement claim.",
+    "Initial read-only receipts precede final review edits and are not assigned this source hash."
+  ],
+  "live_scope": "Final-script probe and verify only: no signal, refresh, config edit or business write.",
+  "records": {
+    "bytes": 27401,
+    "path": "records.json.gz",
+    "sha256": "3cf7347a45183f88ba2fbc5f00f1373f571b6505be2670a28474bbd0a7d4cec5"
+  },
+  "regression": {
+    "errors": 0,
+    "failed": 0,
+    "passed": 258,
+    "skipped": 0,
+    "tests": 258
+  },
+  "schema_version": 1,
+  "source_sha256": {
+    "scripts/dev/restart_codex_mcp.py": "2c1d6d115f594ee63d37c6b6bbdab429e1fbaa46234bf217a26d6729cc07625a",
+    "tests/test_codex_mcp_maintenance.py": "c150ea7b883626748e618554fed73854cc7d100af594c4b6f556e08cdddf78eb",
+    "tests/test_codex_mcp_shared_host.py": "deddba6018a0be43949e50f5618b9282c0889958184bf6d011a293021804e3dc"
+  },
+  "timing_scope": "Local operation windows through final receipt snapshot; no Host-internal attribution.",
+  "version": "3.8.2"
+}

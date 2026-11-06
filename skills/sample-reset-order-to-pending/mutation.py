@@ -34,8 +34,9 @@ class Mutation(ManagedMutationBase):
     )
 
     def _read_status(self, order_id: int) -> tuple[str | None, str | None]:
-        result = self.adapter.execute(
+        result = self._execute_read(
             "SELECT status FROM orders WHERE id = :order_id",
+            tables=("orders",),
             params={"order_id": order_id},
         )
         if isinstance(result, str) and result.startswith("Error:"):

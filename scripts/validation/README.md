@@ -111,12 +111,17 @@ Unknown/transitive packages follow the same rule. Run release acceptance afresh
 before release, including after runtime/database upgrades without a lockfile diff.
 
 `.github/workflows/ci.yml` runs deterministic regression on pushes/PRs.
-`.github/workflows/release-contracts.yml` also runs on dependency/validation
-changes, and supports manual dispatch before release. Relevant files include
-`pyproject.toml`, `uv.lock`, `.python-version` and the CI workflows. A PR without
-those changes can still require release acceptance; absence of this workflow
-is not a passing live gate. Repository branch protection/release approval remains
-the maintainer's responsibility.
+For both `push` and `pull_request`, B37 adds `src/**` and `skills/**` triggers to
+`.github/workflows/release-contracts.yml`, so source and Skill/demo definition
+changes trigger the existing normally installed-wheel release gate: deterministic
+regression, SQLite contracts and explicit live MySQL/InnoDB/result/metadata
+contracts. Existing dependency/validation triggers and manual dispatch remain,
+including `pyproject.toml`, `uv.lock`, `.python-version`, both CI workflows,
+`scripts/validation/**`, `tests/test_contract_sentinels.py` and
+`tests/test_release_gate.py`; the latter asserts both events' paths. A trigger
+is not a passing gate, and fast regression is not live acceptance. A PR outside
+these paths can still require release acceptance. Repository branch protection/
+release approval remains the maintainer's responsibility.
 
 ## Portable sentinels
 

@@ -4,17 +4,23 @@
 Defaults to a read-only probe. Restart stops a uniquely verified child, or
 an explicitly selected whole-target group, using Linux pidfds, then asks
 the existing Host to reconnect.
-Requires explicit Host-wide refresh consent; Codex 0.165 has no per-server
+Shared-Host mode stops only the current thread's exclusive consumer, while
+observing the other idle consumers across the global refresh.
+Requires explicit Host-wide refresh consent; verified Codex 0.165/0.166 have no per-server
 reload operation. Never starts a Host/thread or retries an uncertain reload.
 Explicit recreate temporarily toggles one enabled key through the Host, with
 separate consent and a recovery journal. Other modes do not change configuration.
 Use refresh for config refresh without process replacement.
+Mutating helper calls on one bound Host endpoint are serialized with a
+nonblocking file lock. Receipts add next-action guidance and local timings;
+neither changes consent, retries or the existing execution budgets.
 Requires websockets >= 15 (already supplied by the development environment).
 """
 
 from __future__ import annotations
 
 import argparse
+from contextlib import contextmanager
 import errno
 import hashlib
 import json
@@ -33,6 +39,126 @@ class ControlError(Exception):
     def __init__(self, code, *, cause=None):
         super().__init__(code)
         self.error_details = error_details(cause)
+
+
+class HostMaintenanceLock:
+    """Nonblocking cooperation between helpers on one bound Host endpoint.
+
+    Keep the lock file: unlinking it on release would let another helper lock
+    a different inode. The kernel releases flock on process exit, even on a
+    crash; no PID file, stale-lock deletion or background wait is needed.
+    """
+
+    def __init__(self, path, *, root=None):
+        import fcntl  # Only the Linux maintenance path needs this Unix module.
+
+        root = Path(root) if root is not None else Path("/tmp") / f"codex-mcp-maintenance-{os.getuid()}"
+        root.mkdir(mode=0o700, exist_ok=True)
+        info = root.lstat()
+        if not stat.S_ISDIR(info.st_mode) or info.st_uid != os.getuid() or info.st_mode & 0o077:
+            raise ControlError("maintenance_lock_directory_unverified")
+        # The key excludes server and thread names: reload is Host-wide.
+        key = hashlib.sha256(os.fsencode(Path(path).resolve())).hexdigest()
+        fd = os.open(root / f"{key}.lock", os.O_CREAT | os.O_RDWR | os.O_CLOEXEC | os.O_NOFOLLOW, 0o600)
+        try:
+            info = os.fstat(fd)
+            if not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid() or info.st_mode & 0o077 or info.st_nlink != 1:
+                raise ControlError("maintenance_lock_file_unverified")
+            try:
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                raise ControlError("host_maintenance_in_progress") from None
+        except BaseException:
+            os.close(fd)
+            raise
+        self.fd = fd
+
+    def close(self):
+        os.close(self.fd)
+
+
+class ReportTimings:
+    """Local monotonic windows, including a failed window's elapsed time."""
+
+    def __init__(self, report):
+        self.report = report
+        self.started = time.monotonic()
+        report["timings_ms"] = {}
+        self.verification_started = None
+
+    @contextmanager
+    def measure(self, name):
+        started = time.monotonic()
+        try:
+            yield
+        finally:
+            values = self.report["timings_ms"]
+            values[name] = round(values.get(name, 0) + (time.monotonic() - started) * 1000, 3)
+
+    def verification(self):
+        if self.verification_started is None:
+            self.verification_started = time.monotonic()
+
+    def end_verification(self):
+        if self.verification_started is not None:
+            self.report["timings_ms"]["consumer_verification"] = round(
+                (time.monotonic() - self.verification_started) * 1000, 3)
+            self.verification_started = None
+
+    def finish(self):
+        self.report["timings_ms"]["total"] = round((time.monotonic() - self.started) * 1000, 3)
+
+
+def add_next_action(report):
+    """Explain an existing outcome without performing or authorizing recovery."""
+    reason = report.get("reason", "")
+    if report.get("config_restore_error") or report.get("manual_recovery_required"):
+        action, message = "reconcile_config_and_runtime", (
+            "Inspect the recovery journal and current configuration version; reconcile runtime manually. "
+            "Restored configuration does not prove runtime recovery. Do not automatically refresh again.")
+    elif report.get("reload_attempted") or report.get("refresh_attempts", 0):
+        if report["status"] == "connection_verified":
+            action, message = "verify_intended_behavior", (
+                "The caller must verify the intended definition or behavior through its actual native tool channel.")
+        else:
+            action, message = "verify_runtime_read_only", (
+                "A refresh may have been sent. Use read-only probe/verify to inspect runtime; "
+                "do not infer recovery or automatically repeat the refresh.")
+    elif report.get("process_stop_attempted"):
+        action, message = "inspect_target_read_only", (
+            "Inspect the original target identity and consumer state read-only. A stop attempt does not prove exit; "
+            "do not stop another process or automatically retry.")
+    elif reason == "host_maintenance_in_progress":
+        action, message = "wait_for_other_maintenance", (
+            "Another helper holds this Host's maintenance lock. Let it finish, then run a read-only probe; "
+            "this command does not wait or retry.")
+    elif reason.startswith("maintenance_lock_"):
+        action, message = "inspect_lock_storage", (
+            "Check the ownership and permissions of local maintenance-lock storage; do not remove an active lock file.")
+    elif reason in {"current_host_not_verified", "ambiguous_host_binding", "control_directory_unavailable"}:
+        action, message = "verify_existing_host_binding", (
+            "Check the existing Host endpoint and current loaded thread with a read-only probe. "
+            "Use manual reconnect if binding cannot be proved; do not start or migrate a Host.")
+    elif reason in {"other_thread_not_idle", "loaded_threads_changed", "loaded_threads_changed_after_refresh",
+                    "loaded_thread_workspace_mismatch", "single_loaded_thread_required_for_refresh",
+                    "single_loaded_thread_required_for_process_restart", "explicit_loaded_target_scope_required"}:
+        action, message = "resolve_maintenance_scope", (
+            "Confirm the loaded-chat scope and absence of in-flight or unconfirmed writes, then re-probe. "
+            "Do not automatically widen scope.")
+    elif reason:
+        action, message = "inspect_failure_before_retry", (
+            "Inspect phase, reason and any last_rpc in this receipt; resolve the observed failure before new maintenance. "
+            "No retry or scope escalation was performed.")
+    elif report["status"] == "recreate_plan_verified":
+        action, message = "review_recreate_plan", (
+            "This was a read-only plan, not a restart. Confirm scope and explicit configuration-toggle consent before execution.")
+    elif report["status"] == "binding_verified":
+        action, message = "verify_consumer_read_only", (
+            "Host binding alone does not prove consumer readiness or a restart; use read-only verify for the selected test connection.")
+    else:
+        action, message = "verify_intended_behavior", (
+            "The caller must verify the intended behavior in its actual native tool channel; read-only verify does not prove a restart.")
+    report["next_action"] = {"action": action, "message": message}
 
 
 def error_details(exc):
@@ -270,6 +396,7 @@ def connect_bound(paths, thread_id, server, timeout, factory=Client, deadline=No
                 owned_socket(path)
                 diagnostic["phase"] = "connect"
                 client = factory(path, min(timeout, remaining_budget()))
+                client.path = path
                 client.deadline = deadline
                 diagnostic["phase"] = "initialize"
                 remaining_budget()
@@ -601,6 +728,63 @@ class ProcessGroupGuard:
         self.fds.clear()
 
 
+class SharedHostGuard(ProcessGroupGuard):
+    """Observe every consumer; signal only the current thread's pinned child."""
+    def __init__(self, client, server, threads, thread_id):
+        self.threads = sorted(threads)
+        self.thread_id = thread_id
+        self.before = None
+        self.observed = None
+        super().__init__(client, server, len(threads))
+
+    def verify_consumers(self, pids, members):
+        # The exact set and cardinality prove one exclusive process per thread.
+        # A shared PID or an old consumer under different launch config fails.
+        super().verify_consumers(pids, members)
+        identities = dict(members)
+        self.observed = {thread: (pid, identities[pid])
+                         for thread, pid in zip(self.threads, pids, strict=True)}
+        self.observed_members = members
+        if self.before is None:
+            self.before = dict(self.observed)
+
+    def stop(self, *, scope_check):
+        if not self.consumers_verified or self.before is None:
+            raise ControlError("consumer_process_identity_unverified")
+        servers, command, args, cwd = process_configuration(self.client, self.server)
+        if (command, args, cwd) != (self.command, self.args, self.cwd):
+            raise ControlError("target_configuration_changed")
+        reject_launch_aliases(servers, self.server, command, args, cwd)
+        if self.current() != self.members:
+            raise ControlError("target_process_group_changed")
+        pid, start = self.before[self.thread_id]
+        if process_state(pid) != (self.host_pid, start):
+            raise ControlError("target_process_changed")
+        fd = self.fds[self.members.index((pid, start))]
+        scope_check()
+        signal.pidfd_send_signal(fd, signal.SIGTERM)
+        self.signals_sent += 1
+        if not select.select([fd], [], [], 10)[0]:
+            raise ControlError("target_stop_unconfirmed")
+        self.stops_confirmed += 1
+
+    def replaced(self):
+        if self.before is None or self.observed is None:
+            return False
+        if self.current() != self.observed_members:
+            raise ControlError("target_process_group_changed")
+        return self.observed[self.thread_id] not in self.members
+
+    def observations(self):
+        if self.before is None or self.observed is None:
+            return []
+        return [{"thread_sha256": hashlib.sha256(thread.encode()).hexdigest()[:16],
+                 "current_thread": thread == self.thread_id,
+                 "before": self.before[thread], "after": self.observed[thread],
+                 "process_replaced": self.before[thread] != self.observed[thread]}
+                for thread in self.threads]
+
+
 def other_threads_idle(client, threads, thread_id, *, workspace=None):
     checked = threads if workspace is not None else threads - {thread_id}
     for other in sorted(checked):
@@ -690,7 +874,8 @@ class ConfigToggle:
 def run_recreate(paths, thread_id, server, *, allow_host_wide=False,
                  allow_config_toggle=False, connection=None, timeout=10,
                  factory=Client, all_loaded_targets=False, dry_run=False,
-                 state_file=None, thread_id_source="argument", endpoint_source="argument"):
+                 state_file=None, thread_id_source="argument", endpoint_source="argument",
+                 lock_factory=HostMaintenanceLock):
     report = {
         "action": "recreate", "phase": "preflight", "status": "unverified",
         "reload_scope": "all_mcp_servers_on_all_loaded_host_threads",
@@ -703,8 +888,11 @@ def run_recreate(paths, thread_id, server, *, allow_host_wide=False,
         "target_disabled_verified": False,
         "thread_id_source": thread_id_source, "endpoint_source": endpoint_source,
         "binding_diagnostics": [],
+        "maintenance_lock_acquired": False,
     }
+    timings = ReportTimings(report)
     client = None
+    maintenance_lock = None
     toggle = None
     journal = None
     restore_deadline = None
@@ -737,7 +925,8 @@ def run_recreate(paths, thread_id, server, *, allow_host_wide=False,
             # refusal can correct that intent in the final recovery record.
             report["refresh_attempts"] -= 1
             raise
-        client.call("config/mcpServer/reload", None)
+        with timings.measure("host_refresh"):
+            client.call("config/mcpServer/reload", None)
         report["refreshes_accepted"] += 1
 
     try:
@@ -747,9 +936,16 @@ def run_recreate(paths, thread_id, server, *, allow_host_wide=False,
             raise ControlError("host_wide_and_config_toggle_consent_required")
         if not dry_run and state_file is None:
             raise ControlError("recovery_journal_required")
-        client, _, threads = connect_bound(paths, thread_id, server, timeout, factory,
-                                           time.monotonic() + 60, require_catalog=False,
-                                           diagnostics=report["binding_diagnostics"])
+        report["phase"] = "host_binding"
+        with timings.measure("host_binding"):
+            client, _, threads = connect_bound(paths, thread_id, server, timeout, factory,
+                                               timings.started + 60, require_catalog=False,
+                                               diagnostics=report["binding_diagnostics"])
+        if not dry_run:
+            report["phase"] = "maintenance_lock"
+            maintenance_lock = lock_factory(client.path)
+            report["maintenance_lock_acquired"] = True
+        report["phase"] = "target_preflight"
         if not 1 <= len(threads) <= 8 or (not all_loaded_targets and len(threads) != 1):
             raise ControlError("explicit_loaded_target_scope_required")
         host_pid = socket_owner(client.path)
@@ -817,6 +1013,7 @@ def run_recreate(paths, thread_id, server, *, allow_host_wide=False,
         refresh()
         scope()
         report["phase"] = "consumer_verification"
+        timings.verification()
         readiness_started = time.monotonic()
         readiness_deadline = min(readiness_started + 30, client.deadline)
         report["consumer_readiness_budget_sec"] = max(0, readiness_deadline - readiness_started)
@@ -849,38 +1046,50 @@ def run_recreate(paths, thread_id, server, *, allow_host_wide=False,
                       read_probe_verified_thread_count=len(threads),
                       target_processes_after=sorted(identities))
     except (ControlError, OSError, ValueError) as exc:
-        report["reason"] = str(exc) if isinstance(exc, ControlError) else "local_operation_failed"
+        report["reason"] = (str(exc) if isinstance(exc, ControlError) else
+                            "maintenance_lock_unavailable" if report["phase"] == "maintenance_lock" else
+                            "local_operation_failed")
         if isinstance(getattr(client, "last_rpc", None), dict):
             report["last_rpc"] = dict(client.last_rpc)
     finally:
+        timings.end_verification()
         # Restore only an acknowledged edit, once, at its exact returned version.
         # Never overwrite concurrent edits or retry an uncertain write/refresh.
         if toggle is not None and toggle.disabled_version is not None and not toggle.restored and not report["restore_write_attempted"]:
             client.deadline = restore_deadline
             report["restore_write_attempted"] = True
             try:
-                report["config_bytes_restored"] = toggle.restore()
-                report["config_restored"] = True
+                with timings.measure("config_cleanup"):
+                    report["config_bytes_restored"] = toggle.restore()
+                    report["config_restored"] = True
             except (ControlError, OSError, ValueError):
                 report["config_restore_error"] = "manual_config_reconciliation_required"
         if report["status"] not in {"connection_verified", "recreate_plan_verified"}:
             report["manual_recovery_required"] = report["disable_write_attempted"]
         try:
-            persist()
-        except OSError:
-            report["journal_error"] = "journal_update_failed"
-        finally:
-            if journal is not None:
-                journal.close()
             if client is not None:
                 client.close()
+            timings.finish()
+            add_next_action(report)
+            try:
+                persist()
+            except OSError:
+                report["journal_error"] = "journal_update_failed"
+        finally:
+            try:
+                if journal is not None:
+                    journal.close()
+            finally:
+                if maintenance_lock is not None:
+                    maintenance_lock.close()
     return report
 
 
 def run(paths, thread_id, server, *, action="probe", allow_host_wide=False,
         connection=None, timeout=10, factory=Client, guard_factory=ProcessGuard,
         check_process=False, all_loaded_targets=False, group_guard_factory=ProcessGroupGuard,
-        thread_id_source="argument", endpoint_source="argument"):
+        allow_shared_host=False, shared_guard_factory=SharedHostGuard,
+        thread_id_source="argument", endpoint_source="argument", lock_factory=HostMaintenanceLock):
     report = {
         "action": action, "status": "unverified", "binding_verified": False,
         "reload_scope": "all_mcp_servers_on_all_loaded_host_threads",
@@ -893,13 +1102,22 @@ def run(paths, thread_id, server, *, action="probe", allow_host_wide=False,
         "thread_process_mapping": "unverified",
         "thread_id_source": thread_id_source, "endpoint_source": endpoint_source,
         "binding_diagnostics": [],
+        "maintenance_lock_acquired": False,
     }
+    timings = ReportTimings(report)
+    if allow_shared_host:
+        report.update(process_scope="current_thread_exclusive_child",
+                      shared_host_mode=True, other_chat_refresh_impact="possible")
     client = None
     guard = None
+    maintenance_lock = None
     readiness_deadline = None
     try:
         if action not in {"probe", "refresh", "restart", "verify"} or not thread_id:
             raise ControlError("invalid_action_or_thread")
+        if allow_shared_host and (all_loaded_targets or
+                not (action == "restart" or (action == "verify" and check_process))):
+            raise ControlError("shared_host_requires_restart_or_process_verify")
         if all_loaded_targets and action == "refresh":
             raise ControlError("target_group_not_applicable_to_refresh")
         if action in {"restart", "refresh"} and not allow_host_wide:
@@ -907,32 +1125,49 @@ def run(paths, thread_id, server, *, action="probe", allow_host_wide=False,
         if action != "probe" and not connection:
             raise ControlError("explicit_test_connection_required")
         report["phase"] = "host_binding"
-        client, tools, threads = connect_bound(
-            paths, thread_id, server, timeout, factory, time.monotonic() + 60,
-            diagnostics=report["binding_diagnostics"])
+        with timings.measure("host_binding"):
+            client, tools, threads = connect_bound(
+                paths, thread_id, server, timeout, factory, timings.started + 60,
+                diagnostics=report["binding_diagnostics"])
         report.update(binding_verified=True, loaded_thread_count=len(threads),
                       tool_count=len(tools), catalog_sha256_before=fingerprint(tools))
+        if action in {"restart", "refresh"}:
+            report["phase"] = "maintenance_lock"
+            maintenance_lock = lock_factory(client.path)
+            report["maintenance_lock_acquired"] = True
+        report["phase"] = "target_preflight"
         if action == "refresh" and len(threads) != 1:
             raise ControlError("single_loaded_thread_required_for_refresh")
-        if all_loaded_targets:
+        if all_loaded_targets or allow_shared_host:
             if not 1 <= len(threads) <= 8:
                 raise ControlError("target_group_thread_budget_exceeded")
-            report["phase"] = "target_group_preflight"
+            report["phase"] = "shared_host_preflight" if allow_shared_host else "target_group_preflight"
             other_threads_idle(client, threads, thread_id, workspace=Path.cwd())
             for target in sorted(threads):
                 catalog(client, target, server, require_connected=True)
-            guard = group_guard_factory(client, server, len(threads))
-            report.update(target_process_count=len(guard.members),
-                          target_processes_before=guard.members)
+            guard = (shared_guard_factory(client, server, threads, thread_id) if allow_shared_host
+                     else group_guard_factory(client, server, len(threads)))
+            report.update(target_process_count=1 if allow_shared_host else len(guard.members),
+                          observed_processes_before=guard.members)
+            if all_loaded_targets:
+                report["target_processes_before"] = guard.members
             if loaded_threads(client) != threads:
                 raise ControlError("loaded_threads_changed")
         if check_process or action == "restart":
-            if not all_loaded_targets and len(threads) != 1:
+            if not (all_loaded_targets or allow_shared_host) and len(threads) != 1:
                 raise ControlError("single_loaded_thread_required_for_process_restart")
             if guard is None:
                 report["phase"] = "process_binding"
                 guard = guard_factory(client, server)
-        targets = sorted(threads) if all_loaded_targets else [thread_id]
+        targets = sorted(threads) if all_loaded_targets or allow_shared_host else [thread_id]
+
+        def shared_scope():
+            if loaded_threads(client) != threads:
+                raise ControlError("loaded_threads_changed")
+            other_threads_idle(client, threads, thread_id, workspace=Path.cwd())
+            if loaded_threads(client) != threads:
+                raise ControlError("loaded_threads_changed")
+
         if action in {"restart", "refresh"}:
             report["phase"] = "before_read_probe"
             members = guard.current_members() if guard is not None else None
@@ -943,6 +1178,8 @@ def run(paths, thread_id, server, *, action="probe", allow_host_wide=False,
             if guard is not None:
                 guard.verify_consumers(pids, members)
                 report["process_binding_verified"] = True
+                if allow_shared_host:
+                    report["thread_process_mapping"] = "consumer_pid_verified"
             report["read_probe_before_verified"] = True
             # Scope is Host-wide. Reject other active or unobservable threads;
             # the current agent turn may remain active while invoking this helper.
@@ -950,7 +1187,7 @@ def run(paths, thread_id, server, *, action="probe", allow_host_wide=False,
             other_threads_idle(client, threads, thread_id,
                                workspace=Path.cwd() if all_loaded_targets else None)
             if action == "restart":
-                if not all_loaded_targets and len(threads) != 1:
+                if not (all_loaded_targets or allow_shared_host) and len(threads) != 1:
                     raise ControlError("single_loaded_thread_required_for_process_restart")
                 report["phase"] = "process_binding"
                 if guard is None:
@@ -960,21 +1197,29 @@ def run(paths, thread_id, server, *, action="probe", allow_host_wide=False,
                 report["phase"] = "process_stop"
                 report["process_stop_attempted"] = True
                 report["status"] = "process_stop_unconfirmed"
-                guard.stop()
+                with timings.measure("process_stop"):
+                    if allow_shared_host:
+                        guard.stop(scope_check=shared_scope)
+                    else:
+                        guard.stop()
                 report["status"] = "process_stopped_refresh_pending"
             if loaded_threads(client) != threads:
                 raise ControlError("loaded_threads_changed")
+            if allow_shared_host:
+                shared_scope()
             report["reload_attempted"] = True
             report["status"] = "reload_outcome_unconfirmed"
             report["phase"] = "host_refresh"
-            client.call("config/mcpServer/reload", None)
+            with timings.measure("host_refresh"):
+                client.call("config/mcpServer/reload", None)
             report["reload_accepted"] = True
             report["status"] = "reload_accepted_verification_pending"
             report["phase"] = "after_catalog"
+            timings.verification()
             readiness_started = time.monotonic()
             readiness_deadline = min(readiness_started + 30, client.deadline)
             report["consumer_readiness_budget_sec"] = max(0, readiness_deadline - readiness_started)
-            if all_loaded_targets and loaded_threads(client) != threads:
+            if (all_loaded_targets or allow_shared_host) and loaded_threads(client) != threads:
                 raise ControlError("loaded_threads_changed_after_refresh")
             for target in targets:
                 report["consumer_verification_step"] = "catalog"
@@ -983,6 +1228,7 @@ def run(paths, thread_id, server, *, action="probe", allow_host_wide=False,
                     tools = observed
         if action != "probe":
             report["phase"] = "after_read_probe"
+            timings.verification()
             members = guard.current_members() if guard is not None else None
             pids = []
             for target in targets:
@@ -1003,6 +1249,9 @@ def run(paths, thread_id, server, *, action="probe", allow_host_wide=False,
             if guard is not None:
                 guard.verify_consumers(pids, members)
                 report["process_binding_verified"] = True
+                if allow_shared_host:
+                    report["thread_process_mapping"] = "consumer_pid_verified"
+                    report["consumer_process_observations"] = guard.observations()
             report["read_probe_verified"] = True
             report["read_probe_verified_thread_count"] = len(targets)
         if guard is not None and action == "restart":
@@ -1015,21 +1264,31 @@ def run(paths, thread_id, server, *, action="probe", allow_host_wide=False,
         report.update(status="binding_verified" if action == "probe" else "connection_verified",
                       catalog_sha256_after=fingerprint(tools), phase="complete")
     except (ControlError, OSError) as exc:
-        report["reason"] = str(exc) if isinstance(exc, ControlError) else "endpoint_unavailable"
+        report["reason"] = (str(exc) if isinstance(exc, ControlError) else
+                            "maintenance_lock_unavailable" if report["phase"] == "maintenance_lock" else
+                            "endpoint_unavailable")
         if isinstance(getattr(client, "last_rpc", None), dict):
             report["last_rpc"] = dict(client.last_rpc)
     finally:
-        if guard is not None:
-            if all_loaded_targets:
-                report.update(process_signals_sent=guard.signals_sent,
-                              process_stops_confirmed=guard.stops_confirmed)
-            guard.close()
-        if client is not None:
-            client.close()
+        timings.end_verification()
+        try:
+            if guard is not None:
+                if all_loaded_targets or allow_shared_host:
+                    report.update(process_signals_sent=guard.signals_sent,
+                                  process_stops_confirmed=guard.stops_confirmed)
+                guard.close()
+            if client is not None:
+                client.close()
+            timings.finish()
+            add_next_action(report)
+        finally:
+            if maintenance_lock is not None:
+                maintenance_lock.close()
     return report
 
 
 def main():
+    started = time.monotonic()
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("action", choices=["probe", "refresh", "restart", "verify", "recreate"], nargs="?", default="probe")
     parser.add_argument("--socket", type=Path, help="Existing owned WebSocket socket; otherwise bounded discovery")
@@ -1040,6 +1299,8 @@ def main():
     parser.add_argument("--check-process", action="store_true", help="Inspect the local candidate; verify also checks its consumer-reported PID")
     parser.add_argument("--all-loaded-targets", action="store_true",
                         help="Explicit whole-target group scope across loaded idle threads; no per-thread PID mapping")
+    parser.add_argument("--allow-shared-host", action="store_true",
+                        help="Opt in to current-consumer restart with global refresh of other idle threads")
     parser.add_argument("--allow-config-toggle", action="store_true", help="Consent to temporary target enabled-key changes for recreate")
     parser.add_argument("--dry-run", action="store_true", help="Read-only recreate plan; no writes, SQL, signals or refresh")
     parser.add_argument("--state-file", type=Path, help="New recovery journal required for actual recreate")
@@ -1054,8 +1315,8 @@ def main():
     try:
         paths = [args.socket] if args.socket else discover_sockets()
         if args.action == "recreate":
-            if args.check_process:
-                parser.error("--check-process applies to PID-bound modes, not recreate")
+            if args.check_process or args.allow_shared_host:
+                parser.error("Process verification and shared-Host options do not apply to recreate")
             report = run_recreate(paths, thread_id, args.server,
                                  allow_host_wide=args.allow_host_wide,
                                  allow_config_toggle=args.allow_config_toggle,
@@ -1070,12 +1331,15 @@ def main():
                      allow_host_wide=args.allow_host_wide, connection=args.connection,
                      timeout=args.timeout, check_process=args.check_process,
                      all_loaded_targets=args.all_loaded_targets,
+                     allow_shared_host=args.allow_shared_host,
                      thread_id_source=thread_id_source, endpoint_source=endpoint_source)
     except ControlError as exc:
         report = {"status": "unverified", "reason": str(exc), "reload_attempted": False,
                   "binding_verified": False, "phase": "host_binding",
                   "thread_id_source": thread_id_source, "endpoint_source": endpoint_source,
-                  "binding_diagnostics": [{"phase": "endpoint_discovery", "reason": str(exc)}]}
+                  "binding_diagnostics": [{"phase": "endpoint_discovery", "reason": str(exc)}],
+                  "timings_ms": {"total": round((time.monotonic() - started) * 1000, 3)}}
+        add_next_action(report)
     print(json.dumps(report))
     return 0 if report["status"] in {"binding_verified", "connection_verified", "recreate_plan_verified"} else 2
 

@@ -6,6 +6,17 @@
 
 SQLite 继续按原生真值验收；MySQL 方言及服务端行为以 MySQL 为基准。MariaDB 不作为本轮验收条件，不默认增加兼容专项或测试实例。仍保留实际已测 MySQL 版本、大小写／会话配置的准确范围，不将单实例结果泛化为所有配置。
 
+## 当前行为（2026-11-05，v3.8.2）
+
+- **B34／DRR-2026-156：** 范围拒绝文本区分默认 schema 的 all 与实际 allowlist，恢复建议保留用户原数据目标和授权；仅为同一目标修正 schema／表／CTE 大小写，另一连接须确属目标且已授权。目标或权限不清时说明差异并询问，不自动换别名或替代表绕过拒绝。仅改消息，grant、拒绝条件、错误码和结果字段不变。
+- **DRR-2026-157：** 已获写入授权的可信 Mutation 用 `_execute_read(..., tables=...)` 显式声明审阅过的解码表名；该 Skill 的读取范围独立于 raw-read grant，不给普通查询授权。读取解析实际方言／会话及默认 schema，经共享 `_prepare_sql_read` 和 adapter `execute_read` 执行原 SQL／绑定。两个订单 demo 的验证／预览读取采用此路径；任意可信 `adapter.execute()` 回调及完整 MySQL 写事务仍退休物理会话，Python Skill 仍非沙箱。
+- **DRR-2026-158：** SQLite 先授权、截断再补估算；统计缺失项每批最多 32 个对象，每个源独立 `LIMIT 10000` 后计数，并经过真实 authorizer。仅已知编译期拒绝将该批拆为逐对象受控读取，拒绝项可为 null；运行期／数据库失败保持元数据失败且不重试。不跨请求缓存，不新增原子快照保证。
+- **B37：** `push`／`pull_request` 的 `src/**` 和 `skills/**` 变更均触发既有安装 wheel 的 release-contracts 门槛，包含 SQLite 与真实 MySQL 契约；无新运行配置或依赖。
+
+### 封存证据
+
+本批[范围恢复、受控读取与成本报告](../validation/v3.8/V3_8_2_SCOPE_READ_PERFORMANCE_2026_11_05_ZH.md)分别记录源码／安装流程、真实 MySQL 与 A/B/A 成本；驻留及模型证据另列，不由代码或性能样本推导。以下日期记录及旧报告保留各自源码、验收范围和历史结果。
+
 ## SQLite 写入事务与完成态计数（2026-10-22，DRR-142／143）
 
 此节保持SQLite契约；同日后续DRR-144／145已补MySQL原SQL绑定和真实InnoDB门槛。两后端execute_read都核对分析完整性、当前方言／会话及analysis.source_sql；内部已分析对象不得与另一SQL组合执行。匹配调用保留原SQL和绑定参数，不增加Agent步骤。事务性业务真值由测试独立连接观察，包含触发器／级联，排除自增分配等非回滚状态；不加入生产全库比较。真实服务器错误、物理自建会话断开和定向客户端注入分列记录；新矩阵通过不能泛化为所有引擎／模式／故障。[MySQL源码／安装证据](../validation/v3.8/V3_8_2_MYSQL_WRITE_CONTRACTS_2026_10_22_ZH.md)的父检查点保留；[维护者重启后六项限定原生](../validation/v3.8/v382_mysql_write_contracts_2026_10_22/resident_restart/README.md)另已通过。三门槛已落实为[16类契约的有限执行表](../validation/v3.8/V3_8_2_STABILIZATION_PLAN_2026_10_22_ZH.md)，后续[独立验收](../validation/v3.8/V3_8_2_STABILIZATION_2026_10_22_ZH.md)已在该范围通过；不外推到更广能力／故障或全部原生Host场景。
@@ -73,7 +84,7 @@ SQLite 按原生语法把块注释（包括 hint／MySQL directive 形文本）�
 
 ## SQLite 执行保障
 
-- 元数据表发现与估算分开：get_table_directory 仅返回有序表名及廉价目录估算；公开工具先授权、统计可见总数并截断，再 enrich_row_estimates。SQLite 在本次调用内批读选中名称的统计，缺失／无效时逐表执行原有受控限量计数；MySQL 目录自带的估算直接复用。get_tables 保留完整目录加补全的适配器便捷入口；第三方 adapter 需实现新的目录方法，不增加旧接口探测／回退兼容层。
+- 元数据表发现与估算分开：get_table_directory 仅返回有序表名及廉价目录估算；公开工具先授权、统计可见总数并截断，再 enrich_row_estimates。SQLite 在本次调用内批读选中名称的统计，缺失／无效时采用上节 DRR-158 的独立限量批次与编译拒绝拆分；MySQL 目录自带的估算直接复用。get_tables 保留完整目录加补全的适配器便捷入口；第三方 adapter 需实现新的目录方法，不增加旧接口探测／回退兼容层。
 - 固定统计先按每批最多200个名称绑定读取整表统计；缺失／无效时，按真实index_list／table_list核验完整索引或WITHOUT ROWID主树，最多128个索引候选。部分索引不代表整表，无法确认时回退受控有界估算；不跨请求缓存，也不保证多语句原子快照。不自动运行 ANALYZE；统计消失回退受控读取，超时等实际错误保持元数据失败。无冒号 SQL 可跳过传输层分词，仍须经过读取分析／授权／authorizer；带冒号路径保持原有识别。详见[元数据优化](../validation/v3.8/V3_8_2_METADATA_OPTIMIZATION_2026_10_20_ZH.md)。
 
 - 现有业务 StaticPool 共享一个物理连接，必须先建立覆盖编译、执行、取完结果及清理的独占上下文；受管写入的完整事务也纳入连接管理。

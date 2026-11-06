@@ -2,6 +2,8 @@
 
 [中文](CODEX_MCP_RESTART_ZH.md)
 
+Use policy updated: November 6, 2026.
+
 Use [`scripts/dev/restart_codex_mcp.py`](../../scripts/dev/restart_codex_mcp.py)
 to connect to an existing Codex Host. It adds no SQL MCP management tool.
 
@@ -13,15 +15,24 @@ to connect to an existing Codex Host. It adds no SQL MCP management tool.
 | Inspect Host/catalog binding or verify an existing connection | Use read-only `probe` or `verify`. |
 | Request configuration refresh | Use `refresh`; unchanged healthy clients may be reused. |
 | Replace a process for core-code, shared-dependency or deployment-configuration changes | Use `restart` when the old actual consumer PID can be verified. |
+| Replace only the current consumer while other chats share the Host | Explicitly use `--allow-shared-host`; first run read-only `verify --check-process`, then announce and run `restart` when the standing low-risk authorization applies. |
 | Bootstrap or recover when the old catalog, Query call or PID is unavailable | Independently select explicit `recreate`, subject to its prerequisites below. There is no automatic `restart` → `recreate` fallback. |
 | Reconnect VS Code Codex, or handle an unverified scope | Use manual reconnection. Automatic extension restart is deferred. |
 
-**Current use policy:** automatic maintenance may affect only the current chat.
-If other conversations are loaded or the scope cannot be established, use manual
-reconnection; idle conversations do not authorize global refresh or group mode.
-Retained multi-thread options are documented separately at the end as historical
-capabilities, not current authorization or workarounds for a single-chat refusal.
-Reusing them requires an explicit maintainer change to this scope decision.
+**Current use policy:** strict single-chat operation remains the default. On
+November 6, 2026, the maintainer approved implementing explicit
+`--allow-shared-host`: actively stop only the SQL MCP process exclusively used by
+the current chat, accepting that one global refresh may affect other idle chats.
+The maintainer subsequently granted standing low-risk maintenance consent:
+when other chats are idle, with no writes in flight or awaiting results, and
+possible re-preview is accepted, announce and proceed without repeated approval.
+Use operating state rather than CLI/UI, checking Host status and known request
+records. Pause on pending writes, concrete uncertainty or scope changes. Idle
+status does not prove there are no pending previews; their possible invalidation
+is accepted under this consent. It does not authorize group stopping, config
+toggles, extra refreshes or retry of an uncertain result. Historical `--all-loaded-targets` group mode remains at
+the end: it stops the whole target set, is not interchangeable with this mode,
+and is never an automatic fallback after refusal.
 
 ## Prerequisites
 
@@ -44,12 +55,14 @@ at one does not make the other Host unique; refuse the ambiguity. The ordinary
 `probe`, `verify`, `refresh` and `restart` paths also require the target Query
 catalog. This catalog requirement does not apply to the `recreate` recovery entry.
 
-Codex 0.165 exposes only **Host-wide** `config/mcpServer/reload`, without a
+The checked Codex 0.165/0.166 schema exposes only **Host-wide** `config/mcpServer/reload`, without a
 server/thread selector. `--server` restricts verification, not refresh. The
 maintenance scope must be authorized for all affected services/loaded threads,
-with no writes in flight. Under the current policy, `restart`, `refresh` and
-`recreate` require exactly one loaded thread; other chats are refused even when
-idle. An existing test connection alias is required for calls beyond `probe`.
+with no writes in flight or awaiting results. By default, `restart`, `refresh`
+and `recreate` require exactly one loaded thread. The shared-Host exception below
+applies only to explicit `restart` and read-only `verify --check-process`, not
+`probe`, `refresh` or `recreate`.
+An existing test connection alias is required for calls beyond `probe`.
 Inventory/PID rechecks are not atomic isolation and cannot guarantee zero
 concurrent impact.
 
@@ -72,6 +85,38 @@ changing business data or adding another database/network round trip. This is a
 trusted local process check, not remote authentication or atomic isolation. If the
 old process lacks this field, `restart` refuses. Independently select `recreate`
 when its conditions apply; otherwise use maintainer action.
+
+### `--allow-shared-host`: exclusive current consumer, shared refresh scope
+
+This mode is mutually exclusive with `--all-loaded-targets`. It supports at most
+eight loaded threads with the same cwd; every other thread must be idle. Check a
+connected target catalog in each thread and obtain its actual PID through a
+constant read using the same test connection alias, which must work in every
+consumer. Every PID must match a direct child of the actual bound Host and the
+exact launch signature, establishing a unique thread-to-PID map. The current
+consumer must exclusively own its process. Matching configuration, equal counts
+or a visible catalog cannot replace this proof.
+
+After rechecking configuration and all pinned process identities, recheck the
+thread set and idle states immediately before sending the stop signal; check
+the thread set and idle states again immediately before refresh. Stop on
+activity in another chat, unobservable state, changed
+membership, a shared process or uncertain ownership. Send SIGTERM only to the
+pinned current PID, wait for exit, then send at most one Host-wide refresh.
+Do not actively stop other consumers, follow a new PID, escalate to SIGKILL,
+retry or automatically switch to group mode or `recreate`. This mode does not
+toggle configuration, launch a bridge, migrate conversations or restart the Host.
+
+Global refresh may reuse or replace other consumers and other MCP services. The
+new target identity must be absent from the entire original target-process set;
+another original consumer is not a replacement target. Verify the new target
+PID and every original consumer's catalog/read, and report
+observed reuse or replacement of the other consumers separately. These checks
+prove neither zero impact nor updated definitions in other Agents. Incomplete
+verification remains a failure.
+The [formal acceptance record](../validation/v3.8/V3_8_2_SHARED_HOST_RESTART_2026_11_06_ZH.md)
+separates isolated regression from live acceptance. Live operation requires the standing conditions above or separate approval;
+historical group acceptance does not certify this mode.
 
 ### `recreate`: independent bootstrap/recovery prerequisites
 
@@ -113,6 +158,21 @@ pidfd to the fixed target, wait at most 10 seconds without escalating to SIGKILL
 send one Host refresh, retrieve the target catalog, check a constant read and
 verify a replacement process. Recheck the loaded-thread set before sending the
 refresh; the checks still do not provide atomic concurrency isolation.
+
+### Replace only the current consumer while other Host chats are idle
+
+```bash
+# Read-only preflight: no signals or refresh:
+python scripts/dev/restart_codex_mcp.py verify --check-process --allow-shared-host --connection YOUR_TEST_ALIAS
+# After checking standing low-risk conditions and announcing; otherwise pause:
+python scripts/dev/restart_codex_mcp.py restart --allow-shared-host --allow-host-wide --connection YOUR_TEST_ALIAS
+```
+
+`--allow-shared-host` accepts only `restart` or `verify` with `--check-process`.
+Read-only preflight does not require `--allow-host-wide`; actual `restart` still
+requires it explicitly. Preflight does not reserve eligibility: `restart` checks
+again. A failed preflight or post-stop check does not authorize a wider scope or
+another refresh. Report the failed phase and use manual recovery when needed.
 
 ### Request configuration refresh
 
@@ -166,8 +226,20 @@ Exit 0 must be interpreted with `status` and the verification fields:
 | `binding_verified` | Catalog binding only; `probe` does not prove successful tool use. |
 | `connection_verified` | A real constant Query response. `reload_attempted`, `reload_accepted`, `read_probe_verified` and catalog hashes distinguish the stages. |
 | Successful `restart` | Also requires `phase=complete`, `process_binding_verified`, `process_stop_attempted`, `process_restart_verified=true` and `read_probe_verified=true`. |
+| Successful shared-Host `verify --check-process` | Also verifies every original consumer's catalog, constant read and unique PID map. It does not establish a restart and sends no signal or refresh. |
+| Successful shared-Host `restart` | In addition to the `restart` conditions above, verifies replacement of the current target identity and every original consumer; reports observed reuse/replacement of other consumers separately. It does not establish zero impact on other chats. |
 | Successful `recreate` | Requires `phase=complete`, `target_disabled_verified`, `config_restored`, `process_restart_verified` and `read_probe_verified`. Every original consumer must return a successful canary with a PID matching the Host/launcher and a process identity absent from the pre-operation child snapshot. |
 | `recreate_plan_verified` | A dry-run plan only. |
+
+Shared-mode receipts require `shared_host_mode=true`,
+`process_scope=current_thread_exclusive_child` and
+`thread_process_mapping=consumer_pid_verified`.
+`read_probe_verified_thread_count` must cover every original consumer;
+`consumer_process_observations` records each observation using `thread_sha256`,
+`current_thread`, `before`, `after` and `process_replaced`. Successful restart
+requires `process_signals_sent=1` and `process_stops_confirmed=1`; these establish
+that the helper actively stopped one target, not that the Host left other
+processes unaffected. Read-only preflight sends no stop signal.
 
 An unchanged catalog hash does not prove no refresh occurred; neither hashes nor
 `{}` prove process replacement. `refresh`/`verify` leave replacement unverified.
@@ -186,6 +258,37 @@ and the applicable work deadline after any recovery reserve. Each consumer gets
 one post-refresh canary request. The window does not extend the total budget;
 an exhausted budget prevents a new send. Inventory/notification counts remain
 bounded. Connection/cleanup have their own timeouts.
+
+### Maintenance exclusion, next actions and timing
+
+After unique Host binding, `restart`, `refresh` and non-dry-run `recreate` take
+a nonblocking file lock keyed to the bound control endpoint, independent of
+server or chat name. Hold it through verification and any required configuration
+cleanup. A competing helper returns `host_maintenance_in_progress` without
+waiting, signaling or refreshing. `probe`, `verify` and dry-run remain unlocked.
+`maintenance_lock_acquired=true` records acquisition during this command, not
+continued ownership after exit. Keep lock files in the current user's private
+`/tmp/codex-mcp-maintenance-UID/`: process exit releases the kernel lock; file
+existence does not mean it is busy. This coordinates cooperating helper calls
+on the same endpoint, not manual actions or Host behavior, and does not replace
+scope/status rechecks.
+
+The JSON receipt's `next_action` contains an action code and a short explanation.
+It neither performs recovery nor grants consent. Unverified refreshes direct
+the caller to read-only checks; restored configuration with unverified runtime
+directs manual reconciliation using the journal, without another automatic
+refresh or scope escalation.
+
+`timings_ms` uses this helper process's monotonic clock. `total` runs from the
+operation entry through cleanup to the final receipt snapshot, excluding CLI
+parsing/discovery, final journal persistence, lock release and stdout serialization. A
+discovery-failure receipt instead records the elapsed CLI window. Other fields
+record observed `host_binding`, `process_stop`, `host_refresh` and
+`consumer_verification` windows, plus `config_cleanup` when required. Failed
+windows count too; recreation adds its two refresh RPC durations. These are not
+an exhaustive breakdown and do not sum to `total`. RPC wait is not Host-internal
+processing time or a causal attribution. Existing 60/30-second budgets are
+unchanged.
 
 ### Calling Agent confirmation
 
@@ -277,20 +380,24 @@ restarting SQL MCP to obtain diagnostics.
   make them interchangeable with a file-content digest. Version checks prevent
   concurrent overwrites, not cross-Host isolation: other Hosts can observe the
   shared user-config toggle. Scope checks and RPC sends are not atomic.
-- The default modes do not edit configuration; explicit `recreate` temporarily
+- Default and shared-Host `restart` do not edit configuration; explicit `recreate` temporarily
   toggles one target enabled key. No grant changes, new or terminated Hosts/threads,
   signals to other services, business-table inspection or Mutation execution are
   added. Both recreation refreshes are Host-wide. No runtime dependency, SQL MCP
   management tool, ordinary-query step or general Host guarantee is added.
 - Restart/recreation loses process-local previews, unlike Query publication. This
-  does not prove an earlier write was never executed. Disabled catalogs and new
+  does not prove an earlier write was never executed. Shared-Host mode actively
+  stops only the current consumer, but the Host may replace others during global
+  refresh and invalidate their previews. Approve this scope beforehand; do not
+  promise other chats are unaffected. Disabled catalogs and new
   consumer success do not prove all old processes exited. Host teardown may be
   asynchronous and use its own termination policy; `recreate` itself sends no
   process signals.
 - Check the [OpenAI protocol](https://learn.chatgpt.com/docs/app-server) schema
-  against the actual Host binary. The local PATH CLI 0.164 differs from the tested
-  Host 0.165; these observations do not establish earlier proxy-timeout causes or
-  a guarantee for all Host versions.
+  against the actual Host binary. Historically, PATH CLI 0.164 differed from Host
+  0.165; on November 6, 2026, the actual Host 0.166 global-reload definition was
+  checked separately. This does not establish live acceptance of shared mode,
+  explain earlier proxy timeouts or guarantee all Host versions.
 
 ## Historical acceptance and startup investigations
 
@@ -332,9 +439,25 @@ records scope rechecks after journal flush/`fsync`, before the first disable and
 each refresh. Neither record turns scope refusal into skipping acknowledged-disable
 cleanup or makes checks and sends atomic.
 
+### Shared-Host mode and standing low-risk consent (November 6, 2026)
+
+The [batch record](../validation/v3.8/V3_8_2_SHARED_HOST_RESTART_2026_11_06_ZH.md)
+records 230 helper tests and one live run under the subsequently granted standing
+consent: one current-consumer stop, one global refresh, both original consumers'
+reads and caller-native new behavior pass. The other consumer is reused in this
+run, without a guarantee of future reuse. Consent follows operating state and
+also covers CLI consumers on the same Host; read-only preflight does not replace
+checking known request state. It excludes group stopping, recreate and additional
+refreshes after failure.
+
 ### Historical multi-thread capability and acceptance (October 29, 2026; not currently recommended)
 
-This section retains existing capability and historical acceptance; it is not a current maintenance recommendation. The current-chat-only policy above governs use.
+This section retains existing capability and historical acceptance, not a current
+maintenance recommendation. The default and explicit shared scope above govern
+use. Group mode actively stops every matching target; `--allow-shared-host`
+actively stops only the exclusive current target. They are mutually exclusive
+and never automatic fallbacks. Historical group acceptance does not certify the
+new shared mode.
 
 This section describes PID-bound group `restart`. Host-managed `recreate` above uses the named service lifecycle, not direct process-set stops.
 
@@ -433,4 +556,4 @@ reload is needed merely to remove the bridge. Existing CLI/daemon paths and Skil
 publication retain their declared scope. Experimental history and withdrawal
 evidence remain in `local_archive/v382_review/20261031_vscode_restart_deferred/`,
 outside normal source/tests and release documentation. This record does not
-change the current-chat-only policy or manual VS Code reconnection requirement.
+change the current default/explicit shared scope or manual VS Code reconnection requirement.
