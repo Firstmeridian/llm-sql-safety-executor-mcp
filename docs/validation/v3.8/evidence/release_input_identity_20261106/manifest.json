@@ -1,0 +1,49 @@
+{
+  "batch": "20261106_release_input_identity",
+  "head": "bbdf322f3af5209fe3e1d8d0bb86a6ed8e414daf",
+  "records": "records.json.gz",
+  "records_sha256": "801ace4d43a18849798a63831977dc728c5af5080bba7e61b790f3c5e24f8934",
+  "records_bytes": 24286,
+  "raw_bytes": 126961,
+  "scope": "validation input identity only",
+  "test_outcomes": {
+    "known_bad": {
+      "exit": 1,
+      "failed_at_intended_assertions": 26
+    },
+    "core_after": {
+      "exit": 0,
+      "passed": 78
+    },
+    "related_sandbox": {
+      "exit": 130,
+      "status": "interrupted",
+      "complete_junit": false
+    },
+    "client_sandbox_diagnostic": {
+      "exit": 137,
+      "status": "timeout",
+      "budget_seconds": 60,
+      "stack_dump_seconds": 20
+    },
+    "client_outside_sandbox": {
+      "exit": 0,
+      "passed": 2
+    },
+    "related_outside_sandbox": {
+      "exit": 0,
+      "passed": 247,
+      "budget_seconds": 90
+    }
+  },
+  "overlap": "247 related checks include the 78 core checks; do not add totals",
+  "prior_identity_checked": 95,
+  "seal_script_sha256": "d38ff2fbb5d3f9618d0da96701cd017ec1665f1ea92b1b7bce8e58986ff382e6",
+  "privacy": "No private configuration values, credentials, protocol frames or hidden reasoning; checkout paths normalized",
+  "limits": [
+    "Synthetic stage execution in drift unit tests, not live MySQL acceptance",
+    "No complete release-profile rerun, Host operation or model trial",
+    "Start/end fingerprints do not detect a restored transient edit",
+    "Environment-dependent Client stall remains unlocated; preserve failures"
+  ]
+}

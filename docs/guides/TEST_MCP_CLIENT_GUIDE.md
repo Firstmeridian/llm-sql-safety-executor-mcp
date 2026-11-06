@@ -7,6 +7,14 @@ configuration. Run repository scripts from the repository root after
 `uv sync --frozen --group dev`. The previous script-based instructions remain in
 the [v3.7 historical guide](TEST_MCP_CLIENT_GUIDE_v3_7.md).
 
+Current v3.8.2 reads and managed write plans use only the existing SQLGlot
+implementation. The `skills.mutation.managed_plan_parser` field,
+Python parser-selection arguments and sqlparse dependency have been removed;
+there is no automatic fallback. Delete any explicit old field, regardless of
+value, and use `config check/explain` to verify strict configuration rejection
+versus a clean configuration. Dated two-implementation results remain historical;
+their call counts do not describe the current matrix.
+
 ## Offline checks
 
 ### Correlated middleware events (October 28)
@@ -243,14 +251,14 @@ No model-token/performance conclusion follows from this infrastructure change.
 
 The durable [read/managed follow-up runner](../../scripts/validation/read_plan_followups.py)
 resolves its source/Skill/output paths and starts disposable SQLite child services.
-Use `--help` for required arguments. It runs both Client modes and both configured
-managed classifiers, recording 84 calls per source or installed package: discovery,
-tail-comment reads/Skills, literal versus actual bindings, write/restore/replay,
+Use `--help` for required arguments. It runs SQLGlot in both Client modes for
+source or installed-package checks: discovery, tail-comment reads/Skills,
+literal versus actual bindings, write/restore/replay,
 rollback, complete schema projections and continued policy refusals. Its writes
 are confined to its temporary fixture; do not substitute configured business data.
 
-This checkpoint has **3003 full-suite passes/four optional skips**, then **two
-additional session-binding passes**, clean type/source-and-installed prompt checks,
+The October 20 historical checkpoint has **3003 full-suite passes/four optional
+skips**, then **two additional session-binding passes**, clean type/source-and-installed prompt checks,
 84 source/84 wheel calls and six installed MySQL calls. Seventy-seven package
 resources and the wheel digest are verified. Real MySQL checks separately compare
 five catalogs and sixteen isolated session modes using original SQL, with orders
@@ -685,19 +693,19 @@ Use the independent installed interpreter without --source for wheel verificatio
 
 ## Managed-plan parser migration checks (October 20)
 
-Run `scripts/validation/managed_parser.py --source /absolute/repository/src --skills /absolute/repository/skills --output /fresh/results.json.gz` with the repository interpreter. For an independently installed wheel, use that interpreter and omit `--source`. The script creates disposable SQLite databases, tests both configured parsers and both Client modes, and records discovery/detail, preview, committed update/restoration, one-use token rejection, row-count rollback and final database truth (40 calls per source/package run). It performs no configured database writes. Results are application records, not full protocol frames or model token evidence.
+Run `scripts/validation/managed_parser.py --source /absolute/repository/src --skills /absolute/repository/skills --output /fresh/results.json.gz` with the repository interpreter. For an independently installed wheel, use that interpreter and omit `--source`. The script creates disposable SQLite databases, tests SQLGlot in both Client modes, and records discovery/detail, preview, committed update/restoration, one-use token rejection, row-count rollback and final database truth. It performs no configured database writes. Results are application records, not full protocol frames or model token evidence.
 
-Use `config check/explain` to verify the selector. Preserve original SQL and named-bind assertions, target-mode rejection before preview and again after token consumption, and missing-COMMIT evidence tests. Do not replace DB truth with AST acceptance or label isolated lifecycles as complete model tasks. Native Host acceptance requires an owner restart; configured writes still require separate approval. See the [frozen corpus and validation scope](../validation/v3.8/V3_8_2_MANAGED_PARSER_2026_10_20_ZH.md).
+Use `config check/explain` to verify that the removed field is rejected and clean configuration succeeds. Preserve original SQL and named-bind assertions, independent read/write admission, SQLite authorizer, target-mode rejection before preview and again after token consumption, and missing-COMMIT evidence tests. Parse success proves neither database semantics nor authorization. Do not label isolated lifecycles as complete model tasks. Native Host acceptance requires a consumer running the candidate: use the supported, authorized [restart helper](CODEX_MCP_RESTART.md) or maintainer reconnection, then verify the intended behavior in that consumer. Configured writes still require separate approval. The [October 20 frozen corpus and validation scope](../validation/v3.8/V3_8_2_MANAGED_PARSER_2026_10_20_ZH.md) retain the former two-implementation comparison as history.
 
 ## Managed classification reuse checks (October 20)
 
-Use `tests/test_managed_classification_reuse_v382.py` for readiness isolation, exact SQL/context/parser keys, bounded eviction, instance isolation, cleanup, concurrent pure misses and live execution gates after warming. Context-change/failure confirmations must consume their token, return not_executed and refuse replay without executing a write. Both parser modes still use the ordinary lifecycle validation script above.
+Use `tests/test_managed_classification_reuse_v382.py` for readiness isolation, exact SQL/context/declared-bind-name keys, bounded eviction, instance isolation, cleanup, concurrent pure misses and live execution gates after warming. Context-change/failure confirmations must consume their token, return not_executed and refuse replay without executing a write. Use the SQLGlot lifecycle validation script above.
 
 Compare performance against the post-migration 77-resource snapshot, not HEAD or the earlier 76-resource pre-migration archive. Measure readiness-only A1 and final reuse separately, serial A/B/A per protocol, away from tests/builds. Untimed cache hit/miss and context-resolution counts are separate from timed client roundtrips. [Frozen recipes, results and scope](../validation/v3.8/V3_8_2_MANAGED_CLASSIFICATION_REUSE_2026_10_20_ZH.md). No new complete-model or configured-MySQL-write claim follows from fixture lifecycles.
 
 ## Dialect comment and NOT checks (October 20)
 
-Use `scripts/validation/comment_modes.py` with the same --source/--skills/--output convention as managed_parser.py. It runs both parser selectors and both protocol modes on disposable SQLite: reviewed comment Query Skill discovery/detail/readiness/execution, exact original managed comment SQL/binds, commit/restoration/replay/rollback, real function/table restrictions and raw DML refusal. Opaque fixture handles are consistently redacted before export. MySQL hint/mode semantics use separately recorded actual-session scalar comparisons and non-executing EXPLAIN; SQLite stdio is not MySQL or complete-model evidence.
+Use `scripts/validation/comment_modes.py` with the same --source/--skills/--output convention as managed_parser.py. It runs SQLGlot in both protocol modes on disposable SQLite: reviewed comment Query Skill discovery/detail/readiness/execution, exact original managed comment SQL/binds, commit/restoration/replay/rollback, real function/table restrictions and raw DML refusal. Opaque fixture handles are consistently redacted before export. MySQL hint/mode semantics use separately recorded actual-session scalar comparisons and non-executing EXPLAIN; SQLite stdio is not MySQL or complete-model evidence.
 
 Keep full scoped policy tests separate from shape/function-only analysis. Compare against the post-DRR-120 archive; 1513 boundary groups are a synthetic matrix, not business refusal rate. Startup expands from nine to seventeen candidates; measure it separately from warm six-call stdio cycles. [Scope, recipes and limits](../validation/v3.8/V3_8_2_DIALECT_COMMENTS_NOT_2026_10_20_ZH.md).
 ### SQLite relation-call names and generated-column metadata
@@ -754,7 +762,7 @@ The [October21 complete task audit](../validation/v3.8/V3_8_2_COMPLETE_AGENT_EVA
 
 ## SQLite physical write lifecycle (October22, DRR-142/143)
 
-Use `tests/test_sqlite_write_transactions_v382.py` for adapter-level private-file truth and `scripts/validation/sqlite_writes.py --source /absolute/repository/src --output /fresh/source.json.gz` for both in-process/stdio, auto/legacy and SQLGlot/sqlparse full preview-confirm-replay flows. With a normal wheel interpreter, omit --source and run outside editable imports; the script asserts the installed package location. Every write targets its disposable database, never configured business tables. Application records redact tokens and are not full protocol frames or model usage.
+Use `tests/test_sqlite_write_transactions_v382.py` for adapter-level private-file truth and `scripts/validation/sqlite_writes.py --source /absolute/repository/src --output /fresh/source.json.gz` for SQLGlot full preview-confirm-replay flows across in-process/stdio and auto/legacy Client modes. With a normal wheel interpreter, omit --source and run outside editable imports; the script asserts the installed package location. Every write targets its disposable database, never configured business tables. Application records redact tokens and are not full protocol frames or model usage.
 
 Freeze ordinary/CTE/semicolon INSERT/UPDATE/DELETE with/without RETURNING, correct/zero/multiple counts, partial failure and engine-auto-rollback, plus unchanged data after response, token replay and server/cursor cleanup. Check real BEGIN/COMMIT/ROLLBACK traces and independent sqlite3 connections. Include count_changes, direct versus trigger/cascade counts, INSTEAD OF view zero counts, non-DML stale-count prevention, result cancellation/deadline/fetch/close faults and missing physical acknowledgements. Preserve initial fixture/preparation failures separately.
 
@@ -767,7 +775,7 @@ Run `tests/test_read_analysis_binding_v382.py` for exact-source rejection before
 
 For the approved test account, run `scripts/validation/mysql_writes.py --config /absolute/test/server.toml --alias test_mysql --source /absolute/repository/src --legacy-tests --output /fresh/source.json.gz`. The script creates one random owned mcp_contract_* schema, requires CREATE/DROP DATABASE and TRIGGER plus observation of its own lock wait in INNODB_TRX, and drops only its exact created schema. It never changes configured business tables, grants or global settings. Observe fixture authorization before running against another server; no silent skip/fallback for missing access. The four legacy opt-in tests receive credentials only through the subprocess environment and run inside this private schema; do not treat default optional skips as integration passes.
 
-Use the normal installed-wheel interpreter without --source for the same matrix. Run a fresh `--section unknown-clients` output per source/wheel for two in-process injected commit-ack controls, both classifiers and Client modes. Data truth comes from independent native PyMySQL with the explicit FOUND_ROWS contract; it shares no project parser, policy or value-mapping helpers. Read binding also covers pool reuse/reconnect. Check specific actual server errno and real LOCK WAIT, injection hits, token consumption, target Invalid preview_token rejection and independent final data; an unrelated tool error does not pass replay validation. Serialize/redact application results rather than claiming complete frames or model usage.
+Use the normal installed-wheel interpreter without --source for the same matrix. Run a fresh `--section unknown-clients` output per source/wheel for two in-process injected commit-ack controls with SQLGlot and both Client modes. Data truth comes from independent native PyMySQL with the explicit FOUND_ROWS contract; it shares no project parser, policy or value-mapping helpers. Read binding also covers pool reuse/reconnect. Check specific actual server errno and real LOCK WAIT, injection hits, token consumption, target Invalid preview_token rejection and independent final data; an unrelated tool error does not pass replay validation. Serialize/redact application results rather than claiming complete frames or model usage.
 
 Treat committed/rolled_back/unknown as evidence contracts. Compare transactional business rows, trigger audits and cascades after cleanup; allow consumed AUTO_INCREMENT gaps and other explicitly non-transactional allocation state. This is a test oracle, not a production full-database comparison. Do not automatically retry unknown or reuse consumed tokens. Keep real server errors/session disconnects separate from labelled client faults; this matrix does not simulate arbitrary network partitions or cover other engines/isolation profiles. Freeze one limited restart plan after source/package checks; public tools cannot inject the internal analysis object. [Current gate definitions, evidence and limits](../validation/v3.8/V3_8_2_MYSQL_WRITE_CONTRACTS_2026_10_22_ZH.md).
 

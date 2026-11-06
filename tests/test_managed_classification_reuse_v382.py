@@ -66,24 +66,25 @@ def test_readiness_still_refuses_incomplete_query_dependencies(managed_server):
         access._ensure_skill_schema_ready(runtime, meta, connection)
 
 
-def test_reuse_keys_exact_sql_full_context_and_parser(managed_server):
+def test_reuse_keys_exact_sql_full_context_and_binding_names(managed_server):
     runtime = managed_server().gateway_runtime
     classify = runtime.classify_managed_plan
     sql = 'UPDATE orders SET n=7'
     context = DialectContext('sqlite', default_schema='main')
     variants = [
-        (sql, context, 'sqlglot'),
-        (sql + ' ', context, 'sqlglot'),
-        ('UPDATE " f " SET n=7', context, 'sqlglot'),
-        ('UPDATE "  f  " SET n=7', context, 'sqlglot'),
-        ('UPDATE main.orders SET n=7', context, 'sqlglot'),
-        ('UPDATE "main.orders" SET n=7', context, 'sqlglot'),
-        (sql, replace(context, default_schema='aux'), 'sqlglot'),
-        (sql, replace(context, cte_case_sensitive=True), 'sqlglot'),
-        (sql, DialectContext('mysql'), 'sqlglot'),
-        (sql, DialectContext('mysql', frozenset({'ANSI_QUOTES'})), 'sqlglot'),
-        (sql, DialectContext('mysql', frozenset({'HIGH_NOT_PRECEDENCE'})), 'sqlglot'),
-        (sql, context, 'sqlparse'),
+        (sql, context, None),
+        (sql + ' ', context, None),
+        ('UPDATE " f " SET n=7', context, None),
+        ('UPDATE "  f  " SET n=7', context, None),
+        ('UPDATE main.orders SET n=7', context, None),
+        ('UPDATE "main.orders" SET n=7', context, None),
+        (sql, replace(context, default_schema='aux'), None),
+        (sql, replace(context, cte_case_sensitive=True), None),
+        (sql, DialectContext('mysql'), None),
+        (sql, DialectContext('mysql', frozenset({'ANSI_QUOTES'})), None),
+        (sql, DialectContext('mysql', frozenset({'HIGH_NOT_PRECEDENCE'})), None),
+        (sql, context, frozenset()),
+        (sql, context, frozenset({'ghost'})),
     ]
     for args in variants:
         expected = check_managed_sql(*args)
@@ -101,9 +102,9 @@ def test_reuse_is_bounded_isolated_and_cleared_on_close(managed_server, monkeypa
     classify = first.classify_managed_plan
     context = DialectContext('sqlite')
     for n in range(129):
-        assert classify(f'UPDATE orders SET n={n}', context, 'sqlglot').allowed
+        assert classify(f'UPDATE orders SET n={n}', context, None).allowed
     assert classify.cache_info().maxsize == classify.cache_info().currsize == 128
-    classify('UPDATE orders SET n=0', context, 'sqlglot')
+    classify('UPDATE orders SET n=0', context, None)
     assert classify.cache_info().misses == 130  # Oldest entry was evicted.
     assert second.classify_managed_plan.cache_info().currsize == 0
     # A connection cleanup error must not retain classification entries.
@@ -121,14 +122,14 @@ def test_reuse_is_bounded_isolated_and_cleared_on_close(managed_server, monkeypa
 def test_classifier_exceptions_are_not_cached(managed_server, monkeypatch):
     import sql_safety_executor.core.runtime as runtime_module
     calls = []
-    def transient(sql, context, parser):
+    def transient(sql, context, parameter_names=None):
         calls.append(True)
         if len(calls) == 1:
             raise RuntimeError('temporary classifier failure')
-        return check_managed_sql(sql, context, parser)
+        return check_managed_sql(sql, context, parameter_names)
     monkeypatch.setattr(runtime_module, 'check_managed_sql', transient)
     classify = managed_server().gateway_runtime.classify_managed_plan
-    args = ('DELETE FROM orders', DialectContext('sqlite'), 'sqlglot')
+    args = ('DELETE FROM orders', DialectContext('sqlite'), None)
     with pytest.raises(RuntimeError, match='temporary classifier failure'):
         classify(*args)
     assert classify(*args).allowed and classify(*args).allowed
@@ -140,7 +141,7 @@ def test_parallel_pure_checks_remain_coherent(managed_server):
     context = DialectContext('sqlite')
     inputs = [f'UPDATE orders SET n={n % 8}' for n in range(160)]
     with ThreadPoolExecutor(max_workers=8) as workers:
-        results = list(workers.map(lambda sql: classify(sql, context, 'sqlglot'), inputs))
+        results = list(workers.map(lambda sql: classify(sql, context, None), inputs))
     assert all(result.allowed for result in results)
     assert classify.cache_info().currsize == 8
     # Concurrent misses may compute twice; no single-flight promise is needed.

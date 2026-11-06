@@ -478,7 +478,6 @@ async def execute_mutation_skill(
                     client_id=client_id,
                     connection_id=connection.connection_id,
                     db_type=connection.db_type,
-                    parser=runtime.config.skills.mutation.managed_plan_parser,
                     classifier=runtime.classify_managed_plan,
                 )
             else:

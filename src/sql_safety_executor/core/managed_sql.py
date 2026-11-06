@@ -7,7 +7,6 @@ write. Parameter, Skill, approval, token and transaction checks stay separate.
 from __future__ import annotations
 
 from itertools import product
-from typing import Literal
 
 from sqlglot import exp
 from sqlglot.errors import ParseError, TokenError
@@ -18,7 +17,6 @@ from .decisions import PolicyDecision
 from sql_safety_executor.database.semantics import DialectContext
 from sql_safety_executor.database.transport import named_parameters
 
-ManagedPlanParser = Literal["sqlglot", "sqlparse"]
 _DML = (exp.Insert, exp.Update, exp.Delete)
 _NESTED_STATEMENTS = (*_DML, exp.Create, exp.Drop, exp.Alter, exp.Merge, exp.Command)
 _STATEMENT_MESSAGE = "Managed mutation plans require one direct INSERT, UPDATE, or DELETE statement"
@@ -35,27 +33,11 @@ def managed_plan_contexts(databases=None) -> tuple[DialectContext, ...]:
     return tuple(contexts)
 
 
-def check_managed_sql(sql: str, context: DialectContext, parser: ManagedPlanParser = "sqlglot",
+def check_managed_sql(sql: str, context: DialectContext,
                       parameter_names: frozenset[str] | None = None) -> PolicyDecision:
-    """Classify one managed DML using the selected, never-fallback parser."""
-    if parser not in {"sqlglot", "sqlparse"}:
-        raise ValueError("Unsupported managed mutation plan parser")
+    """Classify one managed DML using the actual dialect/session context."""
     if not isinstance(context, DialectContext):
         return PolicyDecision.deny("session_semantics_unavailable", "Managed mutation target SQL semantics are unavailable.")
-    if parser == "sqlparse":
-        # Temporary explicit rollback implementation. Keep its original
-        # classification, including its intentionally dialect-neutral scope.
-        import sqlparse
-        statements = [item for item in sqlparse.parse(sql) if str(item).strip(" \t\r\n;")]
-        if len(statements) != 1 or statements[0].get_type().upper() not in {"INSERT", "UPDATE", "DELETE"}:
-            return PolicyDecision.deny("managed_plan_statement_invalid", _STATEMENT_MESSAGE)
-        if parameter_names is not None:
-            try:
-                if named_parameters(sql, context) != parameter_names:
-                    return PolicyDecision.deny("managed_plan_bindings_invalid", "Managed mutation plan parameters must exactly match SQL named binds")
-            except (ParseError, TokenError, ValueError, TypeError, AttributeError, KeyError, IndexError, RecursionError):
-                return PolicyDecision.deny("managed_plan_sql_parse_failed", "Managed mutation plan bindings could not be analyzed for this dialect and session.")
-        return PolicyDecision.allow()
     try:
         # Reuse the existing project dialect/session lexer and its public AST
         # parser. No new SQLGlot private parser override or read policy applies.

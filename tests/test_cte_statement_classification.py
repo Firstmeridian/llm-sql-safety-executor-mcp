@@ -1,14 +1,15 @@
-"""Keyword-like CTE names are reads; genuinely unresolved WITH stays closed."""
+"""Shared CTE analysis preserves keyword-like names and refuses unresolved WITH."""
 import sqlite3
-import sqlparse
 
 from fastmcp import Client
 import pytest
 
 from sql_safety_executor import create_server, load_config
+from sql_safety_executor.core.analysis import analyze_sql
 from sql_safety_executor.core.sql import classify_sql_statement
-from sql_safety_executor.core.policy import _validate_sql_query_policy
+from sql_safety_executor.core.policy import classify_analysis, _validate_sql_query_policy
 from sql_safety_executor.database.models import ConnectionPolicy
+from sql_safety_executor.database.semantics import DialectContext
 from tests.test_v38_config import bundle as bundle
 
 NAMES = ["unıon", "offſet", "wındow", "window", "offset", "lock", "user"]
@@ -29,14 +30,18 @@ def assert_read_recovery(decision):
 
 @pytest.mark.parametrize("name", NAMES)
 @pytest.mark.parametrize("quote", ["{}", '"{}"', "`{}`", "[{}]"])
-def test_native_cte_identity_does_not_depend_on_get_type_grouping(name, quote):
+def test_native_cte_identity_agrees_with_shared_analysis_and_policy(name, quote):
     sql = query(name, quote)
     with sqlite3.connect(":memory:") as db:
         assert db.execute(sql).fetchall() == [(7,)]
-    decision = classify_sql_statement(sql)
+    context = DialectContext('sqlite')
+    analysis = analyze_sql(sql, context)
+    assert analysis.complete and analysis.source_sql == sql
+    assert [cte.name for cte in analysis.ctes] == [name]
+    assert analysis.relations == ()  # The CTE is not a physical grant.
+    decision = classify_sql_statement(sql, context=context)
     policy_decision = _validate_sql_query_policy(None, sql, ConnectionPolicy(allowed_tables=frozenset({"orders"})))
-    if quote == "{}":
-        assert sqlparse.parse(sql)[0].get_type() == "UNKNOWN"
+    assert decision == classify_analysis(analysis)
     assert decision.allowed and policy_decision.allowed
 
 
@@ -69,7 +74,7 @@ def test_known_write_types_keep_read_only_rejection_and_approval_guidance(sql):
 
 @pytest.mark.parametrize("mode", ["legacy", "auto"])
 @pytest.mark.parametrize("all_scope", [False, True])
-async def test_raw_and_cached_skill_ambiguity_stays_closed_with_quote_recovery(bundle, tmp_path, monkeypatch, mode, all_scope):
+async def test_raw_and_cached_cte_skills_agree_and_malformed_sql_stays_closed(bundle, tmp_path, monkeypatch, mode, all_scope):
     _, connections, skills, save = bundle
     with sqlite3.connect(tmp_path/"db.sqlite") as db:
         db.executescript("CREATE TABLE orders(n);INSERT INTO orders VALUES(7);")

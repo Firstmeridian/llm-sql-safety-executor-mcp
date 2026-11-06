@@ -45,6 +45,7 @@
 
 - 共享Host维护：[契约、检查及保留限制](validation/v3.8/V3_8_2_SHARED_HOST_RESTART_2026_11_06_ZH.md)。
 - Codex 重启：[真实重启验收](validation/v3.8/V3_8_2_CODEX_MCP_RESTART_2026_10_28_ZH.md)。
+- [受管计划单解析器退出验收](validation/v3.8/V3_8_2_SQLPARSE_EXIT_2026_11_06_ZH.md)：删除临时sqlparse模式／配置／依赖，保留原SQL与实时准入；分类、安装、实库和驻留证据分列。
 - [11月5～6日范围与受控读取补修](validation/v3.8/V3_8_2_SCOPE_READ_PERFORMANCE_2026_11_05_ZH.md)：拒绝恢复、演示受控预览、SQLite估算分批及源码触发实库门槛；保留A/B/A测量边界。
 - [11月5日范围／目录补修](validation/v3.8/V3_8_2_SCOPE_CATALOG_REPAIR_2026_11_05_ZH.md)：recreate副作用前复查，活动目录异常拒绝整批；隔离回归和安装包验证，本批无现场重启。
 - [提交前最终审阅：11月1日](validation/v3.8/V3_8_2_FINAL_REVIEW_2026_11_01_ZH.md)：四处辅助边界完成隔离补修，本批辅助回归及安装wheel检查通过。完整回归仅作补修前基线；新现场重启及驻留准入更新仍未验。
@@ -55,6 +56,7 @@
 
 ### 结果解释与 Agent 成本
 
+- [11月6日完整Agent任务及历史评审汇总](validation/v3.8/V3_8_2_AGENT_FOLLOWUP_2026_11_06_ZH.md)：三个实际Luna-medium双轮、六轮答案与独立真值一致，调用／用量／时间及B34—B38／P1—P8取舍分列；无模型A/B，不覆盖旧失败。
 - [本轮Agent指导四目标总览](../REFACTORING_LOG_ZH.md)：自然结果解释、有效探索、弱提示状态解释及耗时归因，分别说明已实现内容、实测效果、代价和开放项；[发布摘要](releases/RELEASE_NOTES_v3_8.md)采用同一结构，逐批证据保留在下方。
 - [期限字段报告措辞勘误：10月28日](validation/v3.8/V3_8_2_EXPIRY_FIELD_SCREEN_ERRATA_2026_10_28_ZH.md)：按冻结编排分三波、波内并发；每组六条输入包含期限，其中五个回答要求报告。1/5、2/5及不采用决议不变，原封存保留。
 - [期限字段有限筛选与停止决议：10月28日](validation/v3.8/V3_8_2_EXPIRY_FIELD_SCREEN_2026_10_28_ZH.md)：六构造记录会话／24回答，A／B均8/12、保留各4/4；候选不完整而停止采用，原生5/6及独立成本保留。无产品改动、条件性重启或新的Host根因结论。
@@ -156,6 +158,7 @@
 
 ## 发布与验收
 
+- [发布输入指纹补修](validation/v3.8/V3_8_2_RELEASE_INPUT_FINGERPRINT_2026_11_06_ZH.md)：纳入演示Skill／静态夹具、检测结束时变化并补齐夹具触发；定点回归与旧全量／实库／模型证据分列。
 - [v3.8 发布说明](releases/RELEASE_NOTES_v3_8.md)及[验收与实际 Host 限制](validation/v3.8/V3_8_VALIDATION_ZH.md)。
 - [v3.7 发布说明](releases/RELEASE_NOTES_v3_7.md)、[v3.6](releases/RELEASE_NOTES_v3_6.md)、[v3.5](releases/RELEASE_NOTES_v3_5.md)。
 - [v3.8 验收正文与原始证据](validation/v3.8/)。

@@ -793,7 +793,6 @@ exclude_profiles = []
 [skills.mutation]
 enabled = false
 allowed_connections = []
-managed_plan_parser = "sqlglot"
 [skills.mutation.preview]
 ttl_seconds = 300
 max_entries = 10000
@@ -815,12 +814,13 @@ agent_id = "unknown"
 | `policy.exclude_profiles` | [] | Trimmed, lowercased and deduplicated strings; blank entries fail. Matching profiles cannot execute and disappear from default discovery |
 | `mutation.enabled` | false | Global write switch, subject to four further configuration gates |
 | `mutation.allowed_connections` | [] | Exact target admission; empty grants nothing; connection Skill allowlist still applies |
-| `mutation.managed_plan_parser` | sqlglot | Managed-plan classifier: sqlglot or temporary opt-in sqlparse mode; restart required, no automatic fallback or read-policy bypass |
 | `mutation.preview.ttl_seconds` | 300 | 1–86400 seconds; invalid values fail startup rather than falling back |
 | `mutation.preview.max_entries` | 10000 | 1–100000 entries; full stores refuse issuance, not evict valid proposals |
 | `mutation.mrtr.enabled` | false | Optional managed single-statement approval; Skills and writes must also be enabled |
 | `audit.queries` | false | Opt-in query audit; mutation audit retains its best-effort behavior |
 | `audit.path` / `audit.agent_id` | ../logs/skill_audit.jsonl / unknown | Audit location and source label; the label is not an authenticated identity |
+
+Reads and managed write plans use the existing SQLGlot implementation only. `skills.mutation.managed_plan_parser`, Python parser-selection arguments and the sqlparse dependency have been removed; there is no automatic fallback. Remove any explicit old field, including `"sqlglot"` values, before restarting: strict configuration rejects it rather than silently ignoring it.
 
 **Preview-token deployment boundary**:
 
@@ -907,9 +907,9 @@ Agent-guidance updates focus on four objectives:
 
 See the [objective-led change log](REFACTORING_LOG.md), [release summary](docs/releases/RELEASE_NOTES_v3_8.md) and [dated evidence index](docs/README.md). These bounded results do not establish overall model, token or latency improvement.
 
-October 20 managed-write migration defaults to SQLGlot with target dialect/session checks at discovery, preview and confirmation. Original SQL, named-bind checks, approval and transaction evidence remain separate. An explicit temporary sqlparse selector and dependency remain during observation; see [comparison, rollback limits and validation](docs/validation/v3.8/V3_8_2_MANAGED_PARSER_2026_10_20_ZH.md).
+Reads and managed write plans now use SQLGlot only. Managed plans retain actual target dialect/session checks at discovery, preview and after one-use token consumption. Original SQL/binds, independent read/write admission, approval, SQLite authorizer and transaction outcomes remain; parse success proves neither database semantics nor authorization. The [October 20 migration report](docs/validation/v3.8/V3_8_2_MANAGED_PARSER_2026_10_20_ZH.md) preserves the historical observation window, not current configuration.
 
-Managed classification now reuses up to 128 immutable decisions per server instance, using exact SQL, full target context, parser and declared bind-name set. Schema readiness no longer repeats execution policy. Target semantics, grants, parameter values and one-use tokens are still checked on every applicable request; see [scope and costs](docs/validation/v3.8/V3_8_2_MANAGED_CLASSIFICATION_REUSE_2026_10_20_ZH.md).
+Managed classification now reuses up to 128 immutable decisions per server instance, using exact SQL, full target context and declared bind-name set. Schema readiness no longer repeats execution policy. Target semantics, grants, parameter values and one-use tokens are still checked on every applicable request; see [scope and costs](docs/validation/v3.8/V3_8_2_MANAGED_CLASSIFICATION_REUSE_2026_10_20_ZH.md).
 
 SQLite comment syntax, a bounded MySQL plan-hint subset and HIGH_NOT_PRECEDENCE-aware NOT/! grouping are now supported. Original SQL, session initialization, grants and approval remain independent; SET_VAR, resource/timeout hints and unknown hint syntax remain unsupported. See [scope and validation](docs/validation/v3.8/V3_8_2_DIALECT_COMMENTS_NOT_2026_10_20_ZH.md).
 
@@ -2435,7 +2435,7 @@ For complete design details, execution flow diagrams, and industry best practice
 ## Requirements
 
 - Python 3.12+ and a MySQL or SQLite database.
-- FastMCP 4.0.10 / MCP SDK 2.2.0; SQLAlchemy, SQLGlot, sqlparse (temporary opt-in managed-plan mode), PyMySQL, Pydantic and PyYAML are managed by `pyproject.toml` and locked in `uv.lock`.
+- FastMCP 4.0.10 / MCP SDK 2.2.0; SQLAlchemy, SQLGlot, PyMySQL, Pydantic and PyYAML are managed by `pyproject.toml` and locked in `uv.lock`.
 - AutoGen examples use a separate environment. Indirect python-dotenv installation does not imply support for old environment configuration.
 
 ## Testing

@@ -590,7 +590,6 @@ def _managed_plan_policy_decision(runtime, meta: SkillMetadata, connection: Conn
         return PolicyDecision.deny("session_semantics_unavailable", "Managed mutation target SQL semantics could not be verified; no write was attempted.")
     return runtime.classify_managed_plan(
         meta._managed_mutation_plan.sql, context,
-        runtime.config.skills.mutation.managed_plan_parser,
         frozenset(item.target for item in meta._managed_mutation_plan.parameters),
     )
 

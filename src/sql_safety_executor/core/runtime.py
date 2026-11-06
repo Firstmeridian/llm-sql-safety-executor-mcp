@@ -28,7 +28,7 @@ class GatewayRuntime:
     def __init__(self, config: AppConfig):
         self.config = config
         # Only immutable, pure classification decisions are retained. The key
-        # contains verbatim SQL, the complete frozen DialectContext, parser
+        # contains verbatim SQL, the complete frozen DialectContext
         # and (for full managed checks) the immutable declared bind-name set.
         # Context resolution, authorization, readiness and tokens stay uncached.
         self.classify_managed_plan = lru_cache(
@@ -60,7 +60,6 @@ class GatewayRuntime:
                         self, sql
                     ),
                     load_mutations=config.skills.mutation.enabled,
-                    managed_plan_parser=config.skills.mutation.managed_plan_parser,
                 )
                 for meta in self.catalog.get_skills_cache().values():
                     for alias in meta.connection_ids or ():
@@ -138,7 +137,6 @@ class GatewayRuntime:
                 directory,
                 query_validator=lambda sql: _validate_sql_template_startup_policy(self, sql),
                 load_mutations=skill_type == "mutation",
-                managed_plan_parser=self.config.skills.mutation.managed_plan_parser,
                 query_only=skill_type == "query",
                 mutation_only=skill_type == "mutation",
                 strict=True,

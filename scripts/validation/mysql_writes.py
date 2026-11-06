@@ -454,93 +454,92 @@ async def clients(fixture, args, checkpoint):
     truths=[]
     checkpoint["client_truth"] = truths
     for transport_kind in (("inprocess",) if args.section=="unknown-clients" else ("inprocess","stdio")):
-        for parser in ("sqlglot","sqlparse"):
-            for mode in ("auto","legacy"):
-                with tempfile.TemporaryDirectory(prefix="mysql-write-client-") as directory:
-                    root = Path(directory)
-                    for name,n,count,outcome in cases:
-                        skill = root/"skills"/name; skill.mkdir(parents=True)
-                        (skill/"skill_def.md").write_text(
-                            f"---\nname: {name}\nversion: '1.0'\ndescription: Private InnoDB contract check\ntype: mutation\nsource: mutation.py\nrisk: medium\nrequires_confirmation: true\nidempotent: false\ndatabases: [mysql]\ntables: [orders]\nparams: {{}}\n---\nPrivate test only.\n")
-                        (skill/"mutation.py").write_text(
-                            "from sql_safety_executor.skills.mutation import ManagedMutationBase,ManagedMutationPlan\n"
-                            "class Mutation(ManagedMutationBase):\n"
-                            f"    managed_plan=ManagedMutationPlan('UPDATE orders SET n={n} WHERE id=1',(),{count})\n"
-                            "    def validate(self,params): return {'valid':True}\n"
-                            "    def preview(self,params): return {'affected_rows_estimate':1,'requires_confirmation':True}\n")
-                    (root/"server.toml").write_text('schema_version=1\n[files]\nconnections="connections.toml"\nskills="skills.toml"\n[server]\ndefault_connection="fixture"\n')
-                    mysql = fixture.config
-                    connection = ('schema_version=1\n[connections.fixture]\ntype="mysql"\nread.mode="all"\nmutation.enabled=true\nmutation.skills='+json.dumps([c[0] for c in cases])+'\n'+
-                        '\n'.join('mysql.'+k+'='+json.dumps(v) for k,v in {
-                            "host":mysql.mysql_host,"user":mysql.mysql_user,"database":fixture.schema}.items())+'\n'+
-                        'mysql.password={value='+json.dumps(mysql.mysql_password.get_secret_value() if mysql.mysql_password else "")+'}\n')
-                    (root/"connections.toml").write_text(connection)
-                    (root/"connections.toml").chmod(0o600)
-                    (root/"skills.toml").write_text('schema_version=1\n[skills]\nenabled=true\ndirectory="skills"\n[skills.readiness]\ncheck_schema=true\n[skills.mutation]\nenabled=true\nallowed_connections=["fixture"]\nmanaged_plan_parser="'+parser+'"\n[skills.mutation.mrtr]\nenabled=false\n[skills.audit]\npath="audit.jsonl"\n')
-                    server = None
-                    if transport_kind == "inprocess":
-                        server=create_server(load_config(root/"server.toml")); transport=server
-                    else:
-                        environment=os.environ.copy(); environment.pop("PYTHONPATH",None)
-                        if args.source: environment["PYTHONPATH"]=str(args.source.resolve())
-                        transport=StdioTransport(command=sys.executable,args=["-m","sql_safety_executor","serve","--config",str(root/"server.toml")],cwd=str(root),env=environment)
-                    try:
-                        async with Client(transport,mode=mode,init_timeout=30,timeout=30) as client:
-                            async def call(tool,arguments,*,allow_error=False):
-                                response=await client.call_tool(tool,{"connection_id":"fixture",**arguments},raise_on_error=False)
-                                assert not response.is_error or allow_error,(tool,"generic tool failure")
-                                for block in response.content:
-                                    if getattr(block,"type",None)=="text" and not response.is_error: assert json.loads(block.text)==response.structured_content
-                                value=response.structured_content
-                                records.append({"transport":transport_kind,"parser":parser,"mode":mode,"tool":tool,
-                                                "arguments":redacted(arguments),"result":redacted(value),
-                                                "isError":response.is_error,"meta":redacted(response.meta),
-                                                "content":redacted([b.model_dump(mode="json",exclude_none=True) for b in response.content])})
-                                return {"_tool_error":True} if response.is_error else value
-                            for name,n,count,outcome in cases:
-                                fixture.seed(); before=fixture.observe()
-                                preview=await call("execute_mutation_skill",{"skill_name":name,"params":{}})
-                                assert preview["mode"]=="preview" and preview["execution_outcome"]=="not_executed"
-                                assert fixture.observe()==before
-                                token=preview["preview_token"]
-                                arguments={"skill_name":name,"params":{},"preview_token":token,"confirm":True}
-                                writes=[]
-                                if name in fault_modes:
-                                    from sql_safety_executor.database.mysql import MySQLAdapter
-                                    original=MySQLAdapter.execute_write
-                                    def controlled(adapter,sql,params,*pos,**kw):
-                                        assert adapter.metadata_schema==fixture.schema
-                                        fault=Fault(fault_modes[name],fixture)
-                                        engine=adapter._engine
-                                        adapter._engine=fault.engine(engine)
-                                        writes.append(fault)
-                                        try: return original(adapter,sql,params,*pos,**kw)
-                                        finally: adapter._engine=engine
-                                    with patch.object(MySQLAdapter,"execute_write",controlled):
-                                        result=await call("execute_mutation_skill",arguments)
-                                    assert len(writes)==1 and writes[0].hit==[fault_modes[name]],"exactly one actual write attempt; no automatic retry"
-                                else:
+        for mode in ("auto","legacy"):
+            with tempfile.TemporaryDirectory(prefix="mysql-write-client-") as directory:
+                root = Path(directory)
+                for name,n,count,outcome in cases:
+                    skill = root/"skills"/name; skill.mkdir(parents=True)
+                    (skill/"skill_def.md").write_text(
+                        f"---\nname: {name}\nversion: '1.0'\ndescription: Private InnoDB contract check\ntype: mutation\nsource: mutation.py\nrisk: medium\nrequires_confirmation: true\nidempotent: false\ndatabases: [mysql]\ntables: [orders]\nparams: {{}}\n---\nPrivate test only.\n")
+                    (skill/"mutation.py").write_text(
+                        "from sql_safety_executor.skills.mutation import ManagedMutationBase,ManagedMutationPlan\n"
+                        "class Mutation(ManagedMutationBase):\n"
+                        f"    managed_plan=ManagedMutationPlan('UPDATE orders SET n={n} WHERE id=1',(),{count})\n"
+                        "    def validate(self,params): return {'valid':True}\n"
+                        "    def preview(self,params): return {'affected_rows_estimate':1,'requires_confirmation':True}\n")
+                (root/"server.toml").write_text('schema_version=1\n[files]\nconnections="connections.toml"\nskills="skills.toml"\n[server]\ndefault_connection="fixture"\n')
+                mysql = fixture.config
+                connection = ('schema_version=1\n[connections.fixture]\ntype="mysql"\nread.mode="all"\nmutation.enabled=true\nmutation.skills='+json.dumps([c[0] for c in cases])+'\n'+
+                    '\n'.join('mysql.'+k+'='+json.dumps(v) for k,v in {
+                        "host":mysql.mysql_host,"user":mysql.mysql_user,"database":fixture.schema}.items())+'\n'+
+                    'mysql.password={value='+json.dumps(mysql.mysql_password.get_secret_value() if mysql.mysql_password else "")+'}\n')
+                (root/"connections.toml").write_text(connection)
+                (root/"connections.toml").chmod(0o600)
+                (root/"skills.toml").write_text('schema_version=1\n[skills]\nenabled=true\ndirectory="skills"\n[skills.readiness]\ncheck_schema=true\n[skills.mutation]\nenabled=true\nallowed_connections=["fixture"]\n[skills.mutation.mrtr]\nenabled=false\n[skills.audit]\npath="audit.jsonl"\n')
+                server = None
+                if transport_kind == "inprocess":
+                    server=create_server(load_config(root/"server.toml")); transport=server
+                else:
+                    environment=os.environ.copy(); environment.pop("PYTHONPATH",None)
+                    if args.source: environment["PYTHONPATH"]=str(args.source.resolve())
+                    transport=StdioTransport(command=sys.executable,args=["-m","sql_safety_executor","serve","--config",str(root/"server.toml")],cwd=str(root),env=environment)
+                try:
+                    async with Client(transport,mode=mode,init_timeout=30,timeout=30) as client:
+                        async def call(tool,arguments,*,allow_error=False):
+                            response=await client.call_tool(tool,{"connection_id":"fixture",**arguments},raise_on_error=False)
+                            assert not response.is_error or allow_error,(tool,"generic tool failure")
+                            for block in response.content:
+                                if getattr(block,"type",None)=="text" and not response.is_error: assert json.loads(block.text)==response.structured_content
+                            value=response.structured_content
+                            records.append({"transport":transport_kind,"mode":mode,"tool":tool,
+                                            "arguments":redacted(arguments),"result":redacted(value),
+                                            "isError":response.is_error,"meta":redacted(response.meta),
+                                            "content":redacted([b.model_dump(mode="json",exclude_none=True) for b in response.content])})
+                            return {"_tool_error":True} if response.is_error else value
+                        for name,n,count,outcome in cases:
+                            fixture.seed(); before=fixture.observe()
+                            preview=await call("execute_mutation_skill",{"skill_name":name,"params":{}})
+                            assert preview["mode"]=="preview" and preview["execution_outcome"]=="not_executed"
+                            assert fixture.observe()==before
+                            token=preview["preview_token"]
+                            arguments={"skill_name":name,"params":{},"preview_token":token,"confirm":True}
+                            writes=[]
+                            if name in fault_modes:
+                                from sql_safety_executor.database.mysql import MySQLAdapter
+                                original=MySQLAdapter.execute_write
+                                def controlled(adapter,sql,params,*pos,**kw):
+                                    assert adapter.metadata_schema==fixture.schema
+                                    fault=Fault(fault_modes[name],fixture)
+                                    engine=adapter._engine
+                                    adapter._engine=fault.engine(engine)
+                                    writes.append(fault)
+                                    try: return original(adapter,sql,params,*pos,**kw)
+                                    finally: adapter._engine=engine
+                                with patch.object(MySQLAdapter,"execute_write",controlled):
                                     result=await call("execute_mutation_skill",arguments)
-                                assert result["execution_outcome"]==outcome,(name,result)
-                                assert result["success"] is (outcome=="committed")
-                                assert records[-1]["meta"]["preview_token_consumed"] is True
-                                observed=fixture.observe()
-                                if outcome=="committed" or name=="unknown-after": assert observed["orders"][0][1]==n and len(observed["audit"])==1
-                                else: assert observed==before
-                                if outcome=="unknown": assert result["error_code"]=="commit_outcome_unknown"
-                                replay=await call("execute_mutation_skill",arguments,allow_error=True)
-                                assert replay.get("_tool_error") is True
-                                assert any("Invalid preview_token" in b.get("text","") for b in records[-1]["content"]),"target token rejection, not unrelated tool error"
-                                assert fixture.observe()==observed
-                                truths.append({"transport":transport_kind,"parser":parser,"mode":mode,"case":name,
-                                               "native_before":before,"after_confirm_and_replay":observed,
-                                               "adapter_write_attempts":1 if name in fault_modes else None,
-                                               "kind":"labelled-client-commit-injection" if name in fault_modes else "real-server-lifecycle"})
-                    finally:
-                        if server is not None:
-                            server.gateway_runtime.close()
-                    assert fixture.observe()==observed
-                    truths[-1]["after_server_cleanup"]=fixture.observe()
+                                assert len(writes)==1 and writes[0].hit==[fault_modes[name]],"exactly one actual write attempt; no automatic retry"
+                            else:
+                                result=await call("execute_mutation_skill",arguments)
+                            assert result["execution_outcome"]==outcome,(name,result)
+                            assert result["success"] is (outcome=="committed")
+                            assert records[-1]["meta"]["preview_token_consumed"] is True
+                            observed=fixture.observe()
+                            if outcome=="committed" or name=="unknown-after": assert observed["orders"][0][1]==n and len(observed["audit"])==1
+                            else: assert observed==before
+                            if outcome=="unknown": assert result["error_code"]=="commit_outcome_unknown"
+                            replay=await call("execute_mutation_skill",arguments,allow_error=True)
+                            assert replay.get("_tool_error") is True
+                            assert any("Invalid preview_token" in b.get("text","") for b in records[-1]["content"]),"target token rejection, not unrelated tool error"
+                            assert fixture.observe()==observed
+                            truths.append({"transport":transport_kind,"mode":mode,"case":name,
+                                           "native_before":before,"after_confirm_and_replay":observed,
+                                           "adapter_write_attempts":1 if name in fault_modes else None,
+                                           "kind":"labelled-client-commit-injection" if name in fault_modes else "real-server-lifecycle"})
+                finally:
+                    if server is not None:
+                        server.gateway_runtime.close()
+                assert fixture.observe()==observed
+                truths[-1]["after_server_cleanup"]=fixture.observe()
     return records
 
 

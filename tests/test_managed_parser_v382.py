@@ -1,7 +1,10 @@
-"""Managed parsing backends, real target semantics, preview/token/write rules."""
+"""Managed SQL classification, real target semantics, preview/token/write rules."""
 from dataclasses import replace
 import shutil
 import sqlite3
+import subprocess
+import sys
+import textwrap
 
 import pytest
 from fastmcp import Client
@@ -37,14 +40,13 @@ def managed_server(bundle, tmp_path):
     connections['connections']['demo']['mutation'] = {'enabled': True, 'skills': [UPDATE, RESET]}
     servers = []
 
-    def build(parser='sqlglot', sql=None):
+    def build(sql=None):
         if sql is not None:
             path = directory / UPDATE / 'mutation.py'
             original = path.read_text()
             start = original.index('        sql=(')
             end = original.index('        parameters=', start)
             path.write_text(original[:start] + '        sql=' + repr(sql) + ',\n' + original[end:])
-        skills['skills']['mutation']['managed_plan_parser'] = parser
         config = load_config(save(use_skills=True))
         server = create_server(config)
         servers.append(server)
@@ -55,29 +57,30 @@ def managed_server(bundle, tmp_path):
         server.gateway_runtime.close()
 
 
-@pytest.mark.parametrize('parser', ['sqlglot', 'sqlparse'])
 @pytest.mark.parametrize('sql', [
     'INSERT INTO orders(n) VALUES(:n)', 'UPDATE orders SET n=:n', 'DELETE FROM orders WHERE n=:n',
     'WITH chosen AS (SELECT :n AS n) UPDATE orders SET n=(SELECT n FROM chosen)',
     'INSERT OR REPLACE INTO orders(n) VALUES(:n)',
     'WITH replace(n) AS (SELECT :n) INSERT OR REPLACE INTO orders(n) SELECT n FROM replace',
 ])
-def test_known_dml_and_named_bind_contract(parser, sql):
+def test_known_dml_and_named_bind_contract(sql):
     plan = ManagedMutationPlan(sql, (ManagedMutationValue.constant('n', 7),), 1)
-    assert validate_managed_mutation_plan(plan, parser=parser, context=DialectContext('sqlite')) is plan
+    assert validate_managed_mutation_plan(plan, context=DialectContext('sqlite')) is plan
     with pytest.raises(TypeError, match='exactly match SQL named binds'):
-        validate_managed_mutation_plan(replace(plan, parameters=()), parser=parser)
+        validate_managed_mutation_plan(replace(plan, parameters=()))
 
 
-@pytest.mark.parametrize('parser', ['sqlglot', 'sqlparse'])
-@pytest.mark.parametrize('sql', [
-    'REPLACE INTO orders(n) VALUES(7)',
-    'WITH chosen(n) AS (SELECT 7) REPLACE INTO orders(n) SELECT n FROM chosen',
-    'SELECT 7', 'EXPLAIN UPDATE orders SET n=7',
-    'UPDATE orders SET n=7; DELETE FROM orders', 'CREATE TABLE probe(n)',
+@pytest.mark.parametrize('sql,code', [
+    ('REPLACE INTO orders(n) VALUES(7)', 'managed_plan_statement_invalid'),
+    ('WITH chosen(n) AS (SELECT 7) REPLACE INTO orders(n) SELECT n FROM chosen', 'managed_plan_statement_invalid'),
+    ('SELECT 7', 'managed_plan_statement_invalid'),
+    ('EXPLAIN UPDATE orders SET n=7', 'managed_plan_sql_parse_failed'),
+    ('UPDATE orders SET n=7; DELETE FROM orders', 'managed_plan_statement_invalid'),
+    ('CREATE TABLE probe(n)', 'managed_plan_statement_invalid'),
 ])
-def test_nonplan_types_and_bare_replace_remain_refused(parser, sql):
-    assert not check_managed_sql(sql, DialectContext('sqlite'), parser).allowed
+def test_nonplan_types_and_bare_replace_remain_refused(sql, code):
+    decision = check_managed_sql(sql, DialectContext('sqlite'))
+    assert not decision.allowed and decision.error_code == code
 
 
 @pytest.mark.parametrize('sql', [
@@ -94,11 +97,26 @@ def test_ast_classification_keeps_native_valid_cases_and_original_sql(sql):
         assert db.execute('SELECT COUNT(*) FROM orders').fetchone() == (0,)
 
 
-def test_sqlglot_default_does_not_call_legacy_parser(monkeypatch):
-    import sqlparse
-    monkeypatch.setattr(sqlparse, 'parse', lambda *args: pytest.fail('legacy parser used on default path'))
-    plan = ManagedMutationPlan('DELETE FROM orders', (), 1)
-    assert validate_managed_mutation_plan(plan) is plan
+def test_managed_validation_imports_and_runs_without_sqlparse():
+    # A fresh interpreter catches imports even when the test process already
+    # loaded dependencies. It does not require sqlparse to be installed.
+    result = subprocess.run([sys.executable, '-c', textwrap.dedent('''
+        import builtins
+        original = builtins.__import__
+        def without_sqlparse(name, *args, **kwargs):
+            if name == 'sqlparse' or name.startswith('sqlparse.'):
+                raise AssertionError('Removed dependency imported')
+            return original(name, *args, **kwargs)
+        builtins.__import__ = without_sqlparse
+        from sql_safety_executor import create_server, load_config
+        from sql_safety_executor.database.semantics import DialectContext
+        from sql_safety_executor.skills.mutation import ManagedMutationPlan, validate_managed_mutation_plan
+        plan = ManagedMutationPlan('DELETE FROM orders', (), 1)
+        assert validate_managed_mutation_plan(plan) is plan
+        for backend in ('sqlite', 'mysql'):
+            assert validate_managed_mutation_plan(plan, context=DialectContext(backend)) is plan
+    ''')], capture_output=True, text=True, timeout=30)
+    assert result.returncode == 0, result.stderr
 
 
 def test_contextual_modes_and_dialects_are_checked_separately():
@@ -123,10 +141,9 @@ def test_comment_like_string_data_stays_usable(value):
     assert check_managed_sql(sql, DialectContext('mysql')).allowed
 
 
-@pytest.mark.parametrize('parser', ['sqlglot', 'sqlparse'])
 @pytest.mark.parametrize('mode', ['auto', 'legacy'])
-async def test_preview_execute_replay_and_original_statement(managed_server, monkeypatch, parser, mode):
-    server = managed_server(parser)
+async def test_preview_execute_replay_and_original_statement(managed_server, monkeypatch, mode):
+    server = managed_server()
     runtime = server.gateway_runtime
     adapter = runtime.registry.get_adapter('demo')
     sql = runtime.catalog.get_skills_cache()[UPDATE]._managed_mutation_plan.sql
@@ -150,10 +167,9 @@ async def test_preview_execute_replay_and_original_statement(managed_server, mon
         assert replay.is_error and 'before execution' in replay.content[0].text and len(calls) == 1
 
 
-@pytest.mark.parametrize('parser', ['sqlglot', 'sqlparse'])
-async def test_precommit_rowcount_failure_still_rolls_back(managed_server, parser):
+async def test_precommit_rowcount_failure_still_rolls_back(managed_server):
     sql = 'UPDATE orders SET status=:new_status WHERE id=:order_id AND status=:expected_status AND id=999'
-    server = managed_server(parser, sql)
+    server = managed_server(sql=sql)
     async with Client(server) as client:
         preview = (await client.call_tool('execute_mutation_skill', {'skill_name': UPDATE, 'params': PARAMS})).structured_content
         assert preview['success']
@@ -201,25 +217,28 @@ async def test_target_context_controls_discovery_and_detail(managed_server, monk
         assert UPDATE in {item['name'] for item in listing['skills']}
 
 
-@pytest.mark.parametrize('parser', ['sqlglot', 'sqlparse'])
-def test_configuration_explain_selects_one_implementation(bundle, parser):
-    _, _, skills, save = bundle
-    skills['skills']['mutation']['managed_plan_parser'] = parser
+def test_configuration_schema_and_explain_have_no_parser_switch(bundle):
+    from sql_safety_executor.config.models import Mutation
+    _, _, _, save = bundle
     config = load_config(save(use_skills=True))
-    assert config.skills.mutation.managed_plan_parser == parser
-    assert explain_config(config)['skills.mutation.managed_plan_parser']['value'] == parser
+    assert 'managed_plan_parser' not in Mutation.model_fields
+    assert 'managed_plan_parser' not in config.skills.mutation.model_dump()
+    assert 'skills.mutation.managed_plan_parser' not in explain_config(config)
 
 
-@pytest.mark.parametrize('value', [True, False, None, 'auto', 'both', 'SQLGlot'])
-def test_unknown_or_nonliteral_parser_is_configuration_error(bundle, value):
+@pytest.mark.parametrize('value', ['sqlglot', 'sqlparse', True, False, None, 'auto', 'both', 'SQLGlot'])
+def test_removed_parser_field_is_explicit_configuration_error(bundle, value):
+    from pydantic import ValidationError
+    from sql_safety_executor.config.models import Mutation
     _, _, skills, save = bundle
-    # The TOML writer cannot serialize None; validate that case at schema level.
-    if value is None:
-        from pydantic import ValidationError
-        from sql_safety_executor.config.models import Mutation
-        with pytest.raises(ValidationError):
-            Mutation(managed_plan_parser=value)
-    else:
+    with pytest.raises(ValidationError) as raised:
+        Mutation(managed_plan_parser=value)
+    assert [(error['loc'], error['type']) for error in raised.value.errors()] == [
+        (('managed_plan_parser',), 'extra_forbidden'),
+    ]
+    # TOML has no null value; every serializable legacy setting must fail
+    # through the real loader, including the former default value.
+    if value is not None:
         skills['skills']['mutation']['managed_plan_parser'] = value
-        with pytest.raises(ConfigError):
+        with pytest.raises(ConfigError, match=r'managed_plan_parser.*extra_forbidden'):
             load_config(save(use_skills=True))

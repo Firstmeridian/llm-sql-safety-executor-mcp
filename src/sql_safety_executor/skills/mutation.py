@@ -46,7 +46,7 @@ from sql_safety_executor.database.outcomes import (
     WriteExecutionOutcome,
 )
 from sql_safety_executor.core.managed_sql import (
-    ManagedPlanParser, check_managed_sql, managed_plan_contexts,
+    check_managed_sql, managed_plan_contexts,
 )
 from sql_safety_executor.database.semantics import DialectContext
 from sql_safety_executor.core.decisions import PolicyDecision
@@ -168,7 +168,6 @@ def _validate_managed_value(
 def validate_managed_mutation_plan(
     plan: ManagedMutationPlan,
     *,
-    parser: ManagedPlanParser = "sqlglot",
     context: DialectContext | None = None,
     databases=None,
 ) -> ManagedMutationPlan:
@@ -203,7 +202,7 @@ def validate_managed_mutation_plan(
     contexts = (context,) if context is not None else managed_plan_contexts(databases)
     first_message = "Managed mutation plans have no supported database dialect"
     for index, candidate in enumerate(contexts):
-        decision = check_managed_sql(plan.sql, candidate, parser, frozenset(parameter_targets))
+        decision = check_managed_sql(plan.sql, candidate, frozenset(parameter_targets))
         if decision.allowed:
             break
         if index == 0:
@@ -735,8 +734,7 @@ def run_managed_mutation(
     client_id: str | None = None,
     connection_id: str | None = None,
     db_type: str | None = None,
-    parser: ManagedPlanParser = "sqlglot",
-    classifier: Callable[[str, DialectContext, ManagedPlanParser, frozenset[str]], PolicyDecision] | None = None,
+    classifier: Callable[[str, DialectContext, frozenset[str]], PolicyDecision] | None = None,
 ) -> MutationExecutionResult:
     """Resolve and execute one cached managed statement without Skill callbacks."""
     try:
@@ -776,7 +774,7 @@ def run_managed_mutation(
         # A runtime may reuse a pure classification result, but the actual
         # target context is still resolved here, after consuming the token.
         classify = classifier if classifier is not None else check_managed_sql
-        decision = classify(plan.sql, context, parser, frozenset(item.target for item in plan.parameters))
+        decision = classify(plan.sql, context, frozenset(item.target for item in plan.parameters))
         if not decision.allowed:
             raise ValueError(decision.message)
     except Exception:

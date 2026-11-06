@@ -1,0 +1,46 @@
+{
+  "baseline_commit": "bbdf322f3af5209fe3e1d8d0bb86a6ed8e414daf",
+  "candidate": "uncommitted; exact runtime/validation hashes in records",
+  "version": "3.8.2",
+  "release_ready": true,
+  "pytest": {
+    "status": "passed",
+    "log": "fast.log",
+    "returncode": 0,
+    "passed": 4036,
+    "failed": 0,
+    "skipped": 4,
+    "skipped_names": [
+      "test_mysql_connection",
+      "test_mysql_check_connection",
+      "test_mysql_db_type",
+      "test_mysql_stale_conditional_updates_allow_at_most_one_commit"
+    ]
+  },
+  "classification_equal_cases": 510,
+  "resources": 80,
+  "native_calls": 5,
+  "explicit_helper_restart": false,
+  "records_sha256": "9cf4a1544531556841f355af4e894eb2f830f4e781ece5926b7361f55099f095",
+  "records_bytes": 232575,
+  "cleanup": {
+    "owned_mysql_schemas_removed": true,
+    "tmpfs_directory_removed": true,
+    "temporary_environment_removed": true,
+    "dependency_links_removed": true
+  },
+  "scope": "Application records; source/reused dependencies, installed wheel, independent databases and current consumer are separately attributed.",
+  "omitted": [
+    "full protocol frames",
+    "credentials",
+    "raw preview tokens",
+    "hidden reasoning"
+  ],
+  "limits": [
+    "initial 900-second regression failed; same-package tmpfs recheck passed",
+    "initial Host canary timed out without maintenance",
+    "no new model trial or performance/token comparison",
+    "GitHub Hosted execution unverified",
+    "SQLGlot private adaptation risks remain"
+  ]
+}

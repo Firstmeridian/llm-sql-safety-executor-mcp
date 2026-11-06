@@ -1,6 +1,6 @@
 """Private-file SQLite preview/confirm/replay and independent post-cleanup truth.
 
-Uses both managed classifiers, both Client modes and in-process/child stdio.
+Uses SQLGlot classification, both Client modes and in-process/child stdio.
 Application records are not full protocol frames or model-usage measurements.
 Never opens the repository's configured databases or changes their grants.
 """
@@ -80,101 +80,101 @@ async def run(args):
     assert not args.output.exists()
     records, runs, final_truth = [], [], []
     for transport_kind in ("inprocess", "stdio"):
-        for parser in ("sqlglot", "sqlparse"):
-            for mode in ("auto", "legacy"):
-                with tempfile.TemporaryDirectory(prefix="sqlite-write-lifecycle-") as directory:
-                    root = Path(directory)
-                    database = root / "fixture.sqlite"
-                    for name, sql, expected, _, _ in CASES:
-                        table = name.replace("-", "_")
-                        with sqlite3.connect(database) as db:
-                            db.executescript(f'CREATE TABLE "{table}"(id INTEGER PRIMARY KEY,n INTEGER UNIQUE);'
-                                             f'INSERT INTO "{table}" VALUES(1,7),(2,8);')
-                            if name == "trigger-fail":
-                                db.executescript(f'CREATE TRIGGER private_fail AFTER UPDATE ON "{table}" '
-                                                 "BEGIN SELECT RAISE(FAIL,'fixture'); END;")
-                        skill = root / "skills" / name
-                        skill.mkdir(parents=True)
-                        (skill / "skill_def.md").write_text(
-                            f"---\nname: {name}\nversion: '1.0'\ndescription: Private transaction verification\n"
-                            f"type: mutation\nsource: mutation.py\nrisk: medium\nrequires_confirmation: true\n"
-                            f"idempotent: false\ndatabases: [sqlite]\ntables: [{table}]\nparams: {{}}\n---\nPrivate fixture only.\n")
-                        (skill / "mutation.py").write_text(
-                            "from sql_safety_executor.skills.mutation import ManagedMutationBase, ManagedMutationPlan\n"
-                            "class Mutation(ManagedMutationBase):\n"
-                            f"    managed_plan = ManagedMutationPlan({sql.replace('orders', table)!r}, (), {expected})\n"
-                            "    def validate(self, params):\n        return {'valid': True}\n"
-                            "    def preview(self, params):\n        return {'affected_rows_estimate': 1, 'requires_confirmation': True}\n")
-                    (root / "server.toml").write_text('schema_version=1\n[files]\nconnections="connections.toml"\nskills="skills.toml"\n[server]\ndefault_connection="fixture"\n')
-                    (root / "connections.toml").write_text(
-                        'schema_version=1\n[connections.fixture]\ntype="sqlite"\nsqlite.path="fixture.sqlite"\n'
-                        'read.mode="all"\nmutation.enabled=true\nmutation.skills=' + json.dumps([c[0] for c in CASES]) + '\n')
-                    (root / "skills.toml").write_text(
-                        'schema_version=1\n[skills]\nenabled=true\ndirectory="skills"\n'
-                        '[skills.readiness]\ncheck_schema=true\n[skills.mutation]\nenabled=true\n'
-                        'allowed_connections=["fixture"]\nmanaged_plan_parser="' + parser + '"\n'
-                        '[skills.mutation.mrtr]\nenabled=false\n[skills.audit]\npath="audit.jsonl"\n')
-                    server = None
-                    if transport_kind == "inprocess":
-                        server = create_server(load_config(root / "server.toml"))
-                        transport = server
-                    else:
-                        environment = os.environ.copy()
-                        environment.pop("PYTHONPATH", None)
-                        if args.source:
-                            environment["PYTHONPATH"] = str(args.source.resolve())
-                        transport = StdioTransport(command=sys.executable,
-                            args=["-m", "sql_safety_executor", "serve", "--config", str(root / "server.toml")],
-                            cwd=str(root), env=environment)
-                    try:
-                        async with Client(transport, mode=mode, init_timeout=20, timeout=20) as client:
-                            identity = {"transport": transport_kind, "parser": parser, "client_mode": mode}
-                            runs.append({**identity, "protocol": client.protocol_version})
+        for mode in ("auto", "legacy"):
+            with tempfile.TemporaryDirectory(prefix="sqlite-write-lifecycle-") as directory:
+                root = Path(directory)
+                database = root / "fixture.sqlite"
+                for name, sql, expected, _, _ in CASES:
+                    table = name.replace("-", "_")
+                    with sqlite3.connect(database) as db:
+                        db.executescript(f'CREATE TABLE "{table}"(id INTEGER PRIMARY KEY,n INTEGER UNIQUE);'
+                                         f'INSERT INTO "{table}" VALUES(1,7),(2,8);')
+                        if name == "trigger-fail":
+                            db.executescript(f'CREATE TRIGGER private_fail AFTER UPDATE ON "{table}" '
+                                             "BEGIN SELECT RAISE(FAIL,'fixture'); END;")
+                    skill = root / "skills" / name
+                    skill.mkdir(parents=True)
+                    (skill / "skill_def.md").write_text(
+                        f"---\nname: {name}\nversion: '1.0'\ndescription: Private transaction verification\n"
+                        f"type: mutation\nsource: mutation.py\nrisk: medium\nrequires_confirmation: true\n"
+                        f"idempotent: false\ndatabases: [sqlite]\ntables: [{table}]\nparams: {{}}\n---\nPrivate fixture only.\n")
+                    (skill / "mutation.py").write_text(
+                        "from sql_safety_executor.skills.mutation import ManagedMutationBase, ManagedMutationPlan\n"
+                        "class Mutation(ManagedMutationBase):\n"
+                        f"    managed_plan = ManagedMutationPlan({sql.replace('orders', table)!r}, (), {expected})\n"
+                        "    def validate(self, params):\n        return {'valid': True}\n"
+                        "    def preview(self, params):\n        return {'affected_rows_estimate': 1, 'requires_confirmation': True}\n")
+                (root / "server.toml").write_text('schema_version=1\n[files]\nconnections="connections.toml"\nskills="skills.toml"\n[server]\ndefault_connection="fixture"\n')
+                (root / "connections.toml").write_text(
+                    'schema_version=1\n[connections.fixture]\ntype="sqlite"\nsqlite.path="fixture.sqlite"\n'
+                    'read.mode="all"\nmutation.enabled=true\nmutation.skills=' + json.dumps([c[0] for c in CASES]) + '\n')
+                (root / "skills.toml").write_text(
+                    'schema_version=1\n[skills]\nenabled=true\ndirectory="skills"\n'
+                    '[skills.readiness]\ncheck_schema=true\n[skills.mutation]\nenabled=true\n'
+                    'allowed_connections=["fixture"]\n'
+                    '[skills.mutation.mrtr]\nenabled=false\n[skills.audit]\npath="audit.jsonl"\n')
+                server = None
+                if transport_kind == "inprocess":
+                    server = create_server(load_config(root / "server.toml"))
+                    transport = server
+                else:
+                    environment = os.environ.copy()
+                    environment.pop("PYTHONPATH", None)
+                    if args.source:
+                        environment["PYTHONPATH"] = str(args.source.resolve())
+                    transport = StdioTransport(command=sys.executable,
+                        args=["-m", "sql_safety_executor", "serve", "--config", str(root / "server.toml")],
+                        cwd=str(root), env=environment)
+                try:
+                    async with Client(transport, mode=mode, init_timeout=20, timeout=20) as client:
+                        identity = {"transport": transport_kind, "client_mode": mode}
+                        runs.append({**identity, "protocol": client.protocol_version})
 
-                            async def call(tool, arguments):
-                                response = await client.call_tool(tool, {"connection_id": "fixture", **arguments}, raise_on_error=False)
-                                for block in response.content:
-                                    if getattr(block, "type", None) == "text" and not response.is_error:
-                                        assert json.loads(block.text) == response.structured_content
-                                records.append({**identity, "tool": tool, "arguments": redacted(arguments),
-                                    "isError": response.is_error, "structured": redacted(response.structured_content),
-                                    "meta": redacted(response.meta), "content": redacted([
-                                        block.model_dump(mode="json", exclude_none=True) for block in response.content])})
-                                return response
+                        async def call(tool, arguments):
+                            response = await client.call_tool(tool, {"connection_id": "fixture", **arguments}, raise_on_error=False)
+                            for block in response.content:
+                                if getattr(block, "type", None) == "text" and not response.is_error:
+                                    assert json.loads(block.text) == response.structured_content
+                            records.append({**identity, "tool": tool, "arguments": redacted(arguments),
+                                "isError": response.is_error, "structured": redacted(response.structured_content),
+                                "meta": redacted(response.meta), "content": redacted([
+                                    block.model_dump(mode="json", exclude_none=True) for block in response.content])})
+                            return response
 
-                            for name, _, expected, outcome, truth in CASES:
-                                table = name.replace("-", "_")
-                                arguments = {"skill_name": name, "params": {}}
-                                preview = await call("execute_mutation_skill", arguments)
-                                assert preview.structured_content["success"], records[-1]
-                                assert preview.structured_content["execution_outcome"] == "not_executed"
-                                assert observe(database, table) == BEFORE
-                                confirm = {**arguments, "confirm": True, "preview_token": preview.structured_content["preview_token"]}
-                                executed = await call("execute_mutation_skill", confirm)
-                                payload = executed.structured_content
-                                assert payload["execution_outcome"] == outcome, records[-1]
-                                assert payload["success"] is (outcome == "committed"), records[-1]
-                                assert executed.meta["preview_token_consumed"] is True
-                                if outcome == "committed":
-                                    assert payload["result"]["rowcount"] == expected, records[-1]
-                                if "mismatch" in name:
-                                    assert payload["error_code"] == "expected_rowcount_mismatch"
-                                assert observe(database, table) == truth, records[-1]
-                                replay = await call("execute_mutation_skill", confirm)
-                                assert replay.is_error and observe(database, table) == truth
-                            read = await call("query", {"sql": "SELECT 7 AS n"})
-                            assert read.structured_content["data"] == [{"n": 7}]
-                            refusal = await call("query", {"sql": "UPDATE plain_update SET n=100 WHERE id=1"})
-                            assert not refusal.structured_content["success"]
-                            refusal = await call("query", {"sql": "SELECT sleep(1)"})
-                            assert refusal.structured_content["error_code"] == "expensive_function_denied"
-                    finally:
-                        if server is not None:
-                            server.gateway_runtime.close()
-                    for name, _, _, _, truth in CASES:
-                        rows = observe(database, name.replace("-", "_"))
-                        assert rows == truth
-                        final_truth.append({**identity, "case": name, "independent_post_cleanup_rows": rows})
+                        for name, _, expected, outcome, truth in CASES:
+                            table = name.replace("-", "_")
+                            arguments = {"skill_name": name, "params": {}}
+                            preview = await call("execute_mutation_skill", arguments)
+                            assert preview.structured_content["success"], records[-1]
+                            assert preview.structured_content["execution_outcome"] == "not_executed"
+                            assert observe(database, table) == BEFORE
+                            confirm = {**arguments, "confirm": True, "preview_token": preview.structured_content["preview_token"]}
+                            executed = await call("execute_mutation_skill", confirm)
+                            payload = executed.structured_content
+                            assert payload["execution_outcome"] == outcome, records[-1]
+                            assert payload["success"] is (outcome == "committed"), records[-1]
+                            assert executed.meta["preview_token_consumed"] is True
+                            if outcome == "committed":
+                                assert payload["result"]["rowcount"] == expected, records[-1]
+                            if "mismatch" in name:
+                                assert payload["error_code"] == "expected_rowcount_mismatch"
+                            assert observe(database, table) == truth, records[-1]
+                            replay = await call("execute_mutation_skill", confirm)
+                            assert replay.is_error and observe(database, table) == truth
+                            assert any("Invalid preview_token" in getattr(block, "text", "") for block in replay.content)
+                        read = await call("query", {"sql": "SELECT 7 AS n"})
+                        assert read.structured_content["data"] == [{"n": 7}]
+                        refusal = await call("query", {"sql": "UPDATE plain_update SET n=100 WHERE id=1"})
+                        assert not refusal.structured_content["success"] and refusal.structured_content["error_code"] == "read_only_required"
+                        refusal = await call("query", {"sql": "SELECT sleep(1)"})
+                        assert refusal.structured_content["error_code"] == "expensive_function_denied"
+                finally:
+                    if server is not None:
+                        server.gateway_runtime.close()
+                for name, _, _, _, truth in CASES:
+                    rows = observe(database, name.replace("-", "_"))
+                    assert rows == truth
+                    final_truth.append({**identity, "case": name, "independent_post_cleanup_rows": rows})
     result = {"scope": __doc__, "package": str(package), "records": records,
         "runs": runs, "flows": len(final_truth), "independent_truth": final_truth,
         "resources": {str(p.relative_to(package)): hashlib.sha256(p.read_bytes()).hexdigest()

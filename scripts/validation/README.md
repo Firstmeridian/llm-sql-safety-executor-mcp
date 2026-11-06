@@ -100,13 +100,31 @@ reviewed for publication.
 Every run captures Python implementation/version/platform, actual linked SQLite
 version/compile options, installed distribution versions (including transitive
 packages), product resources, validation scripts/tests/workflows and dependency
-file hashes. Live write evidence records actual MySQL version/isolation/engine
-settings. Equal product hashes alone do not justify evidence reuse.
+file hashes. The existing `validation` identity also includes recursive root
+`skills/**` Python/SQL/Markdown files (including referenced Markdown) and static
+`tests/fixtures/**` SQL/Markdown inputs. Additions and deletions change that
+identity as well as edits. Bytecode, audit logs and private connection TOMLs are
+not collected by this file manifest. Live write evidence records actual MySQL
+version/isolation/engine settings. Equal product hashes alone do not justify
+evidence reuse.
+
+Directory-link targets are also part of validation identity, including linked
+input roots; selected file links retain both their target and content identity.
+Retargeting an active, contained Skill link must not silently pass the final
+check merely because both deployment directories already exist. Directory links
+are not recursively followed; this does not expand supported Skill containment.
+
+Both profiles compare the captured identity at the end and fail on detected
+input/environment drift. This checks start/end identity, not uninterrupted
+immutability: changing an input and restoring its bytes before the final check
+can escape detection. Keep inputs stable during acceptance; no filesystem
+watcher, repository lock or automatic evidence reuse is introduced. See the
+[input-fingerprint repair](../../docs/validation/v3.8/V3_8_2_RELEASE_INPUT_FINGERPRINT_2026_11_06_ZH.md).
 
 `--baseline PREVIOUS_REPORT_JSON` compares identities and lists required
 rechecks. It is planning only: this runner **never automatically reuses results**,
 even when identities match. SQLite changes request SQLite contracts; Python,
-product/test/lockfile or distribution changes conservatively request all scenarios.
+product/test/Skill/fixture/lockfile or distribution changes conservatively request all scenarios.
 Unknown/transitive packages follow the same rule. Run release acceptance afresh
 before release, including after runtime/database upgrades without a lockfile diff.
 
@@ -118,7 +136,8 @@ regression, SQLite contracts and explicit live MySQL/InnoDB/result/metadata
 contracts. Existing dependency/validation triggers and manual dispatch remain,
 including `pyproject.toml`, `uv.lock`, `.python-version`, both CI workflows,
 `scripts/validation/**`, `tests/test_contract_sentinels.py` and
-`tests/test_release_gate.py`; the latter asserts both events' paths. A trigger
+`tests/test_release_gate.py`. The input-fingerprint follow-up also adds
+`tests/fixtures/**` to both events; the gate tests assert these paths. A trigger
 is not a passing gate, and fast regression is not live acceptance. A PR outside
 these paths can still require release acceptance. Repository branch protection/
 release approval remains the maintainer's responsibility.

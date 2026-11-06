@@ -773,7 +773,6 @@ exclude_profiles = []
 [skills.mutation]
 enabled = false
 allowed_connections = []
-managed_plan_parser = "sqlglot"
 [skills.mutation.preview]
 ttl_seconds = 300
 max_entries = 10000
@@ -795,12 +794,13 @@ agent_id = "unknown"
 | `policy.exclude_profiles` | [] | 字符串去首尾空白、转小写并去重；空白项报错。匹配 profile 不可执行，并从默认发现面隐藏 |
 | `mutation.enabled` | false | 写入总开关，还需其它四层配置条件 |
 | `mutation.allowed_connections` | [] | 精确连接准入，空名单不授权；还需连接 Skill 名单 |
-| `mutation.managed_plan_parser` | sqlglot | 受管计划分类器：sqlglot 或临时显式选择的 sqlparse 模式；修改需重启，不自动切换、不绕过读取策略 |
 | `mutation.preview.ttl_seconds` | 300 | 1～86400 秒；非法值启动报错，不静默回落 |
 | `mutation.preview.max_entries` | 10000 | 1～100000 条；满时拒绝签发，不驱逐有效提案 |
 | `mutation.mrtr.enabled` | false | 可选托管单语句审批工具；要求 Skills 和写入均开启 |
 | `audit.queries` | false | 可选查询 Skill 审计，Mutation 审计仍按既有流程尽力记录 |
 | `audit.path` / `audit.agent_id` | ../logs/skill_audit.jsonl / unknown | 审计路径与来源标签；标签不是认证身份 |
+
+读取和受管写入计划均只用现有 SQLGlot 实现。`skills.mutation.managed_plan_parser`、Python 解析器选择参数及 sqlparse 依赖已删除，无自动回退。重启前须删除显式旧字段，包括值为 `"sqlglot"` 的声明：严格配置会报错，不会静默忽略。
 
 **Preview-token 部署边界**：
 
@@ -887,9 +887,9 @@ SQLite 初始化拒绝覆盖已有文件；MySQL 初始化遇到现存 orders �
 
 详见[按目标组织的重构日志](REFACTORING_LOG_ZH.md)、[发布摘要](docs/releases/RELEASE_NOTES_v3_8.md)及[逐批证据索引](docs/README_ZH.md)。上述有界结果不能推导整体模型、token或耗时改善。
 
-10 月 20 日受管写入默认迁移 SQLGlot，发现、预览和确认按目标方言／会话复验。原 SQL、命名绑定、批准及事务证据保持独立；按维护者决定，观察期保留显式 sqlparse 回退及依赖，见[对照、回退限制与验收](docs/validation/v3.8/V3_8_2_MANAGED_PARSER_2026_10_20_ZH.md)。
+读取和受管写入计划现均只用 SQLGlot。受管计划在发现、预览及消费一次性令牌后仍按实际目标方言／会话复验；保留原 SQL／绑定、独立读取与写入准入、批准、SQLite authorizer 及事务结果。解析成功不证明数据库语义或授权正确。[10 月 20 日迁移报告](docs/validation/v3.8/V3_8_2_MANAGED_PARSER_2026_10_20_ZH.md)保留当时观察期的历史身份，不代表当前配置。
 
-受管分类现按原 SQL、完整目标上下文、解析器和声明绑定名集合，在每个服务实例中复用最多 128 项不可变结果；schema readiness 不再重复运行执行策略。实际目标语义、授权、参数值及一次性令牌仍逐次核验，见[范围与成本](docs/validation/v3.8/V3_8_2_MANAGED_CLASSIFICATION_REUSE_2026_10_20_ZH.md)。
+受管分类现按原 SQL、完整目标上下文和声明绑定名集合，在每个服务实例中复用最多 128 项不可变结果；schema readiness 不再重复运行执行策略。实际目标语义、授权、参数值及一次性令牌仍逐次核验，见[范围与成本](docs/validation/v3.8/V3_8_2_MANAGED_CLASSIFICATION_REUSE_2026_10_20_ZH.md)。
 
 现支持 SQLite 注释语义、MySQL 执行计划 hint 子集，以及按实际 HIGH_NOT_PRECEDENCE 解释 NOT／!；保留原 SQL、会话约定、授权与批准。SET_VAR、资源／超时提示和未知 hint 形式仍不支持，见[范围与验证](docs/validation/v3.8/V3_8_2_DIALECT_COMMENTS_NOT_2026_10_20_ZH.md)。
 
@@ -2283,7 +2283,7 @@ execute_query_skill("sample-monthly-sales-report", {"year": 2026, "month": 1})
 ## 依赖要求
 
 - Python 3.12+，MySQL 或 SQLite 数据库。
-- FastMCP 4.0.10 / MCP SDK 2.2.0；SQLAlchemy、SQLGlot、sqlparse（受管计划临时显式选择模式）、PyMySQL、Pydantic 和 PyYAML 等依赖由 `pyproject.toml` 管理、`uv.lock` 锁定。
+- FastMCP 4.0.10 / MCP SDK 2.2.0；SQLAlchemy、SQLGlot、PyMySQL、Pydantic 和 PyYAML 等依赖由 `pyproject.toml` 管理、`uv.lock` 锁定。
 - AutoGen 示例采用独立环境，不进入核心运行依赖。间接依赖中可能存在 python-dotenv，不代表项目继续支持旧配置。
 
 ## 测试

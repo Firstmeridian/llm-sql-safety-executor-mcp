@@ -1,10 +1,9 @@
-"""CTE classification, physical scope and Skill readiness share lexical structure."""
+"""Shared CTE analysis, physical scope and Skill readiness match SQLite truth."""
 import sqlite3
 from types import SimpleNamespace
 
 from fastmcp import Client
 import pytest
-import sqlparse
 
 from sql_safety_executor import create_server, load_config
 from sql_safety_executor.core.policy import _extract_relation_references, _validate_sql_query_policy
@@ -31,6 +30,11 @@ def test_contextual_cte_structure_keeps_only_real_dependencies(name, quote, colu
     target = quote.format(name)
     sql = f"WITH {target}{'(n)' if columns else ''} AS (SELECT n FROM orders) SELECT n FROM {target}"
     assert fixture_truth(sql) == [(7,)]
+    analysis = analyze_sql(sql, DialectContext('sqlite'))
+    assert analysis.complete and analysis.source_sql == sql
+    assert len(analysis.ctes) == 1 and analysis.ctes[0].name == name
+    assert analysis.ctes[0].columns == (('n',) if columns else ())
+    assert analysis.relations == (RelationReference('orders'),)
     for policy in (ConnectionPolicy(allowed_tables=frozenset({"orders"})),
                    ConnectionPolicy(read_mode="all", allowed_tables=frozenset({"*"}))):
         assert _validate_sql_query_policy(None, sql, policy).allowed

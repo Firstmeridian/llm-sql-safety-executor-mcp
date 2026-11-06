@@ -45,6 +45,7 @@ Dated records retain their original acceptance scope, failures and then-pending 
 
 - Shared-Host maintenance: [contract, checks and retained limits](validation/v3.8/V3_8_2_SHARED_HOST_RESTART_2026_11_06_ZH.md).
 - Codex restart: [Native acceptance](validation/v3.8/V3_8_2_CODEX_MCP_RESTART_2026_10_28_ZH.md).
+- [Managed-plan single-classifier exit](validation/v3.8/V3_8_2_SQLPARSE_EXIT_2026_11_06_ZH.md): remove the temporary sqlparse mode/selector/dependency while preserving original SQL and live admission; keep classification, installation, live and resident evidence separate.
 - [November5–6 scope/read follow-up](validation/v3.8/V3_8_2_SCOPE_READ_PERFORMANCE_2026_11_05_ZH.md): scope-aware recovery, guarded demo previews, bounded SQLite estimate batches and source-triggered live gates; measured A/B/A limits retained.
 - [November5 scope/catalog repair](validation/v3.8/V3_8_2_SCOPE_CATALOG_REPAIR_2026_11_05_ZH.md): pre-effect recreate scope checks and strict active-directory validation; isolated regression and installed-wheel evidence, no new live restart.
 - [Final pre-commit review: November 1](validation/v3.8/V3_8_2_FINAL_REVIEW_2026_11_01_ZH.md): four helper boundaries repaired and verified in isolation; this batch's helper and installed-wheel checks pass. Full regression remains a pre-repair baseline; new live restart and the resident admission update remain unverified.
@@ -55,6 +56,7 @@ Dated records retain their original acceptance scope, failures and then-pending 
 
 ### Result interpretation and Agent costs
 
+- [November6 complete-Agent tasks and historical-review summary](validation/v3.8/V3_8_2_AGENT_FOLLOWUP_2026_11_06_ZH.md): three actual Luna-medium double-turn trials with six answers matching independent truth; separate calls/usage/time and B34–B38/P1–P8 decisions. No model A/B or replacement of prior failures.
 - [Current Agent-guidance overview by objective](../REFACTORING_LOG.md): natural result interpretation, useful exploration, weak-prompt state interpretation and latency attribution; implemented changes, measured effects, costs and open issues. The [release summary](releases/RELEASE_NOTES_v3_8.md) follows the same structure; dated evidence remains below.
 - [Expiry-field report wording errata: October 28](validation/v3.8/V3_8_2_EXPIRY_FIELD_SCREEN_ERRATA_2026_10_28_ZH.md) — three waves with concurrency within each wave; six inputs per condition contain a deadline, but only five require reporting it. Keep1/5 and2/5, the original seals and the rejection decision.
 - [Bounded expiry-field screening and stop decision: October 28](validation/v3.8/V3_8_2_EXPIRY_FIELD_SCREEN_2026_10_28_ZH.md) — six supplied-record sessions/24 answers; both conditions8/12, four held-out answers pass per condition. Reject the incomplete candidate, retain native5/6 and separate costs; no production change, conditional restart or new Host-root-cause result.
@@ -156,6 +158,7 @@ Dated records retain their original acceptance scope, failures and then-pending 
 
 ## Releases and validation
 
+- [Release-input fingerprint repair](validation/v3.8/V3_8_2_RELEASE_INPUT_FINGERPRINT_2026_11_06_ZH.md): include demo Skills/static fixtures, detect end-of-run drift and trigger fixture changes; targeted regression is separate from prior full/live/model evidence.
 - [v3.8 release notes](releases/RELEASE_NOTES_v3_8.md) and [validation / actual Host limitations (Chinese)](validation/v3.8/V3_8_VALIDATION_ZH.md).
 - [v3.7 releases](releases/RELEASE_NOTES_v3_7.md), [v3.6](releases/RELEASE_NOTES_v3_6.md), [v3.5](releases/RELEASE_NOTES_v3_5.md).
 - [v3.8 validation reports and original evidence](validation/v3.8/).

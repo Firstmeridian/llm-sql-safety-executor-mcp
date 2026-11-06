@@ -1,0 +1,31 @@
+{
+  "batch": "20261107_precommit_review",
+  "head": "bbdf322f3af5209fe3e1d8d0bb86a6ed8e414daf",
+  "version": "3.8.2",
+  "records": "records.json.gz",
+  "records_sha256": "965ebf7d271dc51e4f8362f587c06ecbadb16da78497e7620c8e5d7fb283ea7c",
+  "records_bytes": 19381,
+  "raw_bytes": 84408,
+  "scope": "Validation directory-link identity repair and final contract review",
+  "known_bad": {
+    "failed_at_target_assertions": 4,
+    "control_passed": 1
+  },
+  "core_passed": 83,
+  "related_passed": 254,
+  "previous_records_sha256": {
+    "sqlparse_exit_20261106": "9cf4a1544531556841f355af4e894eb2f830f4e781ece5926b7361f55099f095",
+    "agent_followup_20261106": "f4dfad2aeb5e7f0bc5a33fdecfa5447e699375940c36e6adfd6921fe6a7d83e9",
+    "release_input_identity_20261106": "801ace4d43a18849798a63831977dc728c5af5080bba7e61b790f3c5e24f8934"
+  },
+  "prior_identity_files_unchanged": 95,
+  "seal_script_sha256": "c965469ba608bc4d879c186d4067dcb383a4aeb52e881f68310ffd158537b67b",
+  "limits": [
+    "Core83 is included in related254, not additive",
+    "Drift tests use synthetic stages, not a fresh live release gate",
+    "Final related group ran outside sandbox; prior sandbox failures retained separately",
+    "No new product/Skill/prompt/configuration change, database/Host/model trial",
+    "No recursive directory-link traversal; supported Skill containment remains",
+    "Start/end identity cannot detect a restored transient edit"
+  ]
+}

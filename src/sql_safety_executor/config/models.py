@@ -262,7 +262,6 @@ class MRTR(Model):
 class Mutation(Model):
     enabled: bool = False
     allowed_connections: tuple[str, ...] = ()
-    managed_plan_parser: Literal["sqlglot", "sqlparse"] = "sqlglot"
     preview: Preview = Preview()
     mrtr: MRTR = MRTR()
 

@@ -2,15 +2,41 @@
 
 English | [中文](REFACTORING_LOG_ZH.md)
 
-**Date:** December 2, 2025 (Updated: November 6, 2026)
+**Date:** December 2, 2025 (Updated: November 7, 2026)
 
 ## Overview
 
 This log records refactoring, design decisions, trade-offs and validation from the original script to the installed `sql_safety_executor` package. Entries are grouped by the change's core objectives, newest first; dated interfaces, test counts and failures retain their historical meaning. Use the [documentation index](docs/README.md) and current guides for deployment.
 
-Current v3.8.2 follow-up covers scope-denial recovery, controlled-read costs and an explicitly approved shared-Host maintenance mode. The next section groups guidance, release coverage, read optimizations and evidence. Committed Skill reload and Codex maintenance work remains a separate later entry; each model score, cost and unverified boundary retains its original attribution.
+The pending v3.8.2 commit retires the temporary managed-plan sqlparse mode and completes release-input fingerprints after checkpoint `bbdf322`. Shared-Host maintenance, scope guidance and read performance are already in `bbdf322`; they are not new changes in this commit. Committed Skill reload and earlier Codex maintenance work retain their own evidence; each model score, cost and unverified boundary keeps its original attribution.
 
 The project is not formally released. Prefer a simpler supported design over hypothetical historical callers, and propose material compatibility changes for the maintainer's decision. The present Legacy protocol path is a measured workaround for the actual Host, not an old-package/SDK compatibility promise. Both language editions should track current decisions without overwriting sealed evidence.
+
+## v3.8.2 Single managed-plan classifier (November 6, 2026)
+
+Core goal: end the temporary sqlparse observation window after checkpoint `bbdf322`, removing duplicate classification and selector plumbing without changing default SQLGlot behavior. The maintainer approved this independent migration; version remains v3.8.2.
+
+### Implementation and migration contract
+
+- [Maintenance] Remove the sqlparse branch, configuration field, Python selector arguments and direct dependency. Keep all 84 other locked package records, SQLGlot's version and existing adaptations. Explicit old fields must be removed; strict configuration does not silently ignore them.
+- [Correctness] Preserve original SQL/binds, actual dialect/session rechecks, authorization, readiness, one-use tokens, SQLite authorizer and transaction evidence. Remove only the obsolete parser cache-key dimension; dynamic admission remains uncached.
+
+### Evidence and costs
+
+- [Validation] Compare 30 SQL inputs across 17 contexts against the committed default: all 510 decisions/codes agree. A normally installed wheel environment cannot import sqlparse; dependencies are reused from a frozen local environment, not freshly resolved online.
+- [Validation] Remove old-mode duplicates while retaining protocols, transports, statement/failure classes and independent business truth. The sqlparse-free installed wheel passes 4036 tests, followed by all explicit SQLite/MySQL gates (four optional MySQL tests actually 4/4, zero skips). Five post-recovery native calls and independent order truth pass; preserve the initial 900-second regression timeout, tmpfs recheck and Host preflight timeout in the [batch report](docs/validation/v3.8/V3_8_2_SQLPARSE_EXIT_2026_11_06_ZH.md). No additional helper restart or configured confirmation write.
+- [Decision] Reduce maintenance at the cost of configuration/Python interface migration and necessary acceptance. Add no compatibility layer or switch, claim no speed/token benefit, and keep B32 private-adaptation risks open. Historical dual-mode evidence retains its original scope.
+
+### Separate complete-Agent follow-up
+
+- [Research] Three subsequently frozen fresh Luna-medium double-turn tasks call native MCP for reconciliation, MySQL operating/historical reporting and preview/cancel. All six answers match independent sqlite3/PyMySQL business truth. All 12 business requests and three canaries succeed; order digests and 95 source/prompt/configuration/dependency identities remain unchanged. No confirmed write or maintenance operation.
+- [Costs and Limits] Business usage is 605145 total tokens, including 540032 cached input; concurrent active windows total 69.308 seconds by union. No model A/B or guidance ablation establishes token/step/latency changes or guidance causality. Retain the earlier connection-recovery failure and observed discovery costs in the [task and historical-review summary](docs/validation/v3.8/V3_8_2_AGENT_FOLLOWUP_2026_11_06_ZH.md). The initial exit bundle keeps its original no-new-model-trial scope.
+
+### Release-input identity repair
+
+- [Validation] DRR-161 includes root Skill `.py/.sql/.md` and static `tests/fixtures` `.sql/.md` files in the existing `validation` fingerprint. Edits/additions/deletions request the existing complete recheck plan; detected end-of-run drift fails either profile. Add `tests/fixtures/**` push/PR triggers without a new identity category, dependency, cache or runtime check.
+- [Evidence and Limits] All 26 selected checks fail at intended assertions before repair; 78 core checks and an overlapping 247-check loading group pass afterward. Sandbox interruption/timeout and successful outside-sandbox checks are separate in the [input-fingerprint report](docs/validation/v3.8/V3_8_2_RELEASE_INPUT_FINGERPRINT_2026_11_06_ZH.md). Start/end identity cannot detect an intervening edit restored before the final check. Preserve the earlier 4036 installed/live/model evidence; this validation-tool repair requires no MCP restart or repeated model trial.
+- [Final Review] Record directory-link routing and selected file-link contents so an active contained Skill retarget cannot pass unchanged identity. Four pre-repair assertions expose the gap; the final83 core and overlapping254 related checks pass. Preserve the earlier78/247 seals. No recursive link traversal, watcher or product behavior change; the report separately records the November7 candidate.
 
 ## v3.8.2 Controlled shared-Host maintenance (November 6, 2026)
 

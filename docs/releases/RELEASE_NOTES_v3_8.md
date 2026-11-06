@@ -1,5 +1,19 @@
 # v3.8.2 — Dialect/session semantics and execution authorization (October 16, 2026)
 
+## Single managed-plan classifier (November 6, 2026)
+
+[Maintenance] End the temporary sqlparse observation window after checkpoint `bbdf322`. Remove its managed-plan branch, configuration/Python selector and dependency; retain the existing SQLGlot version/adaptations, original SQL/binds, actual-session checks, authorization, one-use tokens, SQLite authorizer and transaction evidence.
+
+Delete any explicit `skills.mutation.managed_plan_parser` setting before restart, including `"sqlglot"`; strict configuration rejects the removed field. Remove the obsolete parser argument from direct Python calls. Historical dual-mode reports retain their original scope. The [independent exit report](../validation/v3.8/V3_8_2_SQLPARSE_EXIT_2026_11_06_ZH.md) records current acceptance; no general performance or token improvement is claimed.
+
+[Validation] The follow-up includes root Skill Python/SQL/Markdown and static
+fixture SQL/Markdown in the existing release-input fingerprint, with fixture
+push/PR triggers. Record directory-link targets and selected file-link contents
+so retargeting a contained deployment is detected. Edits/additions/deletions invalidate start/end identity
+for fast and release profiles; no new runtime check or evidence reuse. It does
+not detect intervening edits restored before the final check. See the
+[repair and bounded verification](../validation/v3.8/V3_8_2_RELEASE_INPUT_FINGERPRINT_2026_11_06_ZH.md).
+
 ## Opt-in shared-Host development restart (November 6, 2026)
 
 [Development Tool] Restart only the current chat's verified exclusive SQL MCP consumer while accepting one global refresh of other idle same-workspace chats. Strict mode remains the default; shared ownership, busy chats and observed scope drift are refused. Per-consumer checks report actual process effects; no configuration toggle, bridge or automatic group escalation. Standing maintenance consent permits announcement then execution for idle chats with no in-flight writes/waiting results, accepting possible re-preview; pause on pending writes, concrete uncertainty or scope changes. Isolated and live verification stay separate in the [report](../validation/v3.8/V3_8_2_SHARED_HOST_RESTART_2026_11_06_ZH.md) and [guide](../guides/CODEX_MCP_RESTART.md).

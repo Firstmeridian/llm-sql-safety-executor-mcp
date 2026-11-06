@@ -1,0 +1,31 @@
+{
+  "batch": "20261106_agent_followup",
+  "head": "bbdf322f3af5209fe3e1d8d0bb86a6ed8e414daf",
+  "candidate": "Uncommitted sqlparse retirement; production/configuration/prompt identity unchanged throughout the screen",
+  "records": "records.json.gz",
+  "records_sha256": "f4dfad2aeb5e7f0bc5a33fdecfa5447e699375940c36e6adfd6921fe6a7d83e9",
+  "records_bytes": 47826,
+  "raw_bytes": 276955,
+  "scope": "Three fresh gpt-6-luna/medium native-MCP double-turn tasks, each with a separate one-call canary; 12 business requests and 3 canaries, all successful. Independent native business truth before/after, public action/final-answer review and phase-specific numeric usage.",
+  "privacy": "No credentials/configuration values, hidden reasoning or full model-input/protocol capture. Preview handle replaced before export; discovery output stored as size/hash, request code retained.",
+  "limits": "Candidate-only small screen, no model A/B or guidance ablation, no causal speed/token claim, no confirmed write. Earlier failures and sealed evidence retain their original identity.",
+  "input_hashes": {
+    "drafts/frozen-plan-ZH.md": "606791acd4f0a43a2019147080f3e9ea21186bcbb551456d8483c698efb6b14a",
+    "evidence/agents.json": "7850bd5462bbce972e7bedcf93a535b9d93c6989473a8a4614917b3a34f8e816",
+    "evidence/prompts.json": "44bba802aa29ced6a7380961953f5123cdeb8d36a649b8ef2a7a651a1575fd68",
+    "evidence/frozen-identity.json": "0560b3a3d15742154e2535d22bd90dd8c23c39ceba87dbbae2e63c0e25b3123d",
+    "evidence/truth-before.json": "ef1f504a09d669f2878ed1d120a5e8e303fa9d1956b24e40ea8702e183f870fe",
+    "evidence/truth-after.json": "e572d2cf3e431657ec31a78d44b0af83f296693f3a0e354e9bf370cad3cc1ebd",
+    "evidence/metrics.json": "812c838b3b5e5cd8cebb231a6828159c97f6dbceb4cd7da660df6eb62efc3cb5",
+    "evidence/assessment.json": "122e136773454578c3ce132d59d313ce83d4f78375144ca96367ed7154570cc4",
+    "scripts/oracle.py": "13e0823d27ba8bc8be8752c4ae547cc2b62ca2ef0cdfcaf19ba90abcd3da65c4",
+    "scripts/collect.py": "fa7193c1967e9f25f4265151e9d808da1ace89b2cc3ce1c9f23c19de918bca95",
+    "scripts/summarize.py": "ec7fa478012fe080a419c5d59b2e2ed9477da8e3b9c0d88aeefb5f2d91c3845f",
+    "scripts/seal.py": "7d56e4a48ff7164f3842dcce0c3834b62cbfca07f518ec3c57f7e159c6f68b77"
+  },
+  "trial_hashes": {
+    "T1": "647262fea625030e3ec47a962870144517fbf9d498c49c9df4d4e1dac072a865",
+    "T2": "1feaac12a401cb5335fa62bccd235ffcf716f8dfbffb3dc3fff40ceeb6a68f18",
+    "T3": "ee301312a2b4663e653ee0402680c8b059db9fe2f18485c984577b1d5b3d0e33"
+  }
+}

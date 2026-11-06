@@ -132,10 +132,9 @@ def test_high_not_does_not_replace_infix_not_grammar(expression):
 
 
 @pytest.mark.parametrize('mode', ['auto', 'legacy'])
-@pytest.mark.parametrize('parser', ['sqlglot', 'sqlparse'])
-async def test_commented_managed_plan_keeps_original_sql_and_binds(managed_server, monkeypatch, mode, parser):
+async def test_commented_managed_plan_keeps_original_sql_and_binds(managed_server, monkeypatch, mode):
     sql = 'UPDATE /*+ SET_VAR(sql_mode=\'literal only in SQLite\') SLEEP(0) */ orders SET status=:new_status WHERE id=:order_id AND status=:expected_status'
-    server = managed_server(parser, sql)
+    server = managed_server(sql=sql)
     adapter = server.gateway_runtime.registry.get_adapter('demo')
     original = adapter.execute_write
     observed = []
@@ -153,8 +152,9 @@ async def test_commented_managed_plan_keeps_original_sql_and_binds(managed_serve
     assert observed == [(sql, {'new_status': 'confirmed', 'order_id': 1, 'expected_status': 'pending'})]
 
 
-def test_explicit_sqlparse_rollback_does_not_silently_gain_new_rules():
+def test_managed_mysql_state_changing_hint_is_explicitly_refused():
     sql = 'UPDATE /*+ SET_VAR(foreign_key_checks=OFF) */ orders SET n=7'
     context = DialectContext('mysql')
-    assert check_managed_sql(sql, context, 'sqlparse').allowed
-    assert not check_managed_sql(sql, context, 'sqlglot').allowed
+    decision = check_managed_sql(sql, context)
+    assert not decision.allowed and decision.error_code == 'managed_plan_comment_unsupported'
+    assert analyze_sql(sql, context).statement_kind == 'unsafe_comment'

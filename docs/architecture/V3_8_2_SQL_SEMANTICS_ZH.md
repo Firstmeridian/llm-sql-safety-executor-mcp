@@ -2,6 +2,12 @@
 
 日期：2026-10-16。维护者批准基于 3323f9c 实施；本文区分契约、各批已完成的实现／验收和剩余复验，不以设计描述代替通过证据。
 
+## 当前解析契约（v3.8.2）
+
+读取与受管写入计划均只用现有 SQLGlot；`skills.mutation.managed_plan_parser` 配置、Python 解析器选择参数及 sqlparse 依赖已删除，无自动回退。显式旧字段无论取值都须删除，否则严格配置报错，不静默忽略。不升级 SQLGlot 或改变既有私有适配，不承诺性能／token 收益。
+
+保留原 SQL／绑定、实际目标方言／会话复验、独立读取与写入准入、批准、一次性令牌、SQLite authorizer 及事务结果；解析成功不证明数据库语义或授权正确。以下有日期的观察期记录及其封存报告保留当时身份，解析器选择以本节为准。
+
 ## 后端验收范围（2026-10-21 维护者确认）
 
 SQLite 继续按原生真值验收；MySQL 方言及服务端行为以 MySQL 为基准。MariaDB 不作为本轮验收条件，不默认增加兼容专项或测试实例。仍保留实际已测 MySQL 版本、大小写／会话配置的准确范围，不将单实例结果泛化为所有配置。
@@ -24,7 +30,7 @@ SQLite 继续按原生真值验收；MySQL 方言及服务端行为以 MySQL 为
 
 事务与结果证据属于执行适配器，不由解析成功保证。execute_write 在同一独占连接上核验真实 BEGIN，再执行原 SQL；在现有截止时间内分批取完并关闭 RETURNING／count_changes 结果，取完成后的原生计数。未知计数仅在实际 DML 根角色下用同连接 changes() 补充，避免 SELECT／DDL 继承旧值。不累计触发器／级联或返回行。
 
-SQLite rolled_back 要求回滚前真实事务活跃、有效连接、回滚正常返回及之后事务结束；COMMIT 回执不明仍 unknown，无法确认清理时退休连接。MySQL 的既有证据规则独立；不引入全局 BEGIN event，不改变读取 authorizer／连接生命周期、配置、依赖、临时 sqlparse 回退或 Agent 必需步骤。源码／正常 wheel 私有文件库覆盖成功、失败、重放及清理后的独立真值；驻留重启状态与成本单列。[契约、代价与证据](../validation/v3.8/V3_8_2_SQLITE_WRITE_TRANSACTIONS_2026_10_22_ZH.md)。
+SQLite rolled_back 要求回滚前真实事务活跃、有效连接、回滚正常返回及之后事务结束；COMMIT 回执不明仍 unknown，无法确认清理时退休连接。MySQL 的既有证据规则独立；不引入全局 BEGIN event，不改变读取 authorizer／连接生命周期或 Agent 必需步骤。该批当时未改配置、依赖及临时回退；现以[当前解析契约](#当前解析契约v382)为准。源码／正常 wheel 私有文件库覆盖成功、失败、重放及清理后的独立真值；驻留重启状态与成本单列。[契约、代价与证据](../validation/v3.8/V3_8_2_SQLITE_WRITE_TRANSACTIONS_2026_10_22_ZH.md)。
 
 ## 主键身份与成员顺序（2026-10-21，DRR-141）
 
@@ -40,7 +46,7 @@ compact 按位置排序实际成员，full／describe／可选 summary 保留位
 
 SQLite 关系调用头按具名对象解析，不应用标量函数别名或参数规则；FROM／JOIN 与表形式 IN 共用此路径，保留组件、引用、位置和参数。真实参数表达式仍完整分析，原 SQL 执行。JSON 调用保留有条件的模块使用事实，运行期先解析当前目录对象：实际 FTS5 按根／schema 授权及模块核验，内置 JSON 按其专有作用域，普通同名对象不得继承内部能力。
 
-Skill 私有 `_inferred_analysis` 缓存保存不可变分析，包括有条件的虚拟关系事实；该批从默认 schema 快照补充实际依赖，授权／目录／可执行状态不缓存；2026-10-21 补齐非默认／未知状态及固定 TEMP 名称观察，见下节。元数据使用 table_xinfo 返回 hidden=0/2/3，排除 hidden=1；generation_type 及 compact generated_columns 均纳入适配器元数据签名，不推断表达式／完整 DDL 相同，不求值生成表达式。MySQL 投影不变。公开配置及临时 sqlparse 回退检查点不变。[契约、代价及当前验收](../validation/v3.8/V3_8_2_RELATION_CALLS_COLUMNS_2026_10_20_ZH.md)。
+Skill 私有 `_inferred_analysis` 缓存保存不可变分析，包括有条件的虚拟关系事实；该批从默认 schema 快照补充实际依赖，授权／目录／可执行状态不缓存；2026-10-21 补齐非默认／未知状态及固定 TEMP 名称观察，见下节。元数据使用 table_xinfo 返回 hidden=0/2/3，排除 hidden=1；generation_type 及 compact generated_columns 均纳入适配器元数据签名，不推断表达式／完整 DDL 相同，不求值生成表达式。MySQL 投影不变。该批当时未改解析器配置及临时回退；现以[当前解析契约](#当前解析契约v382)为准。[契约、代价及当前验收](../validation/v3.8/V3_8_2_RELATION_CALLS_COLUMNS_2026_10_20_ZH.md)。
 
 ## 目标与约定
 
@@ -59,11 +65,11 @@ Skill 私有 `_inferred_analysis` 缓存保存不可变分析，包括有条件�
 - Query Skill启动仅需存在一个允许候选，故首个允许可短路；全部拒绝仍返回首个完整决定。get_full_schema先授权／截断／检查名称，再调用显式get_columns_batch；基类逐表组合，MySQL每批最多199名称加schema绑定，保留精确名称／列序、整体失败语义。describe_table单表路径保持。定制MySQL列行为需覆盖新钩子，不探测旧接口做兼容。
 - 请求内纯读取复用研究覆盖冷／暖推断、raw、窗口视图和物化CTE触发器计划。收益集中在冷推断，所测暖态无重复键；**不接入通用生产缓存**。未来优先评估直接传已有分析，禁止扩成状态／授权缓存；SQLite连接独占、authorizer及禁用statement cache的生命周期约定保持。
 
-源码／安装通过，维护者重启后当前驻留34/34限定检查通过；定量成本、显式sqlparse旧限制和扩展代价见[实现记录](../validation/v3.8/V3_8_2_READ_PLAN_REPAIR_2026_10_20_ZH.md)。下方“尚未实施”小节为此前审计检查点。
+源码／安装通过，维护者重启后当前驻留34/34限定检查通过；定量成本、当时显式sqlparse的旧限制和扩展代价见[实现记录](../validation/v3.8/V3_8_2_READ_PLAN_REPAIR_2026_10_20_ZH.md)。下方“尚未实施”小节为此前审计检查点。
 
 ## 受管分类复用与 readiness（2026-10-20）
 
-readiness 只评估所需关系、默认 schema 覆盖和目录可用性；发现／详情仍独立评估完整可执行策略。受管分类使用实例内最多 128 项 LRU，精确键包含原 SQL、整个不可变 DialectContext（方言、完整模式、CTE 大小写、默认 schema）和解析器；只存不可变 PolicyDecision，包括纯分类拒绝，不存 AST 或数据库状态。原 SQL 不 trim／重写，名称组件不合并。
+readiness 只评估所需关系、默认 schema 覆盖和目录可用性；发现／详情仍独立评估完整可执行策略。受管分类使用实例内最多 128 项 LRU，当前精确键包含原 SQL、整个不可变 DialectContext（方言、完整模式、CTE 大小写、默认 schema）和声明绑定名集合；只存不可变 PolicyDecision，包括纯分类拒绝，不存 AST 或数据库状态。原 SQL 不 trim／重写，名称组件不合并。
 
 每个相关请求仍获取实际目标语义、检查独立授权／参数／readiness；确认消费 token 后再次获取上下文，命中仅省解析。MySQL 的每物理会话初始化／退休约定不变。连接失败在缓存外处理，异常不缓存；实例关闭清空，LRU 容量约束条目数，不是字节预算。并发 miss 可重复纯计算，不引入每键锁或 single-flight 框架。不新增 TOML 开关、依赖或 Agent 步骤；该 DRR-120 检查点未调整提示注释和 HIGH_NOT_PRECEDENCE；后续支持见下节。见[验收与成本](../validation/v3.8/V3_8_2_MANAGED_CLASSIFICATION_REUSE_2026_10_20_ZH.md)。
 
@@ -73,7 +79,7 @@ SQLite 按原生语法把块注释（包括 hint／MySQL directive 形文本）�
 
 检查通过后仅从分析 token 流移除 HINT；保留原 SQL、全部非 hint token 原始位置和执行绑定。此举避免 hint AST 自己的相对位置污染业务名称／函数分析。MySQL 方言的现有 UNARY_PARSERS 分派项区分原 token 的 ! 和 NOT；实际模式控制 NOT 的一元操作数解析层级，不新增 parser 方法覆盖或 SQL 重写。私有分派／_prev／解析方法仍是固定版本依赖，升级要重放16种模式与原生真值；不宣称通用解析器支持。
 
-受管计划启动按数据库声明筛查SQLite加16个MySQL模式组合（两方言均声明时共17候选）；实际发现／预览／消费令牌后的复验仍绑定目标上下文，物理会话初始化不变。Query Skill的启动预筛单独使用SQLite及4个MySQL引用／转义模式候选，首个允许短路；具体目标仍做完整上下文分析，不能把两类启动候选数混用。sqlparse显式回退保留旧行为，不能概括为获得新hint约束；无目标的旧shape convenience helper继续跨候选保守判断，数据库能力以明确context的共享策略为准。详见[三项验收](../validation/v3.8/V3_8_2_DIALECT_COMMENTS_NOT_2026_10_20_ZH.md)。
+受管计划启动按数据库声明筛查SQLite加16个MySQL模式组合（两方言均声明时共17候选）；实际发现／预览／消费令牌后的复验仍绑定目标上下文，物理会话初始化不变。Query Skill的启动预筛单独使用SQLite及4个MySQL引用／转义模式候选，首个允许短路；具体目标仍做完整上下文分析，不能把两类启动候选数混用。无目标的旧shape convenience helper继续跨候选保守判断，数据库能力以明确context的共享策略为准。详见[三项验收](../validation/v3.8/V3_8_2_DIALECT_COMMENTS_NOT_2026_10_20_ZH.md)，其中旧回退对照仅为历史证据。
 
 ## MySQL 会话
 
@@ -108,7 +114,7 @@ SQLite 按原生语法把块注释（包括 hint／MySQL directive 形文本）�
 
 ## 已落地的接口及边界
 
-- `core/analysis.py` 输出不可变 `SQLAnalysis`：语句、关系集合、每次关系使用及来源、名称词法位置／角色、CTE 声明／作用域、函数、参数和不支持项。`complete` 仅代表本项目投影完整，不代表服务器语法／对象／列有效；未知结构返回 partial/failed。raw 和 Query Skill 共用 `_prepare_sql_read`，readiness 按同一方言上下文推断，缓存键包含模式和 CTE 比较规则。旧 `core/structure.py` 及重复读取解析已删除；受管写入保留独立规则，10 月 20 日默认迁移 SQLGlot，sqlparse 仅为临时显式回退，不将读取策略当成写入批准。
+- `core/analysis.py` 输出不可变 `SQLAnalysis`：语句、关系集合、每次关系使用及来源、名称词法位置／角色、CTE 声明／作用域、函数、参数和不支持项。`complete` 仅代表本项目投影完整，不代表服务器语法／对象／列有效；未知结构返回 partial/failed。raw 和 Query Skill 共用 `_prepare_sql_read`，readiness 按同一方言上下文推断，缓存键包含模式和 CTE 比较规则。旧 `core/structure.py` 及重复读取解析已删除；受管写入也只用 SQLGlot，但保留独立规则，不将读取策略当成写入批准。
 - SQLite 前向声明和隐式递归按真实 SQLite 规则生效；MySQL 保持定义顺序及显式递归自引用。SQLite 业务名称和 SQL 保留词仅折叠 ASCII；SQLGlot 的 Unicode 关键词／函数规范化不会改变原始授权名称。只在真实名称槽适配 contextual 名，声明不屏蔽查询体。 SQLite 仅保留实际 CURRENT_DATE／CURRENT_TIME／CURRENT_TIMESTAMP 无括号词汇；CURRENT_USER／LOCALTIME 等普通业务列不套用其他方言的函数语义，真正的受限调用仍拒绝。
 - `read.relations=[{schema="main",name="main.orders"}]` 授权单个含点表名；省略 schema 表示默认 schema 的对象，默认裸名／限定名共享授权。Skill YAML 可用同名 `relations` 映射数组；它是约束和依赖声明，不产生 grant。`tables` 仍是首点拆分的简写，显示标签不重新解析。full Query Skill 新增 `analysis_complete`，不完整时 inferred_tables=null，不声称无依赖。readiness 仍只核验默认 schema。
 - 元数据名称改为方言支持包络加逐组件引用，SQLite 不再套用统一 64 字符／字符白名单；空名和 NUL 仍不支持。MySQL 物理 schema/relation/column 保留 64 字符、BMP 和无尾空格约束；CTE／别名角色不套用物理尾空格限制。该包络不代替服务器全部对象命名规则。
@@ -194,7 +200,7 @@ VirtualRelationUse.kind=builtin 才应用内建调用默认 schema 限制，sqli
 
 复验使用 resolve_analysis_context；真实 adapter／测试替身都须履行该现有接口，不猜测缺省方言。MySQL 的实际写连接受现有每物理连接初始化规则保证；无需新增适配器方法或每请求模式查询。读取与写入共享方言基础而不共享批准规则；写入仍属于可信完整事务路径。
 
-临时配置与移除时点遵守维护者选择：默认 SQLGlot，显式 sqlparse 回退，保留依赖至观察期评审。B32 的双实现及既有私有 Parser 维护风险尚未完全关闭；本批缩小默认依赖路径，未证明所有 SQL 等价或数据库语义正确。[语料、范围与验收](../validation/v3.8/V3_8_2_MANAGED_PARSER_2026_10_20_ZH.md)。
+2026-10-20 迁移检查点曾保留显式 sqlparse 回退、配置及依赖；[原迁移报告](../validation/v3.8/V3_8_2_MANAGED_PARSER_2026_10_20_ZH.md)保留当时语料、范围与验收。现已移除临时双实现，见[当前解析契约](#当前解析契约v382)；既有私有 Parser 维护风险仍在，不因此证明所有 SQL 等价或数据库语义正确。
 
 ## 2026-10-20 相邻复查：尚未实施的补齐
 

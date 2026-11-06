@@ -5,6 +5,7 @@ on:
     paths:
       - src/**
       - skills/**
+      - tests/fixtures/**
       - pyproject.toml
       - uv.lock
       - .python-version
@@ -17,6 +18,7 @@ on:
     paths:
       - src/**
       - skills/**
+      - tests/fixtures/**
       - pyproject.toml
       - uv.lock
       - .python-version

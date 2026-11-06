@@ -47,6 +47,31 @@ def fingerprint(root=ROOT):
         if name:
             key = name.lower().replace('_', '-').replace('.', '-')
             distributions.setdefault(key, set()).add(dist.version)
+    # The installed product is only part of the test input: repository demos
+    # and static Skill fixtures are loaded by the regular regression suite.
+    validation_inputs = (
+        ('tests', {'.py', '.yml', '.yaml'}),
+        ('tests/fixtures', {'.sql', '.md'}),
+        ('skills', {'.py', '.sql', '.md'}),
+        ('scripts/validation', {'.py', '.yml', '.yaml'}),
+        ('.github/workflows', {'.py', '.yml', '.yaml'}),
+    )
+    validation = {}
+    for directory, suffixes in validation_inputs:
+        base = root/directory
+        for path in (base, *sorted(base.rglob('*'))):
+            relative = str(path.relative_to(root))
+            # rglob does not follow directory links. Record their routing as
+            # well as the regular contained deployment files it already sees.
+            if path.is_symlink() and not path.is_file():
+                validation[relative] = hashlib.sha256(
+                    b'link\0' + os.fsencode(path.readlink())).hexdigest()
+            elif path.is_file() and path.suffix in suffixes:
+                if path.is_symlink():
+                    validation[relative] = hashlib.sha256(
+                        b'file-link\0' + os.fsencode(path.readlink()) + b'\0' + path.read_bytes()).hexdigest()
+                else:
+                    validation[relative] = file_hash(path)
     return {
         'python': {'implementation': platform.python_implementation(),
                    'version': platform.python_version(), 'system': platform.system(),
@@ -56,10 +81,7 @@ def fingerprint(root=ROOT):
         'distributions': {key: sorted(value) for key, value in sorted(distributions.items())},
         'runtime': {str(p.relative_to(package)): file_hash(p) for p in sorted(package.rglob('*'))
                     if p.is_file() and p.suffix in {'.py', '.md'}},
-        'validation': {str(p.relative_to(root)): file_hash(p)
-                       for directory in ('tests', 'scripts/validation', '.github/workflows')
-                       for p in sorted((root/directory).rglob('*'))
-                       if p.is_file() and p.suffix in {'.py', '.yml', '.yaml'}},
+        'validation': validation,
         'dependency_files': {name: file_hash(root/name) for name in ('pyproject.toml', 'uv.lock')
                              if (root/name).is_file()},
     }
@@ -102,13 +124,54 @@ def check_artifact(name, value):
         assert len(value['records']) == 74 and value['expected'] == 'after'
         assert value['data_unchanged'] is True
     elif name == 'sqlite_writes':
-        assert value['passed'] is True and len(value['records']) == 432
-        assert len(value['independent_truth']) == 136 and len(value['runs']) == 8
+        # 17 statement/failure cases x 4 transport/Client-mode combinations.
+        # Each case has preview, confirm and replay, plus 3 read controls/run.
+        assert value['passed'] is True and len(value['records']) == 216
+        assert len(value['independent_truth']) == 68 and len(value['runs']) == 4
+        runs = {(transport, mode) for transport in ('inprocess', 'stdio') for mode in ('auto', 'legacy')}
+        cases = {'plain-update', 'cte-update', 'recursive-update', 'semicolon-update',
+                 'cte-insert', 'cte-delete', 'returning-update', 'returning-insert',
+                 'returning-delete', 'cte-returning', 'semicolon-returning',
+                 'cte-two-mismatch', 'returning-mismatch', 'cte-partial-fail',
+                 'trigger-fail', 'engine-auto-rollback', 'zero-returning'}
+        assert {(r['transport'], r['client_mode']) for r in value['runs']} == runs
+        assert {(r['transport'], r['client_mode'], r['case']) for r in value['independent_truth']} == {
+            (*run, case) for run in runs for case in cases}
+        for transport, mode in runs:
+            records = [r for r in value['records'] if (r['transport'], r['client_mode']) == (transport, mode)]
+            assert len(records) == 54
+            mutations = [r for r in records if r['tool'] == 'execute_mutation_skill']
+            assert len(mutations) == 51 and sum(r['tool'] == 'query' for r in records) == 3
+            assert {r['arguments']['skill_name'] for r in mutations} == cases
+            assert all(sum(r['arguments']['skill_name'] == case for r in mutations) == 3 for case in cases)
     elif name in {'mysql_writes', 'mysql_unknown'}:
         assert value['passed'] is True and value['disposable_schema_removed'] is True
-        assert len(value['client_records']) == (72 if name == 'mysql_writes' else 24)
+        # 3 lifecycle calls/case; full writes use 3 cases and both transports,
+        # unknown outcomes use 2 commit injections and in-process clients.
+        assert len(value['client_records']) == (36 if name == 'mysql_writes' else 12)
+        transports = ('inprocess', 'stdio') if name == 'mysql_writes' else ('inprocess',)
+        cases = {'commit', 'mismatch', 'trigger-error'} if name == 'mysql_writes' else {'unknown-before', 'unknown-after'}
+        runs = {(transport, mode) for transport in transports for mode in ('auto', 'legacy')}
+        assert len(value['client_truth']) == len(runs) * len(cases)
+        assert {(r['transport'], r['mode'], r['case']) for r in value['client_truth']} == {
+            (*run, case) for run in runs for case in cases}
+        assert {(r['transport'], r['mode']) for r in value['client_records']} == runs
+        for transport, mode in runs:
+            records = [r for r in value['client_records'] if (r['transport'], r['mode']) == (transport, mode)]
+            assert len(records) == 3 * len(cases)
+            assert {r['arguments']['skill_name'] for r in records} == cases
+            assert all(sum(r['arguments']['skill_name'] == case for r in records) == 3 for case in cases)
         if name == 'mysql_writes':
             assert len(value['matrix']) == 14 and len(value['faults']) == 19
+            assert {r['case'] for r in value['matrix']} == {
+                'update', 'cte-update', 'comment-update', 'cte-insert', 'cte-delete',
+                'zero', 'matched-unchanged', 'multi', 'insert', 'ignore', 'replace',
+                'upsert', 'delete-cascade', 'update-cascade'}
+            assert {r['case'] for r in value['faults']} == {
+                'duplicate', 'trigger', 'foreign-key', 'lock-wait-timeout', 'deadlock-victim',
+                'checkout', 'begin-before', 'begin-after', 'execute-before', 'execute-after',
+                'rowcount', 'commit-before', 'commit-after', 'rollback-before', 'rollback-after',
+                'invalidate', 'close', 'kill-before-begin', 'kill-after-execute'}
             assert len(value['concurrency']) == 3 and len(value['read_binding']) == 3
             assert value['engines'] == ['InnoDB']
             legacy = value['legacy_integration']

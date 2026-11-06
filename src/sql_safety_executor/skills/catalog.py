@@ -67,7 +67,6 @@ if TYPE_CHECKING:
 
 from sql_safety_executor.core.sql import classify_sql_statement
 from sql_safety_executor.core.decisions import PolicyDecision
-from sql_safety_executor.core.managed_sql import ManagedPlanParser
 from sql_safety_executor.database.relations import RelationReference
 
 logger = logging.getLogger(__name__)
@@ -898,7 +897,6 @@ def _load_mutation_class(
 def _managed_plan_for_class(
     metadata: SkillMetadata,
     mutation_class: type,
-    parser: ManagedPlanParser = "sqlglot",
 ) -> "ManagedMutationPlan | None":
     """Validate and return a managed plan, including frontmatter references."""
     from sql_safety_executor.skills.mutation import (
@@ -920,7 +918,7 @@ def _managed_plan_for_class(
         raise TypeError(
             f"Skill '{metadata.name}': managed_plan must be a ManagedMutationPlan"
         )
-    validated_plan = validate_managed_mutation_plan(plan, parser=parser, databases=metadata.databases)
+    validated_plan = validate_managed_mutation_plan(plan, databases=metadata.databases)
     missing_param_keys = sorted(
         {
             item.key
@@ -1139,7 +1137,6 @@ class SkillCatalog:
         query_validator: QueryValidator | None = None,
         *,
         load_mutations: bool = True,
-        managed_plan_parser: ManagedPlanParser = "sqlglot",
         query_only: bool = False,
         mutation_only: bool = False,
         strict: bool = False,
@@ -1171,8 +1168,6 @@ class SkillCatalog:
             load_mutations: Import and validate mutation Python modules. Set false
                 when mutation execution is disabled so application mutation code is
                 not imported merely to list its metadata.
-            managed_plan_parser: Explicit temporary managed-plan classifier;
-                failures never select the other implementation automatically.
             query_only: Skip Mutation sources entirely; used for staged reload.
             mutation_only: Skip Query sources entirely; used for staged reload.
             strict: Reject the whole candidate on invalid or changing files.
@@ -1188,8 +1183,6 @@ class SkillCatalog:
         Returns:
             Dict mapping skill_name -> SkillMetadata for enabled skills
         """
-        if managed_plan_parser not in {"sqlglot", "sqlparse"}:
-            raise ValueError("Unsupported managed mutation plan parser")
         if query_only and mutation_only:
             raise ValueError("query_only and mutation_only are mutually exclusive")
         self._skills_dir = skills_dir
@@ -1382,7 +1375,6 @@ class SkillCatalog:
                         metadata._managed_mutation_plan = _managed_plan_for_class(
                             metadata,
                             mutation_class,
-                            managed_plan_parser,
                         )
                     except Exception as e:
                         reject(metadata.name, "invalid_managed_mutation_plan")
